@@ -102,7 +102,10 @@ note with two links keeps them; asserts that a note on a link is in the link's l
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_LinksCrowdingOneSide_EndApartWithTheMultiplicityClear`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_EndLabelBetweenTwoHeads_OverlapsNoHead`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_LeftToRightLinksBothWays_EndApartOnOneSide`
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LeftToRightLinksBothWays_EndApartOnOneSide`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_FanOutWithOneLabel_LabelClearOfEveryLine`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_EndLabelsAtOneNode_OverlapNoOtherLabelOrHead`
+
 Asserts that a link from an entity to itself and two parallel links have routes that start and end on the borders and
 that the parallel routes differ; asserts that routes end on an ellipse outline and on a circle inside a larger box;
 asserts the middle label beside its route with its triangle pointing along the link and the end labels near their ends
@@ -122,7 +125,11 @@ pixels of its end and overlaps no triangle of the other links. Lays out the arro
 extensions on a side too short to keep them `EndSpacing` apart, and asserts that the multiplicity overlaps no
 triangle, is within 24 pixels of its end, and that the five ends are spread evenly over the part of the side the
 corner insets leave. Lays out, from left to right, three links leaving an entity and one arriving at it, and asserts
-that the four ends at the entity are on its border and at least 10 pixels apart.
+that the four ends at the entity are on its border and at least 10 pixels apart. Lays out an entity above four
+entities linked by arrows, the third with a label, and asserts that the label is at least `LabelClearance` from the
+curve and the arrowhead of every link. Lays out an entity above four entities linked by a composition, an aggregation,
+an arrow with a label, and an extension, with multiplicities at both ends, and asserts that no two of the seven end
+labels overlap and that none overlaps the middle label or a decoration of another link.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Limits: Work, Limits, And Failures
 

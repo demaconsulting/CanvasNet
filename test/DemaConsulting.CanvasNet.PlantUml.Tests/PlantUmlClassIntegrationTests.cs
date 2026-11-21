@@ -294,6 +294,37 @@ public class PlantUmlClassIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the multiplicities of four links at one class (at both ends of three of them, with a label on
+    ///     one) do not run together: no two of them overlap, and none overlaps the label or an arrowhead of another link.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Class_MultiplicitiesAtOneClass_DoNotRunTogether()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\nclass Hub\nclass A\nclass B\nclass C\nclass D\nHub \"1\" *-- \"many\" A\nHub \"1\" o-- \"many\" B\nHub \"2\" <-- \"3\" C : uses\nHub \"x\" <|-- D\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var ends = scene.Items.OfType<SceneText>().Where(t => t.Role is "link-tail-label" or "link-head-label").ToList();
+        Assert.Equal(["1", "many", "1", "many", "2", "3", "x"], ends.Select(t => t.Text));
+        var middle = scene.Items.OfType<SceneText>().Single(t => t.Role == "link-label").Box;
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role is "link-tail" or "link-head").ToList();
+        for (var i = 0; i < ends.Count; i++)
+        {
+            Assert.False(Overlaps(ends[i].Box, middle), $"'{ends[i].Text}' overlaps 'uses'");
+            for (var j = i + 1; j < ends.Count; j++)
+            {
+                Assert.False(Overlaps(ends[i].Box, ends[j].Box), $"'{ends[i].Text}' overlaps '{ends[j].Text}'");
+            }
+
+            var end = ends[i];
+            Assert.DoesNotContain(heads.Where(h => h.Id != end.Id), h => Overlaps(end.Box, Scene.BoundsOf([h])!.Value));
+        }
+    }
+
+    /// <summary>
     ///     Decides whether two rectangles overlap with an area.
     /// </summary>
     /// <param name="a">The first.</param>

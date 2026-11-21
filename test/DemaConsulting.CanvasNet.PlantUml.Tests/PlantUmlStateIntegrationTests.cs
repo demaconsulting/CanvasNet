@@ -254,6 +254,32 @@ public class PlantUmlStateIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the label of one transition of a fan-out (Hub to A, B, C with the label "uses", and D) keeps
+    ///     clear of every drawn line: at least 3 pixels from the lines and arrowheads of all four transitions, so that no
+    ///     neighboring transition is drawn through it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_State_FanOutLabel_ClearOfEveryTransition()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\nstate Hub\nHub --> A\nHub --> B\nHub --> C : uses\nHub --> D\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var label = scene.Items.OfType<SceneText>().Single(t => t.Role == "link-label");
+        Assert.Equal("uses", label.Text);
+        var links = scene.Items.OfType<ScenePath>().Where(p => p.Role is "link" or "link-head").ToList();
+        Assert.Equal(4, links.Select(p => p.Id).Distinct().Count());
+        foreach (var link in links)
+        {
+            var nearest = PointsAlong(link).Min(p => DistanceTo(label.Box, p));
+            Assert.True(nearest >= 3, $"'uses' is {nearest} from the {link.Role} of {link.Id}");
+        }
+    }
+
+    /// <summary>
     ///     Gets points along a path: its ends and 64 points along each of its lines and cubic curves.
     /// </summary>
     /// <param name="path">The path.</param>

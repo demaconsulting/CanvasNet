@@ -398,14 +398,16 @@ internal sealed partial class SvekLayout
 
     /// <summary>
     ///     Turns the dagre routes of a scope into the routes of its links: routes every link and clips its ends to the
-    ///     outlines, keeps the ends of different links on one side of a box apart (<see cref="SpreadEnds"/>), then
-    ///     places the labels on the final routes, the end labels clear of the decorations of the other links.
+    ///     outlines (a link is drawn straight only where it crosses no unit and no label slot of another link), keeps the
+    ///     ends of different links on one side of a box apart (<see cref="SpreadEnds"/>), then places the labels on the
+    ///     final routes: the middle labels clear of every drawn line, then the end labels clear of the decorations of the
+    ///     other links and of the labels placed before them.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     private void RouteEdges(ScopeWork work)
     {
-        // First route and clip every link, so that all the ends on a side are known before any of them moves
-        var routed = new List<RoutedEdge>();
+        // First route every link, so that the label slots of all of them are known before any is drawn straight
+        var drafts = new List<(EdgeWork Edge, List<SvekPoint> Points, bool Self)>();
         foreach (var edge in work.Edges.Where(e => !e.Synthetic))
         {
             _meter.Charge(edge.Points.Count + work.Units.Count + 1);
@@ -446,24 +448,60 @@ internal sealed partial class SvekLayout
                 edge.LabelCenter = edge.LabelCenter is { } c && SvekGeometry.Contains(ClipShape.Rectangle, toCompound.Box, c) ? null : edge.LabelCenter;
             }
 
-            points = route.ToList();
-            var straight = ClipEnds(work, edge, points, self);
+            drafts.Add((edge, route.ToList(), self));
+        }
+
+        // Then clip every link, so that all the ends on a side are known before any of them moves
+        var slots = SlotBoxes(drafts);
+        var routed = new List<RoutedEdge>();
+        foreach (var (edge, points, self) in drafts)
+        {
+            var straight = ClipEnds(work, edge, points, self, slots);
             routed.Add(new RoutedEdge(edge, points, self, straight));
         }
 
-        // Then keep the ends on each side apart, and place the labels on the final routes
+        // Then keep the ends on each side apart, and place the labels on the final routes: the middle labels clear of
+        // every drawn line, then the end labels clear of the decorations of the other links and of the labels placed
+        // before them
         SpreadEnds(work, routed);
+        var drawn = routed.Where(r => r.Points.Count >= 2 && r.Edge.Link.Style != LinkStyle.Hidden)
+            .Select(r => (r.Edge, Lines: DrawnLines(r.Edge.Link, r.Points))).ToList();
+        var labels = new List<SceneRect>();
+        foreach (var r in routed)
+        {
+            _meter.Charge(drawn.Count + 1);
+            var link = r.Edge.Link;
+            var placed = new WLink(link, r.Points) { Drawn = link.Style != LinkStyle.Hidden };
+            var others = drawn.Where(d => !ReferenceEquals(d.Edge, r.Edge)).SelectMany(d => d.Lines).ToList();
+            PlaceLabel(work, r.Edge, placed, others, labels);
+            if (placed.Label is { } label)
+            {
+                labels.Add(label.Box);
+            }
+
+            r.Edge.Placed = placed;
+        }
+
+        static SceneRect Widen(SceneRect b) => new(b.X - LabelOffset, b.Y - LabelOffset, b.Width + (2 * LabelOffset), b.Height + (2 * LabelOffset));
         var heads = HeadBoxes(routed);
         foreach (var r in routed)
         {
-            _meter.Charge(heads.Count + 1);
+            _meter.Charge(heads.Count + labels.Count + 1);
             var link = r.Edge.Link;
-            var others = heads.Where(h => !ReferenceEquals(h.Edge, r.Edge)).Select(h => h.Box).ToList();
-            var placed = new WLink(link, r.Points) { Drawn = link.Style != LinkStyle.Hidden };
-            PlaceLabel(work, r.Edge, placed);
-            placed.Tail = EndLabel(work, link.TailLabel, link.Location, r.Points, atEnd: false, others);
-            placed.Head = EndLabel(work, link.HeadLabel, link.Location, r.Points, atEnd: true, others);
-            r.Edge.Placed = placed;
+            var placed = r.Edge.Placed!;
+            var obstacles = heads.Where(h => !ReferenceEquals(h.Edge, r.Edge)).Select(h => h.Box).Concat(labels.Select(Widen)).ToList();
+            placed.Tail = EndLabel(work, link.TailLabel, link.Location, r.Points, atEnd: false, obstacles);
+            if (placed.Tail is { } tail)
+            {
+                labels.Add(tail.Box);
+                obstacles.Add(Widen(tail.Box));
+            }
+
+            placed.Head = EndLabel(work, link.HeadLabel, link.Location, r.Points, atEnd: true, obstacles);
+            if (placed.Head is { } head)
+            {
+                labels.Add(head.Box);
+            }
         }
     }
 
@@ -589,6 +627,35 @@ internal sealed partial class SvekLayout
         }
 
         return at;
+    }
+
+    /// <summary>
+    ///     Gets the places the label slots of the routed links will take (dagre's label center, or beside the middle of
+    ///     a route that dagre gives no label place), widened by <see cref="EdgeSep"/> (the room dagre keeps between a
+    ///     route and a label slot): a link drawn straight must not run through them.
+    /// </summary>
+    /// <param name="drafts">The routed links, before their ends are clipped.</param>
+    /// <returns>The widened slot of each link that has one, with the link.</returns>
+    private List<(EdgeWork Edge, SceneRect Box)> SlotBoxes(List<(EdgeWork Edge, List<SvekPoint> Points, bool Self)> drafts)
+    {
+        var boxes = new List<(EdgeWork Edge, SceneRect Box)>();
+        foreach (var (edge, points, _) in drafts)
+        {
+            _meter.Charge(1);
+            if (edge.Slot is not { } slot || points.Count < 2)
+            {
+                continue;
+            }
+
+            var center = edge.LabelCenter ?? BesideMiddle(points, slot.Width, slot.Height);
+            boxes.Add((edge, new SceneRect(
+                center.X - (slot.Width / 2) - EdgeSep,
+                center.Y - (slot.Height / 2) - EdgeSep,
+                slot.Width + (2 * EdgeSep),
+                slot.Height + (2 * EdgeSep))));
+        }
+
+        return boxes;
     }
 
     /// <summary>
@@ -850,11 +917,12 @@ internal sealed partial class SvekLayout
     /// <param name="edge">The edge.</param>
     /// <param name="points">The route; its ends are replaced.</param>
     /// <param name="self">Whether the link connects a node to itself.</param>
+    /// <param name="slots">The widened label slots of the links of the scope (<see cref="SlotBoxes"/>).</param>
     /// <returns>
     ///     True when the route was redrawn straight between the facing sides of its ends (its middle point stays between
     ///     them), else false.
     /// </returns>
-    private bool ClipEnds(ScopeWork work, EdgeWork edge, List<SvekPoint> points, bool self)
+    private bool ClipEnds(ScopeWork work, EdgeWork edge, List<SvekPoint> points, bool self, List<(EdgeWork Edge, SceneRect Box)> slots)
     {
         if (points.Count < 2)
         {
@@ -872,16 +940,19 @@ internal sealed partial class SvekLayout
         var leftToRight = _diagram.RankDir == SvekRankDir.LeftToRight;
 
         // A route across one label rank with no label is drawn straight between the facing sides of its ends (as
-        // Graphviz draws a short edge), when that line crosses no other unit and no other link joins the same two ends
-        // (their straight lines would be drawn on top of each other; dagre keeps their routes apart): dagre puts the
-        // point in the label rank in line with one end, which makes the other end arrive almost level
+        // Graphviz draws a short edge), when that line crosses no other unit, keeps EdgeSep from the label slots of the
+        // other links (dagre routes around them), and no other link joins the same two ends (their straight lines would
+        // be drawn on top of each other; dagre keeps their routes apart): dagre puts the point in the label rank in line
+        // with one end, which makes the other end arrive almost level
         if (points.Count == 3 && !self && edge.Slot is null && edge.FromCompound is null && edge.ToCompound is null
             && fromShape is { } fromOutline && toShape is { } toOutline && !SharesEnds(work, edge))
         {
             var (fromAim, toAim) = StraightAims(fromOutline.Box, toOutline.Box, leftToRight);
+            _meter.Charge(slots.Count + 1);
             if (SvekGeometry.ClipToFacingSide(fromOutline.Shape, fromOutline.Box, fromAim, leftToRight) is { } a
                 && SvekGeometry.ClipToFacingSide(toOutline.Shape, toOutline.Box, toAim, leftToRight) is { } b
-                && Crossed(work, edge, a, b).Count == 0)
+                && Crossed(work, edge, a, b).Count == 0
+                && !slots.Exists(s => !ReferenceEquals(s.Edge, edge) && SegmentHitsRect(a, b, s.Box)))
             {
                 points[0] = a;
                 points[1] = new SvekPoint((a.X + b.X) / 2, (a.Y + b.Y) / 2);
@@ -985,7 +1056,9 @@ internal sealed partial class SvekLayout
     /// <param name="work">The scope's work.</param>
     /// <param name="edge">The edge.</param>
     /// <param name="placed">The placed link.</param>
-    private void PlaceLabel(ScopeWork work, EdgeWork edge, WLink placed)
+    /// <param name="others">The lines the other drawn links of the scope draw (<see cref="DrawnLines"/>).</param>
+    /// <param name="labels">The boxes of the labels placed so far.</param>
+    private void PlaceLabel(ScopeWork work, EdgeWork edge, WLink placed, List<List<SvekPoint>> others, List<SceneRect> labels)
     {
         if (edge.Slot is not { } slot || placed.Route.Count < 2)
         {
@@ -997,7 +1070,7 @@ internal sealed partial class SvekLayout
         if (slot.Text is { } text)
         {
             // (dagre placed the label beside its own route, which the drawn curve no longer follows exactly)
-            var shift = ClearOfLink(work, DrawnLines(edge.Link, placed.Route), new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height));
+            var shift = ClearOfLink(work, DrawnLines(edge.Link, placed.Route), others, labels, new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height));
             (x, y) = (x + shift.X, y + shift.Y);
             var box = new SceneRect(x + slot.TextBox.X, y + slot.TextBox.Y, slot.TextBox.Width, slot.TextBox.Height);
             double? angle = null;
@@ -1044,15 +1117,19 @@ internal sealed partial class SvekLayout
     }
 
     /// <summary>
-    ///     Gets how far a label must move, away from the lines its link draws, to keep <see cref="LabelClearance"/> from
-    ///     them and overlap no unit: one pixel at a time, at most <see cref="LabelClearSteps"/> pixels; a label with no
-    ///     clear place within that distance stays where it was placed.
+    ///     Gets how far a label must move to keep <see cref="LabelClearance"/> from every line drawn in the scope (those
+    ///     of its own link and of the other links) and overlap no unit and no label placed before it: one pixel at a time,
+    ///     at most <see cref="LabelClearSteps"/> pixels, away from its link first and then turned an eighth of a turn more
+    ///     at a time. With no such place within reach, it takes the place away from its link that keeps the most room to
+    ///     every line; a label with no place off the units and the labels stays where it was placed.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     /// <param name="lines">The lines of the link (<see cref="DrawnLines"/>); the first is its curve.</param>
+    /// <param name="others">The lines of the other drawn links of the scope.</param>
+    /// <param name="labels">The boxes of the labels placed so far.</param>
     /// <param name="box">The box of the label.</param>
     /// <returns>The shift.</returns>
-    private SvekPoint ClearOfLink(ScopeWork work, List<List<SvekPoint>> lines, SceneRect box)
+    private SvekPoint ClearOfLink(ScopeWork work, List<List<SvekPoint>> lines, List<List<SvekPoint>> others, List<SceneRect> labels, SceneRect box)
     {
         var center = new SvekPoint(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
@@ -1080,15 +1157,56 @@ internal sealed partial class SvekLayout
         }
 
         (ax, ay) = (ax / length, ay / length);
-        var points = lines.Sum(l => l.Count);
+
+        // The lines of the other links, the labels, and the units within reach of the label
+        var reach = LabelClearSteps + LabelClearance;
+        var area = new SceneRect(box.X - reach, box.Y - reach, box.Width + (2 * reach), box.Height + (2 * reach));
+        _meter.Charge(others.Sum(l => l.Count) + labels.Count + work.Units.Count + 1);
+        var near = others.Where(l => Enumerable.Range(1, Math.Max(0, l.Count - 1)).Any(k => SegmentHitsRect(l[k - 1], l[k], area))).ToList();
+        var nearLabels = labels.Where(l => Overlaps(l, area)).ToList();
+        var nearUnits = work.Units.Where(u => Overlaps(u.Box, area)).Select(u => u.Box).ToList();
+        var points = lines.Sum(l => l.Count) + near.Sum(l => l.Count) + nearLabels.Count + nearUnits.Count + 1;
+        bool Clear(SceneRect moved) =>
+            lines.Concat(near).All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9)
+            && !nearUnits.Exists(u => Overlaps(u, moved)) && !nearLabels.Exists(l => Overlaps(l, moved));
+
+        // The nearest place clear of every line, away from the link first, then turned a little more at a time
+        double[] turns = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, 3 * Math.PI / 4, -3 * Math.PI / 4, Math.PI];
         for (var shift = 0; shift <= LabelClearSteps; shift++)
         {
-            _meter.Charge(points + work.Units.Count + 1);
-            var moved = new SceneRect(box.X + (ax * shift), box.Y + (ay * shift), box.Width, box.Height);
-            if (lines.All(l => DistanceToCurve(l, moved) >= LabelClearance - 1e-9) && !work.Units.Any(u => Overlaps(u.Box, moved)))
+            foreach (var turn in shift == 0 ? [0.0] : turns)
             {
-                return new SvekPoint(ax * shift, ay * shift);
+                _meter.Charge(points);
+                var (dx, dy) = ((ax * Math.Cos(turn)) - (ay * Math.Sin(turn)), (ax * Math.Sin(turn)) + (ay * Math.Cos(turn)));
+                var moved = new SceneRect(box.X + (dx * shift), box.Y + (dy * shift), box.Width, box.Height);
+                if (Clear(moved))
+                {
+                    return new SvekPoint(dx * shift, dy * shift);
+                }
             }
+        }
+
+        // Else the place away from the link, off the units and the labels, that keeps the most room to every line
+        var best = (Shift: 0, Room: -1.0);
+        for (var shift = 0; shift <= LabelClearSteps; shift++)
+        {
+            _meter.Charge(points);
+            var moved = new SceneRect(box.X + (ax * shift), box.Y + (ay * shift), box.Width, box.Height);
+            if (nearUnits.Exists(u => Overlaps(u, moved)) || nearLabels.Exists(l => Overlaps(l, moved)))
+            {
+                continue;
+            }
+
+            var room = lines.Concat(near).Min(l => DistanceToCurve(l, moved));
+            if (room > best.Room + 1e-9)
+            {
+                best = (shift, room);
+            }
+        }
+
+        if (best.Room >= 0)
+        {
+            return new SvekPoint(ax * best.Shift, ay * best.Shift);
         }
 
         // No place within reach is clear: the label stays where it was placed
@@ -1209,18 +1327,20 @@ internal sealed partial class SvekLayout
 
     /// <summary>
     ///     Places a label near one end of a route: beside the line, just off the end, and moved along the line until it
-    ///     no longer overlaps an entity of the scope (PlantUML moves end labels away from the nodes) or the decoration of
-    ///     another link; a label on another link's decoration goes to the other side of the line instead when that side
-    ///     is clear.
+    ///     no longer overlaps an entity of the scope (PlantUML moves end labels away from the nodes), the decoration of
+    ///     another link, or a label placed before it; a label on such a decoration or label goes to the other side of the
+    ///     line instead when that side is clear.
     /// </summary>
     /// <param name="work">The scope's work.</param>
     /// <param name="text">The label text, or null.</param>
     /// <param name="location">The location for reports.</param>
     /// <param name="route">The route.</param>
     /// <param name="atEnd">True for the second end, false for the first.</param>
-    /// <param name="heads">The bounds of the decorations of the other links (<see cref="HeadBoxes"/>).</param>
+    /// <param name="obstacles">
+    ///     The bounds of the decorations of the other links (<see cref="HeadBoxes"/>) and of the labels placed before it.
+    /// </param>
     /// <returns>The label, or null.</returns>
-    private WLabel? EndLabel(ScopeWork work, string? text, PlantUmlLocation location, List<SvekPoint> route, bool atEnd, List<SceneRect> heads)
+    private WLabel? EndLabel(ScopeWork work, string? text, PlantUmlLocation location, List<SvekPoint> route, bool atEnd, List<SceneRect> obstacles)
     {
         if (text is null || route.Count < 2)
         {
@@ -1247,14 +1367,14 @@ internal sealed partial class SvekLayout
             return new SceneRect(cx - (w / 2), cy - (h / 2), w, h);
         }
 
-        bool OnHead(SceneRect b) => heads.Exists(head => Overlaps(head, b));
-        bool Clear(SceneRect b) => !work.Units.Any(u => Overlaps(u.MainBox, b)) && !OnHead(b);
+        bool Blocked(SceneRect b) => obstacles.Exists(o => Overlaps(o, b));
+        bool Clear(SceneRect b) => !work.Units.Any(u => Overlaps(u.MainBox, b)) && !Blocked(b);
         var distance = halfAlong + LabelMargin;
         var box = BoxAt(distance, 1);
         for (var step = 0; step < 32 && !Clear(box); step++)
         {
-            _meter.Charge(work.Units.Count + heads.Count + 1);
-            if (OnHead(box) && BoxAt(distance, -1) is var flipped && Clear(flipped))
+            _meter.Charge(work.Units.Count + obstacles.Count + 1);
+            if (Blocked(box) && BoxAt(distance, -1) is var flipped && Clear(flipped))
             {
                 return new WLabel(block, flipped);
             }

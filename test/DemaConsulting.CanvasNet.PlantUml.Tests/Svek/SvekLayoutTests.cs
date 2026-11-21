@@ -843,6 +843,115 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the label of one link of a fan-out (Hub to A, B, C with a label, and D) keeps
+    ///     <see cref="SvekLayout.LabelClearance"/> from every drawn line: the curves and arrowheads of all four links, so
+    ///     that no neighboring link is drawn straight through it.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_FanOutWithOneLabel_LabelClearOfEveryLine()
+    {
+        // Arrange
+        var hub = Entity("Hub", 50, 50);
+        var below = new[] { Entity("A", 50, 50), Entity("B", 50, 50), Entity("C", 50, 50), Entity("D", 50, 50) };
+        var links = below.Select(e => new SvekLink(e.Id, hub, e) { HeadDecor = LinkDecor.Arrow, Label = e.Id == "C" ? "uses" : null }).ToList();
+        var diagram = new SvekDiagram { Entities = [hub, .. below], Links = links };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var label = LinkOf(placement, "C").Label!.Box;
+        foreach (var entity in below)
+        {
+            var nearest = LinesOf(LinkOf(placement, entity.Id)).Min(line => Enumerable.Range(1, line.Count - 1).Min(k => RectToSegment(label, line[k - 1], line[k])));
+            Assert.True(nearest >= SvekLayout.LabelClearance - 0.01, $"label {label} is {nearest} from the link to {entity.Id}");
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the end labels of four links at one node (multiplicities at both ends of three of them, a
+    ///     label on one, and the decorations of composition, aggregation, arrow, and extension at the node) overlap no
+    ///     other end label, no middle label, and no decoration of another link.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_EndLabelsAtOneNode_OverlapNoOtherLabelOrHead()
+    {
+        // Arrange: the multiplicities shape: Hub "1" *-- "many" A, Hub "1" o-- "many" B, Hub "2" <-- "3" C : uses, Hub "x" <|-- D
+        var hub = Entity("Hub", 59, 48);
+        var below = new[] { Entity("A", 50, 48), Entity("B", 50, 48), Entity("C", 50, 48), Entity("D", 50, 48) };
+        var diagram = new SvekDiagram
+        {
+            Entities = [hub, .. below],
+            Links =
+            [
+                new SvekLink("A", hub, below[0]) { TailDecor = LinkDecor.Composition, TailLabel = "1", HeadLabel = "many" },
+                new SvekLink("B", hub, below[1]) { TailDecor = LinkDecor.Aggregation, TailLabel = "1", HeadLabel = "many" },
+                new SvekLink("C", hub, below[2]) { TailDecor = LinkDecor.Arrow, TailLabel = "2", HeadLabel = "3", Label = "uses" },
+                new SvekLink("D", hub, below[3]) { TailDecor = LinkDecor.Extends, TailLabel = "x" },
+            ],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var ends = placement.Links.SelectMany(l => new[] { (l.Link.Id, Box: l.TailLabel?.Box), (l.Link.Id, Box: l.HeadLabel?.Box) })
+            .Where(e => e.Box is not null).Select(e => (e.Id, Box: e.Box!.Value)).ToList();
+        Assert.Equal(7, ends.Count);
+        var middle = LinkOf(placement, "C").Label!.Box;
+        for (var i = 0; i < ends.Count; i++)
+        {
+            Assert.False(Overlap(ends[i].Box, middle), $"end label {i} {ends[i].Box} overlaps the label {middle}");
+            for (var j = i + 1; j < ends.Count; j++)
+            {
+                Assert.False(Overlap(ends[i].Box, ends[j].Box), $"end labels {i} {ends[i].Box} and {j} {ends[j].Box} overlap");
+            }
+
+            foreach (var other in placement.Links.Where(l => l.Link.Id != ends[i].Id))
+            {
+                Assert.DoesNotContain(LinesOf(other).Skip(1), head => Overlap(ends[i].Box, BoundsOf(head)));
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets the lines a placed link draws: the curve of its route, then the outlines of the decorations at its ends.
+    /// </summary>
+    /// <param name="link">The placed link.</param>
+    /// <returns>The lines, as polylines.</returns>
+    private static List<List<SvekPoint>> LinesOf(PlacedLink link)
+    {
+        var lines = new List<List<SvekPoint>> { SvekGeometry.Flatten(link.Route, 16) };
+        foreach (var (decor, atEnd) in new[] { (link.Link.TailDecor, false), (link.Link.HeadDecor, true) })
+        {
+            var extremity = SvekGeometry.Extremity(decor, atEnd ? link.Route[^1] : link.Route[0], SvekGeometry.ArrivalAngle(link.Route, atEnd));
+            foreach (var part in extremity?.Parts ?? [])
+            {
+                var outline = part.Segments.Where(s => s.Kind != SceneSegmentKind.Close).Select(s => new SvekPoint(s.X, s.Y)).ToList();
+                if (part.Segments[^1].Kind == SceneSegmentKind.Close)
+                {
+                    outline.Add(outline[0]);
+                }
+
+                lines.Add(outline);
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    ///     Gets the bounds of a polyline.
+    /// </summary>
+    /// <param name="line">The points.</param>
+    /// <returns>The bounds.</returns>
+    private static SceneRect BoundsOf(List<SvekPoint> line)
+    {
+        var (x0, y0) = (line.Min(p => p.X), line.Min(p => p.Y));
+        return new SceneRect(x0, y0, line.Max(p => p.X) - x0, line.Max(p => p.Y) - y0);
+    }
+
+    /// <summary>
     ///     Validates the labels: the middle label beside its route with its direction triangle pointing along the link,
     ///     and the end labels near their ends, off the entities.
     /// </summary>

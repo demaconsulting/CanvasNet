@@ -247,7 +247,8 @@ size; asserts the title, node, edge, and subgraph counts of class and object dia
 diagram draws its objects without spots and its map as a table.
 
 **Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners`,
-`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEndsOnOneSide_KeepApart`
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEndsOnOneSide_KeepApart`,
+`PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_MultiplicitiesAtOneClass_DoNotRunTogether`
 
 Lays out a class above three classes spread wider than it, linked by an association with the multiplicity 1 and two
 extensions, and asserts that every arrowhead tip lies on the bottom side of the upper class at least 5 pixels from its
@@ -255,7 +256,9 @@ corners, that every line ends on the top side of a lower class at least 5 pixels
 multiplicity is within 12 pixels of its arrowhead tip. Lays out a class above four classes, linked by an association
 with the multiplicity 1 and three extensions, and asserts that the four arrowhead tips lie on the bottom side of the
 upper class at least 5 pixels from its corners and at least 10 pixels apart, and that the multiplicity is within 12
-pixels of its own tip and overlaps no other arrowhead.
+pixels of its own tip and overlaps no other arrowhead. Lays out a class linked to four classes by a composition, an
+aggregation, an association with a label, and an extension, with multiplicities at both ends, and asserts that no two
+multiplicities overlap and that none overlaps the label or an arrowhead of another link.
 
 ### CanvasNetPlantUml-State: State Diagrams Are Drawn With PlantUML's Shapes
 
@@ -291,6 +294,11 @@ label is at least 3 pixels from every drawn transition line and arrowhead and at
 
 Lays out a state diagram with two transitions from one state to another and one back, and asserts that halfway
 between the two states the three transition lines are at least 4 pixels apart.
+
+**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_FanOutLabel_ClearOfEveryTransition`
+
+Lays out a state with transitions to four states, the third labeled, and asserts that the label is at least 3 pixels
+from every drawn transition line and arrowhead.
 
 ### CanvasNetPlantUml-Component: Component Diagrams Are Drawn With PlantUML's Shapes
 

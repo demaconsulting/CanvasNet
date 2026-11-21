@@ -224,10 +224,10 @@ sections:
           lengths, direction hints, and labels; packages and namespaces; notes; hide and show; page texts; the
           direction; and the supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid
           out in ranks so that no two elements overlap and the links end on the sides of the boxes (not at their
-          corners, and the links that reach one side of a box at distinct points) with their multiplicities next to
-          their ends and clear of the other arrowheads, so that every entity box of the reference fixtures has the
-          size, texts, and colors of PlantUML's (positions may differ), and shall count entities as nodes, links as
-          edges, and packages as subgraphs.
+          corners, and the links that reach one side of a box at distinct points) with their multiplicities near their
+          ends and clear of the other arrowheads and of each other, so that every entity box of the reference fixtures
+          has the size, texts, and colors of PlantUML's (positions may differ), and shall count entities as nodes, links
+          as edges, and packages as subgraphs.
         tags: [system]
         justification: |
           Class diagrams are the most used PlantUML diagrams after sequence diagrams; PlantUML lays them out with
@@ -252,6 +252,7 @@ sections:
           - CanvasNetPlantUml_Object_MapAndObject_AreDrawn
           - CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners
           - CanvasNetPlantUml_Class_ArrowEndsOnOneSide_KeepApart
+          - CanvasNetPlantUml_Class_MultiplicitiesAtOneClass_DoNotRunTogether
 
       - id: CanvasNetPlantUml-State
         title: >-
@@ -261,9 +262,10 @@ sections:
           concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
           parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
           elements overlap, transitions between the same two states are drawn apart, and the transition labels keep
-          clear of the lines and the states, so that every state, circle, diamond, and composite state of the reference
-          fixtures has the size, texts, and colors of PlantUML's (positions may differ), and shall count states and
-          pseudo-states as nodes, transitions as edges, and composite states as subgraphs.
+          clear of the lines and the states where there is room for them, so that every state, circle, diamond, and
+          composite state of the reference fixtures has the size, texts, and colors of PlantUML's (positions may
+          differ), and shall count states and pseudo-states as nodes, transitions as edges, and composite states as
+          subgraphs.
         tags: [system]
         justification: |
           State diagrams are a common PlantUML diagram; PlantUML lays them out with Graphviz, which this library does
@@ -285,6 +287,7 @@ sections:
           - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
           - CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates
           - CanvasNetPlantUml_State_TransitionsBetweenTheSameStates_AreDrawnApart
+          - CanvasNetPlantUml_State_FanOutLabel_ClearOfEveryTransition
 
       - id: CanvasNetPlantUml-Component
         title: >-
