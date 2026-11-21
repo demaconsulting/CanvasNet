@@ -571,6 +571,49 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that links from a node above to three nodes below it, spread wider than the node, end on its bottom
+    ///     side and on the top sides of the nodes below, never within 5 pixels of a corner, that the link to the node
+    ///     below its middle runs straight down, and that the end label at the node above stays next to its end, off the
+    ///     node (dagre's route through the label rank would end at a corner).
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners()
+    {
+        // Arrange: the class-ends shape: Item above Loan, Book, and Film, with the multiplicity 1 at Item
+        var item = Entity("Item", 59, 48);
+        var below = new[] { Entity("Loan", 63, 48), Entity("Book", 64, 48), Entity("Film", 58, 48) };
+        var links = below.Select(e => new SvekLink(e.Id, item, e) { TailLabel = e.Id == "Loan" ? "1" : null }).ToList();
+        var diagram = new SvekDiagram { Entities = [item, .. below], Links = links };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var top = BoxOf(placement, "Item");
+        foreach (var entity in below)
+        {
+            var route = LinkOf(placement, entity.Id).Route;
+            var box = BoxOf(placement, entity.Id);
+            Assert.Equal(top.Bottom, route[0].Y, 6);
+            Assert.InRange(route[0].X, top.X + 5, top.Right - 5);
+            Assert.Equal(box.Y, route[^1].Y, 6);
+            Assert.InRange(route[^1].X, box.X + 5, box.Right - 5);
+        }
+
+        // The node below the middle of the node above is reached straight down, at the middle of the narrower box
+        var straightDown = LinkOf(placement, "Book").Route;
+        Assert.Equal(straightDown[0].X, straightDown[^1].X, 6);
+        Assert.Equal(top.X + (top.Width / 2), straightDown[0].X, 6);
+
+        var start = LinkOf(placement, "Loan").Route[0];
+        var label = LinkOf(placement, "Loan").TailLabel!.Box;
+        var dx = Math.Max(0, Math.Max(label.X - start.X, start.X - label.Right));
+        var dy = Math.Max(0, Math.Max(label.Y - start.Y, start.Y - label.Bottom));
+        Assert.True(Math.Sqrt((dx * dx) + (dy * dy)) <= 12, $"label {label} end {start}");
+        Assert.False(Overlap(label, top));
+    }
+
+    /// <summary>
     ///     Validates the labels: the middle label beside its route with its direction triangle pointing along the link,
     ///     and the end labels near their ends, off the entities.
     /// </summary>

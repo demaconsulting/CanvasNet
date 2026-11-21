@@ -123,6 +123,36 @@ public class SvekGeometryTests
     }
 
     /// <summary>
+    ///     Validates the end of a route that arrives across the ranks on the side of a rectangle that faces its
+    ///     neighboring point: in line with the point, kept 10 pixels (a quarter of a short side) from the corners, on the
+    ///     bottom or top side top to bottom and on the left or right side left to right; none for a point beside the box
+    ///     along the ranks or for an outline that is not a rectangle.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekGeometry_ClipToFacingSide_EndsOnTheFacingSide()
+    {
+        // Arrange
+        var box = new SceneRect(100, 10, 60, 48);
+        var narrow = new SceneRect(0, 0, 20, 20);
+
+        // Act / Assert: top to bottom, below and above, in line or kept off the corners
+        Assert.Equal(new SvekPoint(130, 58), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(130, 90), leftToRight: false));
+        Assert.Equal(new SvekPoint(110, 58), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(37, 90), leftToRight: false));
+        Assert.Equal(new SvekPoint(150, 10), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(300, -20), leftToRight: false));
+        Assert.Equal(new SvekPoint(5, 20), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, narrow, new(-50, 40), leftToRight: false));
+        Assert.Null(SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(20, 30), leftToRight: false));
+
+        // Left to right: right and left of the box
+        Assert.Equal(new SvekPoint(160, 48), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(200, 300), leftToRight: true));
+        Assert.Equal(new SvekPoint(100, 30), SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(40, 30), leftToRight: true));
+        Assert.Null(SvekGeometry.ClipToFacingSide(ClipShape.Rectangle, box, new(130, 200), leftToRight: true));
+
+        // An ellipse and a diamond keep the clip toward the point
+        Assert.Null(SvekGeometry.ClipToFacingSide(ClipShape.Ellipse, box, new(37, 90), leftToRight: false));
+        Assert.Null(SvekGeometry.ClipToFacingSide(ClipShape.Diamond, box, new(37, 90), leftToRight: false));
+    }
+
+    /// <summary>
     ///     Validates the containment test of every outline.
     /// </summary>
     [Fact]

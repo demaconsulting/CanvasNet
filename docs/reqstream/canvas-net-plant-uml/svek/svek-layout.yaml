@@ -94,13 +94,19 @@ sections:
                   The SvekLayout unit shall route every link from its first end to its second, ending on the outline
                   that the entity's image gives, loop a link from an element to itself at its right, keep parallel
                   links apart, and place the label of a link beside its route with the direction of its triangle and
-                  its end labels near their ends, off the entities.
+                  its end labels near their ends, off the entities. A route that arrives at a rectangle across the
+                  ranks shall end on the side that faces the ranks, at least 10 pixels (a quarter of the side) from its
+                  corners, and a link without a label between neighboring ranks shall be drawn straight between the
+                  facing sides of its ends when that line crosses no other element.
                 justification: |
-                  Links must touch the shapes they connect and their labels must be readable.
+                  Links must touch the shapes they connect and their labels must be readable. Graphviz ends PlantUML's
+                  links on the side they cross; a link that ends at a corner, with its multiplicity far from its head,
+                  does not show which box it reaches.
                 tests:
                   - PlantUmlSvekLayout_Run_SelfAndParallelLinks_AreRouted
                   - PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem
                   - PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute
+                  - PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners
 
               - id: CanvasNetPlantUml-Svek-SvekLayout-Limits
                 title: >-

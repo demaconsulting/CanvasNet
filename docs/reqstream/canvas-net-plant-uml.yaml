@@ -223,9 +223,10 @@ sections:
           icons, modifiers, and separators; objects with fields; maps; relationships with their decorations, styles,
           lengths, direction hints, and labels; packages and namespaces; notes; hide and show; page texts; the
           direction; and the supported skin parameters) with PlantUML's shapes, texts, colors, and decorations, laid
-          out in ranks so that no two elements overlap, so that every entity box of the reference fixtures has the
-          size, texts, and colors of PlantUML's (positions may differ), and shall count entities as nodes, links as
-          edges, and packages as subgraphs.
+          out in ranks so that no two elements overlap and the links end on the sides of the boxes (not at their
+          corners) with their multiplicities next to their ends, so that every entity box of the reference fixtures
+          has the size, texts, and colors of PlantUML's (positions may differ), and shall count entities as nodes,
+          links as edges, and packages as subgraphs.
         tags: [system]
         justification: |
           Class diagrams are the most used PlantUML diagrams after sequence diagrams; PlantUML lays them out with
@@ -248,6 +249,7 @@ sections:
           - CanvasNetPlantUml_Object_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_Class_Facts_CountEntitiesLinksAndPackages
           - CanvasNetPlantUml_Object_MapAndObject_AreDrawn
+          - CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners
 
       - id: CanvasNetPlantUml-State
         title: >-

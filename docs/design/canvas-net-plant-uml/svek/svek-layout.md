@@ -75,8 +75,15 @@ specified by the `CanvasNetPlantUml-Svek-SvekLayout-*` requirements in
   row moves in front of that unit on the row's border and continues to its center (`SnapRowEnds`: dagre aims at the
   center of the row, which may be over an attached note); a link to a compound cluster goes to a hidden 1-by-1 anchor
   inside it and its route is cut at the cluster's border; the ends are moved onto the outline of the entity's clip
-  (aiming at the centers for a straight route); the label slot is placed at dagre's label center, or beside the middle
-  of the route (`BesideMiddle`: above a route that runs across, right of one that runs down, at the middle of the curve
+  (`ClipEnds`: aiming at the centers for a straight route, else at the next point of the route, and, for a rectangle
+  that the next point lies beyond across the ranks, on the side facing the ranks in line with that point
+  (`ClipToFacingSide`), never at a corner; a route across one label rank with no label, which dagre bends through a
+  point in line with one end, is drawn straight between the facing sides of its two rectangles when that line crosses
+  no other unit, as Graphviz draws a short edge (`StraightAims`: straight across the ranks at the middle of the narrower
+  box where the two boxes face each other off their corners, else each end in line with the other box); the label slot
+  is placed at
+  dagre's label center, or beside the middle of the route (`BesideMiddle`: above a route that runs across, right of
+  one that runs down, at the middle of the curve
   of an arc), and a label center that dagre puts inside a compound cluster the link leaves is replaced by the place
   beside the middle of the route outside it; end labels go beside the line just off the end and are moved along the line
   until they overlap no entity.

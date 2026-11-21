@@ -92,12 +92,16 @@ note with two links keeps them; asserts that a note on a link is in the link's l
 
 **Tests**: `SvekLayoutTests.PlantUmlSvekLayout_Run_SelfAndParallelLinks_AreRouted`,
 `SvekLayoutTests.PlantUmlSvekLayout_Run_ClipOutlines_RoutesEndOnThem`,
-`SvekLayoutTests.PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute`
+`SvekLayoutTests.PlantUmlSvekLayout_Run_Labels_PlacedBesideTheRoute`,
+`SvekLayoutTests.PlantUmlSvekLayout_Run_LinksFromBelow_EndOnTheSidesNotTheCorners`
 
 Asserts that a link from an entity to itself and two parallel links have routes that start and end on the borders and
 that the parallel routes differ; asserts that routes end on an ellipse outline and on a circle inside a larger box;
 asserts the middle label beside its route with its triangle pointing along the link and the end labels near their ends
-off the entities.
+off the entities. Lays out an entity above three entities spread wider than it (the class-ends shape) and asserts that
+every link ends on the bottom side of the entity above and on the top side of the entity below, at least 5 pixels from
+the corners, that the link to the entity below the middle runs straight down at the middle of the entity above, and
+that the end label at the entity above is within 12 pixels of its end and off the entity.
 
 ##### CanvasNetPlantUml-Svek-SvekLayout-Limits: Work, Limits, And Failures
 

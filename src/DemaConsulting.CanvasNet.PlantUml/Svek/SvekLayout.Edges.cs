@@ -686,7 +686,7 @@ internal sealed partial class SvekLayout
     /// <param name="edge">The edge.</param>
     /// <param name="points">The route; its ends are replaced.</param>
     /// <param name="self">Whether the link connects a node to itself.</param>
-    private static void ClipEnds(ScopeWork work, EdgeWork edge, List<SvekPoint> points, bool self)
+    private void ClipEnds(ScopeWork work, EdgeWork edge, List<SvekPoint> points, bool self)
     {
         if (points.Count < 2)
         {
@@ -696,21 +696,75 @@ internal sealed partial class SvekLayout
         var fromShape = OutlineOf(work, edge.RepFrom);
         var toShape = OutlineOf(work, edge.RepTo);
 
-        // A straight route aims at the centers, a longer one at the next point of the route
+        // A straight route aims at the centers, a longer one at the next point of the route; a longer one that
+        // arrives across the ranks ends on the side of a rectangle that faces them, not at a corner
         static SvekPoint Center((ClipShape Shape, SceneRect Box)? s, SvekPoint fallback) =>
             s is { } o ? new SvekPoint(o.Box.X + (o.Box.Width / 2), o.Box.Y + (o.Box.Height / 2)) : fallback;
         var straight = points.Count == 2 && !self;
+        var leftToRight = _diagram.RankDir == SvekRankDir.LeftToRight;
+
+        // A route across one label rank with no label is drawn straight between the facing sides of its ends (as
+        // Graphviz draws a short edge), when that line crosses no other unit: dagre puts the point in the label rank in
+        // line with one end, which makes the other end arrive almost level
+        if (points.Count == 3 && !self && edge.Slot is null && edge.FromCompound is null && edge.ToCompound is null
+            && fromShape is { } fromOutline && toShape is { } toOutline)
+        {
+            var (fromAim, toAim) = StraightAims(fromOutline.Box, toOutline.Box, leftToRight);
+            if (SvekGeometry.ClipToFacingSide(fromOutline.Shape, fromOutline.Box, fromAim, leftToRight) is { } a
+                && SvekGeometry.ClipToFacingSide(toOutline.Shape, toOutline.Box, toAim, leftToRight) is { } b
+                && Crossed(work, edge, a, b).Count == 0)
+            {
+                points[0] = a;
+                points[1] = new SvekPoint((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+                points[2] = b;
+                return;
+            }
+        }
+
+        SvekPoint End((ClipShape Shape, SceneRect Box) outline, SvekPoint toward) =>
+            (straight || self ? null : SvekGeometry.ClipToFacingSide(outline.Shape, outline.Box, toward, leftToRight))
+            ?? SvekGeometry.Clip(outline.Shape, outline.Box, toward);
         var towardFrom = straight ? Center(toShape, points[^1]) : points[1];
         var towardTo = straight ? Center(fromShape, points[0]) : points[^2];
         if (fromShape is { } from && edge.FromCompound is null && !SvekGeometry.Contains(from.Shape, from.Box, towardFrom))
         {
-            points[0] = SvekGeometry.Clip(from.Shape, from.Box, towardFrom);
+            points[0] = End(from, towardFrom);
         }
 
         if (toShape is { } to && edge.ToCompound is null && !SvekGeometry.Contains(to.Shape, to.Box, towardTo))
         {
-            points[^1] = SvekGeometry.Clip(to.Shape, to.Box, towardTo);
+            points[^1] = End(to, towardTo);
         }
+    }
+
+    /// <summary>
+    ///     Gets the points the two ends of a link drawn straight between neighboring ranks aim at: where the boxes face
+    ///     each other across the ranks (off their corners), a line straight across the ranks at the middle of the
+    ///     narrower box, kept within the part they share; else each end in line with the center of the other box.
+    /// </summary>
+    /// <param name="from">The box of the first end.</param>
+    /// <param name="to">The box of the second end.</param>
+    /// <param name="leftToRight">Whether the ranks run from left to right (else from top to bottom).</param>
+    /// <returns>The point the first end aims at and the point the second end aims at.</returns>
+    private static (SvekPoint FromAim, SvekPoint ToAim) StraightAims(SceneRect from, SceneRect to, bool leftToRight)
+    {
+        static SvekPoint Center(SceneRect r) => new(r.X + (r.Width / 2), r.Y + (r.Height / 2));
+        double Start(SceneRect r) => leftToRight ? r.Y : r.X;
+        double Extent(SceneRect r) => leftToRight ? r.Height : r.Width;
+        double Inset(SceneRect r) => Math.Min(SvekGeometry.EndInset, Extent(r) / 4);
+        var (fromCenter, toCenter) = (Center(from), Center(to));
+        var low = Math.Max(Start(from) + Inset(from), Start(to) + Inset(to));
+        var high = Math.Min(Start(from) + Extent(from) - Inset(from), Start(to) + Extent(to) - Inset(to));
+        if (low > high)
+        {
+            return (toCenter, fromCenter);
+        }
+
+        var narrower = Extent(from) <= Extent(to) ? from : to;
+        var line = Math.Clamp(Start(narrower) + (Extent(narrower) / 2), low, high);
+        return leftToRight
+            ? (new SvekPoint(toCenter.X, line), new SvekPoint(fromCenter.X, line))
+            : (new SvekPoint(line, toCenter.Y), new SvekPoint(line, fromCenter.Y));
     }
 
     /// <summary>

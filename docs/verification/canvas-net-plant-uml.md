@@ -246,6 +246,13 @@ labels; asserts that every fixture has a golden; renders every fixture in strict
 size; asserts the title, node, edge, and subgraph counts of class and object diagrams; and asserts that an object
 diagram draws its objects without spots and its map as a table.
 
+**Tests**: `PlantUmlClassIntegrationTests.CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners`
+
+Lays out a class above three classes spread wider than it, linked by an association with the multiplicity 1 and two
+extensions, and asserts that every arrowhead tip lies on the bottom side of the upper class at least 5 pixels from its
+corners, that every line ends on the top side of a lower class at least 5 pixels from its corners, and that the
+multiplicity is within 12 pixels of its arrowhead tip.
+
 ### CanvasNetPlantUml-State: State Diagrams Are Drawn With PlantUML's Shapes
 
 **Tests**: `PlantUmlReferenceShapeTests.CanvasNetPlantUml_Graph_ReferenceGoldens_CoverEveryFixture`,

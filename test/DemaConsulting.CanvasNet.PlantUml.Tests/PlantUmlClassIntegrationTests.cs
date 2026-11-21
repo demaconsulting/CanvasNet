@@ -211,4 +211,43 @@ public class PlantUmlClassIntegrationTests
         Assert.Equal(["80", "443", "22"], scene.Items.OfType<SceneText>().Where(t => t.Role == "map-value").Select(t => string.Concat(t.Runs.Select(r => r.Text))));
         Assert.Equal(ClassKind.Map, model.Entities.Single(e => e.Id == "Ports").Kind);
     }
+
+    /// <summary>
+    ///     Validates that the arrows between a class and three classes below it, spread wider than it, end on the sides
+    ///     of the boxes, never within 5 pixels of a corner, with the multiplicity next to its arrowhead, as PlantUML draws
+    ///     them.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Class_ArrowEnds_LandOnTheBoxSidesNotTheCorners()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\nclass Item\nclass Loan\nclass Book\nclass Film\nItem \"1\" <-- Loan\nItem <|-- Book\nItem <|-- Film\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var boxes = scene.Items.OfType<ScenePath>().Where(p => p.Role == "class").ToDictionary(p => p.Id!, p => Scene.BoundsOf([p])!.Value);
+        var item = boxes["Item"];
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role == "link-tail").ToList();
+        Assert.Equal(3, heads.Count);
+        var tips = heads.Select(h => h.Segments.Where(s => s.Kind != SceneSegmentKind.Close).MinBy(s => s.Y)).ToList();
+        Assert.All(tips, tip =>
+        {
+            Assert.Equal(item.Bottom, tip.Y, 2);
+            Assert.InRange(tip.X, item.X + 5, item.Right - 5);
+        });
+        var lines = scene.Items.OfType<ScenePath>().Where(p => p.Role == "link").ToList();
+        Assert.All(lines, line =>
+        {
+            var end = line.Segments[^1];
+            Assert.Contains(boxes.Values, box => Math.Abs(box.Y - end.Y) < 0.01 && end.X >= box.X + 5 && end.X <= box.Right - 5);
+        });
+        var labelText = scene.Items.OfType<SceneText>().Single(t => t.Role == "link-tail-label");
+        var label = labelText.Box;
+        var loanTip = tips[heads.FindIndex(h => h.Id == labelText.Id)];
+        var dx = Math.Max(0, Math.Max(label.X - loanTip.X, loanTip.X - label.Right));
+        var dy = Math.Max(0, Math.Max(label.Y - loanTip.Y, loanTip.Y - label.Bottom));
+        Assert.True(Math.Sqrt((dx * dx) + (dy * dy)) <= 12, $"label {label} tip ({loanTip.X}, {loanTip.Y})");
+    }
 }
