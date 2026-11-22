@@ -213,7 +213,9 @@ public static class CanvasNetViewer
     ///     <see cref="ViewerException.DetailCode"/> (the code of the library, such as <c>mermaid-syntax-error</c>);
     ///     <c>file-access-denied</c> when <see cref="ViewerRenderOptions.FileAccess"/> denied an include or a data file
     ///     (and, with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, a picture); <c>budget-exceeded</c> when
-    ///     a limit of a format library is exceeded or the picture, or the final picture of a render that is resized to the
+    ///     a limit of a format library is exceeded (see <see cref="ViewerRenderOptions.VegaLiteLimits"/>,
+    ///     <see cref="ViewerRenderOptions.MermaidLimits"/> and <see cref="ViewerRenderOptions.PlantUmlLimits"/>) or the
+    ///     picture, or the final picture of a render that is resized to the
     ///     requested size, does not fit in <see cref="ViewerRenderOptions.MaxDecodedPixels"/>; <c>page-out-of-range</c>
     ///     when <see cref="ViewerRenderOptions.Page"/> is not a page of the file (a single-image file has only page 1);
     ///     <c>size-limit</c> or <c>usage-error</c> for a size or option the source cannot use; with
@@ -390,6 +392,11 @@ public static class CanvasNetViewer
     /// <param name="folder">The base folder of the links, or <see langword="null"/> for none.</param>
     /// <param name="settings">The render options.</param>
     /// <returns>A new resolver.</returns>
+    /// <remarks>
+    ///     When the options set a limit of a chart or a diagram, the built-in sources of this render are new instances that
+    ///     carry the limits, so the file and every file drawn through the resolver use them; otherwise the shared sources
+    ///     are used.
+    /// </remarks>
     private static FolderImageResolver CreateResolver(string? folder, ViewerRenderOptions settings)
     {
         var limits = new FolderImageResolverOptions
@@ -405,7 +412,14 @@ public static class CanvasNetViewer
             limits = limits with { MaxDecodedPixels = maxDecodedPixels };
         }
 
-        return new FolderImageResolver(folder, [.. BuiltInSources, .. settings.ExtraSources ?? []], limits);
+        IEnumerable<IImageSource> builtIn = BuiltInSources;
+        if (settings.VegaLiteLimits is not null || settings.MermaidLimits is not null || settings.PlantUmlLimits is not null)
+        {
+            var sourceLimits = new SourceLoader.SourceLimits(settings.VegaLiteLimits, settings.MermaidLimits, settings.PlantUmlLimits);
+            builtIn = BuiltInSources.Cast<LoaderImageSource>().Select(source => source.WithLimits(sourceLimits));
+        }
+
+        return new FolderImageResolver(folder, [.. builtIn, .. settings.ExtraSources ?? []], limits);
     }
 
     /// <summary>

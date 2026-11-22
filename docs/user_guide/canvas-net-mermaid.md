@@ -214,7 +214,9 @@ The limits, with their defaults, what they bound, and what is thrown when one is
 
 `MaxTextSize` and `MaxEdges` are Mermaid's own limits with Mermaid's defaults. The others are CanvasNet additions, so
 a very large but valid diagram that Mermaid draws can fail here; raise the limit when you trust the text. The open
-limits come from `MermaidOpenOptions.Limits` and the render limits from `MermaidRenderOptions.Limits`.
+limits come from `MermaidOpenOptions.Limits` and the render limits from `MermaidRenderOptions.Limits`. For
+`CanvasNetViewer.Render`, `ViewerRenderOptions.MermaidLimits` of the Viewer package sets both, for the rendered diagram
+and every diagram it embeds.
 
 ### Configuration and Themes
 

@@ -82,16 +82,17 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
     /// <returns>The facts about the file: the natural size of the diagram, 4 channels, and its type, direction, titles, and counts.</returns>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>mermaid-error</c> when the text is not a valid diagram or cannot be laid out,
     ///     <c>budget-exceeded</c> when a limit is exceeded, and <c>corrupt-input</c> when the text is longer than the limit.
     /// </exception>
-    private static SourceInfo ProbeMermaid(SourceInput input, long bytes)
+    private static SourceInfo ProbeMermaid(SourceInput input, long bytes, MermaidLimits? limits)
     {
         var path = input.Name;
-        var document = Read(path, SourceKind.Mermaid, () => OpenMermaid(input));
-        var size = Read(path, SourceKind.Mermaid, () => MeasureDiagram(document, null, path, CancellationToken.None));
+        var document = Read(path, SourceKind.Mermaid, () => OpenMermaid(input, limits));
+        var size = Read(path, SourceKind.Mermaid, () => MeasureDiagram(document, null, limits, path, CancellationToken.None));
         var diagram = new DiagramFacts(
             document.DiagramType,
             document.IsSupported,
@@ -111,11 +112,12 @@ public static partial class SourceLoader
     ///     Parses a diagram from its source; the name of the source is the file name of the library's locations.
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
     /// <returns>The parsed diagram.</returns>
-    private static MermaidDocument OpenMermaid(SourceInput input)
+    private static MermaidDocument OpenMermaid(SourceInput input, MermaidLimits? limits)
     {
         using var stream = input.Open();
-        return MermaidDocument.Open(stream, new MermaidOpenOptions { SourceName = input.Name });
+        return MermaidDocument.Open(stream, new MermaidOpenOptions { SourceName = input.Name, Limits = limits });
     }
 
     /// <summary>
@@ -123,6 +125,7 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="document">The diagram.</param>
     /// <param name="theme">The site-level theme, or <see langword="null"/> for the default.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
     /// <param name="path">The path of the file, for messages.</param>
     /// <param name="cancellationToken">The token that cancels the measure.</param>
     /// <returns>
@@ -130,11 +133,11 @@ public static partial class SourceLoader
     ///     bring it within the limit, or the load is refused with <c>size-limit</c>).
     /// </returns>
     /// <exception cref="ViewerException">Thrown with code <c>mermaid-error</c> for any other argument failure of the library.</exception>
-    internal static MermaidSize MeasureDiagram(MermaidDocument document, string? theme, string path, CancellationToken cancellationToken)
+    internal static MermaidSize MeasureDiagram(MermaidDocument document, string? theme, MermaidLimits? limits, string path, CancellationToken cancellationToken)
     {
         try
         {
-            return document.Measure(new MermaidRenderOptions { Theme = theme }, cancellationToken);
+            return document.Measure(new MermaidRenderOptions { Theme = theme, Limits = limits ?? MermaidLimits.Default }, cancellationToken);
         }
         catch (ArgumentOutOfRangeException ex) when (ex.ParamName == "scale")
         {
@@ -243,6 +246,7 @@ public static partial class SourceLoader
     /// <param name="resolver">The resolver of the pictures of the nodes, or <see langword="null"/> for none.</param>
     /// <param name="strict"><see langword="true"/> to make the first unsupported construct an error.</param>
     /// <param name="scale">The factor of the natural size, for a render at the natural size.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
     /// <param name="positions">The collector of the feature positions the load asks for, or <see langword="null"/> for none.</param>
     /// <returns>The options.</returns>
     private static MermaidRenderOptions CreateMermaidOptions(
@@ -252,11 +256,13 @@ public static partial class SourceLoader
         IImageResolver? resolver,
         bool strict,
         double scale,
+        MermaidLimits? limits,
         PositionCollector? positions = null)
     {
         return new MermaidRenderOptions
         {
             Scale = scale,
+            Limits = limits ?? MermaidLimits.Default,
             PositionHandler = positions is null ? null : position => positions.Offer(position),
             PositionKindFilter = positions is null ? null : positions.IncludesKind,
             Theme = theme,
@@ -367,7 +373,7 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown when the file cannot be read or is not a valid diagram.</exception>
         public static MermaidPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.Mermaid, () => OpenMermaid(input));
+            var document = Read(info.Path, SourceKind.Mermaid, () => OpenMermaid(input, context.Limits.Mermaid));
             return new MermaidPageSource(document, info, options, input, context);
         }
 
@@ -381,7 +387,7 @@ public static partial class SourceLoader
             var info = Info;
             if (theme is not null)
             {
-                var measured = Read(Info.Path, SourceKind.Mermaid, () => MeasureDiagram(_document, theme, Info.Path, Context.CancellationToken));
+                var measured = Read(Info.Path, SourceKind.Mermaid, () => MeasureDiagram(_document, theme, Context.Limits.Mermaid, Info.Path, Context.CancellationToken));
                 info = Info with { Width = measured.Width, Height = measured.Height };
             }
 
@@ -403,6 +409,7 @@ public static partial class SourceLoader
                 scoped ? Context.ScopedResolver : images!.Resolver,
                 Options.Strict,
                 exact ? Options.Scale ?? 1 : 1,
+                Context.Limits.Mermaid,
                 positions);
 
             // The surface is charged before the diagram is drawn, so a diagram that cannot be paid for costs nothing; a diagram

@@ -929,6 +929,18 @@ sections:
           - SourceLoader_LoadContext_ReturnFittedPage_SkipsTheMargin
           - SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-SourceLimits
+        title: >-
+          The SourceLoader class shall apply the resource limits of a chart and a diagram that its caller gives (the
+          limits of the Vega-Lite, Mermaid and PlantUML libraries, each the library default when not given) to the
+          probe of a source and to its load, and its default load context, the one of the tool, shall keep the library
+          defaults.
+        justification: |
+          A raised limit that only the render used would be refused early by a probe with the defaults, and a lowered
+          limit that only the probe used would let a load exceed it.
+        tests:
+          - SourceLoader_Limits_ApplyToTheProbeAndTheLoad
+
       - id: CanvasNetViewer-Imaging-SourceLoader-OptionValidation
         title: >-
           The SourceLoader class shall check the SourceOptions of Load and OpenPages before it touches any file and

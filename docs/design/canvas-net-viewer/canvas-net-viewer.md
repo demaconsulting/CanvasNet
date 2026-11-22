@@ -15,7 +15,8 @@ a rendered file references is read by the core `FolderImageResolver` under the f
 the system-level architecture.
 
 The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requirements (`ImageSources`,
-`CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, `ExtraSources`, `FileAccess`,
+`CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, `ResourceLimits`,
+`ExtraSources`, `FileAccess`,
 `FileAccessDenied`, and `Positions`) in
 `docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml`. The unit comprises `CanvasNetViewer.cs`,
 `ViewerRenderOptions.cs`, `ViewerImage.cs`, and `LoaderImageSource.cs` (the adapter, with the internal
@@ -40,7 +41,9 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   chooses (`FragmentParameterPrefixes`): `def.` for the model source and `param.` for the chart source (the constants of
   `ScadImageSource` and `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format
   packages cannot call `SourceLoader`, which depends on all of them. The package sources stay public stand-alone
-  providers with the same `page` support.
+  providers with the same `page` support. It also holds the `SourceLoader.SourceLimits` (the limits of a chart and a
+  diagram, the library defaults for the shared instances) that it gives to `OpenInput` and to the `LoadContext` of
+  every file it draws; `WithLimits` creates a copy with other limits.
 - **`DirectRenderOptions`** (internal sealed class, `IImageSourceOptions`) — the options of a direct render
   (the page, the resolution, the background, the model view options, the chart parameters, and `Positions`, the
   `PositionSelection` of the feature positions) and the output of the render
@@ -60,7 +63,11 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels` (nullable; none = the
   resolver default budget), `ExtraSources`, `Positions` (a core `PositionSelection`, nullable; none = no positions: the
   selectors of the feature positions a Mermaid diagram or a Vega-Lite chart reports, ignored by every other kind of
-  file), and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the size is
+  file), `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` (the `VegaLiteLimits`, `MermaidLimits`, and
+  `PlantUmlLimits` of the format libraries, nullable; none = the library default; any value the type accepts, which
+  validates itself, so the viewer adds no check; they apply at every level of nesting, unlike `Page`, `Dpi`, `Scad`,
+  and `VegaLite`, which only the rendered file takes), and `CancellationToken`. There is deliberately no `Scale`,
+  `Filter` or `AutoOrient`: the size is
   `Width`/`Height` (or `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
 - **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Page`, `PageCount`, `Diagnostics`,
   `Echo`, `Anchors`, `Embedded`, and `Positions` (the feature positions the selection matched, in the pixels of the
@@ -102,14 +109,15 @@ a transparent background for a vector source, none for a chart, and for a vector
 `Height`; an embedded file never inherits the options of its embedder, and only `DirectRenderOptions` carry the
 `Positions` selection, so a linked picture never reports positions); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
-size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput` (with `request.FileAccess`),
-which parses a PDF,
+size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput` (with `request.FileAccess`
+and the limits of the source), which parses a PDF,
 presentation or drawing once and returns the facts about its pages together with the parsed document (any other kind
 is described by `ProbeInput`), and a page below 1 or beyond the page count is an `ImageSourceRefusedException` with the
 code `image-page-out-of-range`; (5) open the pages, handing the already parsed document to the page source (which then
 owns it; the `OpenedSource` disposes it on every path where it was not handed over), with a
 `LoadContext` that charges every surface to the request (`EnsureWithinBudget`), observes the cancellation token, draws a
-nested SVG through the scoped resolver of the request (so the depth, cycle and budget limits of the render hold), and
+nested SVG through the scoped resolver of the request (so the depth, cycle and budget limits of the render hold),
+carries the limits of the source (`LoadContext.Limits`), and
 returns a document page at its fitted size; (6) read the page and convert the notes of the loader to
 `ImageSourceDiagnostic` (keeping `Detail`, `Location`, `Page` and `Origin`). For an **embedded** picture a
 `ViewerException` that wraps a library failure is rethrown as the original exception, so the documented
@@ -128,20 +136,19 @@ the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` 
 `Render`, and `CreateImageResolver` is for a render that the caller drives (for example `SvgCodec.Load` with
 `SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
-**`Render(path, options)`**: validate the options (see *Error Handling*), resolve the base folder (`options.Folder`,
-or the folder of the file), and call
-`FolderImageResolver.Render(fullPath, width, height, directOptions)` on a resolver built from the built-in and extra
-sources, the
-strictness switch, the file-access policy, and the cancellation token; the file may lie anywhere, also outside the
-folder and behind a link, because it is the caller's choice and the resolver reads it without judging it by the policy
-(`FileReferenceResolver.ResolveTopLevel`), while every file it references is judged; then build the `ViewerImage` from
-the picture, the notes, and the page,
-page count, anchors, and feature positions (with whether they were truncated) that the adapter left in the
-`DirectRenderOptions`. The file therefore goes through the same
-regular-file check, size limit, dispatch, and limits as an embedded link, but not the policy. A raster is asked for no
-size (the post-processing below
-keeps the documented fit rule). `RenderDirect` is the single exit of the failures of a direct render (see *Error
-Handling*).
+**`Render(path, options)`**: validate the options (see *Error Handling*), resolve the base folder (`options.Folder`, or
+the folder of the file), and call `FolderImageResolver.Render(fullPath, width, height, directOptions)` on a resolver
+built from the built-in and extra sources, the strictness switch, the file-access policy, and the cancellation token
+(`CreateResolver`; when any of `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` is set, the built-in sources of
+the resolver are copies made by `LoaderImageSource.WithLimits` for this render, so the probe and the render of the file
+and of every file drawn through the resolver, at any level, use the limits; otherwise the shared instances are used);
+the file may lie anywhere, also outside the folder and behind a link, because it is the caller's choice and the resolver
+reads it without judging it by the policy (`FileReferenceResolver.ResolveTopLevel`), while every file it references is
+judged; then build the `ViewerImage` from the picture, the notes, and the page, page count, anchors, and feature
+positions (with whether they were truncated) that the adapter left in the `DirectRenderOptions`. The file therefore goes
+through the same regular-file check, size limit, dispatch, and limits as an embedded link, but not the policy. A raster
+is asked for no size (the post-processing below keeps the documented fit rule). `RenderDirect` is the single exit of the
+failures of a direct render (see *Error Handling*).
 
 **`Render(stream, fileName, options)`**: the same, with `FolderImageResolver.Render(stream, fileName, ...)`; the base
 folder is `options.Folder` or none, so a stream cannot reach the disk by accident. The options are validated first,

@@ -70,7 +70,8 @@ see-also:
   limit (`MaxTriangles`), a chart or diagram exceeds a limit of its library
   (mermaid-limit-exceeded or plantuml-limit-exceeded for a diagram), or the
   picture does not fit in `ViewerRenderOptions.MaxDecodedPixels`. Raise the
-  limit (a model, the pixel budget) or simplify the model, chart, or diagram.
+  limit (a model, the pixel budget, the limits of a chart or diagram in
+  `ViewerRenderOptions`) or simplify the model, chart, or diagram.
 - `size-mismatch`: A comparison (`ImageComparer`) was given two images of
   different sizes and no resize target (`Resize`).
 - `positions-unmatched`: In strict mode, a position selector matched no feature

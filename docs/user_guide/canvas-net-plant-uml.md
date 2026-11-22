@@ -195,7 +195,9 @@ The limits, with their defaults and what they bound:
 
 A limit met while the text is read is a located `PlantUmlSyntaxException`, and one met while the diagram is laid out or
 painted a located `PlantUmlRenderException`; the code of both is `plantuml-limit-exceeded`. The open limits come from
-`PlantUmlOpenOptions.Limits` and the render limits from `PlantUmlRenderOptions.Limits`.
+`PlantUmlOpenOptions.Limits` and the render limits from `PlantUmlRenderOptions.Limits`. For `CanvasNetViewer.Render`,
+`ViewerRenderOptions.PlantUmlLimits` of the Viewer package sets both, for the rendered diagram and every diagram it
+embeds.
 
 ### Preprocessor and Includes
 

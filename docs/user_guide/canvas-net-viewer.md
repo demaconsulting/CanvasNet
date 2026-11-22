@@ -300,7 +300,9 @@ code `unsupported-feature`, while an unknown fragment parameter stays a warning)
 the render may decode in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192
 picture, so set it to render one larger image; when a raster is resized to the requested size, the final picture is a
 second buffer that counts against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that
-does not fit is `budget-exceeded`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?*
+does not fit is `budget-exceeded`), `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` (the resource limits of a
+chart and a diagram, at every level of nesting; null keeps the defaults of each library; see *Limits of charts and
+diagrams* below), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?*
 below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries
 `Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document),
 `Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their
@@ -366,6 +368,58 @@ A picture that an SVG file embeds and that fails in its own source has the same 
 message that names both files (`'doc.svg' embeds 'flow.mmd': ...`). A resolver you drive yourself with
 `CreateImageResolver` keeps its own contract: a broken picture throws `ImageSourceException` with the library exception
 as its `InnerException`.
+
+#### Limits of charts and diagrams
+
+Every Vega-Lite chart, Mermaid diagram, and PlantUML diagram is drawn under the resource limits of its library
+(`VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`: the length of the source, nodes, edges, data rows, fields,
+includes, layout work, painted pixels, and so on), so a hostile source fails instead of exhausting memory and time.
+`ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` set them for one render: tighter for
+source written by a user or a model, or looser for a large diagram you trust. They apply to the rendered file and to
+every chart and diagram it embeds, at any level, and the probe of a file uses them as well as its render, so a raised
+limit is not refused early. Null (the default) keeps the defaults of the library.
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
+using DemaConsulting.CanvasNet.VegaLite;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+// Tighter limits for charts and diagrams that a model writes
+var options = new ViewerRenderOptions
+{
+    VegaLiteLimits = new VegaLiteLimits { MaxDataRows = 10_000, MaxSceneItems = 20_000 },
+    MermaidLimits = new MermaidLimits { MaxNodes = 200, MaxEdges = 300 },
+    PlantUmlLimits = new PlantUmlLimits { MaxNodes = 200, MaxEdges = 300, MaxIncludes = 4 }
+};
+
+try
+{
+    using var image = CanvasNetViewer.Render("chart.vl.json", options);
+    Console.WriteLine($"{image.Surface.Width}x{image.Surface.Height}");
+}
+catch (ViewerException ex) when (ex.Code == ErrorCodes.BudgetExceeded)
+{
+    Console.Error.WriteLine(ex.Message);   // names the limit, for example MaxDataRows
+}
+```
+
+> **Warning:** raise a limit only for content you trust. The defaults are what keeps a hostile chart or diagram from
+> exhausting memory and time; a raised limit gives that protection up.
+
+Any value the limit types accept may be set, lower or higher than the default. The types check each value when it is
+set (a value below 1 throws `ArgumentOutOfRangeException`) and cap the depths that bound recursion, whatever you ask:
+`VegaLiteLimits.MaxJsonDepth` and `MaxExpressionDepth` at 256 and `MaxCompositionDepth` at 64,
+`MermaidLimits.MaxNestingDepth` and `MaxYamlDepth` at 256, and `PlantUmlLimits.MaxNestingDepth` at 256 and
+`MaxIncludeDepth` at 64. A source over a limit is a `ViewerException` whose message names the limit: `budget-exceeded`
+for most limits (with the detail code `mermaid-limit-exceeded` or `plantuml-limit-exceeded` for a diagram),
+`corrupt-input` for a source longer than `MaxTextSize` or `MaxSourceLength`, and `vega-lite-error` for a limit of the
+structure met while a specification is read, such as its JSON depth. The triangle limit of a model is
+`ScadViewOptions.MaxTriangles` of `ViewerRenderOptions.Scad`; unlike these three limits, it applies only to the
+rendered model, not to a model the file embeds. The `canvasnet` tool always uses the defaults of the libraries.
 
 #### Choosing which linked files may be read
 
@@ -1464,6 +1518,10 @@ image sources); the `canvasnet` tool follows them.
    Migration: catch `ViewerException` and branch on `Code` (see *Handling render errors*); read the pixel counts of a
    budget failure from the `ImageSourceBudgetException` in `InnerException`. A resolver from `CreateImageResolver` is
    unchanged.
+3. **Limits of charts and diagrams.** The new `ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, and
+   `PlantUmlLimits` set the resource limits of the Vega-Lite, Mermaid, and PlantUML libraries for one render, tighter or
+   looser, for the rendered file and every file it embeds (see *Limits of charts and diagrams*). They are null by
+   default, which keeps the previous behavior. Raise a limit only for content you trust.
 
 ## Examples
 

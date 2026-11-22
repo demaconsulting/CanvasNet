@@ -343,7 +343,7 @@ configuration, or data folders are passed, and there is **no data-folder option*
 render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A
 chart's local data files (CSV, TSV, DSV, or JSON named by a local `url`) are therefore read by the library relative to
 the folder of the specification - the base directory, never the current directory - under `SourceOptions.FileAccess`
-(`OpenVegaLite(input, fileAccess)`); a file that is missing or not valid is a `VegaLiteRenderException`
+(`OpenVegaLite(input, fileAccess, limits)`); a file that is missing or not valid is a `VegaLiteRenderException`
 (`vega-lite-error`, in strict mode too), a file the policy denies is `file-access-denied`, and a remote URL is only a
 diagnostic that
 is never fetched (an `unsupported-feature` error with the strict switch). The
@@ -620,8 +620,9 @@ message), `Directory` (the folder that the files a format names itself are looke
 so a file loaded from disk and the same bytes loaded from memory give the same kind, size, pixels, and notes. The public
 `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default `LoadContext`, so the command line behaves as
 before (it probes once for `info` and opens once for `render`, as before). The internal entry points
-`ProbeInput(input, kind, fileAccess)`, `OpenInput(input, kind, fileAccess)` (the policy of the files the source reads
-beside it; `ProbeScad`, `ProbeVegaLite`, `OpenScad`, and `OpenVegaLite` take it too) and
+`ProbeInput(input, kind, fileAccess, limits)`, `OpenInput(input, kind, fileAccess, limits)` (the policy of the files
+the source reads beside it; `ProbeScad`, `ProbeVegaLite`, `OpenScad`, and `OpenVegaLite` take it too; `limits` is an
+optional `SourceLimits`, see below) and
 `OpenInputPages(input, info, options, context, opened)` serve `LoaderImageSource` of the `CanvasNetViewer` unit:
 `OpenInput` returns an `OpenedSource` that keeps the parsed PDF, presentation or drawing open after reading its pages,
 and `OpenInputPages` takes the document from it (`TakeDocument`, which transfers ownership to the page source), so a
@@ -632,8 +633,19 @@ so the pixel budget of the render is charged first - a raster from its declared 
 huge picture stays a `svg-image-too-large` warning and not a `size-limit` error; a Mermaid diagram that its pictures
 enlarge is charged the rest right after the draw, before it is returned), `ScopedResolver` (used instead of building an
 `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget limits of the embedding
-render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document page comes back at its
-fitted size without the margin, as a linked page is drawn). The default context has no hook.
+render apply and the resolver's notes are not duplicated), `ReturnFittedPage` (a document page comes back at its
+fitted size without the margin, as a linked page is drawn), and `Limits`. The default context has no hook.
+
+**SourceLimits** (`SourceLoader.Input.cs`, internal record): the `VegaLiteLimits`, `MermaidLimits`, and
+`PlantUmlLimits` a caller sets, each `null` for the library default (`SourceLimits.Default` has all three `null`).
+`ProbeInput` and `OpenInput` take them for the probe (`ProbeVegaLite`, `ProbeMermaid`, and `ProbePlantUml` give them to
+`OpenVegaLite`, `OpenMermaid`, `OpenPlantUml`, and to the measure, `MeasureChart`, `MeasureDiagram`, and
+`MeasurePlantUml`), and `LoadContext.Limits` carries them to the page sources, which give them to the open and render
+options of the library (`VegaLiteOpenOptions.Limits` and `VegaLiteRenderOptions.Limits`, and the same for Mermaid and
+PlantUML; a measure after a parameter or a theme uses them too). The probe and the load of one source must use the
+same limits: a raised limit that only the render used would be refused by the probe, and a lowered one that only the
+probe used would not hold for the render. The public entry points and the command line use the default context and
+the default limits; `LoaderImageSource` of the `CanvasNetViewer` unit gives the limits of `ViewerRenderOptions`.
 
 **Option validation** (`FindOptionProblem`): `Load(path, options)`, `Load(info, options)`, and `OpenPages` check the
 `SourceOptions` first, before any file is touched, with the ranges of the command-line readers: `Width` and `Height`

@@ -69,6 +69,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-Arguments
           - CanvasNetViewer-Imaging-SourceLoader-BoxFit
           - CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
+          - CanvasNetViewer-Imaging-SourceLoader-SourceLimits
           - CanvasNetViewer-Imaging-SourceLoader-OptionValidation
           - CanvasNetViewer-Imaging-SourceLoader-ChartParameters
           - CanvasNetViewer-Imaging-SourceLoader-InputFragments

@@ -272,6 +272,30 @@ chart keeps its own); that a model gets its view and variables, reports its anch
 `ImageSourceException` whose inner exception is the codec's); that the pixels equal those of `SourceLoader.Load` for
 equal options; and that a raster in a box is fitted and charged.
 
+#### CanvasNetViewer-CanvasNetViewer-ResourceLimits: Limits Of Charts And Diagrams Set By The Host
+
+**Tests**: `CanvasNetViewer_Render_LimitsNotSet_AreTheLibraryDefaults`,
+`CanvasNetViewer_Render_LowerVegaLiteLimits_ThrowBudgetExceeded`,
+`CanvasNetViewer_Render_RaisedVegaLiteLimits_AdmitALargerChart`,
+`CanvasNetViewer_Render_LowerMermaidLimits_ThrowBudgetExceeded`,
+`CanvasNetViewer_Render_RaisedMermaidLimits_AdmitALargerDiagram`,
+`CanvasNetViewer_Render_LowerPlantUmlLimits_ThrowBudgetExceeded`,
+`CanvasNetViewer_Render_RaisedPlantUmlLimits_AdmitALargerDiagram`,
+`CanvasNetViewer_Render_Limits_ApplyToEmbeddedChartsAndDiagrams` (`CanvasNetViewerRenderOptionsTests.cs`)
+
+Asserts that the three limits are null by default and that a render with them unset draws the same pixels as one with
+the default limits of each library, for a chart, a Mermaid diagram, and a PlantUML diagram. For each format, a source
+that renders by default fails under a lower limit (`MaxDataRows` 2 for a chart of three rows, `MaxNodes` 2 for a
+flowchart of three nodes, `MaxNodes` 1 for a sequence diagram of two participants) with a `ViewerException` of the code
+`budget-exceeded` whose message names the limit (with the detail code `mermaid-limit-exceeded` or
+`plantuml-limit-exceeded` for a diagram), and a source that the default refuses (a chart row of 1,100 fields over
+`MaxFieldCount` 1,024, a Mermaid text over `MaxTextSize` 50,000, a PlantUML diagram of 70 includes over `MaxIncludes`
+64) is refused without the option (with the code and the limit named) and drawn with a raised limit, which proves that
+the probe of the file uses the limit as well as its render. For embedded files, an SVG file that embeds the three-node
+flowchart renders by default and fails with `budget-exceeded` under `MaxNodes` 2 with a message that names both files
+and the limit, and an SVG file that embeds the wide chart fails by default and is drawn without a warning under a
+raised `MaxFieldCount`. The bounds are proved by the specific limit error, never by time.
+
 #### CanvasNetViewer-CanvasNetViewer-ExtraSources: Your Own Sources
 
 **Tests**: `CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources` and the five custom-source

@@ -1,5 +1,7 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -372,6 +374,225 @@ public class CanvasNetViewerRenderOptionsTests
 
         // Act / Assert
         Assert.Throws<OperationCanceledException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { CancellationToken = cts.Token }));
+    }
+
+    /// <summary>
+    ///     A chart of three rows, which renders under the default limits.
+    /// </summary>
+    private const string ThreeRowChart =
+        "{\"data\":{\"values\":[{\"a\":1},{\"a\":2},{\"a\":3}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}";
+
+    /// <summary>
+    ///     A flowchart of three nodes, which renders under the default limits.
+    /// </summary>
+    private const string ThreeNodeFlowchart = "flowchart LR\n  A --> B --> C\n";
+
+    /// <summary>
+    ///     A sequence diagram of two participants, which renders under the default limits.
+    /// </summary>
+    private const string TwoParticipantSequence = "@startuml\nAlice -> Bob : hi\n@enduml\n";
+
+    /// <summary>
+    ///     Test that the limits of a chart and a diagram are not set by default, and that a render without them draws
+    ///     the same pictures as a render with the default limits of each library.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LimitsNotSet_AreTheLibraryDefaults()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var chart = FixtureFactory.WriteText(directory.Path, "chart.vl.json", ThreeRowChart);
+        var flow = FixtureFactory.WriteText(directory.Path, "flow.mmd", ThreeNodeFlowchart);
+        var sequence = FixtureFactory.WriteText(directory.Path, "sequence.puml", TwoParticipantSequence);
+        var options = new ViewerRenderOptions();
+        var defaults = new ViewerRenderOptions
+        {
+            VegaLiteLimits = VegaLiteLimits.Default,
+            MermaidLimits = MermaidLimits.Default,
+            PlantUmlLimits = PlantUmlLimits.Default
+        };
+
+        // Act / Assert
+        Assert.Null(options.VegaLiteLimits);
+        Assert.Null(options.MermaidLimits);
+        Assert.Null(options.PlantUmlLimits);
+        foreach (var path in new[] { chart, flow, sequence })
+        {
+            using var unset = CanvasNetViewer.Render(path, options);
+            using var set = CanvasNetViewer.Render(path, defaults);
+            SurfaceAssert.Equal(unset.Surface, set.Surface);
+        }
+    }
+
+    /// <summary>
+    ///     Test that a lower Vega-Lite limit refuses a chart that renders by default, with a
+    ///     <see cref="ViewerException"/> of the code budget-exceeded that names the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LowerVegaLiteLimits_ThrowBudgetExceeded()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "chart.vl.json", ThreeRowChart);
+        using var byDefault = CanvasNetViewer.Render(path);
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { VegaLiteLimits = new VegaLiteLimits { MaxDataRows = 2 } }));
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, ex.Code);
+        Assert.Contains("MaxDataRows", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a higher Vega-Lite limit admits a chart that the default limit refuses, so the probe of the chart
+    ///     uses the limit as well as its render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_RaisedVegaLiteLimits_AdmitALargerChart()
+    {
+        // Arrange: one row of more fields than the default limit of 1,024
+        using var directory = new TempDirectory();
+        var fields = string.Join(",", Enumerable.Range(0, 1100).Select(i => $"\"f{i}\":{i}"));
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "wide.vl.json",
+            $"{{\"data\":{{\"values\":[{{{fields}}}]}},\"mark\":\"point\",\"encoding\":{{\"x\":{{\"field\":\"f0\",\"type\":\"quantitative\"}}}}}}");
+
+        // Act
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path));
+        using var admitted = CanvasNetViewer.Render(path, new ViewerRenderOptions { VegaLiteLimits = new VegaLiteLimits { MaxFieldCount = 2048 } });
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, refused.Code);
+        Assert.Contains("MaxFieldCount", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("vega-lite", admitted.Format);
+    }
+
+    /// <summary>
+    ///     Test that a lower Mermaid limit refuses a diagram that renders by default, with a
+    ///     <see cref="ViewerException"/> of the code budget-exceeded that names the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LowerMermaidLimits_ThrowBudgetExceeded()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "flow.mmd", ThreeNodeFlowchart);
+        using var byDefault = CanvasNetViewer.Render(path);
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { MermaidLimits = new MermaidLimits { MaxNodes = 2 } }));
+
+        // Assert
+        Assert.Equal((ErrorCodes.BudgetExceeded, MermaidDiagnosticCodes.LimitExceeded), (ex.Code, ex.DetailCode));
+        Assert.Contains("MaxNodes", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a higher Mermaid limit admits a diagram that the default limit refuses, so the probe of the diagram
+    ///     uses the limit as well as its render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_RaisedMermaidLimits_AdmitALargerDiagram()
+    {
+        // Arrange: a text longer than the default limit of 50,000 characters
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "flow.mmd", ThreeNodeFlowchart + new string(' ', 60_000) + "\n");
+
+        // Act
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path));
+        using var admitted = CanvasNetViewer.Render(path, new ViewerRenderOptions { MermaidLimits = new MermaidLimits { MaxTextSize = 100_000 } });
+
+        // Assert
+        Assert.Equal(ErrorCodes.CorruptInput, refused.Code);
+        Assert.Contains("MaxTextSize", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("mermaid", admitted.Format);
+    }
+
+    /// <summary>
+    ///     Test that a lower PlantUML limit refuses a diagram that renders by default, with a
+    ///     <see cref="ViewerException"/> of the code budget-exceeded that names the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LowerPlantUmlLimits_ThrowBudgetExceeded()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "sequence.puml", TwoParticipantSequence);
+        using var byDefault = CanvasNetViewer.Render(path);
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { PlantUmlLimits = new PlantUmlLimits { MaxNodes = 1 } }));
+
+        // Assert
+        Assert.Equal((ErrorCodes.BudgetExceeded, PlantUmlDiagnosticCodes.LimitExceeded), (ex.Code, ex.DetailCode));
+        Assert.Contains("MaxNodes", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a higher PlantUML limit admits a diagram that the default limit refuses, so the probe of the diagram
+    ///     uses the limit as well as its render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_RaisedPlantUmlLimits_AdmitALargerDiagram()
+    {
+        // Arrange: a diagram of more includes than the default limit of 64
+        using var directory = new TempDirectory();
+        var includes = new System.Text.StringBuilder();
+        for (var i = 0; i < 70; i++)
+        {
+            FixtureFactory.WriteText(directory.Path, $"part{i}.iuml", "' part\n");
+            includes.Append($"!include part{i}.iuml\n");
+        }
+
+        var path = FixtureFactory.WriteText(directory.Path, "sequence.puml", $"@startuml\n{includes}Alice -> Bob : hi\n@enduml\n");
+
+        // Act
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path));
+        using var admitted = CanvasNetViewer.Render(path, new ViewerRenderOptions { PlantUmlLimits = new PlantUmlLimits { MaxIncludes = 100 } });
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, refused.Code);
+        Assert.Contains("MaxIncludes", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("plantuml", admitted.Format);
+    }
+
+    /// <summary>
+    ///     Test that the limits apply to a chart and a diagram an SVG file embeds: a lower limit refuses an embedded
+    ///     diagram that renders by default, and a higher limit admits an embedded chart that the default refuses.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_Limits_ApplyToEmbeddedChartsAndDiagrams()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, "flow.mmd", ThreeNodeFlowchart);
+        var fields = string.Join(",", Enumerable.Range(0, 1100).Select(i => $"\"f{i}\":{i}"));
+        FixtureFactory.WriteText(
+            directory.Path,
+            "wide.vl.json",
+            $"{{\"data\":{{\"values\":[{{{fields}}}]}},\"mark\":\"point\",\"encoding\":{{\"x\":{{\"field\":\"f0\",\"type\":\"quantitative\"}}}}}}");
+        var diagram = FixtureFactory.WriteText(directory.Path, "diagram.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("flow.mmd", 0)));
+        var chart = FixtureFactory.WriteText(directory.Path, "chart.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("wide.vl.json", 0)));
+        using var diagramByDefault = CanvasNetViewer.Render(diagram);
+
+        // Act
+        var lowered = Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(diagram, new ViewerRenderOptions { MermaidLimits = new MermaidLimits { MaxNodes = 2 } }));
+        var refusedChart = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(chart));
+        using var admittedChart = CanvasNetViewer.Render(chart, new ViewerRenderOptions { VegaLiteLimits = new VegaLiteLimits { MaxFieldCount = 2048 } });
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, lowered.Code);
+        Assert.StartsWith("'diagram.svg' embeds 'flow.mmd': ", lowered.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxNodes", lowered.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.BudgetExceeded, refusedChart.Code);
+        Assert.Equal("svg", admittedChart.Format);
+        Assert.DoesNotContain(admittedChart.Diagnostics, d => d.Severity != ImageDiagnosticSeverity.Info);
     }
 
     /// <summary>

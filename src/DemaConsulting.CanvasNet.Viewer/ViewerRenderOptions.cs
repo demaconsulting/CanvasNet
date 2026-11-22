@@ -211,6 +211,72 @@ public sealed record ViewerRenderOptions
     public long? MaxDecodedPixels { get; init; }
 
     /// <summary>
+    ///     Gets the resource limits of a Vega-Lite chart (source length, JSON depth, data files, bytes and rows, fields,
+    ///     views, scene items, ticks, expressions, pictures, painted pixels, and so on), or <see langword="null"/>
+    ///     (default) for <see cref="DemaConsulting.CanvasNet.VegaLite.VegaLiteLimits.Default"/>. They apply to the
+    ///     rendered chart and to every chart the rendered file embeds, at any level of nesting, from the first read of
+    ///     the file to the last pixel.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxJsonDepth</c> and <c>MaxExpressionDepth</c> at 256, <c>MaxCompositionDepth</c> at
+    ///         64. <b>Raise a limit only for content you trust</b>: the limits keep a hostile chart from exhausting
+    ///         memory and time.
+    ///     </para>
+    ///     <para>
+    ///         A chart over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> for a limit of the data, layout or painting, <c>vega-lite-error</c> for a
+    ///         limit of the structure met while the specification is read (such as the JSON depth), and
+    ///         <c>corrupt-input</c> for a source longer than <c>MaxSourceLength</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.VegaLite.VegaLiteLimits? VegaLiteLimits { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a Mermaid diagram (text size, nodes, edges, label length, nesting, layout work,
+    ///     pictures, painted pixels, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.Mermaid.MermaidLimits.Default"/>. They apply to the rendered diagram and
+    ///     to every diagram the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxNestingDepth</c> and <c>MaxYamlDepth</c> at 256. <b>Raise a limit only for
+    ///         content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         A diagram over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>mermaid-limit-exceeded</c>, or <c>corrupt-input</c>
+    ///         for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.Mermaid.MermaidLimits? MermaidLimits { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a PlantUML diagram (text size, nodes, edges, label length, nesting, includes and
+    ///     their depth, layout work, painted pixels, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits.Default"/>. They apply to the rendered diagram
+    ///     and to every diagram the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxNestingDepth</c> at 256, <c>MaxIncludeDepth</c> at 64. <b>Raise a limit only for
+    ///         content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         A diagram over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>plantuml-limit-exceeded</c>, or
+    ///         <c>corrupt-input</c> for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits? PlantUmlLimits { get; init; }
+
+    /// <summary>
     ///     Gets the token that cancels the render. The default is <see cref="CancellationToken.None"/>.
     /// </summary>
     public CancellationToken CancellationToken { get; init; }

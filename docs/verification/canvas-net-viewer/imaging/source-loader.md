@@ -828,6 +828,13 @@ a scoped resolver draws the nested pictures and adds no notes of its own while a
 and
 a document page comes back at its fitted size without the margin.
 
+**SourceLoader_Limits_ApplyToTheProbeAndTheLoad** (`SourceLoaderInputTests.cs`, for a Vega-Lite chart, a Mermaid
+diagram, and a PlantUML diagram): a small source that the default probe accepts is refused with `budget-exceeded` by a
+probe given a lower limit (`MaxDataRows` 2 for three rows, `MaxNodes` 2 for three nodes, `MaxNodes` 1 for two
+participants), and by a load whose `LoadContext.Limits` has that limit after a probe with the defaults, so each of the
+two uses the limits it is given; the default context keeps `SourceLimits.Default`, the defaults of the libraries that
+the command line uses.
+
 **SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile**,
 **SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile**,
 **SourceLoader_FindOptionProblem_BoundaryOptions_AreAccepted**,

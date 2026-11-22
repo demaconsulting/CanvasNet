@@ -114,8 +114,14 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///         render maps it again with the same mapping); a <see cref="ViewerException"/> that has no original (a size
 ///         limit, a model whose include is missing) is thrown as it is. The failure of the file of a <b>direct</b>
 ///         render (<see cref="DirectRenderOptions"/>) is always thrown as the mapped <see cref="ViewerException"/>, with
-///         its code, location and detail code and the library exception as its inner exception. The class is stateless
+///         its code, location and detail code and the library exception as its inner exception. The class is immutable
 ///         and thread-safe.
+///     </para>
+///     <para>
+///         <b>Limits.</b> The resource limits of a chart and a diagram (<see cref="SourceLoader.SourceLimits"/>) are
+///         fixed when the source is created: <see cref="CanvasNetViewer"/> creates sources with the limits of
+///         <see cref="ViewerRenderOptions"/> for one render (<see cref="WithLimits"/>), so the probe and the render of
+///         the file and of every file it embeds, at any level, use them.
 ///     </para>
 /// </remarks>
 internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
@@ -178,22 +184,29 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly bool _acceptsTheme;
 
     /// <summary>
+    ///     The resource limits of a chart and a diagram that this source draws with, at every level of nesting.
+    /// </summary>
+    private readonly SourceLoader.SourceLimits _limits;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="LoaderImageSource"/> class.
     /// </summary>
     /// <param name="claims">The package source whose name, extensions and schemes this source claims.</param>
     /// <param name="kinds">The kinds of file the source draws; one, or the raster kinds.</param>
     /// <param name="pageParameters">The fragment parameters that choose the page; empty when the source has no pages.</param>
     /// <param name="acceptsView">Whether the fragment parameters <c>view</c>, <c>azimuth</c>, <c>elevation</c>, and <c>projection</c> choose and turn a viewpoint.</param>
+    /// <param name="limits">The resource limits of a chart and a diagram, or <see langword="null"/> for the library defaults.</param>
     /// <remarks>
     ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
     ///     and <c>theme</c> for a Mermaid diagram; a PlantUML diagram takes no parameter of its own.
     /// </remarks>
-    public LoaderImageSource(IImageSource claims, SourceKind[] kinds, string[] pageParameters, bool acceptsView)
+    public LoaderImageSource(IImageSource claims, SourceKind[] kinds, string[] pageParameters, bool acceptsView, SourceLoader.SourceLimits? limits = null)
     {
         _claims = claims;
         _kinds = kinds;
         _pageParameters = pageParameters;
         _acceptsView = acceptsView;
+        _limits = limits ?? SourceLoader.SourceLimits.Default;
         _acceptsTheme = kinds is [SourceKind.Mermaid];
         FragmentParameters = new ReadOnlyCollection<string>(
             [.. pageParameters, .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter, ProjectionParameter } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
@@ -222,6 +235,16 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
 
     /// <inheritdoc />
     public IReadOnlyList<string> FragmentParameterPrefixes { get; }
+
+    /// <summary>
+    ///     Creates a source that claims and draws what this one does, with other resource limits of a chart and a diagram.
+    /// </summary>
+    /// <param name="limits">The limits; they apply to the file of a direct render and to every file drawn through the same resolver.</param>
+    /// <returns>The new source.</returns>
+    internal LoaderImageSource WithLimits(SourceLoader.SourceLimits limits)
+    {
+        return new LoaderImageSource(_claims, _kinds, _pageParameters, _acceptsView, limits);
+    }
 
     /// <summary>
     ///     Draws the page of the file of a request that the fragment (or the direct options) names.
@@ -286,7 +309,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             }
         }
 
-        using var opened = SourceLoader.OpenInput(input, kind, request.FileAccess);
+        using var opened = SourceLoader.OpenInput(input, kind, request.FileAccess, _limits);
         var info = opened.Info;
         if (options.Page < 1 || options.Page > info.PageCount)
         {
@@ -300,6 +323,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             UseScopedResolver = true,
             ScopedResolver = request.Resolver,
             ReturnFittedPage = true,
+            Limits = _limits,
 
             // An embedded picture asked for the positions of its bindings leaves "matched nothing" to the bindings
             WarnUnmatchedPositions = direct is not null

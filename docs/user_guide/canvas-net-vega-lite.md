@@ -196,7 +196,9 @@ and checked before any scene item is counted. `MaxExpressionLength` (for the exp
 document is opened (with `VegaLiteOpenOptions.Limits`); `MaxEvaluationSteps` is **one budget per measure or render
 call** that the parameters, the transforms, and the row-bound mark values share, and `MaxStringLength` also bounds every
 text that an expression builds. The fields and rows that the row transforms derive count against `MaxFieldCount` and
-`MaxDataRows` as well (see *Vega-Lite Expressions* and *Vega-Lite Transforms* for the details).
+`MaxDataRows` as well (see *Vega-Lite Expressions* and *Vega-Lite Transforms* for the details). For
+`CanvasNetViewer.Render`, `ViewerRenderOptions.VegaLiteLimits` of the Viewer package sets both the open and the render
+limits, for the rendered chart and every chart it embeds; raise a limit only for a specification you trust.
 
 `MaxSceneItems` counts items, not the area they cover, and the cost of painting an item grows with its area: a few
 thousand rectangles that cover the whole image, symbols of a million square pixels, strokes thousands of pixels wide

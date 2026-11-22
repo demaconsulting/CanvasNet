@@ -29,6 +29,10 @@ the operations of the Imaging namespace.
 - `ThrowOnUnsupportedFeature`: Strict mode (`SourceOptions.Strict`): every
   unsupported construct, and a picture that is not drawn, becomes an
   unsupported-feature error.
+- `MermaidLimits`: The resource limits of the diagram
+  (`ViewerRenderOptions.MermaidLimits`), lower or higher than the defaults, for
+  the diagram and every diagram it embeds; raise one only for trusted content
+  (see [[limits]]).
 
 ## Supported
 

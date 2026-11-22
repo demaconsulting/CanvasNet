@@ -191,6 +191,30 @@ sections:
               - CanvasNetViewer_Render_StreamWithPage_DrawsThePage
               - CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange
 
+          - id: CanvasNetViewer-CanvasNetViewer-ResourceLimits
+            title: >-
+              The ViewerRenderOptions class shall carry the resource limits of a Vega-Lite chart (VegaLiteLimits), a
+              Mermaid diagram (MermaidLimits) and a PlantUML diagram (PlantUmlLimits), each null by default for the
+              defaults of its library and otherwise any value its type accepts, lower or higher than the default, and
+              CanvasNetViewer shall apply them to the probe and the render of the rendered file and of every chart and
+              diagram it embeds, at any level of nesting, so that a source over a lower limit fails with a
+              ViewerException that names the limit (budget-exceeded for a limit of the nodes, edges, includes, data,
+              layout or painting, corrupt-input for a text over its length limit) and a source over a default limit but
+              within a raised one is drawn.
+            justification: |
+              A host that renders source written by a user or a model needs tighter budgets than the defaults to bound
+              memory and time, and a host with large diagrams it trusts needs looser ones; the limits must hold for
+              embedded files too, and a raised limit must not be refused early by a probe with the defaults.
+            tests:
+              - CanvasNetViewer_Render_LimitsNotSet_AreTheLibraryDefaults
+              - CanvasNetViewer_Render_LowerVegaLiteLimits_ThrowBudgetExceeded
+              - CanvasNetViewer_Render_RaisedVegaLiteLimits_AdmitALargerChart
+              - CanvasNetViewer_Render_LowerMermaidLimits_ThrowBudgetExceeded
+              - CanvasNetViewer_Render_RaisedMermaidLimits_AdmitALargerDiagram
+              - CanvasNetViewer_Render_LowerPlantUmlLimits_ThrowBudgetExceeded
+              - CanvasNetViewer_Render_RaisedPlantUmlLimits_AdmitALargerDiagram
+              - CanvasNetViewer_Render_Limits_ApplyToEmbeddedChartsAndDiagrams
+
           - id: CanvasNetViewer-CanvasNetViewer-FileAccess
             title: >-
               The ViewerRenderOptions class shall carry the file-access policy of a render (FileAccess, the allow-all

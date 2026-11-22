@@ -161,10 +161,12 @@ public static partial class SourceLoader
     /// <param name="input">Where the bytes come from.</param>
     /// <param name="kind">The kind of the source, already recognized by the caller.</param>
     /// <param name="fileAccess">The policy of the files the probe reads beside the source (the data of a chart).</param>
+    /// <param name="limits">The resource limits of a chart or a diagram, or <see langword="null"/> for the library defaults.</param>
     /// <returns>The facts; for a document they include every page.</returns>
     /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
-    internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess)
+    internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess, SourceLimits? limits = null)
     {
+        limits ??= SourceLimits.Default;
         var bytes = Read(input.Name, null, () => input.Length);
         var info = kind switch
         {
@@ -175,9 +177,9 @@ public static partial class SourceLoader
             SourceKind.Pptx => ProbePptx(input, bytes),
             SourceKind.Vsdx => ProbeVsdx(input, bytes),
             SourceKind.Scad => ProbeScad(input, bytes, fileAccess),
-            SourceKind.VegaLite => ProbeVegaLite(input, bytes, fileAccess),
-            SourceKind.Mermaid => ProbeMermaid(input, bytes),
-            SourceKind.PlantUml => ProbePlantUml(input, bytes, fileAccess),
+            SourceKind.VegaLite => ProbeVegaLite(input, bytes, fileAccess, limits.VegaLite),
+            SourceKind.Mermaid => ProbeMermaid(input, bytes, limits.Mermaid),
+            SourceKind.PlantUml => ProbePlantUml(input, bytes, fileAccess, limits.PlantUml),
             _ => throw UnhandledKind(kind)
         };
         return info with { FileAccess = fileAccess };
@@ -293,9 +295,13 @@ public static partial class SourceLoader
     /// <param name="input">Where the bytes come from.</param>
     /// <param name="kind">The kind of the source, already recognized by the caller.</param>
     /// <param name="fileAccess">The policy of the files the probe reads beside the source (the data of a chart).</param>
+    /// <param name="limits">
+    ///     The resource limits of a chart or a diagram, or <see langword="null"/> for the library defaults; the render of
+    ///     the source must use the same ones (<see cref="LoadContext.Limits"/>).
+    /// </param>
     /// <returns>The facts and, for a PDF, presentation or drawing, the parsed document; the caller disposes it.</returns>
     /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
-    internal static OpenedSource OpenInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess)
+    internal static OpenedSource OpenInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess, SourceLimits? limits = null)
     {
         switch (kind)
         {
@@ -306,7 +312,7 @@ public static partial class SourceLoader
             case SourceKind.Vsdx:
                 return KeepOpen(Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input)), (d, bytes) => DescribeVsdx(input.Name, d, bytes) with { FileAccess = fileAccess }, input);
             default:
-                return new OpenedSource(ProbeInput(input, kind, fileAccess), null);
+                return new OpenedSource(ProbeInput(input, kind, fileAccess, limits), null);
         }
     }
 
