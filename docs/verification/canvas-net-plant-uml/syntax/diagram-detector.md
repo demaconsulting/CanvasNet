@@ -87,11 +87,23 @@ each.
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-OtherTypes: Other Types Are Named
 
 **Tests**: `DiagramDetectorTests.PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized`,
-`DiagramDetectorTests.PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes`
+`DiagramDetectorTests.PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_BadMessageFromKeywordNamedParticipant_IsSequenceErrorAtTheMessage`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_MessagesFromKeywordNamedParticipants_AreSequence`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_Detect_KeywordDeclarationsWithLinks_KeepTheirType`,
+`DiagramDetectorTests.PlantUmlDiagramDetector_StartsWithArrowFromFirstWord_ReadsTheLeftEnd`
 
 Asserts the type of one-statement diagrams: legacy activity, timing, and gantt; none is drawn. Asserts that the hint of
 a legacy activity diagram names it and lists the activity, class, component, deployment, object, sequence, state, and
-usecase diagrams as drawn, and the joined lists of two and three types.
+usecase diagrams as drawn, and the joined lists of two and three types. Asserts that a sequence diagram with an actor,
+a participant named like a keyword of another type (`Agent`, `Node`, `File`, `Card`, `Person`, `Stack`, `Cloud`,
+`Component`, `Interface`, `Class`, `Object`, `Package`, `State`, `Usecase`), and a message without a target from that
+participant at line 5 is a `plantuml-syntax-error` at line 5, column 1 that names the message and the sequence diagram;
+that readable messages from such participants are sequence diagrams; that declarations by keyword followed by links
+(`agent A`, `node A`, `agent X` with `X --> Y`, a component, a class, a state, and an object) keep their drawn type
+recognized at line 2; and that the first word is the left end of an arrow for `Agent -> : call tool`, `node --> db`,
+and `State ..> Next : x`, but not for a declaration followed by a link, a declaration without an arrow, an arrow without
+a left end, or a quoted left end.
 
 ##### CanvasNetPlantUml-Syntax-DiagramDetector-Errors: Empty And Unknown Diagrams Fail Located
 

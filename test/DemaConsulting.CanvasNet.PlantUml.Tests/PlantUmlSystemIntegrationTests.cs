@@ -55,6 +55,26 @@ public class PlantUmlSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that one unreadable message from a participant named <c>Agent</c> (a deployment keyword) fails at
+    ///     the message as a sequence syntax error, not at a valid participant declaration as a deployment error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_Open_BadMessageFromKeywordNamedParticipant_FailsAtTheMessage()
+    {
+        // Arrange
+        const string text = "@startuml\nactor User\nparticipant Agent\nUser -> Agent : request\nAgent -> : call tool\nAgent --> User : answer\n@enduml\n";
+
+        // Act
+        var ex = Assert.Throws<PlantUmlSyntaxException>(() => PlantUmlDocument.Parse(text, new PlantUmlOpenOptions { SourceName = "diagram.puml" }));
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.SyntaxError, ex.Code);
+        Assert.Equal(new PlantUmlLocation("diagram.puml", 5, 1), ex.Location);
+        Assert.Contains("'Agent -> : call tool' is not a statement of a sequence diagram", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("deployment", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the supported preprocessor subset is applied before the diagram type is detected, offline.
     /// </summary>
     [Fact]

@@ -62,6 +62,14 @@ temporary file, and asserts that all three are sequence diagrams.
 Parses a diagram with a statement no type accepts under a source name, and asserts the code `plantuml-syntax-error`,
 the location `bad.puml:3:1`, and a hint.
 
+**Tests**:
+`PlantUmlSystemIntegrationTests.CanvasNetPlantUml_Open_BadMessageFromKeywordNamedParticipant_FailsAtTheMessage`
+
+Parses a sequence diagram with an actor, a participant named `Agent` (a deployment keyword), and a message without a
+target from it at line 5 under a source name, and asserts the code `plantuml-syntax-error`, the location
+`diagram.puml:5:1`, a message that names the line as not a statement of a sequence diagram, and no mention of a
+deployment diagram.
+
 **Tests**: `PlantUmlActivityIntegrationTests.CanvasNetPlantUml_Activity_SyntaxError_IsLocated`
 
 Parses an activity diagram whose if is not closed and asserts `plantuml-syntax-error` at the line and column of the if

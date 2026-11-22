@@ -652,6 +652,10 @@ internal static partial class DiagramDetector
     /// <summary>
     ///     Gets the type that only another (not drawn) diagram type uses a statement for, or null.
     /// </summary>
+    /// <remarks>
+    ///     A keyword that is the left end of an arrow (<c>Agent -&gt; : x</c>) names a participant, not a type
+    ///     (see <see cref="StartsWithArrowFromFirstWord"/>).
+    /// </remarks>
     /// <param name="text">The statement text.</param>
     /// <returns>The type, or null.</returns>
     internal static string? OtherType(string text)
@@ -683,7 +687,8 @@ internal static partial class DiagramDetector
             return "usecase";
         }
 
-        var word = FirstWord(text);
+        // A keyword names a type only when it declares something: a word that an arrow starts from is a name
+        var word = DeclarationWord(text);
         foreach (var (keyword, type) in OtherTypeKeywords)
         {
             if (word.Equals(keyword, StringComparison.OrdinalIgnoreCase))
@@ -797,6 +802,27 @@ internal static partial class DiagramDetector
         TryFindMessageArrow(text, out var left, out var run, out var right)
         && ((IsBorderStart(left) && IsParticipantEnd(right, isLeft: false))
             || (IsParticipantEnd(left, isLeft: true) && IsBorderEnd(run, right)));
+
+    /// <summary>
+    ///     Decides whether the first word of a statement is the whole left end of an arrow (<c>Agent -&gt; Bob</c>,
+    ///     <c>Agent -&gt; : call tool</c>, <c>node --&gt; db</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Such a word names a participant or an element that the arrow starts from; it does not declare one, even when
+    ///     it is spelled like a declaration keyword (<c>agent</c>, <c>node</c>, <c>class</c>, <c>state</c>, ...). The
+    ///     keyword rules of the other types and of the graph families ignore it, so that one unreadable message from a
+    ///     participant named <c>Agent</c> stays a sequence syntax error at its own line instead of turning the whole
+    ///     diagram into a deployment diagram. A declaration followed by an arrow (<c>agent A --&gt; B</c>) keeps its
+    ///     keyword, because its left end holds more than the first word.
+    /// </remarks>
+    /// <param name="text">The statement text.</param>
+    /// <returns>True when the first word is the left end of an arrow.</returns>
+    internal static bool StartsWithArrowFromFirstWord(string text)
+    {
+        var word = FirstWord(text);
+        return word.Length > 0 && TryFindMessageArrow(text, out var left, out _, out _)
+            && left.Equals(word, StringComparison.Ordinal);
+    }
 
     /// <summary>
     ///     Finds the arrow of a message before its label: the first run of arrow characters that holds a dash or a
