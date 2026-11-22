@@ -133,6 +133,17 @@ SysML2 model has not been migrated to that metadata yet (the migration is deferr
 - New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
   a whole.
 
+## One Shared Package Across the SysML2 Files (`sysml2-modeling.md`)
+
+The shared standard asks each `.sysml` file to declare exactly one uniquely named package. This repository's model
+has not been migrated to that structure yet (the migration is deferred until the updated SysML2 recommendations
+arrive). Until it is:
+
+- The model keeps a single `package CanvasNet` across its files, and the `sysml2tools` tool stays pinned at
+  `0.3.0-beta.3` (later versions enforce the one-package-per-file rule and reject the current model).
+- Agents do not split or rename packages piecemeal; new elements go into the existing `package CanvasNet`, so the
+  model is migrated as a whole.
+
 ## No Wall-Clock Dependence in Tests (`testing-principles.md`, `csharp-testing.md`)
 
 Tests run on shared machines that are often heavily loaded (many agents build and test at once), so a test must
@@ -144,7 +155,11 @@ pass or fail the same way however fast or busy the machine is:
   something happen at the right moment. Trigger it deterministically from inside the work (for example cancel when
   a known callback, echo, or step is reached), or use a pre-canceled token.
 - Prove bounds with deterministic measures instead: the specific limit error, steps or items charged, allocated
-  bytes, or the absence of further work after a cancellation point.
+  bytes, or the absence of further work after a cancellation point. Asserting these resource measures (allocated
+  bytes, step, item, or work counts, limit errors) is allowed even where the shared rules favor observable behavior.
+- Parity tests that compare checked-in documentation (the user guides) with the help cards, and byte-identity
+  checks of generated checked-in files (the Pandoc shim), are allowed: they keep documentation and code from
+  drifting apart.
 - Performance is measured by profiling and benchmarks (`tools/`), never by unit tests.
 
 # Agent Delegation Guidelines
