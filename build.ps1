@@ -18,13 +18,14 @@
 #   this script) fall back to the full build; repository files tests read at run time select their test
 #   projects through $RuntimeReads; other changes the build does not read select nothing.
 #
-# EXTENSION POINTS:
-#   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
-#   for adding project-specific build or test operations.
-#
-# MODIFICATION POLICY:
-#   Started from the reference template; customized for this repository with the scoped
-#   -Affected/-Project modes. The full build (no switches) is unchanged from the template.
+# CUSTOMIZATION:
+#   This script belongs to the project: extend it as the project grows. Add steps at the
+#   [PROJECT-SPECIFIC] points and add optional parameters that focus a run (here the scoped
+#   -Affected/-Project/-DryRun modes). Slow or environment-dependent test tiers (GUI automation,
+#   integration) may be opt-in switches.
+#   Run with no arguments it must still build and run the standard test suite (agents rely
+#   on that; here it is unchanged from the template), and never remove or weaken a test step
+#   to make it pass.
 
 param(
     # Build and test only the projects affected by the changed files.

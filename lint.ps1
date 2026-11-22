@@ -15,13 +15,12 @@
 #                                            project or build configuration files changed
 #   Add -DryRun to print which checks would run without running them.
 #
-# EXTENSION POINTS:
-#   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
-#   for adding project-specific lint checks.
-#
-# MODIFICATION POLICY:
-#   Started from the reference template; customized for this repository with the scoped
-#   -Changed mode. Without -Changed every check runs exactly as in the template.
+# CUSTOMIZATION:
+#   This script belongs to the project: extend it as the project grows. Add steps at the
+#   [PROJECT-SPECIFIC] points, update tool versions, and add optional parameters that focus
+#   a run (here the scoped -Changed/-DryRun modes).
+#   Run with no arguments it must still run every check (CI relies on that; here exactly as
+#   in the template), and never remove or weaken a check to make it pass.
 
 param(
     # Run only the checks whose inputs changed.
