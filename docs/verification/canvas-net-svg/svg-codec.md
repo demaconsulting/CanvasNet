@@ -346,12 +346,13 @@ test for a defect where marker-content rendering re-entered the same shape/text 
 unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters
 on marker content have no effect" scope decision. The orientation tests whose bar extends past its 6 by 2 viewport set
 `overflow="visible"`, so they test orientation alone. Asserts a marker whose 12 by 12 content overflows its 4 by 4
-viewport on every side is clipped to the viewport by default and with `overflow="hidden"` or `overflow: scroll` (inside
-painted, outside transparent), and is drawn whole with `overflow="visible"`, `style="overflow:visible"`, or
-`overflow="auto"`; asserts a marker with a `viewBox` (10 by 10 into 4 by 4, anchored at its center) clips to the fitted
-viewport, not to the unscaled content; and asserts an oriented, stroke-scaled arrowhead that fits its viewport draws
-exactly the same pixels with clipping and with `overflow="visible"`. The expected pixels of the clipping tests were
-checked against Edge headless renders of the same documents at ten times the size.
+viewport on every side is clipped to the viewport by default and with `overflow="hidden"`, `overflow: scroll` or
+`overflow: revert` (inside painted, outside transparent), and is drawn whole with `overflow="visible"`,
+`style="overflow:visible"`, `overflow="auto"`, `overflow: initial`, `overflow: unset` or `overflow="inherit"` (the
+`defs` parent's `visible`); asserts a marker with a `viewBox` (10 by 10 into 4 by 4, anchored at its center) clips to
+the fitted viewport, not to the unscaled content; and asserts an oriented, stroke-scaled arrowhead that fits its
+viewport draws exactly the same pixels with clipping and with `overflow="visible"`. The expected pixels of the clipping
+tests were checked against Edge headless renders of the same documents at ten times the size.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 

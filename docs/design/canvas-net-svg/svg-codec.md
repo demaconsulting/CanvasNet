@@ -721,22 +721,23 @@ both new capabilities:
   difference in the default path's output. The origin and alignment do not cancel for the marker viewport that
   `overflow` clips to, so the viewport is always placed through the full SVG fit (see *Marker viewport clipping*).
 - **Marker viewport clipping.** A marker's `overflow` (inline `style`, stylesheet rule, or attribute, read with
-  `ResolveElementProperty`) defaults to `hidden` (the SVG 2 user-agent style sheet sets it on `marker`); `visible` and
-  `auto` leave the content unclipped, and `hidden`, `scroll`, `clip`, and any other value clip it to the viewport, the
-  `markerWidth` by `markerHeight` box. `TryComputeMarkerContentTransform` returns the viewport with the content
-  transform: its size, the fit from content (`viewBox`) space into viewport space (`ComputePreserveAspectRatioFit`
-  with the explicit `preserveAspectRatio`, else the default `xMidYMid meet`, so the `viewBox` origin and alignment
-  are honored), and the transform from viewport space into the shape's frame (the inverse fit composed with the
-  content transform). `RenderOneMarker` draws the content directly, exactly as before, when the marker does not clip
-  or when the content's painted bounds, mapped into viewport space, lie inside the viewport (within 1e-3), so an
-  arrowhead that fits its box keeps its pixels. Those bounds come from `ComputeChildrenLocalBounds` once per marker
-  element and viewport size and are cached on the render context (`MarkerContentBounds`), so a marker repeated along
-  many shapes runs the bounds pre-pass once. Otherwise `RenderMarkerClipped` renders the content into an offscreen
-  buffer covering the viewport's pixel bounds (cut to the target surface), multiplies its alpha by the antialiased
-  coverage of the viewport rectangle (`PathFiller.Fill`, `ApplyCoverageClip`), and composites it onto the target
-  (`CompositeFilterResultOntoCanvas`). The two buffers are charged to the shared `FilterWorkBudget`; when it is
-  exhausted, or the viewport's pixel bounds cannot be represented, the content is drawn directly (unclipped), and a
-  viewport entirely off the surface draws nothing.
+  `ResolveElementProperty` and resolved to its computed value by `ResolveComputedOverflow`: `initial` and `unset` give
+  `visible`, `revert` gives the user-agent value, and `inherit` takes the parent's computed value) defaults to `hidden`
+  (the SVG 2 user-agent style sheet sets it on `marker`); `visible` and `auto` leave the content unclipped, and
+  `hidden`, `scroll`, `clip`, and any other value clip it to the viewport, the `markerWidth` by `markerHeight` box.
+  `TryComputeMarkerContentTransform` returns the viewport with the content transform: its size, the fit from content
+  (`viewBox`) space into viewport space (`ComputePreserveAspectRatioFit` with the explicit `preserveAspectRatio`, else
+  the default `xMidYMid meet`, so the `viewBox` origin and alignment are honored), and the transform from viewport space
+  into the shape's frame (the inverse fit composed with the content transform). `RenderOneMarker` draws the content
+  directly, exactly as before, when the marker does not clip or when the content's painted bounds, mapped into viewport
+  space, lie inside the viewport (within 1e-3), so an arrowhead that fits its box keeps its pixels. Those bounds come
+  from `ComputeChildrenLocalBounds` once per marker element and viewport size and are cached on the render context
+  (`MarkerContentBounds`), so a marker repeated along many shapes runs the bounds pre-pass once. Otherwise
+  `RenderMarkerClipped` renders the content into an offscreen buffer covering the viewport's pixel bounds (cut to the
+  target surface), multiplies its alpha by the antialiased coverage of the viewport rectangle (`PathFiller.Fill`,
+  `ApplyCoverageClip`), and composites it onto the target (`CompositeFilterResultOntoCanvas`). The two buffers are
+  charged to the shared `FilterWorkBudget`; when it is exhausted, or the viewport's pixel bounds cannot be represented,
+  the content is drawn directly (unclipped), and a viewport entirely off the surface draws nothing.
 
 An intrinsic size that is positive and finite (passing the checks above) can still be small
 enough — a subnormal float, for example — that dividing the requested raster dimensions by it

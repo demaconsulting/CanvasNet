@@ -617,17 +617,75 @@ public static partial class SvgCodec
     ///     property (inline <c>style</c>, stylesheet rule or presentation attribute) is <c>hidden</c>
     ///     by default for a marker (the SVG 2 user-agent style sheet), and only <c>visible</c> and
     ///     <c>auto</c> leave the content unclipped; <c>hidden</c>, <c>scroll</c>, <c>clip</c> and any
-    ///     other value clip.
+    ///     other value clip. CSS-wide keywords are resolved first (see
+    ///     <see cref="ResolveComputedOverflow"/>), so <c>initial</c> and <c>unset</c> leave the content
+    ///     unclipped, as in a browser.
     /// </summary>
     /// <param name="markerElement">The resolved <c>marker</c> element.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <returns><see langword="true"/> when the content is clipped to the marker viewport.</returns>
     private static bool MarkerClipsToViewport(XElement markerElement, RenderContext context)
     {
-        var overflow = ResolveElementProperty(markerElement, "overflow", context)?.Trim();
+        var overflow = ResolveComputedOverflow(markerElement, context);
         return !string.Equals(overflow, "visible", StringComparison.OrdinalIgnoreCase) &&
                !string.Equals(overflow, "auto", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    ///     Resolves the computed <c>overflow</c> of an element, honoring the CSS-wide keywords for this
+    ///     non-inherited property: <c>initial</c> and <c>unset</c> give the initial value
+    ///     <c>visible</c>; <c>revert</c> and <c>revert-layer</c> give the user-agent value (as does no
+    ///     value at all); and <c>inherit</c> takes the parent's computed value (<c>visible</c> above
+    ///     the root). The user-agent value is <c>hidden</c> for the elements the SVG 2 user-agent
+    ///     style sheet names (<c>marker</c>, <c>pattern</c>, <c>symbol</c>, <c>image</c> and a
+    ///     non-root <c>svg</c>) and <c>visible</c> for every other element.
+    /// </summary>
+    /// <param name="element">The element whose computed <c>overflow</c> is resolved.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns>The computed <c>overflow</c> keyword (trimmed, in its original case).</returns>
+    private static string ResolveComputedOverflow(XElement element, RenderContext context)
+    {
+        // Walk up the ancestor chain only while the value is "inherit"; the chain is finite, so
+        // the loop always ends.
+        for (XElement? current = element; current != null; current = current.Parent)
+        {
+            var overflow = ResolveElementProperty(current, "overflow", context)?.Trim();
+            if (overflow == null ||
+                string.Equals(overflow, "revert", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(overflow, "revert-layer", StringComparison.OrdinalIgnoreCase))
+            {
+                return HasHiddenUserAgentOverflow(current) ? "hidden" : "visible";
+            }
+
+            if (string.Equals(overflow, "initial", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(overflow, "unset", StringComparison.OrdinalIgnoreCase))
+            {
+                return "visible";
+            }
+
+            if (!string.Equals(overflow, "inherit", StringComparison.OrdinalIgnoreCase))
+            {
+                return overflow;
+            }
+        }
+
+        // "inherit" on the root element takes the initial value.
+        return "visible";
+    }
+
+    /// <summary>
+    ///     Determines whether the SVG 2 user-agent style sheet sets <c>overflow: hidden</c> on an
+    ///     element (<c>svg:not(:root), image, marker, pattern, symbol</c>).
+    /// </summary>
+    /// <param name="element">The element to test.</param>
+    /// <returns><see langword="true"/> when the user-agent value is <c>hidden</c>.</returns>
+    private static bool HasHiddenUserAgentOverflow(XElement element) =>
+        element.Name.LocalName switch
+        {
+            "marker" or "pattern" or "symbol" or "image" => true,
+            "svg" => element.Parent != null,
+            _ => false
+        };
 
     /// <summary>
     ///     Determines whether a marker's painted content lies inside its viewport, so clipping would

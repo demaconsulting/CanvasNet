@@ -227,7 +227,9 @@ sections:
               (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
               angle in degrees, or the fixed 0-degree default when omitted/blank), and an
               optional viewBox, clipping the marker content to its markerWidth/markerHeight
-              viewport unless the marker's overflow property is visible or auto, while never rendering a marker for
+              viewport unless the marker's computed overflow property is visible or auto (the CSS-wide
+              keywords initial and unset give visible, revert gives the user-agent hidden, and inherit
+              takes the parent's computed value), while never rendering a marker for
               rect/circle/ellipse and never inheriting the referencing shape's own
               fill/stroke into the marker's own content.
             justification: |

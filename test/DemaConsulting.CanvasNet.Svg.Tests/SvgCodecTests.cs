@@ -2757,14 +2757,15 @@ public class SvgCodecTests
     /// <summary>
     ///     Proves a marker's content is clipped to its viewport (<c>markerWidth</c> by <c>markerHeight</c>
     ///     at the anchor) by default, and with an explicit <c>overflow="hidden"</c>, as the SVG 2 user-agent
-    ///     style sheet makes <c>overflow</c> hidden for a marker. Edge (headless) draws only the 4x4 square
-    ///     from (10,10) to (14,14).
+    ///     style sheet makes <c>overflow</c> hidden for a marker (also restored by <c>revert</c>). Edge
+    ///     (headless) draws only the 4x4 square from (10,10) to (14,14).
     /// </summary>
     /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
     [Theory]
     [InlineData("")]
     [InlineData("overflow='hidden'")]
     [InlineData("style='overflow: scroll'")]
+    [InlineData("style='overflow: revert'")]
     public void SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault(string markerAttributes)
     {
         // Arrange
@@ -2786,13 +2787,17 @@ public class SvgCodecTests
     /// <summary>
     ///     Proves <c>overflow="visible"</c> or <c>auto</c>, as an attribute or in a <c>style</c>, leaves
     ///     a marker's content unclipped, as Edge (headless) draws it: the whole 12x12 square from (6,6) to
-    ///     (18,18).
+    ///     (18,18). The CSS-wide keywords <c>initial</c> and <c>unset</c> give the initial value
+    ///     <c>visible</c>, and <c>inherit</c> takes the <c>defs</c> parent's <c>visible</c>.
     /// </summary>
     /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
     [Theory]
     [InlineData("overflow='visible'")]
     [InlineData("style='overflow:visible'")]
     [InlineData("overflow='auto'")]
+    [InlineData("style='overflow: initial'")]
+    [InlineData("style='overflow: unset'")]
+    [InlineData("overflow='inherit'")]
     public void SvgCodec_Load_MarkerOverflowVisible_IsNotClipped(string markerAttributes)
     {
         // Arrange
