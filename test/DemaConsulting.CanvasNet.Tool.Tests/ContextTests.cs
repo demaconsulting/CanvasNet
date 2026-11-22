@@ -530,6 +530,31 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that an informational note (severity <c>info</c>, such as <c>vega-lite-info</c>) is written with the prefix <c>Info:</c>, not as a warning, and does not set the error
+    ///     state.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_InfoNote_IsPrefixedInfo()
+    {
+        // Arrange: a non-silent text context and the note of a chart field without a type
+        using var context = Context.Create([]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Viewer.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            (null, new("vega-lite", "info", "vega-lite-info", "chart.vl.json:1:60 /encoding/x: vl-type-inferred: The field 'a' of the 'x' channel has no type")),
+        };
+
+        // Act
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, []));
+
+        // Assert: one Info line on standard error; the exit code stays 0
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(
+            ["Info: vega-lite-info: chart.vl.json:1:60 /encoding/x: vl-type-inferred: The field 'a' of the 'x' channel has no type"],
+            stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
     ///     Test that WriteDiagnostics escapes control characters (ESC, NUL, C1, line separators, and bidirectional
     ///     controls) in echo lines, messages, and origins, and leaves other text unchanged.
     /// </summary>

@@ -49,6 +49,10 @@ warning
 `CodeBlock`); a second run draws nothing and gives the same document; after the included file changes, a third run
 draws the picture once more with a new name while the block keeps its picture.
 
+**PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning**: with the real drawer, the chart of issue #165 (a field
+without a type, which the tool reports as the informational note `vega-lite-info`) is drawn into the cache and the run
+returns no warning, so a build that treats Pandoc warnings as errors does not fail for a note.
+
 **PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture**: a model with `view=sideways` fails with
 `pandoc-filter-error` and a message that starts with `'cube.scad' has view=sideways`; a diagram that is not in the
 resource path fails with `cannot find 'gone.mmd' in the document's resource path`; a PNG picture is left unchanged and

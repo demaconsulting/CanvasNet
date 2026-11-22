@@ -297,11 +297,15 @@ each (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`) 
 **RenderCommand_Run_ScadWarning_WritesDetailAndLocation**,
 **RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail**,
 **RenderCommand_Run_VegaLiteWarning_WritesDetail**,
+**RenderCommand_Run_VegaLiteFieldWithoutType_StrictReportsInfoNote**,
 **RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown**,
 and **RenderCommand_Run_PlainNote_HasNoExtraMembers** (`RenderCommandDiagnosticDetailTests.cs`): a malformed anchor is a
 `scad-warning` with `detail` `scad-anchor-invalid` and a `location` of the model file and line 2; an unsupported
 `offset`
-has a location and no detail; an unknown chart property has `detail` `vl-unknown-property`; for an SVG file that embeds
+has a location and no detail; an unknown chart property has `detail` `vl-unknown-property`; a chart field without a
+type rendered with `--strict` succeeds (exit code 0) with one diagnostic of severity `info`, code `vega-lite-info`,
+`detail` `vl-type-inferred`, and the location pointer `/encoding/x`, and without `--json` writes it as a line that
+starts with `Info: vega-lite-info: `; for an SVG file that embeds
 a model with a bad anchor, a nested SVG file with a missing picture, and a missing picture of its own, the model note
 has
 the detail, the location, and the origin `["part.scad"]`, the nested note the origin `["inner.svg"]`, and the note of

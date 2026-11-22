@@ -23,7 +23,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         fonts bundled with the library are used, so the same chart gives the same pixels on every machine. A
 ///         construct the library does not draw (yet) is returned as a diagnostic (<c>vega-lite</c>, <c>unsupported</c>,
 ///         with its stable <c>vl-*</c> identifier as the code); with <see cref="SourceOptions.Strict"/> it is an
-///         <c>unsupported-feature</c> error instead. A problem with the specification or with the chart is a
+///         <c>unsupported-feature</c> error instead. A field without a <c>type</c> is drawn with the type Vega-Lite infers
+///         and is returned as the note <c>vega-lite-info</c> (severity <c>info</c>, detail <c>vl-type-inferred</c>, located at the
+///         channel), which never fails strict mode. A problem with the specification or with the chart is a
 ///         <c>vega-lite-error</c>; this includes a specification that nests deeper than the parser limit or has a
 ///         string longer than the string limit, as the SCAD parser's nesting limit is a <c>scad-error</c>.
 ///         A limit that the library applies while it lays out or draws the chart (rows, ticks, scene items, and so
@@ -51,6 +53,12 @@ public static partial class SourceLoader
     ///     The code of a warning of the Vega-Lite library in the diagnostics of a result.
     /// </summary>
     private const string VegaLiteWarningCode = "vega-lite-warning";
+
+    /// <summary>
+    ///     The code of an informational note of the Vega-Lite library in the diagnostics of a result (severity <c>info</c>; the <c>vl-*</c> identifier,
+    ///     such as <c>vl-type-inferred</c>, is the detail). A note never fails strict mode.
+    /// </summary>
+    private const string VegaLiteInfoCode = "vega-lite-info";
 
     /// <summary>
     ///     Reads what a chart declares and the size it is laid out at, by parsing and measuring it; the chart is not
@@ -162,7 +170,7 @@ public static partial class SourceLoader
     ///     only) and the ones the tool options say (background, strictness).
     /// </summary>
     /// <param name="options">The loading options.</param>
-    /// <param name="notes">The list the warnings and unsupported features are added to, or <see langword="null"/> to drop them.</param>
+    /// <param name="notes">The list the warnings, informational notes and unsupported features are added to, or <see langword="null"/> to drop them.</param>
     /// <param name="resolver">
     ///     The resolver that loads the pictures of the chart's <c>image</c> marks, or <see langword="null"/> for none: the chart then draws
     ///     no picture and reports <c>vl-mark-image</c>, and a measure never needs one.
@@ -194,6 +202,14 @@ public static partial class SourceLoader
                         Detail = ReadVegaLiteDetail(warning.Message),
                         Location = ToVegaLiteLocation(warning.Location)
                     }),
+            InfoHandler = notes == null
+                ? null
+                : note => notes.Add(
+                    new ImageDiagnostic("vega-lite", "info", VegaLiteInfoCode, OneLine(note.ToString()))
+                    {
+                        Detail = ReadVegaLiteDetail(note.Message),
+                        Location = ToVegaLiteLocation(note.Location)
+                    }),
             UnsupportedFeatureHandler = notes == null
                 ? null
                 : unsupported => notes.Add(
@@ -210,9 +226,9 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Reads the stable <c>vl-*</c> identifier a warning of the Vega-Lite library starts its message with.
+    ///     Reads the stable <c>vl-*</c> identifier a warning or an informational note of the Vega-Lite library starts its message with.
     /// </summary>
-    /// <param name="message">The message of the warning.</param>
+    /// <param name="message">The message of the warning or note.</param>
     /// <returns>The identifier (for example <c>vl-text-missing-glyph</c>), or <see langword="null"/> when the message has none.</returns>
     private static string? ReadVegaLiteDetail(string message)
     {

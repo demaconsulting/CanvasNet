@@ -131,6 +131,32 @@ public class VegaLiteReportSinkTests
     }
 
     /// <summary>
+    ///     Validates that an informational note is delivered in order with the other reports to its own handler, is recorded once, and never throws, also in
+    ///     strict mode.
+    /// </summary>
+    [Fact]
+    public void VegaLiteReportSink_Info_IsDeliveredInOrderAndNeverThrows()
+    {
+        // Arrange: a strict sink
+        var sink = new VegaLiteReportSink(10, throwOnUnsupported: true);
+        var log = new List<string>();
+
+        // Act: notes in strict mode do not throw; a repeated note is recorded once
+        sink.Warn("w1", Where);
+        sink.Info("vl-type-inferred: i1", Where);
+        sink.Info("vl-type-inferred: i1", Where);
+        sink.Warn("w2", Where);
+        sink.Deliver(w => log.Add("W:" + w.Message), u => log.Add("U:" + u.Feature), i => log.Add("I:" + i.Message));
+
+        // Assert: the note sits between the warnings, once, and a delivery without an info handler drops it
+        Assert.Equal(["W:w1", "I:vl-type-inferred: i1", "W:w2"], log);
+        Assert.Equal(3, sink.Count);
+        var withoutInfo = new List<string>();
+        sink.Deliver(w => withoutInfo.Add(w.Message), null);
+        Assert.Equal(["w1", "w2"], withoutInfo);
+    }
+
+    /// <summary>
     ///     Validates that a handler exception propagates from normal delivery but is swallowed after a failure.
     /// </summary>
     [Fact]

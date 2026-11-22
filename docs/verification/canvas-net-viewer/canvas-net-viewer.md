@@ -151,7 +151,8 @@ outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without
 `SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument`
 (`CanvasNetViewerFragmentTests.cs`),
 `InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme`,
-`SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid` (`InputSelectionTests.cs`)
+`SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid` (`InputSelectionTests.cs`),
+`CanvasNetViewer_Render_ChartFieldWithoutType_ReportsInfoNoteInStrictMode` (`CanvasNetViewerTests.cs`)
 
 Writes the two-page PDF, the two-slide presentation and the two-page drawing of the shared fixtures next to an SVG that
 links their pages with `#page=N` and `#slide=N`, and asserts by the color of the pixels that the chosen page is the one
@@ -174,6 +175,9 @@ draws its pages through the scoped resolver; that a fragment of thousands of cha
 and that `Strict` fails for the two refused codes only. Through the built-in Mermaid source (which reads the fragment of
 an input as it reads that of a link), `#theme=Dark&page=2` of a diagram is read as the canonical theme `dark` and draws
 in it, `page` being an unknown parameter of a diagram (a warning), and `#theme=midnight` is `image-fragment-invalid`.
+The chart of issue #165 (a field without a type), rendered from a stream with `ThrowOnUnsupportedFeature`, is drawn and
+carries one note of the severity `Info` (source `vega-lite`, code `vega-lite-info`, detail `vl-type-inferred`, pointer
+`/encoding/x`) that names the field and the inferred type `nominal`.
 
 #### CanvasNetViewer-CanvasNetViewer-Parameters: Variables And Parameters Set From The Link And The Options
 

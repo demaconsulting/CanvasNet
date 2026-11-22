@@ -22,8 +22,11 @@ documentation of `FeatureCatalog` and in *Supported And Deferred Features* in *C
 **`FeatureReport`** is `(string Id, string Message, VegaLiteLocation Location, FeatureReportKind Kind)`: the lower-case
 `vl-<area>-<detail>` identifier, a human-readable description without the identifier and location, the location of the
 construct (the value; for an unknown property or a duplicate key, the key), and the kind. **`FeatureReportKind`** is
-`Warning` (a problem with the text that does not stop rendering, delivered as a `VegaLiteDiagnostic`) or
-`UnsupportedFeature` (a recognized construct that is not rendered, delivered as a `VegaLiteUnsupportedFeature`).
+`Warning` (a problem with the text that does not stop rendering, delivered as a `VegaLiteDiagnostic`),
+`UnsupportedFeature` (a recognized construct that is not rendered, delivered as a `VegaLiteUnsupportedFeature`), or
+`Info` (information only: the chart is drawn as Vega-Lite draws it; delivered as a `VegaLiteDiagnostic` to
+`VegaLiteRenderOptions.InfoHandler`, and never a reason for strict mode to throw). The only `Info` report is
+`vl-type-inferred`.
 
 **The supported sets** are private read-only sets in the class and define the boundary: the supported marks (bar, rect,
 point, circle, square, rule, tick, line, area, trail, text, arc, and, since phase 10, boxplot, errorbar, errorband), the
@@ -361,19 +364,18 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
 
 #### Key Methods
 
-- `Visit(SpecTree tree)` - requires a non-null tree, runs a private `Walker`, and returns the reports sorted by line and
-  then column with a stable sort, so reports at one position keep the order in which they were found, after removing the
-  duplicates (the same identifier, location, message, and kind, so an inherited channel that several layers reach is
-  reported once). It visits the
-  `$schema` value and then every view of `tree.EnumerateViews()`; the encoding of a view that is drawn through `layer`
-  is
-  not visited on its own but as the **merged encoding of each layer** (from `SpecNormalizer.Layers` with generous
-  limits; the nodes keep their original pointers) with that layer's mark, so a channel is judged by the mark that
-  draws it. Since Phase 11 the units of every composition are in that list too (a concatenation, a facet's template
-  once,
-  and a repeat), and a unit view that is a child of a concatenation or the `spec` of a repeat or a facet is visited on
-  its own as well, so that a repeated view is judged with the repeated field in place (the reports that the copies share
-  are made once, at the template).
+- `Visit(SpecTree tree, ResolvedConfig? config, bool hasImageResolver, bool reportInferredTypes)` (the last three
+  optional: `null`, `false`, `false`) -
+  requires a non-null tree, runs a private `Walker`, and returns the reports sorted by line and then column with a
+  stable sort, so reports at one position keep the order in which they were found, after removing the duplicates (the
+  same identifier, location, message, and kind, so an inherited channel that several layers reach is reported once). It
+  visits the `$schema` value and then every view of `tree.EnumerateViews()`; the encoding of a view that is drawn
+  through `layer` is not visited on its own but as the **merged encoding of each layer** (from `SpecNormalizer.Layers`
+  with generous limits; the nodes keep their original pointers) with that layer's mark, so a channel is judged by the
+  mark that draws it. Since Phase 11 the units of every composition are in that list too (a concatenation, a facet's
+  template once, and a repeat), and a unit view that is a child of a concatenation or the `spec` of a repeat or a facet
+  is visited on its own as well, so that a repeated view is judged with the repeated field in place (the reports that
+  the copies share are made once, at the template).
 - The walker's `VisitSchema` warns `vl-schema-version` for a major version other than 5 and 6 or a URL that names no
   Vega-Lite version.
 - `VisitView` dispatches each property of a view: `data`, `mark`, `encoding`, `transform`, `params`, the legacy
@@ -599,8 +601,20 @@ unsupported constructs. A reference whose value no property can hold is reported
   so the short form `file:/x` is local and a host (`localhost` included) is refused exactly as for an image link.
   `DataLoader` reads a local `file:` URI at this path.
 
+- **The inferred type** (`VisitInferredType`, called first by `VisitChannelDefinition`): only when `Visit` was called
+  with `reportInferredTypes` (the document always asks; the default `false` keeps the catalog a list of what is not
+  drawn as written), a channel or condition definition with a non-null `field` and no `type` is reported as the `Info`
+  report `vl-type-inferred` at the definition (for example `/encoding/x`): "The field '`a`' of the '`x`' channel has no
+  type; it is read as `nominal`, the type Vega-Lite infers. Write a "type" ... to choose it.", where the type is
+  `ChannelDefinitions.TypeOf(definition, channel)` (Vega-Lite's `defaultType`) and a field named by a repeat
+  (`{"repeat": ...}`) is "The repeated field". A definition with a `datum` (its value decides its type), a secondary
+  channel (`x2`, `y2`, `theta2`, `radius2`) and an error channel (`xError`, `xError2`, `yError`, `yError2`), which take
+  the type of their main channel, and the ignored channels (skipped by `VisitEncoding`) are not reported; nor are the
+  field definitions of a facet (`row`, `column`, `facet`), which `VisitFacetFieldDefinition` visits.
+
 **Preconditions and postconditions**: the tree is non-null and valid; the result is a new read-only list in document
-order, empty when the specification uses only supported constructs. The catalog is stateless and thread-safe.
+order, empty when the specification uses only supported constructs (and, with `reportInferredTypes`, writes the type of
+every field). The catalog is stateless and thread-safe.
 
 #### Error Handling
 
@@ -638,11 +652,15 @@ applied here: the document records the reports in a sink, which throws at the fi
   scale type rule per channel and field type (including temporal fields) and the offset rules, in
   the `Scales` subsystem
 - **`VegaLiteLocation`** - the public location type of the `VegaLiteDocument` unit
+- **`ChannelDefinitions`** - the shared helper of the `SpecParser` unit that gives the type Vega-Lite infers for a field
+  without one (`TypeOf`) and the main channel of a secondary channel (`MainChannelOf`), so the `vl-type-inferred` note
+  names the type every stage of the renderer uses
 - **.NET base class library** - `System.Globalization` (invariant-culture formatting of messages)
 
 #### Callers
 
-`VegaLiteDocument` calls `Visit` once when a document is created and merges the result with the parse warnings; the
+`VegaLiteDocument` calls `Visit` (with `reportInferredTypes: true`) once when a document is created and merges the
+result with the parse warnings, and again from `ReportsFor` for a caller's configuration or image resolver; the
 pipeline delivers the reports through the sink. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` (and `FeatureCatalogLayerTests.cs`,
 `FeatureCatalogCompositeTests.cs`, and `FeatureCatalogLabelExprAndOffsetTests.cs` for the label expressions and the

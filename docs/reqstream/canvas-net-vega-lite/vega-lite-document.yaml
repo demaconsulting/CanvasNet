@@ -127,15 +127,18 @@ sections:
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Diagnostics
             title: >-
-              The VegaLiteDocument unit shall deliver the warnings and unsupported-feature reports of a
-              measure or render to the caller's handlers in document order, once each, de-duplicated
+              The VegaLiteDocument unit shall deliver the warnings, the informational notes (such as
+              vl-type-inferred), and the unsupported-feature reports of a measure or render to the caller's
+              handlers (the notes to their own handler) in document order, once each, de-duplicated
               by identifier and location, on the calling thread, before the call returns or throws,
               shall collapse reports beyond the diagnostics limit into one notice, shall let a failing
-              handler's exception propagate after success but never hide the original failure, and shall
-              render a located, human-readable text for every report.
+              handler's exception propagate after success but never hide the original failure, shall never
+              fail strict mode for an informational note, and shall render a located, human-readable text for
+              every report.
             justification: |
               Predictable delivery lets hosts display and test diagnostics, a cap bounds memory for
-              hostile input, and a handler must not be able to mask a rendering failure.
+              hostile input, and a handler must not be able to mask a rendering failure. A note tells the
+              author what Vega-Lite decided about a valid chart, so it must never make the chart fail.
             tests:
               - VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
@@ -145,6 +148,8 @@ sections:
               - VegaLiteReportSink_WarnWithKey_DistinctKeysAreRecordedSeparately
               - VegaLiteReportSink_Cap_CollapsesOverflowIntoOneNotice
               - VegaLiteReportSink_HandlerFailure_PropagatesOnlyFromNormalDelivery
+              - VegaLiteReportSink_Info_IsDeliveredInOrderAndNeverThrows
+              - CanvasNetVegaLite_DefaultType_InfoNoteNamesTheInferredTypeAndStrictModePasses
               - VegaLiteDiagnostic_ToString_KnownLocation_PrefixesLocation
               - VegaLiteDiagnostic_ToString_UnknownLocation_IsMessageOnly
               - VegaLiteUnsupportedFeature_ToString_IncludesFeatureAndLocation

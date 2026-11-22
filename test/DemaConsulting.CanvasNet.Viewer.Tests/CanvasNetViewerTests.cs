@@ -1,3 +1,4 @@
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
@@ -263,6 +264,27 @@ public class CanvasNetViewerTests
             () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = Surface.MaxDimension, MaxDecodedPixels = 96 }));
         Assert.Throws<ImageSourceBudgetException>(
             () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Height = Surface.MaxDimension, MaxDecodedPixels = 96 }));
+    }
+
+    /// <summary>
+    ///     Test the chart of issue #165 through the stream entry point in strict mode: a field without a type is drawn, and the image carries one informational note
+    ///     (<c>vega-lite-info</c>, detail <c>vl-type-inferred</c>, located at the channel) instead of no diagnostic at all.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ChartFieldWithoutType_ReportsInfoNoteInStrictMode()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("""{ "data": {"values":[{"a":1}]}, "mark": "bar", "encoding": { "x": { "field": "a" } } }"""));
+
+        // Act
+        using var image = CanvasNetViewer.Render(stream, "chart.vl.json", new ViewerRenderOptions { ThrowOnUnsupportedFeature = true });
+
+        // Assert: the note names the field and the inferred type, at the channel
+        var note = Assert.Single(image.Diagnostics);
+        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Info, "vega-lite-info", "vl-type-inferred"), (note.Source, note.Severity, note.Code, note.Detail));
+        Assert.Equal("/encoding/x", note.Location?.Pointer);
+        Assert.Contains("The field 'a' of the 'x' channel has no type; it is read as nominal", note.Message, StringComparison.Ordinal);
+        Assert.True(image.Surface.Width > 0);
     }
 
     /// <summary>

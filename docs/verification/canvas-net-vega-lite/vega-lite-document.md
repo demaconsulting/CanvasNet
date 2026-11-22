@@ -328,6 +328,18 @@ into a single notice; that strict mode records the first unsupported feature and
 full; and that a handler exception propagates from normal delivery but is swallowed while a failure is already being
 reported, so that the original failure is not hidden.
 
+#### Informational Notes Never Fail Strict Mode
+
+**Tests**: `VegaLiteReportSinkTests.VegaLiteReportSink_Info_IsDeliveredInOrderAndNeverThrows`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_InfoNoteNamesTheInferredTypeAndStrictModePasses`
+
+Asserts that a strict sink records an informational note without throwing, delivers it between the warnings it was
+recorded among to the info handler only, records a repeated note once, and drops it when no info handler is given; and
+that the chart of issue #165 (a `bar` whose `x` is a field without a type), rendered with `ThrowOnUnsupportedFeature`,
+is drawn, delivers no warning and no unsupported feature, and delivers to `InfoHandler` one note whose message starts
+with `vl-type-inferred: The field 'a' of the 'x' channel has no type; it is read as nominal` and whose pointer is
+`/encoding/x`.
+
 #### Document: Metadata, Wrong Types, And Reports
 
 **Tests**: `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Open_SupportedChartHasMetadataAndNoReports`,

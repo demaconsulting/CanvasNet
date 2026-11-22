@@ -52,6 +52,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteDetection
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteProbe
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteInfo
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection

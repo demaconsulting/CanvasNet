@@ -332,7 +332,10 @@ transparent picture), `ThrowOnUnsupportedFeature` is `Strict`, and the handlers 
 note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an
 unsupported
 feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-geoshape` as the code, and
-`file:line:column /pointer: message`). The only option of the chart is `SourceOptions.VegaLite` (`ChartOptions`, see
+`file:line:column /pointer: message`); an informational note of the library (`InfoHandler`: `vl-type-inferred`, a field
+without a type that is drawn with the type Vega-Lite infers) becomes a note (`vega-lite`, `info`, `vega-lite-info`, the
+library's `file:line:column /pointer: vl-id: message`, with the `vl-*` identifier as the `Detail` and the channel as the
+`Location`), which never fails `Strict`. The only option of the chart is `SourceOptions.VegaLite` (`ChartOptions`, see
 *Chart parameters* below): no datasets,
 configuration, or data folders are passed, and there is **no data-folder option** (the shared option grammar of the
 render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A
@@ -635,18 +638,17 @@ and the
 whole-number rule of the Visio `Dpi` stays in `ValidateDpi` because it depends on the kind of file.
 
 **Diagnostic detail** (`ImageDiagnostic.Detail` and `.Location`): the generic `Code` of a note is unchanged
-(`scad-warning`,
-`vega-lite-warning`, `mermaid-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of
-the library: for a model
-warning the `ScadDiagnostic.Code` when it differs from `scad-warning` (`scad-anchor-invalid`), for a chart warning the
-documented `vl-*` prefix of the message, and for a diagram warning the `mermaid-*` code of the library. `Location` is
-`(File, Line, Column)` of a model (left out when the line is 0) and `(File, Pointer, Line, Column)` of a chart when the
-position is known, and `(File, Line, Column)` of a diagram (no column when the library gives none); a note about a page
-of a document has the `Page` and no location. For the notes of embedded files `SvgImages` copies `Detail`, `Location`,
-`Page`, and `Origin` unchanged. `SvgImages.ThrowForUnresolved` also treats `image-fragment-invalid` and
-`image-page-out-of-range` (besides `svg-image-unresolved` and `svg-image-too-large`) as an image that was not drawn, so
-`Strict` fails with `unsupported-feature`; the warnings `image-fragment-unknown-parameter` and
-`image-fragment-duplicate-parameter` stay warnings.
+(`scad-warning`, `vega-lite-warning`, `vega-lite-info`, `mermaid-warning`, the feature of an unsupported construct).
+`Detail` is the finer identifier of the library: for a model warning the `ScadDiagnostic.Code` when it differs from
+`scad-warning` (`scad-anchor-invalid`), for a chart warning or informational note the documented `vl-*` prefix of the
+message, and for a diagram warning the `mermaid-*` code of the library. `Location` is `(File, Line, Column)` of a model
+(left out when the line is 0) and `(File, Pointer, Line, Column)` of a chart when the position is known, and
+`(File, Line, Column)` of a diagram (no column when the library gives none); a note about a page of a document has the
+`Page` and no location. For the notes of embedded files `SvgImages` copies `Detail`, `Location`, `Page`, and `Origin`
+unchanged. `SvgImages.ThrowForUnresolved` also treats `image-fragment-invalid` and `image-page-out-of-range` (besides
+`svg-image-unresolved` and `svg-image-too-large`) as an image that was not drawn, so `Strict` fails with
+`unsupported-feature`; the warnings `image-fragment-unknown-parameter` and `image-fragment-duplicate-parameter` stay
+warnings.
 
 #### SVG Position Bindings
 

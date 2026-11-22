@@ -153,6 +153,9 @@ The `VegaLiteRenderOptions` properties:
 - **`Limits`** (default `VegaLiteLimits.Default`): The resource limits of the call (see below).
 - **`WarningHandler`** (default `null`): Receives each `VegaLiteDiagnostic` (a warning); `null` drops them.
 - **`UnsupportedFeatureHandler`** (default `null`): Receives each `VegaLiteUnsupportedFeature`; `null` drops them.
+- **`InfoHandler`** (default `null`): Receives each note for information only, a `VegaLiteDiagnostic` such as
+  `vl-type-inferred` (see *Field types without a `type`*); `null` drops them. A note is never a warning and never fails
+  strict mode.
 - **`ThrowOnUnsupportedFeature`** (default `false`): Turns the first unsupported feature into a
   `VegaLiteUnsupportedFeatureException` (strict mode).
 - **`PositionHandler`** (default `null`): Receives each feature of the chart (title, view, axis, legend, and every mark)
@@ -521,9 +524,13 @@ What is supported, by area:
 **Field types without a `type`.** The `type` of a field definition is optional, as in Vega-Lite 5 and later. A
 definition
 without one gets the type Vega-Lite infers (its `defaultType`), the same in every stage that reads it (scales, legends,
-axes, labels, stacks, bins, time parsing, composite marks); a missing type is valid and is never reported, also in
-strict
-mode. The rules apply in this order, and a written `type` always wins:
+axes, labels, stacks, bins, time parsing, composite marks); a missing type is valid, is never a warning or an
+unsupported feature, and never fails strict mode. Each channel with a `field` and no `type` is delivered to
+`InfoHandler` as the note `vl-type-inferred`, located at the channel (for example `/encoding/x`), which names the field
+and the type it got:
+`vl-type-inferred: The field 'a' of the 'x' channel has no type; it is read as nominal, the type Vega-Lite infers.`
+Write the `type` to choose another and to silence the note (a `datum`, a secondary channel such as `x2`, and an
+ignored channel such as `tooltip` are not noted). The rules apply in this order, and a written `type` always wins:
 
 - **The channel is `latitude` or `longitude`**: `quantitative`.
 - **The channel is `row`, `column`, `facet`, `shape`, or `strokeDash`**: `nominal`.
@@ -3332,6 +3339,8 @@ The identifiers, with their kind, and where and when each is reported:
   on (a row draws at the `left` and `right`, a column at the `top` and `bottom`, the label of a wrapped facet on any
   side and its title `top` and `bottom`): the default side is used.
 - **`vl-type-geojson`** (Unsupported): The `type` of a channel.
+- **`vl-type-inferred`** (Info): A channel with a `field` and no `type`: the chart is drawn with the type Vega-Lite
+  infers, and the note (delivered to `InfoHandler`, never failing strict mode) names the field and that type.
 - **`vl-shape-path-invalid`** (Warning): A shape that is neither a symbol name nor SVG path data that parses (the
   `shape` of a mark, the `value` of a `shape` channel, an entry of its `scale.range`, or a `legend.symbolType`): a
   circle is drawn for a path that does not parse, and nothing for a text without any command letter. A path that parses

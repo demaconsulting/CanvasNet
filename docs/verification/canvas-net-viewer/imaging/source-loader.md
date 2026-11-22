@@ -245,6 +245,11 @@ the
 file, and keeps the library's exception; plain Vega named like a chart is a `vega-lite-error`; a missing file is
 `input-not-found`.
 
+**SourceLoader_Load_FieldWithoutType_ReportsInfoNoteAndStrictPasses**: the chart of issue #165 (a `bar` whose `x` is a
+field without a type), loaded in strict mode, is drawn and returns exactly one note: source `vega-lite`, severity
+`info`, code `vega-lite-info`, detail `vl-type-inferred`, the pointer `/encoding/x` as its location, and a message that
+names the file, the field `'a'`, the `'x'` channel, and the inferred type `nominal`.
+
 **SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded**: real failures of the library with a row limit of 1
 and a
 scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budget-exceeded` with a hint and the

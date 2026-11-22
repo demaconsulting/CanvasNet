@@ -491,6 +491,18 @@ sections:
           - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteInfo
+        title: >-
+          The SourceLoader class shall return the informational notes of the Vega-Lite library, such as a field
+          without a type that is drawn with the type Vega-Lite infers, as diagnostics with the severity info, the
+          code vega-lite-info, the vl-* identifier as the detail (vl-type-inferred), and the location of the
+          channel, and shall draw the chart in strict mode as without it.
+        justification: |
+          An author who leaves out a type gets the type Vega-Lite infers, which can make a number field a row of
+          categories; a located note explains the picture, while a valid chart must never fail strict mode.
+        tests:
+          - SourceLoader_Load_FieldWithoutType_ReportsInfoNoteAndStrictPasses
+
       - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
         title: >-
           The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by a local

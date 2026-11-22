@@ -390,6 +390,29 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that a field without a type is reported as the informational note <c>vega-lite-info</c> (severity <c>info</c>, detail <c>vl-type-inferred</c>, located at the
+    ///     channel) that names the field and the inferred type, and that strict mode still draws the chart.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_FieldWithoutType_ReportsInfoNoteAndStrictPasses()
+    {
+        // Arrange: the chart of issue #165
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "chart.vl.json", """{ "data": { "values": [ { "a": 1 } ] }, "mark": "bar", "encoding": { "x": { "field": "a" } } }""");
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: one note for information, no warning, at the channel, naming the field and the type
+        var note = Assert.Single(loaded.Diagnostics);
+        Assert.Equal(("vega-lite", "info", "vega-lite-info", "vl-type-inferred"), (note.Source, note.Severity, note.Code, note.Detail));
+        Assert.Equal("/encoding/x", note.Location?.Pointer);
+        Assert.Contains("The field 'a' of the 'x' channel has no type; it is read as nominal", note.Message);
+        Assert.Contains($"{path}:", note.Message);
+        Assert.True(loaded.Surface.Width > 0);
+    }
+
+    /// <summary>
     ///     Test that the failures of the library's render are mapped to <c>vega-lite-error</c>, and to
     ///     <c>budget-exceeded</c> when they report a limit; the texts of the library are pinned here because the
     ///     tool tells the two apart by them.

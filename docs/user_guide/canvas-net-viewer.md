@@ -989,7 +989,10 @@ them.
 The two diagnostic
 types carry the same facts: `ImageDiagnostic` (the Imaging namespace) has a string `Severity` and a page, and
 `ImageSourceDiagnostic` (the core package) has an `ImageDiagnosticSeverity` and a `Page`; both have `Source`, `Code`,
-`Message`, `Detail`, `Location`, and `Origin`:
+`Message`, `Detail`, `Location`, and `Origin`. The severity is `unsupported` (a feature the picture was drawn without),
+`warning` (a questionable construct), or `info` (`ImageDiagnosticSeverity.Info`: a note for information only, which
+never fails strict mode, such as `vega-lite-info` with the detail `vl-type-inferred` for a chart field without a
+`type`):
 
 <!-- compile -->
 
@@ -1381,6 +1384,20 @@ foreach (var root in catalog.Roots)
     Console.WriteLine($"{root.Id}: {root.Summary}");
 }
 ```
+
+## Changes for Library Hosts
+
+These changes affect a program that renders through this package (`CanvasNetViewer.Render`, `SourceLoader`, or the
+image sources); the `canvasnet` tool follows them.
+
+1. **Information notes for Vega-Lite charts.** A chart channel with a `field` but no `type` is still drawn with the
+   type Vega-Lite infers (usually `nominal`, so a number field on `x` becomes a row of categories), but it is no
+   longer silent: the result carries a note of the new severity `info` (`ImageDiagnosticSeverity.Info`, the string
+   `info` in `ImageDiagnostic`), source `vega-lite`, code `vega-lite-info`, detail `vl-type-inferred`, located at the
+   channel (for example `/encoding/x`), whose message names the field and the inferred type. An `info` note is never
+   a warning and never fails `ThrowOnUnsupportedFeature` or `SourceOptions.Strict`. A host that treats every
+   diagnostic as a problem should skip the severity `info`; writing the `type` silences the note. The Vega-Lite
+   package delivers the same note to the new `VegaLiteRenderOptions.InfoHandler`.
 
 ## Examples
 

@@ -168,19 +168,19 @@ plate is as large in all three cells because the camera is fixed).
   printed (the exit code 1 still tells that the command failed), and with `--log` it is also written to the log
   file. The exceptions are a failure of the global options themselves, such as a malformed option or a log file that
   cannot be opened: no log or silent setting is in force yet, so it is always printed.
-- **Diagnostics of a successful command** are also written to standard error, one line each, when the command is
-  not run with `--json`. A feature the picture was drawn without is `Unsupported: <code>: <message>`, a questionable
-  construct is `Warning: <code>: <message>`, and a line a SCAD model printed with `echo` is written as OpenSCAD prints
-  it, `ECHO: <text>`. A note ends with where it came from in parentheses: the input, and the page of a document, such
-  as `(chart.vl.json)` or `(deck.pptx, page 2)`, or for `compare` the side, `(input b)`. At most 20 notes, and 20 echo
-  lines, are written;
-  the rest are counted in one line, `... and N more diagnostics (use --json for all)`. Control characters (such as ESC
-  or NUL) in a line are written escaped (`\u001b`), so a model cannot inject terminal sequences; the `--json` values
-  are unchanged. They do not change the exit code, which stays 0 (`--strict` turns an unsupported feature into an
-  error instead), and standard output keeps only
-  the result. `--silent` suppresses them like all other console output (`--log` still records them). With
-  `--json` none are written to standard error, because the same notes are in the `diagnostics` and `echo` of the JSON
-  document, and standard output stays that one document.
+- **Diagnostics of a successful command** are also written to standard error, one line each, when the command is not run
+  with `--json`. A feature the picture was drawn without is `Unsupported: <code>: <message>`, a questionable construct
+  is `Warning: <code>: <message>`, a note for information only (severity `info`, such as `vega-lite-info` for a chart
+  field without a `type`) is `Info: <code>: <message>`, and a line a SCAD model printed with `echo` is written as
+  OpenSCAD prints it, `ECHO: <text>`. A note ends with where it came from in parentheses: the input, and the page of a
+  document, such as `(chart.vl.json)` or `(deck.pptx, page 2)`, or for `compare` the side, `(input b)`. At most 20
+  notes, and 20 echo lines, are written; the rest are counted in one line,
+  `... and N more diagnostics (use --json for all)`. Control characters (such as ESC or NUL) in a line are written
+  escaped (`\u001b`), so a model cannot inject terminal sequences; the `--json` values are unchanged. They do not change
+  the exit code, which stays 0 (`--strict` turns an unsupported feature into an error instead; an `Info` note never
+  fails, also with `--strict`), and standard output keeps only the result. `--silent` suppresses them like all other
+  console output (`--log` still records them). With `--json` none are written to standard error, because the same notes
+  are in the `diagnostics` and `echo` of the JSON document, and standard output stays that one document.
 - **Exit codes** are the same for every command: **0** for success and **1** for any failure. The finer distinction
   is the stable error code, which is available only in the `Error:` line on standard error and in the `--json`
   failure document (see *Error Codes*); there is no other exit code to interpret.
@@ -2180,7 +2180,9 @@ swimlanes and partitions, its packages, its composite states, or its containers:
   and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`, `pptx`,
   `vsdx`, `vega-lite`, `mermaid`, `plantuml`, or `svg`; `code` is the library's stable feature token, such as
   `scad-module-surface`, `vl-mark-geoshape`, `mermaid-icon-unsupported`, or `plantuml-theme-unsupported`,
-  `vega-lite-warning` for a warning of the chart library, `mermaid-warning` or `plantuml-warning` for a warning of a
+  `vega-lite-warning` for a warning of the chart library, `vega-lite-info` (severity `info`, detail
+  `vl-type-inferred`, never a failure with `--strict`) for a chart field without a `type`, which is drawn with the type
+  Vega-Lite infers, `mermaid-warning` or `plantuml-warning` for a warning of a
   diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
   `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
@@ -2610,7 +2612,8 @@ CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/Dem
 
 **Shim protocol.** The shim passes `--protocol 1` with every run, with what only Pandoc knows: the path of the shim (the
 cache folder `generated/canvasnet` is beside its folder), the output format and file, the resource path, and whether the
-pictures are embedded. The tool writes the document back with its warnings in the metadata key `canvasnet-warnings`,
+pictures are embedded. The tool writes the document back with its warnings in the metadata key `canvasnet-warnings`
+(the notes the tool reports for each picture; a note for information only, such as `vega-lite-info`, is left out),
 which the shim removes and shows as Pandoc warnings, and a caption of a Mermaid block as a span of class
 `canvasnet-markdown`, which the shim reads as Markdown; a document must not use these two names. A shim that speaks a
 protocol the tool does not stops the build with a message such as

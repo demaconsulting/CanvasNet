@@ -107,7 +107,9 @@ sections:
               the options of an embedding document away from an embedded file, report a page that does not exist
               as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
               image-fragment-invalid without drawing the image, report notes with their detail, location, page and
-              origin, and surface a library failure as the original exception inside an ImageSourceException.
+              origin (an informational note, such as vega-lite-info for a chart field without a type, with the
+              severity Info, which never fails ThrowOnUnsupportedFeature), and surface a library failure as the
+              original exception inside an ImageSourceException.
             justification: |
               One loader means a linked page, a rendered page and a page written by the tool cannot differ, and a
               diagram can place any page of a document.
@@ -130,6 +132,7 @@ sections:
               - SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument
               - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme
               - SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid
+              - CanvasNetViewer_Render_ChartFieldWithoutType_ReportsInfoNoteInStrictMode
 
           - id: CanvasNetViewer-CanvasNetViewer-RenderOptions
             title: >-

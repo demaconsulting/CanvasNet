@@ -15,7 +15,9 @@ and `PandocFilterEngine.Drawing.cs` (draw). The latter also holds the supporting
   implementation must be safe to call from several threads at once.
 - `ToolPictureDrawer` (internal sealed class) - the production drawer: it calls `RenderCommand.Execute` and
   `FlattenCommand.Execute` in-process with the arguments the Lua filter passed to `canvasnet render ... --json` and
-  `canvasnet flatten ... --json`, and maps their result to a `PictureDrawing` (a render is always `Flattened`). It is
+  `canvasnet flatten ... --json`, and maps their result to a `PictureDrawing` (a render is always `Flattened`), leaving
+  out a note of the severity `info` (a note for information only, such as `vega-lite-info`): the engine returns the
+  notes as Pandoc warnings, and a note that is not a warning must not fail a build that treats warnings as errors. It is
   stateless.
 - `PictureDiagnostic(Code, Message, Embedded)` (internal sealed record) - a note of the tool; `Embedded` is true when
   the note has an origin, that is, it is about a file the picture embeds.
