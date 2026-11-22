@@ -206,13 +206,22 @@ jobs:
       # 'src/<project>/bin/Release/' inside the artifact and the downloaded folder would
       # not be a usable local NuGet feed: 'dotnet tool install --add-source packages'
       # finds no package at that path, which is how the integration tests first failed.
+      #
+      # Packing runs in a single MSBuild node (-maxcpucount:1) with quiet SBOM output. The
+      # SBOM task writes straight to stdout, which on worker nodes is a pipe nobody reads;
+      # on macOS the pipe fills after a few packages and the step hangs forever
+      # (https://github.com/dotnet/msbuild/issues/6753,
+      # https://github.com/microsoft/sbom-tool/issues/946). The timeout is a safety net.
       - name: Create Library Package
+        timeout-minutes: 10
         run: >
           dotnet pack
           --no-build
           --no-restore
           --configuration Release
           --output packages
+          -maxcpucount:1
+          --property:SbomGenerationVerbosity=Warning
           --property:PackageVersion=${{ inputs.version }}
 
       # === UPLOAD ARTIFACTS ===
