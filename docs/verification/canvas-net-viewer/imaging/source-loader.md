@@ -722,10 +722,11 @@ both, with rounding and the one-pixel minimum; a raster is resized and the opera
 **SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding**, and
 **SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption**: exact, scaled, aspect-derived, and natural sizes beyond
 8192 are `size-limit` with messages and hints that say which size is too large; a size that follows the natural size (no
-option, or `--scale`) names the scale that fits in the message, the hint
-(`Use --scale 12 (or less), --width, or --height to choose a smaller size.`), and the exception's `Data`, while an exact
-size has none; 8192 itself is allowed; a PNG header declaring 9000x9000 is refused for its size (not as corrupt) while
-probing still reports it; an SVG of 100000x50 is refused at its natural size and renders at a width that is allowed.
+option, or a scale) names the scale that fits in the message, the hint
+(`Use a scale of 12 or less, or a smaller width or height.`, which names no option of the command-line tool), and the
+exception's `Data`, while an exact size has the hint `Use a smaller scale, width, or height.`; 8192 itself is allowed; a
+PNG header declaring 9000x9000 is refused for its size (not as corrupt) while probing still reports it; an SVG of
+100000x50 is refused at its natural size and renders at a width that is allowed.
 
 **SourceLoader_FitScale_NaturalSize_RoundsDownToTwoDigits**: the scale that fits is the maximum over the larger side
 rounded down to two significant digits without trailing zeros (14374 pixels wide or tall gives `0.56`, 20000 gives
@@ -763,6 +764,14 @@ its own sweep);
 **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
+
+**SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode**: the shared mapping fills in the location and the detail
+code of a source error for a file the command-line tool loads: a Mermaid syntax error (`mermaid-error`,
+`mermaid-syntax-error`, line 2), a PlantUML message without a target (`plantuml-error`, `plantuml-syntax-error`, line
+3), an OpenSCAD syntax error (`scad-error`, `scad-syntax-error`, line 2), and a truncated chart (`vega-lite-error`, with
+a line) each carry the location the library reports, and malformed SVG markup (`corrupt-input`) carries the path of the
+file with the line and column of the XML error, no detail code, and the codec's `InvalidDataException` inside; a
+missing file (`input-not-found`) has neither.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.

@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -283,6 +284,112 @@ public class CommandRegistryTests
 
         // Assert: the existing command name was not overwritten
         Assert.Equal("inner", exception.Command);
+    }
+
+    /// <summary>
+    ///     Test that Run reports a failure of the library as a ToolException with the same code, message, location, detail
+    ///     code and cause, naming the command, and with the hint in the words of the command line.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_ViewerException_KeepsLocationAndDetailCode()
+    {
+        // Arrange: a command that fails as the loader does for a model that uses an unsupported feature in strict mode
+        var registry = new CommandRegistry();
+        var cause = new FormatException("syntax");
+        var where = new ImageDiagnosticLocation("model.scad", 2, 1, null);
+        registry.Register(new TestCommand(
+            "render",
+            (_, _) => throw new ViewerException(
+                ErrorCodes.UnsupportedFeature,
+                "The SCAD model uses a feature that is not supported (offset).",
+                "Without strict mode the feature is left out and reported in the diagnostics.",
+                cause)
+            {
+                Location = where,
+                DetailCode = "offset"
+            }));
+        using var context = Context.Create(["render"]);
+
+        // Act
+        var exception = Assert.Throws<ToolException>(() => registry.Run(context));
+
+        // Assert: the facts of the library are kept, and the hint names the option of the tool
+        Assert.Equal(("render", ErrorCodes.UnsupportedFeature), (exception.Command, exception.Code));
+        Assert.Equal("The SCAD model uses a feature that is not supported (offset).", exception.Message);
+        Assert.Equal(where, exception.Location);
+        Assert.Equal("offset", exception.DetailCode);
+        Assert.Same(cause, exception.InnerException);
+        Assert.Equal("Without --strict the feature is left out and reported in the diagnostics.", exception.Hint);
+    }
+
+    /// <summary>
+    ///     Test that the render command run through the registry reports the failures of a model with the codes, location
+    ///     and detail code of the library's shared mapping, and with hints that name the options of the tool: a syntax
+    ///     error, an unsupported feature with <c>--strict</c>, and the triangle limit with <c>--max-triangles</c>.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_RenderOfFailingModels_ReportsLibraryCodesInCommandLineWords()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var broken = FixtureFactory.WriteText(directory.Path, "broken.scad", "cube([10, 10, 10]\nsphere(5);\n");
+        var surface = FixtureFactory.WriteText(directory.Path, "surface.scad", "surface(\"A\");\ncube(1);\n");
+        var model = FixtureFactory.WriteSource(directory.Path, "scad");
+        var output = directory.Combine("o.png");
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act
+        var syntax = RunRenderFailing(registry, broken, "-o", output);
+        var strict = RunRenderFailing(registry, surface, "--strict", "--size", "16x16", "-o", output);
+        var limit = RunRenderFailing(registry, model, "--max-triangles", "1", "-o", output);
+
+        // Assert: the same codes as the library, with its location and detail code
+        Assert.Equal((ErrorCodes.ScadError, "scad-syntax-error", 2), (syntax.Code, syntax.DetailCode, syntax.Location?.Line));
+        Assert.Equal((ErrorCodes.UnsupportedFeature, 1), (strict.Code, strict.Location?.Line));
+        Assert.NotNull(strict.DetailCode);
+        Assert.Equal(ErrorCodes.BudgetExceeded, limit.Code);
+
+        // Assert: the hints in the words of the command line
+        Assert.Contains("Without --strict", strict.Hint, StringComparison.Ordinal);
+        Assert.Contains("Raise --max-triangles", limit.Hint, StringComparison.Ordinal);
+        Assert.All(new[] { syntax, strict, limit }, ex => Assert.Equal("render", ex.Command));
+        Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Runs the render command through a registry and returns the error it fails with.
+    /// </summary>
+    /// <param name="registry">The registry.</param>
+    /// <param name="args">The arguments of the render command.</param>
+    /// <returns>The exception.</returns>
+    private static ToolException RunRenderFailing(CommandRegistry registry, params string[] args)
+    {
+        using var context = Context.Create(["render", .. args]);
+        return Assert.Throws<ToolException>(() => ToolHost.Capture(() => registry.Run(context)));
+    }
+
+    /// <summary>
+    ///     Test that the hints of the library are worded with the options of the tool: strict mode, the triangle limit, and
+    ///     a smaller size; a hint without such a phrase and no hint are kept as they are.
+    /// </summary>
+    /// <param name="library">The hint of the library.</param>
+    /// <param name="commandLine">The hint the tool reports.</param>
+    [Theory]
+    [InlineData("Without strict mode the image is left out.", "Without --strict the image is left out.")]
+    [InlineData(
+        "Raise ScadViewOptions.MaxTriangles (the default is 2000000) or simplify the model.",
+        "Raise --max-triangles (the default is 2000000) or simplify the model.")]
+    [InlineData("Use a smaller scale, width, or height.", "Use a smaller --scale, --width, or --height.")]
+    [InlineData("Use a scale of 0.4 or less, or a smaller width or height.", "Use --scale 0.4 or less, or a smaller --width or --height.")]
+    [InlineData("Check the path.", "Check the path.")]
+    [InlineData(null, null)]
+    public void CommandRegistry_CommandLineHint_LibraryPhrases_NameTheOptions(string? library, string? commandLine)
+    {
+        // Act
+        var hint = CommandRegistry.CommandLineHint(library);
+
+        // Assert
+        Assert.Equal(commandLine, hint);
     }
 
     /// <summary>

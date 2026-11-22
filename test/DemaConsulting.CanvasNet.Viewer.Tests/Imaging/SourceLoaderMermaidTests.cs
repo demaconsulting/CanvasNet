@@ -385,7 +385,7 @@ public class SourceLoaderMermaidTests
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains(MermaidDiagnosticCodes.DiagramUnsupported, strict.Message, StringComparison.Ordinal);
         Assert.Contains("not supported", strict.Hint, StringComparison.Ordinal);
-        Assert.Contains("--strict", strict.Hint, StringComparison.Ordinal);
+        Assert.Contains("strict mode", strict.Hint, StringComparison.Ordinal);
         Assert.IsType<MermaidUnsupportedFeatureException>(strict.InnerException);
     }
 
@@ -514,7 +514,7 @@ public class SourceLoaderMermaidTests
         // Assert: the natural size is known, the default size is refused with the usual hint, and a quarter fits
         Assert.True(info.Width > Surface.MaxDimension, $"The chain is only {info.Width} pixels wide.");
         Assert.Equal(ErrorCodes.SizeLimit, tooLarge.Code);
-        Assert.Contains("--scale", tooLarge.Hint, StringComparison.Ordinal);
+        Assert.Contains("a scale of", tooLarge.Hint, StringComparison.Ordinal);
         Assert.Equal((int)Math.Round(info.Width * 0.25, MidpointRounding.AwayFromZero), small.Surface.Width);
         Assert.True(Count(small.Surface, DefaultNodeFill) > 0);
     }

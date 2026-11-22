@@ -53,9 +53,8 @@ sections:
               1 to Surface.MaxDimension with ArgumentOutOfRangeException before reading the file, checks the final
               buffer of a resized render against what is left of the live MaxDecodedPixels budget (in addition to the
               surface of the source), and fails
-              with ArgumentNullException, FileNotFoundException, NotSupportedException, ArgumentException,
-              FileReferenceException, ImageSourceBudgetException, or ImageSourceException (keeping the original failure
-              inside) as documented.
+              with ArgumentNullException for a null path and with a ViewerException for every failure of the file (see
+              CanvasNetViewer-CanvasNetViewer-RenderErrors).
             justification: |
               A viewer, a thumbnail generator, or a report builder gets exactly the same safety and limits as an
               embedded picture, and a caller can tell a missing file from a file that cannot be drawn.
@@ -94,6 +93,36 @@ sections:
               - CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading
               - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
 
+          - id: CanvasNetViewer-CanvasNetViewer-RenderErrors
+            title: >-
+              Render shall report every failure of the input (a missing file, an unknown extension, a file that cannot
+              be read or is larger than 16 MiB, a picture over the pixel budget, a damaged file, an error in the source
+              of a model, chart or diagram, malformed SVG markup, a reference the file-access policy denied, an
+              unsupported feature in strict mode, and the failure of a source at any level of nesting) as a
+              ViewerException with the code the command-line tool reports for the same failure (operation-failed for
+              a failure that has no more specific code), the location (file, line, column, and JSON pointer) and the
+              code of the format library for an error in a source, and the original exception as the inner exception;
+              its message and hint shall name no option of the command-line tool, and a mistake in the options shall
+              stay an ArgumentNullException or ArgumentOutOfRangeException and a cancellation an
+              OperationCanceledException.
+            justification: |
+              A host that renders source written by a user or a model needs one exception type with a stable code and a
+              structured location to report or fix the error, without matching exception types of every format or
+              parsing message text, and a hint it can act on without a command line (issue  # 166).
+            tests:
+              - CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
+              - CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
+              - CanvasNetViewer_Render_ScadSyntaxError_ThrowsViewerExceptionWithLocation
+              - CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation
+              - CanvasNetViewer_Render_MalformedSvg_ThrowsCorruptInputWithXmlLineAndColumn
+              - CanvasNetViewer_Render_DeniedReferences_ThrowFileAccessDenied
+              - CanvasNetViewer_Render_InputFailures_ThrowViewerExceptionWithCode
+              - CanvasNetViewer_Render_Failures_HaveNoCommandLineWording
+              - CanvasNetViewer_Render_ExtraSourceFailure_IsMappedOrOperationFailed
+              - CanvasNetViewer_Render_EmbeddedSourceError_KeepsCodeLocationAndDetailCode
+              - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions
+              - CanvasNetViewer_Render_StreamInvalidArguments_Throw
+
           - id: CanvasNetViewer-CanvasNetViewer-LoaderSources
             title: >-
               The CanvasNetViewer class shall draw a linked file and a file given to Render with the same code as the
@@ -108,8 +137,8 @@ sections:
               as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
               image-fragment-invalid without drawing the image, report notes with their detail, location, page and
               origin (an informational note, such as vega-lite-info for a chart field without a type, with the
-              severity Info, which never fails ThrowOnUnsupportedFeature), and surface a library failure as the
-              original exception inside an ImageSourceException.
+              severity Info, which never fails ThrowOnUnsupportedFeature), and surface a library failure of an
+              embedded file as the original exception inside an ImageSourceException.
             justification: |
               One loader means a linked page, a rendered page and a page written by the tool cannot differ, and a
               diagram can place any page of a document.

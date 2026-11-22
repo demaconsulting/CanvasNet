@@ -13,14 +13,17 @@ see-also:
   fractional resolution for a Visio drawing, an unknown view or theme name), or
   facts of a probe given to an operation with another file-access policy. Read
   the message and the hint.
+- `operation-failed`: A source failed for a reason that has no more specific
+  code (a host's own image source); read the message.
 - `input-not-found`: The input file or folder does not exist. Check the path.
 - `input-unreadable`: The input exists but cannot be read (permissions, a
-  folder, a locked file).
+  folder, a locked file), or is larger than 16 MiB.
 - `unsupported-format`: The input is not a format CanvasNet reads.
   `CanvasNetViewer.Extensions` lists the file types.
 - `corrupt-input`: The content is damaged, or is not what its extension says, or
   a model, chart, diagram, or SVG file is beyond a size or depth limit. Repair
-  or replace the file.
+  or replace the file. For malformed SVG markup `Location` has the line and
+  column of the XML error.
 - `unsupported-feature`: The file is valid but uses a feature the library cannot
   draw or decode, or any skipped feature in strict mode. Remove the feature, or
   turn strict mode off if it is only a skipped picture.
@@ -43,19 +46,20 @@ see-also:
 - `output-write-failed`: The output could not be written (an invalid path, a
   file where a folder should be, permissions, a full disk).
 - `scad-error`: An OpenSCAD model has a syntax error, an evaluation error, or an
-  include that cannot be read; the message has file, line, and column.
+  include that cannot be read; the message and `Location` have file, line,
+  and column.
 - `vega-lite-error`: A Vega-Lite chart has an invalid specification, a data file
-  that is missing or unreadable, or cannot be laid out or drawn; the message has
-  file, line, column, and JSON pointer.
+  that is missing or unreadable, or cannot be laid out or drawn; the message and
+  `Location` have file, line, column, and JSON pointer.
 - `mermaid-error`: A Mermaid diagram has a syntax error (mermaid-syntax-error),
   an unknown diagram type (mermaid-unknown-diagram), invalid frontmatter, or
   cannot be laid out; the message has file, line, column, and the mermaid-*
-  code, and the hint suggests the fix.
+  code (also in `Location` and `DetailCode`), and the hint suggests the fix.
 - `plantuml-error`: A PlantUML diagram has a syntax error
   (plantuml-syntax-error), an unknown @start tag (plantuml-unknown-diagram), an
   !include that cannot be read (plantuml-include-failed), or cannot be laid out;
-  the message has file, line, column, and the plantuml-* code, and the hint
-  suggests the fix.
+  the message has file, line, column, and the plantuml-* code (also in
+  `Location` and `DetailCode`), and the hint suggests the fix.
 - `file-access-denied`: A file the document references (a model's include or use
   file, a chart's data file, a PlantUML diagram's !include file, or in strict
   mode a linked picture) was denied by the file-access policy of the render, or
@@ -63,9 +67,10 @@ see-also:
   mode, and why. The default policy, any (`FileAccessPolicy.AllowAll`), reads
   every regular local file; see [[files]].
 - `budget-exceeded`: A model exceeds a rendering limit such as its triangle
-  limit (`MaxTriangles`), or a chart or diagram exceeds a limit of its library
-  (mermaid-limit-exceeded or plantuml-limit-exceeded for a diagram). Raise the
-  limit (a model) or simplify the model, chart, or diagram.
+  limit (`MaxTriangles`), a chart or diagram exceeds a limit of its library
+  (mermaid-limit-exceeded or plantuml-limit-exceeded for a diagram), or the
+  picture does not fit in `ViewerRenderOptions.MaxDecodedPixels`. Raise the
+  limit (a model, the pixel budget) or simplify the model, chart, or diagram.
 - `size-mismatch`: A comparison (`ImageComparer`) was given two images of
   different sizes and no resize target (`Resize`).
 - `positions-unmatched`: In strict mode, a position selector matched no feature

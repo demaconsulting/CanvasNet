@@ -518,7 +518,7 @@ public class CanvasNetViewerParameterFragmentTests
         Assert.Contains("'nope'", error.Message, StringComparison.Ordinal);
         Assert.Contains("declared: brush, cutoff", error.Message, StringComparison.Ordinal);
         Assert.Equal("vl-param-unknown", Assert.Single(warned.Diagnostics).Code);
-        Assert.Contains("A --param value is not valid", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("A chart parameter value is not valid", refused.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -597,8 +597,8 @@ public class CanvasNetViewerParameterFragmentTests
 
         // Assert
         Assert.All(new[] { first, second, third }, e => Assert.Equal(ErrorCodes.UsageError, e.Code));
-        Assert.Contains("A --param value is not valid", first.Message, StringComparison.Ordinal);
-        Assert.Contains("A --param value is not valid", second.Message, StringComparison.Ordinal);
+        Assert.Contains("A chart parameter value is not valid", first.Message, StringComparison.Ordinal);
+        Assert.Contains("A chart parameter value is not valid", second.Message, StringComparison.Ordinal);
         Assert.Contains("chart parameters", third.Message, StringComparison.Ordinal);
     }
 

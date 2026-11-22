@@ -108,11 +108,14 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///     </para>
 ///     <para>
 ///         <b>Failures.</b> A page that does not exist or a fragment value that cannot be used is an
-///         <see cref="ImageSourceRefusedException"/>. A failure of the file that the loader mapped to a
+///         <see cref="ImageSourceRefusedException"/>. A failure of an <b>embedded</b> file that the loader mapped to a
 ///         <see cref="ViewerException"/> is thrown as the original library exception (so the documented
-///         <see cref="Exception.InnerException"/> of an <see cref="ImageSourceException"/> types hold); a <see cref="ViewerException"/> that has no
-///         original (a size limit, a model whose include is missing) is thrown as it is. The class is stateless and
-///         thread-safe.
+///         <see cref="Exception.InnerException"/> of an <see cref="ImageSourceException"/> types hold, and the embedding
+///         render maps it again with the same mapping); a <see cref="ViewerException"/> that has no original (a size
+///         limit, a model whose include is missing) is thrown as it is. The failure of the file of a <b>direct</b>
+///         render (<see cref="DirectRenderOptions"/>) is always thrown as the mapped <see cref="ViewerException"/>, with
+///         its code, location and detail code and the library exception as its inner exception. The class is stateless
+///         and thread-safe.
 ///     </para>
 /// </remarks>
 internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
@@ -230,7 +233,10 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <exception cref="ImageSourceRefusedException">Thrown when the page does not exist or a fragment value is not usable.</exception>
     /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the picture does not fit in the pixel budget.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the request is canceled.</exception>
-    /// <exception cref="ViewerException">Thrown for a failure that has no library exception behind it (a size limit, a missing include).</exception>
+    /// <exception cref="ViewerException">
+    ///     Thrown for a failure that has no library exception behind it (a size limit, a missing include), and for every
+    ///     failure of the file of a direct render, with the library exception as its inner exception.
+    /// </exception>
     public ImageSourceResult Render(ImageSourceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -245,9 +251,11 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         {
             return Draw(request);
         }
-        catch (ViewerException ex) when (ex.InnerException is not null)
+        catch (ViewerException ex) when (ex.InnerException is not null && request.Options is not DirectRenderOptions)
         {
-            // The documented failure types are the library's own, so the original exception is what the resolver wraps
+            // An embedded picture fails with the library's own exception, which the resolver wraps for the documented
+            // ImageSourceException contract; the embedding render maps it again with the same mapping. A direct render
+            // keeps the mapped ViewerException, so the caller of CanvasNetViewer.Render gets its code and location
             ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
             throw;
         }

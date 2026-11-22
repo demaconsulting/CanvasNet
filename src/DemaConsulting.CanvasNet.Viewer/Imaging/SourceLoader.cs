@@ -3,6 +3,7 @@ using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Files;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
@@ -46,6 +47,11 @@ public static partial class SourceLoader
     ///     Pandoc filter's <c>scale</c> attribute) can name it in its own words.
     /// </summary>
     internal const string FitScaleDataKey = "DemaConsulting.CanvasNet.Viewer.FitScale";
+
+    /// <summary>
+    ///     The hint of a failure that strict mode caused: without it the render goes on and reports the feature.
+    /// </summary>
+    internal const string StrictModeHint = "Without strict mode the feature is left out and reported in the diagnostics.";
 
     /// <summary>
     ///     Reads the facts about a file without rendering it, under <see cref="FileAccessPolicy.AllowAll"/>.
@@ -593,7 +599,7 @@ public static partial class SourceLoader
                 throw new ViewerException(
                     ErrorCodes.SizeLimit,
                     $"The requested size of {size} pixels is larger than the maximum of {Surface.MaxDimension} pixels per side.",
-                    "Use a smaller --scale, --width, or --height.");
+                    "Use a smaller scale, width, or height.");
             }
 
             // The size follows the natural size, so the scale that fits is suggested
@@ -603,7 +609,7 @@ public static partial class SourceLoader
                 options.Scale != null
                     ? $"The requested size of {size} pixels is larger than the maximum of {Surface.MaxDimension} pixels per side; a scale of {fit} or less fits."
                     : $"'{path}' is {size} pixels, which is larger than the maximum of {Surface.MaxDimension} pixels per side; a scale of {fit} or less fits.",
-                $"Use --scale {fit} (or less), --width, or --height to choose a smaller size.");
+                $"Use a scale of {fit} or less, or a smaller width or height.");
             exception.Data[FitScaleDataKey] = fit;
             throw exception;
         }
@@ -680,148 +686,224 @@ public static partial class SourceLoader
     /// <param name="kind">The kind being read, for messages, or <see langword="null"/> when it is not known yet.</param>
     /// <param name="action">The read.</param>
     /// <returns>The result of <paramref name="action"/>.</returns>
-    /// <exception cref="ViewerException">
-    ///     Thrown for the allow-listed exceptions: a missing file or directory (<c>input-not-found</c>), an access
-    ///     failure or any other I/O failure while reading (<c>input-unreadable</c>), an unsupported feature -
-    ///     <see cref="UnsupportedImageFeatureException"/>, <see cref="PptxUnsupportedFeatureException"/>, and
-    ///     <see cref="VsdxUnsupportedFeatureException"/>, and <see cref="ScadUnsupportedFeatureException"/>
-    ///     (<c>unsupported-feature</c>), a syntax error of a model - <see cref="ScadSyntaxException"/> - or a failure
-    ///     of its evaluation - <see cref="ScadEvaluationException"/> (<c>scad-error</c>, or <c>budget-exceeded</c> when a
-    ///     limit was exceeded; see <see cref="MapScadEvaluation"/>), <see cref="VegaLiteUnsupportedFeatureException"/>
-    ///     (<c>unsupported-feature</c>), an invalid chart specification - <see cref="VegaLiteSpecException"/> - or a
-    ///     chart that cannot be rendered - <see cref="VegaLiteRenderException"/> (<c>vega-lite-error</c>, or
-    ///     <c>budget-exceeded</c> when a limit was exceeded; see <see cref="MapVegaLiteRender"/>),
-    ///     <see cref="MermaidUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a diagram that is not valid -
-    ///     <see cref="MermaidSyntaxException"/> - or that cannot be laid out or drawn - <see cref="MermaidRenderException"/>
-    ///     (<c>mermaid-error</c> with the hint of the library, or <c>budget-exceeded</c> when a limit was exceeded; see
-    ///     <see cref="MapMermaid"/>), <see cref="PlantUmlUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a
-    ///     PlantUML diagram that is not valid or whose include cannot be read - <see cref="PlantUmlSyntaxException"/> - or
-    ///     that cannot be laid out or drawn - <see cref="PlantUmlRenderException"/> (<c>plantuml-error</c> with the hint of
-    ///     the library, <c>budget-exceeded</c> when a limit was exceeded, or <c>file-access-denied</c> when the file-access
-    ///     policy refused an include; see <see cref="MapPlantUml"/>), and
-    ///     invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
-    ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
-    ///     (<c>corrupt-input</c>).
-    /// </exception>
+    /// <exception cref="ViewerException">Thrown for the allow-listed exceptions of <see cref="MapFailure"/>.</exception>
     /// <remarks>
-    ///     This is deliberately not a catch-all: an unexpected exception (a null reference, an index out of range, an
-    ///     out-of-memory failure) is a defect and is allowed to escape to the entry point, which reports and re-throws it.
-    ///     A truncated or garbage file that produces such an exception is a gap in this list and is fixed by extending
-    ///     the list.
+    ///     This is deliberately not a catch-all: an exception that <see cref="MapFailure"/> does not map (a null reference,
+    ///     an index out of range, an out-of-memory failure) is a defect and is re-thrown with its own stack to the entry
+    ///     point, which reports and re-throws it.
     /// </remarks>
     internal static T Read<T>(string path, SourceKind? kind, Func<T> action)
     {
-        var what = kind?.ToFormatName() ?? "image";
         try
         {
             return action();
         }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        catch (Exception ex)
         {
-            throw new ViewerException(ErrorCodes.InputNotFound, $"'{path}' does not exist.", "Check the path.", ex);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            throw new ViewerException(ErrorCodes.InputUnreadable, $"'{path}' cannot be read: {OneLine(ex.Message)}", null, ex);
-        }
-        catch (Exception ex) when (ex is UnsupportedImageFeatureException or PptxUnsupportedFeatureException or VsdxUnsupportedFeatureException)
-        {
-            var feature = ex switch
+            // A failure the mapping does not know is a defect and keeps its own stack
+            var mapped = MapFailure(ex, path, kind);
+            if (mapped is null)
             {
-                UnsupportedImageFeatureException image => image.Feature,
-                PptxUnsupportedFeatureException presentation => presentation.Feature,
-                VsdxUnsupportedFeatureException drawing => drawing.Feature,
-                _ => string.Empty
-            };
-            var named = feature.Length > 0 ? $" ({feature})" : string.Empty;
-            throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
-                $"'{path}' uses a {what} feature that is not supported{named}: {OneLine(ex.Message)}",
-                null,
-                ex);
+                throw;
+            }
+
+            throw mapped;
         }
-        catch (ScadUnsupportedFeatureException ex)
+    }
+
+    /// <summary>
+    ///     Maps a library exception that means "bad input" to the <see cref="ViewerException"/> with its stable code: the one
+    ///     mapping of the failures of a source that the command-line tool and <c>CanvasNetViewer.Render</c> share.
+    /// </summary>
+    /// <param name="exception">The failure.</param>
+    /// <param name="path">The path or name of the file, for messages and for the location of malformed XML.</param>
+    /// <param name="kind">The kind being read, for messages, or <see langword="null"/> when it is not known.</param>
+    /// <returns>
+    ///     The exception to throw, whose inner exception is <paramref name="exception"/> and whose
+    ///     <see cref="ViewerException.Location"/> and <see cref="ViewerException.DetailCode"/> come from it (see
+    ///     <see cref="DescribeSourceFailure"/>), or <see langword="null"/> when the failure is not an allow-listed one.
+    ///     The allow-list, in order: a missing file or directory (<c>input-not-found</c>), an access failure
+    ///     (<c>input-unreadable</c>), an unsupported feature - <see cref="UnsupportedImageFeatureException"/>,
+    ///     <see cref="PptxUnsupportedFeatureException"/>, <see cref="VsdxUnsupportedFeatureException"/>, and
+    ///     <see cref="ScadUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a syntax error of a model -
+    ///     <see cref="ScadSyntaxException"/> - or a failure of its evaluation - <see cref="ScadEvaluationException"/>
+    ///     (<c>scad-error</c>, or <c>budget-exceeded</c> or <c>file-access-denied</c>; see <see cref="MapScadEvaluation"/>),
+    ///     <see cref="VegaLiteUnsupportedFeatureException"/> (<c>unsupported-feature</c>), an invalid chart specification -
+    ///     <see cref="VegaLiteSpecException"/> - or a chart that cannot be rendered - <see cref="VegaLiteRenderException"/>
+    ///     (<c>vega-lite-error</c>, or <c>budget-exceeded</c> or <c>file-access-denied</c>; see
+    ///     <see cref="MapVegaLiteRender"/>), <see cref="MermaidUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a
+    ///     diagram that is not valid - <see cref="MermaidSyntaxException"/> - or that cannot be laid out or drawn -
+    ///     <see cref="MermaidRenderException"/> (<c>mermaid-error</c> with the hint of the library, or
+    ///     <c>budget-exceeded</c>; see <see cref="MapMermaid"/>), <see cref="PlantUmlUnsupportedFeatureException"/>
+    ///     (<c>unsupported-feature</c>), a PlantUML diagram that is not valid or whose include cannot be read -
+    ///     <see cref="PlantUmlSyntaxException"/> - or that cannot be laid out or drawn - <see cref="PlantUmlRenderException"/>
+    ///     (<c>plantuml-error</c> with the hint of the library, <c>budget-exceeded</c>, or <c>file-access-denied</c>; see
+    ///     <see cref="MapPlantUml"/>), invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
+    ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
+    ///     (<c>corrupt-input</c>), and any other I/O failure (<c>input-unreadable</c>).
+    /// </returns>
+    /// <remarks>
+    ///     The order matters: the unsupported features of Mermaid and PlantUML are <see cref="IOException"/>s and their
+    ///     syntax errors are <see cref="FormatException"/>s, so they come before the general mappings. A truncated or
+    ///     garbage file that produces an exception outside the list is a gap in the list and is fixed by extending it.
+    ///     No hint names an option of the command-line tool, so the result fits every caller.
+    /// </remarks>
+    internal static ViewerException? MapFailure(Exception exception, string path, SourceKind? kind)
+    {
+        var what = kind?.ToFormatName() ?? "image";
+        switch (exception)
         {
-            // The message of the library already names the file and the position
-            throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
-                $"The SCAD model uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
-                "Without --strict the feature is left out and reported in the diagnostics.",
-                ex);
+            case FileNotFoundException or DirectoryNotFoundException:
+                return new ViewerException(ErrorCodes.InputNotFound, $"'{path}' does not exist.", "Check the path.", exception);
+
+            case UnauthorizedAccessException:
+                return new ViewerException(ErrorCodes.InputUnreadable, $"'{path}' cannot be read: {OneLine(exception.Message)}", null, exception);
+
+            case UnsupportedImageFeatureException or PptxUnsupportedFeatureException or VsdxUnsupportedFeatureException:
+                {
+                    var feature = DescribeSourceFailure(exception, path).Detail ?? string.Empty;
+                    var named = feature.Length > 0 ? $" ({feature})" : string.Empty;
+                    return SourceFailure(
+                        ErrorCodes.UnsupportedFeature,
+                        $"'{path}' uses a {what} feature that is not supported{named}: {OneLine(exception.Message)}",
+                        null,
+                        exception,
+                        path);
+                }
+
+            case ScadUnsupportedFeatureException scad:
+                // The message of the library already names the file and the position
+                return SourceFailure(
+                    ErrorCodes.UnsupportedFeature,
+                    $"The SCAD model uses a feature that is not supported ({scad.Feature}): {OneLine(scad.Message)}",
+                    StrictModeHint,
+                    scad,
+                    path);
+
+            case ScadSyntaxException scad:
+                return SourceFailure(ErrorCodes.ScadError, $"SCAD syntax error: {OneLine(scad.Message)}", null, scad, path);
+
+            case ScadEvaluationException scad:
+                return MapScadEvaluation(scad);
+
+            case VegaLiteUnsupportedFeatureException chart:
+                // The message of the library already names the file, the position, and the pointer
+                return SourceFailure(
+                    ErrorCodes.UnsupportedFeature,
+                    $"The Vega-Lite chart uses a feature that is not supported ({chart.Feature}): {OneLine(chart.Message)}",
+                    StrictModeHint,
+                    chart,
+                    path);
+
+            case VegaLiteSpecException chart:
+                return SourceFailure(ErrorCodes.VegaLiteError, $"Vega-Lite specification error: {OneLine(chart.Message)}", null, chart, path);
+
+            case VegaLiteRenderException chart:
+                return MapVegaLiteRender(chart);
+
+            case MermaidUnsupportedFeatureException diagram:
+                // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
+                return SourceFailure(
+                    ErrorCodes.UnsupportedFeature,
+                    $"The Mermaid diagram uses a feature that is not supported ({diagram.Feature}): {OneLine(diagram.Message)}",
+                    diagram.Hint is { } mermaidHint ? $"{mermaidHint}. {StrictModeHint}" : StrictModeHint,
+                    diagram,
+                    path);
+
+            case MermaidSyntaxException diagram:
+                // A FormatException, so it comes before the corrupt-input mapping
+                return MapMermaid(diagram.Code, "syntax", Named(path, diagram.Message, diagram.Location.IsKnown), diagram.Hint, diagram);
+
+            case MermaidRenderException diagram:
+                return MapMermaid(diagram.Code, "render", Named(path, diagram.Message, diagram.Location.IsKnown), diagram.Hint, diagram);
+
+            case PlantUmlUnsupportedFeatureException diagram:
+                // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
+                return SourceFailure(
+                    ErrorCodes.UnsupportedFeature,
+                    $"The PlantUML diagram uses a feature that is not supported ({diagram.Feature}): {OneLine(diagram.Message)}",
+                    diagram.Hint is { } plantUmlHint ? $"{plantUmlHint}. {StrictModeHint}" : StrictModeHint,
+                    diagram,
+                    path);
+
+            case PlantUmlSyntaxException diagram:
+                // A FormatException, so it comes before the corrupt-input mapping
+                return MapPlantUml(diagram.Code, "syntax", Named(path, diagram.Message, diagram.Location.IsKnown), diagram.Hint, diagram);
+
+            case PlantUmlRenderException diagram:
+                return MapPlantUml(diagram.Code, "render", Named(path, diagram.Message, diagram.Location.IsKnown), diagram.Hint, diagram);
+
+            case InvalidDataException or XmlException or EndOfStreamException or FormatException:
+                return SourceFailure(ErrorCodes.CorruptInput, $"'{path}' is not a valid {what} file: {OneLine(exception.Message)}", null, exception, path);
+
+            case IOException:
+                return new ViewerException(ErrorCodes.InputUnreadable, $"'{path}' cannot be read: {OneLine(exception.Message)}", null, exception);
+
+            default:
+                return null;
         }
-        catch (ScadSyntaxException ex)
+    }
+
+    /// <summary>
+    ///     Creates the <see cref="ViewerException"/> of a failure of the source of a file, with the location and the detail
+    ///     code the failure carries.
+    /// </summary>
+    /// <param name="code">The stable error code; one of the <see cref="ErrorCodes"/> constants.</param>
+    /// <param name="message">The message.</param>
+    /// <param name="hint">The hint, or <see langword="null"/>.</param>
+    /// <param name="failure">The exception of the library; it becomes the inner exception.</param>
+    /// <param name="path">The path or name of the file, the file of the location of malformed XML; or <see langword="null"/>.</param>
+    /// <returns>The exception to throw.</returns>
+    internal static ViewerException SourceFailure(string code, string message, string? hint, Exception failure, string? path = null)
+    {
+        var (location, detail) = DescribeSourceFailure(failure, path);
+        return new ViewerException(code, message, hint, failure) { Location = location, DetailCode = detail };
+    }
+
+    /// <summary>
+    ///     Reads where a failure of a format library is in the source and the code the library gave it.
+    /// </summary>
+    /// <param name="failure">The failure.</param>
+    /// <param name="path">The path or name of the file, the file of the location of malformed XML; or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The location and the detail code, each <see langword="null"/> when the failure has none: the location and the
+    ///     <c>Code</c> of a Mermaid, PlantUML, or OpenSCAD failure; the location (with the JSON pointer) and the leading
+    ///     <c>vl-*</c> identifier of the message of a Vega-Lite failure; the location and the feature of an unsupported
+    ///     feature (the Office and raster libraries give no location); the line and the column of the
+    ///     <see cref="XmlException"/> found in the chain of a failure of SVG markup (no detail code).
+    /// </returns>
+    internal static (ImageDiagnosticLocation? Location, string? Detail) DescribeSourceFailure(Exception failure, string? path)
+    {
+        switch (failure)
         {
-            throw new ViewerException(ErrorCodes.ScadError, $"SCAD syntax error: {OneLine(ex.Message)}", null, ex);
+            case MermaidSyntaxException ex: return (ToMermaidLocation(ex.Location), ex.Code);
+            case MermaidRenderException ex: return (ToMermaidLocation(ex.Location), ex.Code);
+            case MermaidUnsupportedFeatureException ex: return (ToMermaidLocation(ex.Location), ex.Feature);
+            case PlantUmlSyntaxException ex: return (ToPlantUmlLocation(ex.Location), ex.Code);
+            case PlantUmlRenderException ex: return (ToPlantUmlLocation(ex.Location), ex.Code);
+            case PlantUmlUnsupportedFeatureException ex: return (ToPlantUmlLocation(ex.Location), ex.Feature);
+            case ScadSyntaxException ex: return (ToScadLocation(ex.Location), ex.Code);
+            case ScadEvaluationException ex: return (ToScadLocation(ex.Location), ex.Code);
+            case ScadUnsupportedFeatureException ex: return (ToScadLocation(ex.Location), ex.Feature);
+            case VegaLiteSpecException ex: return (ToVegaLiteLocation(ex.Location), ReadVegaLiteDetail(ex.Message));
+            case VegaLiteRenderException ex: return (ToVegaLiteLocation(ex.Location), ReadVegaLiteDetail(ex.Message));
+            case VegaLiteUnsupportedFeatureException ex: return (ToVegaLiteLocation(ex.Location), ex.Feature);
+            case UnsupportedImageFeatureException ex: return (null, ex.Feature);
+            case PptxUnsupportedFeatureException ex: return (null, ex.Feature);
+            case VsdxUnsupportedFeatureException ex: return (null, ex.Feature);
         }
-        catch (ScadEvaluationException ex)
+
+        // Malformed SVG markup: the codec keeps the XML failure, which knows the line and the column, in its chain
+        for (var current = failure; current is not null; current = current.InnerException)
         {
-            throw MapScadEvaluation(ex);
+            if (current is XmlException { LineNumber: > 0 } xml)
+            {
+                int? column = xml.LinePosition > 0 ? xml.LinePosition : null;
+                return (new ImageDiagnosticLocation(path, xml.LineNumber, column, null), null);
+            }
         }
-        catch (VegaLiteUnsupportedFeatureException ex)
-        {
-            // The message of the library already names the file, the position, and the pointer
-            throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
-                $"The Vega-Lite chart uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
-                "Without --strict the feature is left out and reported in the diagnostics.",
-                ex);
-        }
-        catch (VegaLiteSpecException ex)
-        {
-            throw new ViewerException(ErrorCodes.VegaLiteError, $"Vega-Lite specification error: {OneLine(ex.Message)}", null, ex);
-        }
-        catch (VegaLiteRenderException ex)
-        {
-            throw MapVegaLiteRender(ex);
-        }
-        catch (MermaidUnsupportedFeatureException ex)
-        {
-            // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
-            throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
-                $"The Mermaid diagram uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
-                ex.Hint is { } hint
-                    ? $"{hint}. Without --strict the feature is left out and reported in the diagnostics."
-                    : "Without --strict the feature is left out and reported in the diagnostics.",
-                ex);
-        }
-        catch (MermaidSyntaxException ex)
-        {
-            // A FormatException, so it comes before the corrupt-input mapping
-            throw MapMermaid(ex.Code, "syntax", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
-        }
-        catch (MermaidRenderException ex)
-        {
-            throw MapMermaid(ex.Code, "render", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
-        }
-        catch (PlantUmlUnsupportedFeatureException ex)
-        {
-            // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
-            throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
-                $"The PlantUML diagram uses a feature that is not supported ({ex.Feature}): {OneLine(ex.Message)}",
-                ex.Hint is { } hint
-                    ? $"{hint}. Without --strict the feature is left out and reported in the diagnostics."
-                    : "Without --strict the feature is left out and reported in the diagnostics.",
-                ex);
-        }
-        catch (PlantUmlSyntaxException ex)
-        {
-            // A FormatException, so it comes before the corrupt-input mapping
-            throw MapPlantUml(ex.Code, "syntax", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
-        }
-        catch (PlantUmlRenderException ex)
-        {
-            throw MapPlantUml(ex.Code, "render", Named(path, ex.Message, ex.Location.IsKnown), ex.Hint, ex);
-        }
-        catch (Exception ex) when (ex is InvalidDataException or XmlException or EndOfStreamException or FormatException)
-        {
-            throw new ViewerException(ErrorCodes.CorruptInput, $"'{path}' is not a valid {what} file: {OneLine(ex.Message)}", null, ex);
-        }
-        catch (IOException ex)
-        {
-            throw new ViewerException(ErrorCodes.InputUnreadable, $"'{path}' cannot be read: {OneLine(ex.Message)}", null, ex);
-        }
+
+        return (null, null);
     }
 
     /// <summary>

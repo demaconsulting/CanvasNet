@@ -56,15 +56,21 @@ sections:
       - id: CanvasNetTool-Commands-CommandRegistry-ErrorContext
         title: >-
           The CommandRegistry class shall record the command name on a ToolException that
-          escapes a command without one, and shall let any other exception propagate unchanged.
+          escapes a command without one, shall report a failure of the Viewer library with the same code,
+          message, location, detail code, and inner exception and with a hint that names the options of the
+          tool, and shall let any other exception propagate unchanged.
         justification: |
           The error report names the failing command without every command having to know its own
-          name, and an unexpected exception (a defect) must reach the entry point untouched so that
+          name, keeps the codes the library shares with CanvasNetViewer.Render while speaking the words of the
+          command line, and an unexpected exception (a defect) must reach the entry point untouched so that
           it is re-thrown.
         tests:
           - CommandRegistry_Run_ToolExceptionWithoutCommand_FillsCommandName
           - CommandRegistry_Run_ToolExceptionWithCommand_KeepsCommandName
           - CommandRegistry_Run_UnexpectedException_PropagatesUnchanged
+          - CommandRegistry_Run_ViewerException_KeepsLocationAndDetailCode
+          - CommandRegistry_CommandLineHint_LibraryPhrases_NameTheOptions
+          - CommandRegistry_Run_RenderOfFailingModels_ReportsLibraryCodesInCommandLineWords
 
       - id: CanvasNetTool-Commands-CommandRegistry-Help
         title: >-

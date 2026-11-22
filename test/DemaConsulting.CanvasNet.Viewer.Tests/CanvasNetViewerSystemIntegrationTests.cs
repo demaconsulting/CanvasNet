@@ -669,7 +669,8 @@ public class CanvasNetViewerSystemIntegrationTests
         {
             using var drawn = CanvasNetViewer.Render(path);
             Assert.True(drawn.Surface.Width > 0);
-            var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+            var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, confined));
+            Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code);
             Exception? current = ex;
             while (current is not null and not Files.FileReferenceException)
             {

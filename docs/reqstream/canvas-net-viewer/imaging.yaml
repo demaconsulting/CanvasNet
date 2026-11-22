@@ -298,6 +298,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-DetectErrors
           - CanvasNetViewer-Imaging-SourceLoader-SizeLimit
           - CanvasNetViewer-Imaging-SourceLoader-CorruptInput
+          - CanvasNetViewer-Imaging-SourceLoader-ErrorDetails
         tests:
           - Imaging_Convert_CorruptInput_LeavesNoOutput
           - Imaging_Convert_PageOutOfRange_LeavesNoOutput

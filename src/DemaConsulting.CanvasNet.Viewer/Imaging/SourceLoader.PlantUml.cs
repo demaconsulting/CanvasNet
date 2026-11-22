@@ -112,7 +112,7 @@ public static partial class SourceLoader
         catch (ArgumentOutOfRangeException ex) when (ex.ParamName == "scale")
         {
             // The library refuses a natural size beyond the largest surface at scale 1 and names the size, in the words of
-            // the Mermaid library; the diagram still has that size, and a smaller --scale, --width, or --height draws it
+            // the Mermaid library; the diagram still has that size, and a smaller scale, width, or height draws it
             var match = MermaidOversizeMessage.Match(ex.Message);
             if (match.Success
                 && int.TryParse(match.Groups["width"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var width)
@@ -124,7 +124,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.SizeLimit,
                 $"'{path}' lays out larger than the maximum of {Surface.MaxDimension} pixels per side: {OneLine(ex.Message)}",
-                "Split the diagram, or draw it with a smaller --scale.",
+                "Split the diagram, or draw it at a smaller scale, width, or height.",
                 ex);
         }
         catch (ArgumentException ex)
@@ -145,25 +145,27 @@ public static partial class SourceLoader
     /// <returns>
     ///     The exception to throw: <c>file-access-denied</c> when the file-access policy refused an include,
     ///     <c>budget-exceeded</c> for <c>plantuml-limit-exceeded</c> (a limit on nodes, edges, includes, nesting, label
-    ///     length, layout work, or painted pixels), otherwise <c>plantuml-error</c>; the hint of the library is kept.
+    ///     length, layout work, or painted pixels), otherwise <c>plantuml-error</c>; the hint of the library is kept, and
+    ///     the location and the <c>plantuml-*</c> code of the failure are the <see cref="ViewerException.Location"/> and
+    ///     <see cref="ViewerException.DetailCode"/>.
     /// </returns>
     internal static ViewerException MapPlantUml(string code, string stage, string message, string? hint, Exception exception)
     {
         if (IsFileAccessDenial(exception))
         {
-            return new ViewerException(ErrorCodes.FileAccessDenied, $"PlantUML include denied: {OneLine(message)}", FileAccessDeniedHint, exception);
+            return SourceFailure(ErrorCodes.FileAccessDenied, $"PlantUML include denied: {OneLine(message)}", FileAccessDeniedHint, exception);
         }
 
         if (code == PlantUmlDiagnosticCodes.LimitExceeded)
         {
-            return new ViewerException(
+            return SourceFailure(
                 ErrorCodes.BudgetExceeded,
                 $"The PlantUML diagram exceeds a limit: {OneLine(message)}",
-                hint ?? "Simplify the diagram; this limit cannot be changed from the command line.",
+                hint ?? "Simplify the diagram.",
                 exception);
         }
 
-        return new ViewerException(ErrorCodes.PlantUmlError, $"PlantUML {stage} error: {OneLine(message)}", hint, exception);
+        return SourceFailure(ErrorCodes.PlantUmlError, $"PlantUML {stage} error: {OneLine(message)}", hint, exception);
     }
 
     /// <summary>

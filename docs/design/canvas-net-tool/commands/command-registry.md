@@ -28,6 +28,12 @@ placeholder shown in help). `ArgumentReader` uses the same table to parse a comm
 **GlobalOptions**: a static `OptionSpec` table of the global options (version, help, silent, validate, json,
 results, depth, and log), shown in every help screen.
 
+**CommandLinePhrases**: a static table of the phrases of the Viewer library's hints that name a setting the tool sets
+with an option of its own, each with the words of the command line: "Without strict mode" is "Without --strict",
+"ScadViewOptions.MaxTriangles" is "--max-triangles", "a smaller scale, width, or height" is "a smaller --scale,
+--width, or --height", "Use a scale of " is "Use --scale ", and "or a smaller width or height" is "or a smaller --width
+or --height".
+
 #### Key Methods
 
 **CreateDefault**: creates a registry with every command the tool ships with: `formats`
@@ -51,7 +57,14 @@ otherwise `InvalidOperationException` is thrown. Throws `ArgumentNullException` 
 `canvasnet --help`). The name `help` is handled by `RunHelp` and returns. Otherwise
 `Find` resolves the command (an unknown name throws the exception described under *Error Handling*), and the
 command's `Run` is called with `Context.CommandArguments`. A `ToolException` escaping the command has its
-`Command` set to the command's canonical name when empty and is re-thrown.
+`Command` set to the command's canonical name when empty and is re-thrown. Any other `ViewerException` (a failure of
+the Viewer library, mapped by the loader's shared mapping) becomes a `ToolException` with the same code, message,
+inner exception, `Location`, and `DetailCode`, the command's name, and the hint of `CommandLineHint`.
+
+**CommandLineHint(string?)** (`internal static`): words a hint of the library in the terms of the command line by
+replacing every phrase of `CommandLinePhrases` (ordinal, in table order); `null` stays `null`, and a hint without such
+a phrase is kept. Only the wording changes: the codes are those of the library, so the tool and
+`CanvasNetViewer.Render` report the same code for the same failure.
 
 **RunHelp(Context)** (private, `CommandRegistry.Help.cs`): the built-in `help` command. It parses the command
 arguments with `ArgumentReader` over its own option table `HelpOptions`: `--example <name>` (print only the source or
@@ -136,13 +149,14 @@ candidate) followed by a pointer to `canvasnet --help`.
 
 #### Error Handling
 
-The registry reports problems with the command line as `ToolException` with code `usage-error` (no command, an
-unknown command, and for `help` an unknown option, an unknown subject or card, a word after a command, more than eight
-words, an unknown example, `--example` with `--examples`, or an example option without a card that has examples). A
-`ToolException` thrown by a command passes through with its details intact and the command
-name recorded. Any other exception thrown by a command propagates unchanged: it is a defect, and the entry
-point reports and re-throws it. Registration errors (`InvalidOperationException`, `ArgumentNullException`) are
-programming errors detected at start-up.
+The registry reports problems with the command line as `ToolException` with code `usage-error` (no command, an unknown
+command, and for `help` an unknown option, an unknown subject or card, a word after a command, more than eight words, an
+unknown example, `--example` with `--examples`, or an example option without a card that has examples). A
+`ToolException` thrown by a command passes through with its details intact and the command name recorded, and a
+`ViewerException` of the library becomes a `ToolException` that keeps its code, location, detail code, and inner
+exception (see *Run*). Any other exception thrown by a command propagates unchanged: it is a defect, and the entry point
+reports and re-throws it. Registration errors (`InvalidOperationException`, `ArgumentNullException`) are programming
+errors detected at start-up.
 
 #### Dependencies
 
@@ -152,6 +166,7 @@ programming errors detected at start-up.
 - **ResultWriter** - the JSON help documents.
 - **HelpTopics** - the tree of help cards and its renderings, for the topic list, the cards, the tree, and the examples.
 - **ToolException** and **ErrorCodes** - the error report (documented in *Program Unit Design*).
+- **ViewerException** (Viewer library) - the failures of the library that the registry reports with the command name.
 
 #### Callers
 

@@ -431,7 +431,7 @@ public partial class HelpTopicsTests
     {
         // Arrange: the codes of the code, the codes only the tool reports, and the terms of the card
         var codes = ErrorCodeValues().ToList();
-        string[] toolCodes = [ErrorCodes.OperationFailed, ErrorCodes.ThresholdFailed, ErrorCodes.PandocFilterError];
+        string[] toolCodes = [ErrorCodes.ThresholdFailed, ErrorCodes.PandocFilterError];
 
         // Act: the terms of the merged card, and of the tool's section
         var terms = HelpCardText.Items("errors/codes").Select(i => i.Term).ToList();

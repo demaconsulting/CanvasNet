@@ -154,9 +154,9 @@ public sealed record ViewerRenderOptions
     /// <remarks>
     ///     A denied picture is the warning <c>image-access-denied</c> and is not drawn; with
     ///     <see cref="ThrowOnUnsupportedFeature"/> it is a <see cref="ViewerException"/> with the code
-    ///     <c>file-access-denied</c>. A denied include or data file fails the picture; for a nested model or chart the
-    ///     <see cref="ImageSourceException"/> keeps the <see cref="FileReferenceException"/> in its chain of inner
-    ///     exceptions. To restore the confinement of earlier versions, use
+    ///     <c>file-access-denied</c>. A denied include or data file fails the picture: a direct render throws a
+    ///     <see cref="ViewerException"/> with the code <c>file-access-denied</c> whose chain of inner exceptions holds the
+    ///     <see cref="FileReferenceException"/>, at any level of nesting. To restore the confinement of earlier versions, use
     ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
@@ -199,13 +199,14 @@ public sealed record ViewerRenderOptions
     ///     Gets the most pixels the render may decode and allocate in total (the file itself and every picture it embeds), or
     ///     <see langword="null"/> for the resolver default (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>,
     ///     64,000,000). The default refuses a single 8192 x 8192 picture; set this to render one large image. A render over
-    ///     the budget throws <see cref="ImageSourceBudgetException"/>; an embedded picture over it is skipped with a
+    ///     the budget throws a <see cref="ViewerException"/> with the code <c>budget-exceeded</c> (its inner
+    ///     <see cref="ImageSourceBudgetException"/> has the pixel counts); an embedded picture over it is skipped with a
     ///     <c>svg-image-too-large</c> note. A negative value throws <see cref="ArgumentOutOfRangeException"/>. The
     ///     budget contract is described in the remarks of <see cref="ImageSourceRequest"/>.
     ///     When the render is post-processed to the requested <see cref="Width"/> and <see cref="Height"/> (a raster, or
     ///     any source that returns another size), the final picture is a second buffer that must fit in what is left of
-    ///     this budget after the surface the source produced (peak memory is both): one that does not fit throws
-    ///     <see cref="ImageSourceBudgetException"/> as well.
+    ///     this budget after the surface the source produced (peak memory is both): one that does not fit is
+    ///     <c>budget-exceeded</c> as well.
     /// </summary>
     public long? MaxDecodedPixels { get; init; }
 

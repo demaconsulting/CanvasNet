@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
@@ -56,7 +57,9 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///         <see cref="Render(Stream, string, ViewerRenderOptions?)"/> draw one file with the same sources, the same
 ///         file-access policy (<see cref="ViewerRenderOptions.FileAccess"/>) and the same limits as embedding does. The
 ///         file passed to <c>Render</c> is the caller's choice and is never judged by the policy; every file it
-///         references is, at every level. The class is static and stateless: the shared source
+///         references is, at every level. Every failure of the input is a <see cref="ViewerException"/> with the stable
+///         code of the <c>canvasnet</c> tool and, for an error in the source, its location and the code of the format
+///         library. The class is static and stateless: the shared source
 ///         instances are stateless and thread-safe, and every call builds its own resolver, so the methods are safe to
 ///         call concurrently.
 ///     </para>
@@ -198,23 +201,27 @@ public static class CanvasNetViewer
     ///     outside the limit, a triangle limit below 1, a definition the library rejects), or when
     ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value that the library rejects).
     /// </exception>
-    /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
-    /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
-    /// <exception cref="DemaConsulting.CanvasNet.Files.FileReferenceException">
-    ///     Thrown when the file is not a regular file, is larger than 16 MiB, or cannot be read.
-    /// </exception>
     /// <exception cref="ViewerException">
-    ///     Thrown, with the code <c>page-out-of-range</c>, when <see cref="ViewerRenderOptions.Page"/> is not a page of the
-    ///     file (a single-image file has only page 1); and with the code of the failure (<c>size-limit</c>,
-    ///     <c>usage-error</c>, <c>scad-error</c> for a model whose include is missing) for a mistake or limit of the
-    ///     built-in sources that has no library exception behind it; with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>,
-    ///     with the code <c>unsupported-feature</c> for a link of an SVG file that is not drawn, and <c>file-access-denied</c>
-    ///     for one the file-access policy denied.
-    /// </exception>
-    /// <exception cref="ImageSourceException">Thrown when the file is found but cannot be drawn (the original failure is the inner exception).</exception>
-    /// <exception cref="ImageSourceBudgetException">
-    ///     Thrown when the picture, or the final picture of a render that is resized to the requested size, does not fit in
-    ///     <see cref="ViewerRenderOptions.MaxDecodedPixels"/>.
+    ///     Thrown for every failure of the file and of the files it references, with a stable <see cref="ViewerException.Code"/>
+    ///     (one of <see cref="ErrorCodes"/>, the same code the <c>canvasnet</c> tool reports for the same file):
+    ///     <c>input-not-found</c> when the file does not exist; <c>unsupported-format</c> when no source claims the
+    ///     extension (the message lists the extensions); <c>input-unreadable</c> when the file is not a regular file, is
+    ///     larger than 16 MiB, or cannot be read; <c>corrupt-input</c> for a damaged file (malformed SVG markup with its
+    ///     line and column in <see cref="ViewerException.Location"/>); <c>scad-error</c>, <c>vega-lite-error</c>,
+    ///     <c>mermaid-error</c> and <c>plantuml-error</c> for an error in the source of a model, chart or diagram, with
+    ///     <see cref="ViewerException.Location"/> (file, line, column, and for a chart the JSON pointer) and
+    ///     <see cref="ViewerException.DetailCode"/> (the code of the library, such as <c>mermaid-syntax-error</c>);
+    ///     <c>file-access-denied</c> when <see cref="ViewerRenderOptions.FileAccess"/> denied an include or a data file
+    ///     (and, with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, a picture); <c>budget-exceeded</c> when
+    ///     a limit of a format library is exceeded or the picture, or the final picture of a render that is resized to the
+    ///     requested size, does not fit in <see cref="ViewerRenderOptions.MaxDecodedPixels"/>; <c>page-out-of-range</c>
+    ///     when <see cref="ViewerRenderOptions.Page"/> is not a page of the file (a single-image file has only page 1);
+    ///     <c>size-limit</c> or <c>usage-error</c> for a size or option the source cannot use; with
+    ///     <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, <c>unsupported-feature</c> for a feature that is
+    ///     not drawn or a link of an SVG file that is not drawn; and <c>operation-failed</c> for any other failure of a
+    ///     source. The original exception (the library exception, or the <see cref="ImageSourceBudgetException"/> with its
+    ///     pixel counts) is the <see cref="Exception.InnerException"/>. Neither the message nor the
+    ///     <see cref="ViewerException.Hint"/> names an option of the command-line tool.
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when <see cref="ViewerRenderOptions.CancellationToken"/> is canceled.</exception>
     public static ViewerImage Render(string path, ViewerRenderOptions? options = null)
@@ -231,7 +238,7 @@ public static class CanvasNetViewer
             : Path.GetFullPath(settings.Folder);
         var resolver = CreateResolver(folder, settings);
         var direct = CreateDirectOptions(settings);
-        var result = RenderDirect(() => resolver.Render(fullPath, settings.Width, settings.Height, direct));
+        var result = RenderDirect(() => resolver.Render(fullPath, settings.Width, settings.Height, direct), path);
         return CreateImage(resolver, result, settings, direct, Path.GetFileName(fullPath));
     }
 
@@ -252,13 +259,9 @@ public static class CanvasNetViewer
     ///     refuses: a width or height outside 1 to <see cref="Surface.MaxDimension"/>, a page below 1, a resolution that
     ///     is not usable, or model options that are not usable.
     /// </exception>
-    /// <exception cref="NotSupportedException">Thrown when no source claims the extension of <paramref name="fileName"/>.</exception>
-    /// <exception cref="InvalidDataException">Thrown when the stream is longer than 16 MiB.</exception>
-    /// <exception cref="ViewerException">See <see cref="Render(string, ViewerRenderOptions?)"/>.</exception>
-    /// <exception cref="ImageSourceException">Thrown when the content cannot be drawn (the original failure is the inner exception).</exception>
-    /// <exception cref="ImageSourceBudgetException">
-    ///     Thrown when the picture, or the final picture of a render that is resized to the requested size, does not fit in
-    ///     <see cref="ViewerRenderOptions.MaxDecodedPixels"/>.
+    /// <exception cref="ViewerException">
+    ///     See <see cref="Render(string, ViewerRenderOptions?)"/>; a stream longer than 16 MiB is <c>input-unreadable</c>
+    ///     and an extension of <paramref name="fileName"/> that no source claims is <c>unsupported-format</c>.
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when <see cref="ViewerRenderOptions.CancellationToken"/> is canceled.</exception>
     public static ViewerImage Render(Stream content, string fileName, ViewerRenderOptions? options = null)
@@ -270,7 +273,7 @@ public static class CanvasNetViewer
 
         var resolver = CreateResolver(settings.Folder, settings);
         var direct = CreateDirectOptions(settings);
-        var result = RenderDirect(() => resolver.Render(content, fileName, settings.Width, settings.Height, direct));
+        var result = RenderDirect(() => resolver.Render(content, fileName, settings.Width, settings.Height, direct), fileName);
         return CreateImage(resolver, result, settings, direct, fileName);
     }
 
@@ -293,15 +296,27 @@ public static class CanvasNetViewer
     }
 
     /// <summary>
-    ///     Runs the direct render of a resolver and gives its failures the shape <c>Render</c> documents.
+    ///     Runs the direct render of a resolver and gives its failures the shape <c>Render</c> documents: every failure of
+    ///     the input is a <see cref="ViewerException"/>.
     /// </summary>
     /// <param name="render">The render.</param>
+    /// <param name="name">The path or file name the caller gave, for messages.</param>
     /// <returns>What the source returned.</returns>
     /// <exception cref="ViewerException">
-    ///     Thrown for a page that does not exist (<c>page-out-of-range</c>) and for a failure of the built-in sources that
-    ///     the loader reports as a <see cref="ViewerException"/> without a library exception behind it.
+    ///     Thrown for a page that does not exist (<c>page-out-of-range</c>), a file that does not exist
+    ///     (<c>input-not-found</c>), an extension no source claims (<c>unsupported-format</c>), a file that is not a regular
+    ///     file, is larger than 16 MiB or cannot be read (<c>input-unreadable</c>), a picture over the pixel budget
+    ///     (<c>budget-exceeded</c>), and a failure of a source: the <see cref="ViewerException"/> of a built-in source as it
+    ///     is, the library exception of a nested picture or an extra source mapped by the shared mapping of the loader
+    ///     (<see cref="SourceLoader.MapFailure"/>), and anything else as <c>operation-failed</c>; the original exception is
+    ///     always the inner exception.
     /// </exception>
-    private static ImageSourceResult RenderDirect(Func<ImageSourceResult> render)
+    /// <remarks>
+    ///     The command-line tool reads its files through the same loader mapping; the resolver failures mapped here (the
+    ///     budget, an extension no source claims, the top-level file reference) are those of the resolver only the viewer
+    ///     uses. Cancellation passes through unchanged.
+    /// </remarks>
+    private static ImageSourceResult RenderDirect(Func<ImageSourceResult> render, string name)
     {
         try
         {
@@ -315,10 +330,58 @@ public static class CanvasNetViewer
         }
         catch (ImageSourceException ex) when (ex.InnerException is ViewerException loaderFailure)
         {
-            // A mistake of the caller or a limit is not a failure of the file: it keeps its own code
+            // The built-in sources already mapped the failure: it keeps its code, location and detail code
             ExceptionDispatchInfo.Capture(loaderFailure).Throw();
             throw;
         }
+        catch (ImageSourceException ex)
+        {
+            // A nested picture or an extra source failed with a library exception: the shared mapping gives it its code
+            var inner = ex.InnerException ?? ex;
+            var mapped = ex.Embedder is null
+                ? SourceLoader.MapFailure(inner, name, null)
+                : SourceLoader.SvgImages.MapPicture(ex, name);
+            throw mapped ?? new ViewerException(ErrorCodes.OperationFailed, ex.Message, null, inner);
+        }
+        catch (ImageSourceBudgetException ex)
+        {
+            throw BudgetExceeded(ex);
+        }
+        catch (FileNotFoundException ex) when (SourceLoader.MapFailure(ex, name, null) is { } missing)
+        {
+            throw missing;
+        }
+        catch (NotSupportedException ex)
+        {
+            throw new ViewerException(
+                ErrorCodes.UnsupportedFormat,
+                ex.Message,
+                "Render a file whose extension is one of CanvasNetViewer.Extensions, or add an image source that claims it.",
+                ex);
+        }
+        catch (FileReferenceException ex)
+        {
+            throw new ViewerException(ErrorCodes.InputUnreadable, ex.Message, null, ex);
+        }
+        catch (InvalidDataException ex)
+        {
+            // Only the stream of a render by stream is checked outside a source: it is longer than 16 MiB
+            throw new ViewerException(ErrorCodes.InputUnreadable, ex.Message, null, ex);
+        }
+    }
+
+    /// <summary>
+    ///     Creates the failure of a render that does not fit in the pixel budget.
+    /// </summary>
+    /// <param name="refusal">The refusal of the budget, with the requested and the remaining pixels; it becomes the inner exception.</param>
+    /// <returns>The <c>budget-exceeded</c> exception to throw.</returns>
+    private static ViewerException BudgetExceeded(ImageSourceBudgetException refusal)
+    {
+        return new ViewerException(
+            ErrorCodes.BudgetExceeded,
+            refusal.Message,
+            "Raise ViewerRenderOptions.MaxDecodedPixels to render a larger picture, or ask for a smaller size.",
+            refusal);
     }
 
     /// <summary>
@@ -523,13 +586,13 @@ public static class CanvasNetViewer
     /// <param name="resolver">The resolver of the render, whose live budget already holds the surface of the source.</param>
     /// <param name="width">The width of the final picture.</param>
     /// <param name="height">The height of the final picture.</param>
-    /// <exception cref="ImageSourceBudgetException">Thrown when the final picture does not fit in the budget that is left.</exception>
+    /// <exception cref="ViewerException">Thrown with code <c>budget-exceeded</c> when the final picture does not fit in the budget that is left.</exception>
     private static void EnsureFinalBufferFits(FolderImageResolver resolver, int width, int height)
     {
         var pixels = (long)width * height;
         if (pixels > resolver.RemainingPixels)
         {
-            throw new ImageSourceBudgetException(pixels, resolver.RemainingPixels);
+            throw BudgetExceeded(new ImageSourceBudgetException(pixels, resolver.RemainingPixels));
         }
     }
 }

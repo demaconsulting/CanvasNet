@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests;
@@ -282,8 +283,8 @@ public class CanvasNetViewerRenderOptionsTests
 
     /// <summary>
     ///     Test that a model whose include is missing is a <see cref="ViewerException"/> with the scad-error code, as for
-    ///     the tool, and that a corrupt raster stays an <see cref="ImageSourceException"/> whose inner exception is the
-    ///     codec's.
+    ///     the tool, and that a corrupt raster and a truncated chart are <see cref="ViewerException"/>s with the codes of
+    ///     the tool whose inner exception is the library's.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes()
@@ -297,14 +298,15 @@ public class CanvasNetViewerRenderOptionsTests
 
         // Act
         var missingInclude = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(model));
-        var broken = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(corrupt));
-        var badChart = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(chart));
+        var broken = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(corrupt));
+        var badChart = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(chart));
 
         // Assert
         Assert.Equal(ErrorCodes.ScadError, missingInclude.Code);
+        Assert.Equal(ErrorCodes.CorruptInput, broken.Code);
         Assert.IsAssignableFrom<InvalidDataException>(broken.InnerException);
-        Assert.NotNull(badChart.InnerException);
-        Assert.IsNotType<ViewerException>(badChart.InnerException);
+        Assert.Equal(ErrorCodes.VegaLiteError, badChart.Code);
+        Assert.IsType<VegaLiteSpecException>(badChart.InnerException);
     }
 
     /// <summary>
@@ -346,8 +348,8 @@ public class CanvasNetViewerRenderOptionsTests
 
         // Act
         using var image = CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 10, Height = 6 });
-        var refused = Assert.Throws<ImageSourceBudgetException>(
-            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 10, Height = 6, MaxDecodedPixels = 16 + 59 }));
+        var refused = Assert.IsType<ImageSourceBudgetException>(Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 10, Height = 6, MaxDecodedPixels = 16 + 59 })).InnerException);
 
         // Assert
         Assert.Equal((10, 6), (image.Surface.Width, image.Surface.Height));

@@ -139,7 +139,7 @@ public static partial class SourceLoader
         catch (ArgumentOutOfRangeException ex) when (ex.ParamName == "scale")
         {
             // The library refuses a natural size beyond the largest surface at scale 1 and names the size; the diagram still has
-            // that size, and a smaller --scale, --width, or --height draws it (a test pins the text of the message)
+            // that size, and a smaller scale, width, or height draws it (a test pins the text of the message)
             var match = MermaidOversizeMessage.Match(ex.Message);
             if (match.Success
                 && int.TryParse(match.Groups["width"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var width)
@@ -151,7 +151,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.SizeLimit,
                 $"'{path}' lays out larger than the maximum of {Surface.MaxDimension} pixels per side: {OneLine(ex.Message)}",
-                "Split the diagram, or draw it with a smaller --scale.",
+                "Split the diagram, or draw it at a smaller scale, width, or height.",
                 ex);
         }
         catch (ArgumentException ex)
@@ -184,7 +184,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.SizeLimit,
                 $"'{path}' is larger than the maximum of {Surface.MaxDimension} pixels per side with its pictures: {OneLine(ex.Message)}",
-                "Use a smaller --scale, or --width or --height.",
+                "Use a smaller scale, width, or height.",
                 ex);
         }
         catch (ArgumentException ex)
@@ -216,20 +216,21 @@ public static partial class SourceLoader
     /// <returns>
     ///     The exception to throw: <c>budget-exceeded</c> for <c>mermaid-limit-exceeded</c> (a limit on nodes, edges,
     ///     nesting, label length, layout work, pictures, or painted pixels), otherwise <c>mermaid-error</c>; the hint of the
-    ///     library is kept.
+    ///     library is kept, and the location and the <c>mermaid-*</c> code of the failure are the
+    ///     <see cref="ViewerException.Location"/> and <see cref="ViewerException.DetailCode"/>.
     /// </returns>
     internal static ViewerException MapMermaid(string code, string stage, string message, string? hint, Exception exception)
     {
         if (code == MermaidDiagnosticCodes.LimitExceeded)
         {
-            return new ViewerException(
+            return SourceFailure(
                 ErrorCodes.BudgetExceeded,
                 $"The Mermaid diagram exceeds a limit: {OneLine(message)}",
-                hint ?? "Simplify the diagram; this limit cannot be changed from the command line.",
+                hint ?? "Simplify the diagram.",
                 exception);
         }
 
-        return new ViewerException(ErrorCodes.MermaidError, $"Mermaid {stage} error: {OneLine(message)}", hint, exception);
+        return SourceFailure(ErrorCodes.MermaidError, $"Mermaid {stage} error: {OneLine(message)}", hint, exception);
     }
 
     /// <summary>

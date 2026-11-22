@@ -626,17 +626,17 @@ public class SourceLoaderTests
         // Assert: size-limit errors that say what to do, and exactly 8192 is fine
         Assert.All(new[] { exact, scaled, derived, natural }, e => Assert.Equal(ErrorCodes.SizeLimit, e.Code));
         Assert.Contains("requested size", exact.Message);
-        Assert.Equal("Use a smaller --scale, --width, or --height.", exact.Hint);
+        Assert.Equal("Use a smaller scale, width, or height.", exact.Hint);
         Assert.Null(exact.Data[SourceLoader.FitScaleDataKey]);
         Assert.Equal(
             "The requested size of 12800x9600 pixels is larger than the maximum of 8192 pixels per side; a scale of 12 or less fits.",
             scaled.Message);
-        Assert.Equal("Use --scale 12 (or less), --width, or --height to choose a smaller size.", scaled.Hint);
+        Assert.Equal("Use a scale of 12 or less, or a smaller width or height.", scaled.Hint);
         Assert.Equal("12", scaled.Data[SourceLoader.FitScaleDataKey]);
         Assert.Equal(
             "'in.svg' is 20000x100 pixels, which is larger than the maximum of 8192 pixels per side; a scale of 0.4 or less fits.",
             natural.Message);
-        Assert.Equal("Use --scale 0.4 (or less), --width, or --height to choose a smaller size.", natural.Hint);
+        Assert.Equal("Use a scale of 0.4 or less, or a smaller width or height.", natural.Hint);
         Assert.Equal("0.4", natural.Data[SourceLoader.FitScaleDataKey]);
         Assert.Equal((8192, 8192), edge);
     }
@@ -1000,6 +1000,45 @@ public class SourceLoaderTests
         // Act / Assert: both are corrupt input
         Assert.Equal(ErrorCodes.CorruptInput, Assert.Throws<ViewerException>(() => SourceLoader.Load(unclosed, new SourceOptions())).Code);
         Assert.Equal(ErrorCodes.CorruptInput, Assert.Throws<ViewerException>(() => SourceLoader.Load(other, new SourceOptions())).Code);
+    }
+
+    /// <summary>
+    ///     Test that the loader the command-line tool reads its files with fills in the location and the detail code of a
+    ///     source error from the same mapping as <c>CanvasNetViewer.Render</c>: a Mermaid, a PlantUML, a model and a chart
+    ///     error, and malformed SVG markup (located by its XML line and column, without a detail code); a failure outside a
+    ///     source has neither.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var mermaid = FixtureFactory.WriteText(directory.Path, "flow.mmd", "flowchart LR\n  A -> B\n");
+        var plantUml = FixtureFactory.WriteText(directory.Path, "seq.puml", "@startuml\nparticipant Agent\nAgent -> : call tool\n@enduml\n");
+        var scad = FixtureFactory.WriteText(directory.Path, "model.scad", "cube([10, 10, 10]\nsphere(5);\n");
+        var chart = FixtureFactory.WriteText(directory.Path, "chart.vl.json", "{\n  \"mark\": \"bar\",\n  \"encoding\": {\n");
+        var svg = FixtureFactory.WriteText(directory.Path, "figure.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\">\n<rect></svg>\n");
+
+        // Act
+        var failures = new[] { mermaid, plantUml, scad, chart, svg }
+            .Select(path => Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions())))
+            .ToList();
+        var missing = Assert.Throws<ViewerException>(() => SourceLoader.Load(directory.Combine("missing.png"), new SourceOptions()));
+
+        // Assert: the codes of the tool, the library's codes, and the lines of the errors
+        Assert.Equal(
+            [ErrorCodes.MermaidError, ErrorCodes.PlantUmlError, ErrorCodes.ScadError, ErrorCodes.VegaLiteError, ErrorCodes.CorruptInput],
+            failures.Select(f => f.Code));
+        Assert.Equal(["mermaid-syntax-error", "plantuml-syntax-error", "scad-syntax-error"], failures.Take(3).Select(f => f.DetailCode));
+        Assert.Null(failures[4].DetailCode);
+        Assert.Equal([2, 3, 2], failures.Take(3).Select(f => f.Location?.Line));
+        Assert.All(failures, f => Assert.NotNull(f.Location?.Line));
+        Assert.Equal((svg, 2), (failures[4].Location?.File, failures[4].Location?.Line));
+        Assert.NotNull(failures[4].Location?.Column);
+        Assert.IsType<InvalidDataException>(failures[4].InnerException);
+        Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
+        Assert.Null(missing.Location);
+        Assert.Null(missing.DetailCode);
     }
 
     /// <summary>

@@ -369,7 +369,7 @@ public class SourceLoaderVegaLiteTests
         // Strict: an unsupported-feature error that names the feature and the hint
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains("vl-mark-geoshape", strict.Message);
-        Assert.Contains("--strict", strict.Hint);
+        Assert.Contains("strict mode", strict.Hint);
         Assert.IsType<VegaLiteUnsupportedFeatureException>(strict.InnerException);
 
         // A specification error is a vega-lite-error with the location, on one line

@@ -851,6 +851,21 @@ sections:
           - SourceLoader_Read_UnexpectedExceptions_Propagate
           - SourceLoader_OpenPages_UnhandledKind_IsNotAToolException
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-ErrorDetails
+        title: >-
+          The SourceLoader class shall give an expected error of a source the location the library reports (file,
+          line, column, and JSON pointer of a chart), with the line and column of the XML error for malformed SVG
+          markup, and the code of the format library (the code of a Mermaid, PlantUML, or OpenSCAD failure, the
+          leading vl-* identifier of a Vega-Lite failure, or the unsupported feature), with the same mapping for a
+          file the command-line tool reads and a file CanvasNetViewer renders or embeds, and with hints that name
+          no option of the command-line tool.
+        justification: |
+          A caller that turns an error into a fix (a person at a terminal, a host, or an agent) needs the place of the
+          error and the finer code of the library as data, the same for every way the file is read (issue  # 166).
+        tests:
+          - SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode
+          - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Arguments
         title: The SourceLoader class shall reject null arguments.
         justification: |

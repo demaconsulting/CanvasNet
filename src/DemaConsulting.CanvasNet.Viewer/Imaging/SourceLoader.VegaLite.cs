@@ -267,7 +267,9 @@ public static partial class SourceLoader
     /// <returns>
     ///     The exception to throw: <c>file-access-denied</c> when the file-access policy denied a data file,
     ///     <c>budget-exceeded</c> when the chart exceeded a limit of the library (rows, fields, ticks, scene items, and so
-    ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on).
+    ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on); the
+    ///     location of the failure (with its JSON pointer) and its leading <c>vl-*</c> identifier are the
+    ///     <see cref="ViewerException.Location"/> and <see cref="ViewerException.DetailCode"/>.
     /// </returns>
     /// <remarks>
     ///     The library names every limit it enforces in the message, either as <c>the limit of N</c>, as
@@ -279,18 +281,18 @@ public static partial class SourceLoader
         var message = OneLine(exception.Message);
         if (IsFileAccessDenial(exception))
         {
-            return new ViewerException(ErrorCodes.FileAccessDenied, $"Vega-Lite data file denied: {message}", FileAccessDeniedHint, exception);
+            return SourceFailure(ErrorCodes.FileAccessDenied, $"Vega-Lite data file denied: {message}", FileAccessDeniedHint, exception);
         }
 
         if (!IsVegaLiteLimit(message))
         {
-            return new ViewerException(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {message}", null, exception);
+            return SourceFailure(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {message}", null, exception);
         }
 
-        return new ViewerException(
+        return SourceFailure(
             ErrorCodes.BudgetExceeded,
             $"The Vega-Lite chart exceeds a limit: {message}",
-            "Simplify the chart or reduce its data; this limit cannot be changed from the command line.",
+            "Simplify the chart or reduce its data.",
             exception);
     }
 

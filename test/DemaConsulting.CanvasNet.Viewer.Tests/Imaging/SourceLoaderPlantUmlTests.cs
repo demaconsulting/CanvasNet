@@ -280,7 +280,7 @@ public class SourceLoaderPlantUmlTests
         // Assert: strict mode is an error with the library's exception as the cause
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains(PlantUmlDiagnosticCodes.DiagramUnsupported, strict.Message, StringComparison.Ordinal);
-        Assert.Contains("--strict", strict.Hint, StringComparison.Ordinal);
+        Assert.Contains("strict mode", strict.Hint, StringComparison.Ordinal);
         Assert.IsType<PlantUmlUnsupportedFeatureException>(strict.InnerException);
     }
 

@@ -250,16 +250,18 @@ plug-in mechanism: it never passes extra sources, so the supported types are exa
 - **Strict.** With `--strict`, `ThrowForUnresolved()` turns the first `svg-image-unresolved`, `image-access-denied`,
   `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range` diagnostic into a `ViewerException`
   with code `unsupported-feature` (`file-access-denied` for `image-access-denied`), message
-  `'<svg>' embeds '<href>', which was not drawn: <reason>.` and the hint that without `--strict` the image is reported
+  `'<svg>' embeds '<href>', which was not drawn: <reason>.` and the hint that without strict mode the image is reported
   as the warning with that code. The check runs after the render, so the surface
   is disposed and the work of the rest of the picture is spent first.
 - **Errors.** A file that is found but cannot be drawn reaches the tool as an `ImageSourceException` (the resolver
-  wraps whatever the source threw; the original is the inner exception with its type intact). `Map` runs the inner
-  exception through the tool's `Read` allow-list, so every code is the one the same failure has when the file is
+  wraps whatever the source threw; the original is the inner exception with its type intact). `Map` calls
+  `MapPicture`, which runs the inner exception through the shared mapping `MapFailure` (a `ViewerException` of the
+  loader is taken as it is), so every code, location, and detail code is the one the same failure has when the file is
   rendered alone (`corrupt-input`, `scad-error`, `vega-lite-error`, `unsupported-feature`, `budget-exceeded`), and
   re-wraps it with the message `'<embedder>' embeds '<href>': <original message>`, where the embedder is the file
-  that contains the `href` (the SVG file itself, or the nested SVG file when the failure is deeper). An inner
-  exception that the allow-list does not map is a defect and is rethrown as itself.
+  that contains the `href` (the SVG file itself, or the nested SVG file when the failure is deeper), keeping the
+  location and the detail code. An inner exception that the mapping does not know is a defect and is rethrown as
+  itself. `CanvasNetViewer.Render` uses `MapPicture` too, for a picture of the rendered file that failed.
 
 An unresolved reference is the warning `svg-image-unresolved` (source `svg`, message
 `image '<href>' was not drawn: <reason>`) and nothing is drawn; a reference the file-access policy denies is the warning
@@ -571,7 +573,21 @@ filter, can name its own `scale` attribute.
 significant digits (14374 pixels gives `0.56`, 20000 pixels `0.4`), written with invariant digits and without trailing
 zeros, so the size at that scale always fits.
 
-**Read(path, kind, action)**: runs a read and maps exceptions (see *Error Handling*).
+**Read(path, kind, action)**: runs a read and maps its failure with `MapFailure`; a failure the mapping does not know is
+rethrown with its own stack (see *Error Handling*).
+
+**MapFailure(exception, path, kind)**: the one mapping of the failures of a source to a `ViewerException`, shared by
+`Read` (every load of the command-line tool and of `CanvasNetViewer.Render`), `SvgImages.MapPicture`, and the direct
+render of `CanvasNetViewer`. It returns the mapped exception, or `null` for an exception that is not on the allow-list
+(see *Error Handling*). It builds a failure of a source with `SourceFailure(code, message, hint, failure, path)`, which
+reads the location and the detail code with `DescribeSourceFailure`.
+
+**DescribeSourceFailure(failure, path)**: the `Location` and `DetailCode` of a failure: for a Mermaid, PlantUML, or
+OpenSCAD exception its location (`ToMermaidLocation`, `ToPlantUmlLocation`, `ToScadLocation`) and its `Code`; for a
+Vega-Lite exception its location with the JSON pointer (`ToVegaLiteLocation`) and the leading `vl-*` identifier of its
+message (`ReadVegaLiteDetail`); for an unsupported-feature exception its location (none for the Office and raster
+libraries) and its `Feature`; for any other failure whose chain holds an `XmlException` with a line (malformed SVG
+markup) the given path with that line and column and no detail code; otherwise neither.
 
 **The EXIF orientation**: `JpegCodec.ReadExifOrientation(path)` (core; it finds the orientation without throwing for
 malformed data, see *JpegCodec Unit Design*, `codecs/jpeg-codec.md`) runs inside `Read`, so a file that cannot be
@@ -670,7 +686,7 @@ so a picture the file-access policy denied is `file-access-denied` and its bindi
 never hide it; `ThrowForUnresolved` itself also fails, after the pictures, on an `svg-binding-*` note of a nested SVG
 file (which `LoadScopedSvg` returns as a note through the resolver), naming the nested file from the origin of the
 note. The error is `svg-binding-failed` with a message that names the warning code, the element, and the value, and a
-hint that without `--strict` the numbers in the file are kept. Requirement:
+hint that without strict mode the numbers in the file are kept. Requirement:
 `CanvasNetViewer-Imaging-SourceLoader-SvgBindings`.
 
 #### SVG Authoring Hints
@@ -687,65 +703,61 @@ hints. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgArrowheadHint`.
 `UnsupportedNotes` turns each `SvgUnsupportedFeature` into an `svg` note of severity `unsupported` with its code
 (`svg-text-not-drawn` or `svg-text-unsupported`), so the CLI prints it as `Unsupported: <code>: <message>`. Under
 `SourceOptions.Strict`, `ThrowForUnsupported` throws `unsupported-feature` for the first report ("'<file>' uses an SVG
-feature that is not supported (<code>): <message>", hint "Without --strict the file is drawn as far as possible and the
-feature is reported in the diagnostics."), after the picture and binding checks of `LoadSvg`; its inner exception is an
-`UnsupportedImageFeatureException`, so the resolver of an embedding document reports a nested file's failure as an
+feature that is not supported (<code>): <message>", hint "Without strict mode the file is drawn as far as possible and
+the feature is reported in the diagnostics."), after the picture and binding checks of `LoadSvg`; its inner exception is
+an `UnsupportedImageFeatureException`, so the resolver of an embedding document reports a nested file's failure as an
 unsupported image. Requirement: `CanvasNetViewer-Imaging-SourceLoader-SvgUnsupportedText`.
 
 #### Error Handling
 
-`Read` maps these library exceptions (an explicit list, not a catch-all) to a `ViewerException` with the file path in
-a one-line message and the cause attached: `FileNotFoundException` and `DirectoryNotFoundException` to
-`input-not-found`; `UnauthorizedAccessException` and any other `IOException` to `input-unreadable`;
-`UnsupportedImageFeatureException`, `PptxUnsupportedFeatureException`, and `VsdxUnsupportedFeatureException` (each an
-`IOException`, so caught first) to `unsupported-feature`, with the feature token in the message; and
-`InvalidDataException`, `XmlException`, `EndOfStreamException`, and `FormatException` to `corrupt-input`. The SCAD
-library adds three: `ScadUnsupportedFeatureException` (an `IOException`, so caught early, thrown in strict mode) to
-`unsupported-feature` naming the feature and the position; `ScadSyntaxException` (a `FormatException`, so caught
-before it) to `scad-error` ("SCAD syntax error: file:line:column: ..."); and `ScadEvaluationException` (an
-`InvalidOperationException`) to `budget-exceeded` when it reports a limit - the library words every limit as
-`(limit N)`, for example "Triangle limit exceeded (limit 5)" or "Recursion too deep (limit 5000)", and reports a
-renderer budget failure with `RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and
-otherwise to `scad-error` (a failed `assert`, an include problem, and so on); a `ScadEvaluationException` whose inner
-exception is a `FileReferenceException` of kind `AccessDenied` or `RealPathUnavailable` is `file-access-denied`
-(`IsFileAccessDenial`), checked first. The hint of a triangle-limit failure
-names `--max-triangles` and the default; the other limits cannot be changed from the command line and the hint says
-to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. The
-Vega-Lite library adds
-three, caught before the generic list (its unsupported-feature exception is an `IOException` and its specification
-exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in strict mode) to `unsupported-feature`
-naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
-nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to
-`vega-lite-error`
-("Vega-Lite specification error: file:line:column /pointer: ..."); and `VegaLiteRenderException` (an
-`InvalidOperationException`: a local data file that is missing, not
-valid
-UTF-8, or not valid JSON or delimited text, an undefined dataset name, a data limit, or a chart that cannot be laid
-out) to
-`budget-exceeded` when it
-reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."), except that a denial of the
-file-access policy (`IsFileAccessDenial`, checked first) is `file-access-denied` ("Vega-Lite data file denied: ...").
-The limits of the specification
-parser are deliberately `vega-lite-error`, as the nesting limit of the SCAD parser is a `scad-error`: only the limits
-applied while the chart is laid out or drawn (data rows, data files, data bytes, ticks, scene items, painted pixels, and
-so on) are
-`budget-exceeded`. The
-library names every limit in the message, either as "the limit of N", as "the limit (MaxViews)", or with the
-name of the limit ("VegaLiteLimits.MaxSceneItems", "VegaLiteLimits.MaxPaintedPixels"), which `MapVegaLiteRender`
-recognizes; the library gives no other way
-to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.
-A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. The Mermaid
-library adds three more, also caught before the generic list: `MermaidUnsupportedFeatureException` (an `IOException`,
-thrown in strict mode) to `unsupported-feature` ("The Mermaid diagram uses a feature that is not supported (feature):
-file:line:column: ...", with the hint of the library followed by "Without --strict the feature is left out and reported
-in the diagnostics."); `MermaidSyntaxException` (a `FormatException`: text that is not a valid diagram, an unknown
-diagram keyword, a shape that does not exist, invalid YAML) and `MermaidRenderException` (a diagram that cannot be laid
-out or drawn) to `MapMermaid`, which maps the stable code of the library: `mermaid-limit-exceeded` (a limit on nodes,
-edges, nesting, label length, layout work, pictures, or painted pixels) is `budget-exceeded` ("The Mermaid diagram
-exceeds a limit: ..."), and every other code is `mermaid-error` ("Mermaid syntax error: ..." or "Mermaid render error:
-..."), each keeping the hint of the library (the suggested fix, for example the nearest diagram keyword or shape name).
-A message of the library starts with its location, and so with the file name; a message without a location is prefixed
-with the quoted path and a colon (`Named`), so every message names the file. A diagram text longer than
+`MapFailure` (through `Read`) maps these library exceptions (an explicit list, not a catch-all) to a `ViewerException`
+with the file path in a one-line message, the cause attached, and the location and detail code of
+`DescribeSourceFailure` (the SVG codec's `InvalidDataException` around an `XmlException` gets the line and column of the
+XML error): `FileNotFoundException` and `DirectoryNotFoundException` to `input-not-found`; `UnauthorizedAccessException`
+and any other `IOException` to `input-unreadable`; `UnsupportedImageFeatureException`,
+`PptxUnsupportedFeatureException`, and `VsdxUnsupportedFeatureException` (each an `IOException`, so caught first) to
+`unsupported-feature`, with the feature token in the message; and `InvalidDataException`, `XmlException`,
+`EndOfStreamException`, and `FormatException` to `corrupt-input`. The SCAD library adds three:
+`ScadUnsupportedFeatureException` (an `IOException`, so caught early, thrown in strict mode) to `unsupported-feature`
+naming the feature and the position; `ScadSyntaxException` (a `FormatException`, so caught before it) to `scad-error`
+("SCAD syntax error: file:line:column: ..."); and `ScadEvaluationException` (an `InvalidOperationException`) to
+`budget-exceeded` when it reports a limit - the library words every limit as `(limit N)`, for example "Triangle limit
+exceeded (limit 5)" or "Recursion too deep (limit 5000)", and reports a renderer budget failure with
+`RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and otherwise to `scad-error` (a
+failed `assert`, an include problem, and so on); a `ScadEvaluationException` whose inner exception is a
+`FileReferenceException` of kind `AccessDenied` or `RealPathUnavailable` is `file-access-denied` (`IsFileAccessDenial`),
+checked first. The hint of a triangle-limit failure names `ScadViewOptions.MaxTriangles` and the default; the other
+limits cannot be raised and the hint says to simplify the model. No hint names an option of the command-line tool
+(strict mode is "strict mode", a size is "a smaller scale, width, or height", a resolution "a whole number of dots per
+inch"), because the same failure reaches a host through `CanvasNetViewer.Render`; the tool's `CommandRegistry` words the
+hints in the terms of its options. A model longer than the library reads is an `InvalidDataException`, so
+`corrupt-input`. The Vega-Lite library adds three, caught before the generic list (its unsupported-feature exception is
+an `IOException` and its specification exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in
+strict mode) to `unsupported-feature` naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a
+property of the wrong type, plain Vega, nesting deeper than the parser limit, a string longer than the string limit, an
+invalid axis or format) to `vega-lite-error` ("Vega-Lite specification error: file:line:column /pointer: ..."); and
+`VegaLiteRenderException` (an `InvalidOperationException`: a local data file that is missing, not valid UTF-8, or not
+valid JSON or delimited text, an undefined dataset name, a data limit, or a chart that cannot be laid out) to
+`budget-exceeded` when it reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."), except
+that a denial of the file-access policy (`IsFileAccessDenial`, checked first) is `file-access-denied` ("Vega-Lite data
+file denied: ..."). The limits of the specification parser are deliberately `vega-lite-error`, as the nesting limit of
+the SCAD parser is a `scad-error`: only the limits applied while the chart is laid out or drawn (data rows, data files,
+data bytes, ticks, scene items, painted pixels, and so on) are `budget-exceeded`. The library names every limit in the
+message, either as "the limit of N", as "the limit (MaxViews)", or with the name of the limit
+("VegaLiteLimits.MaxSceneItems", "VegaLiteLimits.MaxPaintedPixels"), which `MapVegaLiteRender` recognizes; the library
+gives no other way to tell a limit from another failure, so a test pins the texts by provoking real limit failures with
+small limits. A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model.
+The Mermaid library adds three more, also caught before the generic list: `MermaidUnsupportedFeatureException` (an
+`IOException`, thrown in strict mode) to `unsupported-feature` ("The Mermaid diagram uses a feature that is not
+supported (feature): file:line:column: ...", with the hint of the library followed by "Without strict mode the feature
+is left out and reported in the diagnostics."); `MermaidSyntaxException` (a `FormatException`: text that is not a valid
+diagram, an unknown diagram keyword, a shape that does not exist, invalid YAML) and `MermaidRenderException` (a diagram
+that cannot be laid out or drawn) to `MapMermaid`, which maps the stable code of the library: `mermaid-limit-exceeded`
+(a limit on nodes, edges, nesting, label length, layout work, pictures, or painted pixels) is `budget-exceeded` ("The
+Mermaid diagram exceeds a limit: ..."), and every other code is `mermaid-error` ("Mermaid syntax error: ..." or "Mermaid
+render error: ..."), each keeping the hint of the library (the suggested fix, for example the nearest diagram keyword or
+shape name). A message of the library starts with its location, and so with the file name; a message without a location
+is prefixed with the quoted path and a colon (`Named`), so every message names the file. A diagram text longer than
 `MermaidLimits.MaxTextSize` is an `InvalidDataException`, so `corrupt-input`. `RenderDiagram` maps an
 `ArgumentOutOfRangeException` for the parameter `scale` of a render (the pictures of the nodes made the scaled diagram
 larger than the largest image) to `size-limit` and any other `ArgumentException` of a render to `mermaid-error`
@@ -758,19 +770,18 @@ include the file-access policy refused (the `FileReferenceException` inner excep
 `file-access-denied` ("PlantUML include denied: ..."), `plantuml-limit-exceeded` is `budget-exceeded`, and every other
 code is `plantuml-error` ("PlantUML syntax error: ..." or "PlantUML render error: ..."), keeping the hint of the
 library; a text longer than the text limit is an `InvalidDataException`, so `corrupt-input`. An `ArgumentException` of
-the library is not on the allow-list of `Read`, because the library throws it for
-arguments that the caller chose; the two places that call the library with arguments the tool chose handle it
-themselves: `RenderChart` maps any `ArgumentException` of a render (the target size was validated by `ComputeTargetSize`
-before) to `vega-lite-error` ("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException`
-for the parameter `options` (the library's check that the laid-out size is between 1 and 8192 pixels on a side) to
-`size-limit` with a hint and every other `ArgumentException` to `vega-lite-error` ("Vega-Lite measure error: ...").
-Neither is ever reported as a usage error or as an unexpected exception. Every
-other exception - a null reference, an index out of range, an out-of-memory failure - is a defect and propagates to
-the entry point, which reports it as an unexpected error and re-throws it. The tests feed every supported format
-truncated and garbage files to prove that the allow-list covers the failures the libraries actually raise (for the
-documents also every byte-prefix length of a sample, overwritten and zeroed middles, a valid archive with a broken
-part, malformed PDF content, and an unsupported PDF encryption handler; for a chart a cut after every kind of damage
-of the shared sweep (the garbage and truncated files of a chart are
+the library is not on the allow-list of `Read`, because the library throws it for arguments that the caller chose; the
+two places that call the library with arguments the tool chose handle it themselves: `RenderChart` maps any
+`ArgumentException` of a render (the target size was validated by `ComputeTargetSize` before) to `vega-lite-error`
+("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException` for the parameter `options`
+(the library's check that the laid-out size is between 1 and 8192 pixels on a side) to `size-limit` with a hint and
+every other `ArgumentException` to `vega-lite-error` ("Vega-Lite measure error: ..."). Neither is ever reported as a
+usage error or as an unexpected exception. Every other exception - a null reference, an index out of range, an
+out-of-memory failure - is a defect and propagates to the entry point, which reports it as an unexpected error and
+re-throws it. The tests feed every supported format truncated and garbage files to prove that the allow-list covers the
+failures the libraries actually raise (for the documents also every byte-prefix length of a sample, overwritten and
+zeroed middles, a valid archive with a broken part, malformed PDF content, and an unsupported PDF encryption handler;
+for a chart a cut after every kind of damage of the shared sweep (the garbage and truncated files of a chart are
 `vega-lite-error`, and a cut that leaves valid JSON may still load); for diagrams a cut after every character of a
 diagram with frontmatter, an accessible title, a subgraph, and a class (the first cut is the empty file) (each a
 `mermaid-error`, `corrupt-input`, or a shorter diagram that still loads; the garbage file of the shared sweep is a

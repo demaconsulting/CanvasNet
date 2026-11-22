@@ -15,12 +15,15 @@ How a failure is reported, the stable error codes, and what strict mode changes.
 
 ## How failures are reported
 
-- A failure is an exception. A `ViewerException` carries the stable error code
+- A failure is an exception. Every failure of the input of
+  `CanvasNetViewer.Render` is a `ViewerException`: the stable error code
   (`Code`, one of the `ErrorCodes` constants), the message, and, when there is
   advice, a `Hint`.
+- A source error also has `Location` (file, line, column, JSON pointer) and
+  `DetailCode` (the library's code, such as mermaid-syntax-error); the
+  original exception is the `InnerException`.
 - An option out of range is an `ArgumentOutOfRangeException` before the file is
-  read, and a file that is found but cannot be drawn is an
-  `ImageSourceException` with the original failure as its inner exception.
+  read, and a cancellation is an `OperationCanceledException`.
 - A successful render returns its notes in `ViewerImage.Diagnostics` (see
   [[errors/diagnostics]]); read them even when nothing failed.
 

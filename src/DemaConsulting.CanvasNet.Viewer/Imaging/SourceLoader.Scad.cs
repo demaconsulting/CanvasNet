@@ -146,26 +146,43 @@ public static partial class SourceLoader
     /// <remarks>
     ///     The library names every limit failure with the text <c>(limit N)</c> and reports the renderer's budget with the
     ///     budget exception as the cause; a test pins the texts, because the library gives no other way to tell the two
-    ///     kinds of failure apart.
+    ///     kinds of failure apart. Every result carries the location and the code of the library (see
+    ///     <see cref="DescribeSourceFailure"/>).
     /// </remarks>
     internal static ViewerException MapScadEvaluation(ScadEvaluationException exception)
     {
         var message = OneLine(exception.Message);
         if (IsFileAccessDenial(exception))
         {
-            return new ViewerException(ErrorCodes.FileAccessDenied, $"SCAD include denied: {message}", FileAccessDeniedHint, exception);
+            return SourceFailure(ErrorCodes.FileAccessDenied, $"SCAD include denied: {message}", FileAccessDeniedHint, exception);
         }
 
         var limit = message.Contains("(limit ", StringComparison.Ordinal) || exception.InnerException is RenderBudgetExceededException;
         if (!limit)
         {
-            return new ViewerException(ErrorCodes.ScadError, $"SCAD evaluation error: {message}", null, exception);
+            return SourceFailure(ErrorCodes.ScadError, $"SCAD evaluation error: {message}", null, exception);
         }
 
         var hint = message.Contains("Triangle limit", StringComparison.Ordinal)
-            ? $"Raise --max-triangles (the default is {ScadLimits.Default.MaxTriangles}) or simplify the model: fewer or smaller $fn values, loops, or instances."
-            : "Simplify the model; this limit cannot be changed from the command line.";
-        return new ViewerException(ErrorCodes.BudgetExceeded, $"The SCAD model exceeds a limit: {message}", hint, exception);
+            ? $"Raise ScadViewOptions.MaxTriangles (the default is {ScadLimits.Default.MaxTriangles}) or simplify the model: fewer or smaller $fn values, loops, or instances."
+            : "Simplify the model; this limit cannot be raised.";
+        return SourceFailure(ErrorCodes.BudgetExceeded, $"The SCAD model exceeds a limit: {message}", hint, exception);
+    }
+
+    /// <summary>
+    ///     Converts the position the SCAD library reports to the location of a note or a failure.
+    /// </summary>
+    /// <param name="location">The position in the source.</param>
+    /// <returns>The location, or <see langword="null"/> when the library gave no line (line 0).</returns>
+    private static ImageDiagnosticLocation? ToScadLocation(ScadSourceLocation location)
+    {
+        if (location.Line <= 0)
+        {
+            return null;
+        }
+
+        int? column = location.Column > 0 ? location.Column : null;
+        return new ImageDiagnosticLocation(location.File, location.Line, column, null);
     }
 
     /// <summary>
@@ -240,22 +257,6 @@ public static partial class SourceLoader
                 Operation("render", DescribeRender(view, azimuth, elevation, resolved, width, height, background))
             };
             return new LoadedSource(surface, Info, 1, true, notes, echo, operations) { Anchors = anchors };
-        }
-
-        /// <summary>
-        ///     Converts the position the SCAD library reports to the location of a note.
-        /// </summary>
-        /// <param name="location">The position in the source.</param>
-        /// <returns>The location, or <see langword="null"/> when the library gave no line (line 0).</returns>
-        private static ImageDiagnosticLocation? ToScadLocation(ScadSourceLocation location)
-        {
-            if (location.Line <= 0)
-            {
-                return null;
-            }
-
-            int? column = location.Column > 0 ? location.Column : null;
-            return new ImageDiagnosticLocation(location.File, location.Line, column, null);
         }
 
         /// <summary>
@@ -359,8 +360,8 @@ public static partial class SourceLoader
             }
             catch (ArgumentException ex)
             {
-                // The library rejects a variable name it does not accept; that is a mistake in the command line
-                throw new ViewerException(ErrorCodes.UsageError, $"A -D definition is not valid: {OneLine(ex.Message)}", null, ex);
+                // The library rejects a variable name it does not accept; that is a mistake of the caller
+                throw new ViewerException(ErrorCodes.UsageError, $"A model definition is not valid: {OneLine(ex.Message)}", null, ex);
             }
         }
 

@@ -73,21 +73,23 @@ null extra sources are rejected.
 
 Asserts the natural size and format name, that disposing the result disposes the surface, a vector drawn at the
 requested size and a raster fitted into the box (or scaled for one dimension), that `MaxDecodedPixels` reaches the
-resolver (null keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative
-one is rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the layout
-is held to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed size,
-throws `ImageSourceBudgetException` whose requested pixels are those of the drawn surface; 400 000 draws it larger than
-the probed size, about 416 by 316), that a width or height of 0, -1, or `Surface.MaxDimension + 1` throws
-`ArgumentOutOfRangeException` (parameter `options`, message naming `ViewerRenderOptions.Width` or `Height`) before the
-file is read while 1 and `Surface.MaxDimension` pass the validation, that the final buffer of a resized render is
-charged to the budget in addition to the surface of the source (a 10 by 10 picture resized to 1 by 1 needs 101 pixels: a
-cap of 100 throws `ImageSourceBudgetException`, 101 returns the 1 by 1 picture), the notes, printed text, and embedded
-images of an SVG that embeds files, that a Mermaid diagram whose two nodes show a PNG and an SVG file lists each picture
-once at depth 0 (although the diagram measures each picture before drawing it) and that an SVG document that shows such
-a diagram lists its picture once at depth 1 before the diagram (and, under `UnderRoots(site)`, that a link to the parent
-folder is the `image-access-denied` warning and a self-embedding SVG the cycle warning), the exceptions for a missing
-file, an unknown extension, a corrupt file (with the original failure inside), and a null path (a folder option that
-holds the file works), the strict switch, and a canceled token.
+resolver (null keeps the default, a cap that fits renders, a smaller cap is a `budget-exceeded` `ViewerException`, a
+negative one is rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the
+layout is held to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed
+size, fails with `budget-exceeded` whose inner `ImageSourceBudgetException` has the requested pixels of the drawn
+surface; 400 000 draws it larger than the probed size, about 416 by 316), that a width or height of 0, -1, or
+`Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException` (parameter `options`, message naming
+`ViewerRenderOptions.Width` or `Height`) before the file is read while 1 and `Surface.MaxDimension` pass the validation,
+that the final buffer of a resized render is charged to the budget in addition to the surface of the source (a 10 by 10
+picture resized to 1 by 1 needs 101 pixels: a cap of 100 fails with `budget-exceeded` around an
+`ImageSourceBudgetException`, 101 returns the 1 by 1 picture), the notes, printed text, and embedded images of an SVG
+that embeds files, that a Mermaid diagram whose two nodes show a PNG and an SVG file lists each picture once at depth 0
+(although the diagram measures each picture before drawing it) and that an SVG document that shows such a diagram lists
+its picture once at depth 1 before the diagram (and, under `UnderRoots(site)`, that a link to the parent folder is the
+`image-access-denied` warning and a self-embedding SVG the cycle warning), the `ViewerException` codes for a missing
+file (`input-not-found`), an unknown extension (`unsupported-format`), and a corrupt file (`corrupt-input`, with the
+original failure inside), the `ArgumentNullException` of a null path (a folder option that holds the file works), the
+strict switch (`unsupported-feature` around the library exception), and a canceled token.
 
 #### CanvasNetViewer-CanvasNetViewer-FileAccess: The File-Access Policy Of A Render
 
@@ -106,8 +108,9 @@ everything, and a file reached through a file symbolic link (skipped where file 
 default and under `NoSymlinks`; that under `NoSymlinks` a link of the rendered file through a directory link (a junction
 on Windows) is the one `image-access-denied` warning with nothing drawn, while the default policy draws it; that the
 policy of the render reaches a model and a chart that an SVG file embeds: under `UnderRoots(site)` an include or a data
-file of the parent folder fails the render with an `ImageSourceException` whose chain of inner exceptions holds a
-`FileReferenceException` of kind `AccessDenied`, while the default draws both; that under `NoSymlinks` a model an SVG
+file of the parent folder fails the render with a `ViewerException` with the code `file-access-denied` (naming the
+embedding and the embedded file) whose chain of inner exceptions holds a `FileReferenceException` of kind
+`AccessDenied`, while the default draws both; that under `NoSymlinks` a model an SVG
 file embeds reads a plain include of its folder (the nested resolver captures the outer origin's folder before its
 open) while an include through a directory link (a junction on Windows) fails the render with the denial; and that
 `ViewerRenderOptions.FileAccess`
@@ -128,8 +131,42 @@ warning without it.
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`
 
 Asserts that a stream is rendered by the extension of its file name, that the files the document names are resolved
-relative to the folder option, that null arguments and an unknown extension are rejected, and that a width or height
-outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without the stream being read.
+relative to the folder option, that null arguments and an unknown extension (`unsupported-format`) are rejected, and
+that a width or height outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without the stream
+being read.
+
+#### CanvasNetViewer-CanvasNetViewer-RenderErrors: Every Failure Of The Input Is A ViewerException
+
+**Tests**: `CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode`,
+`CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode`,
+`CanvasNetViewer_Render_ScadSyntaxError_ThrowsViewerExceptionWithLocation`,
+`CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation`,
+`CanvasNetViewer_Render_MalformedSvg_ThrowsCorruptInputWithXmlLineAndColumn`,
+`CanvasNetViewer_Render_DeniedReferences_ThrowFileAccessDenied`,
+`CanvasNetViewer_Render_InputFailures_ThrowViewerExceptionWithCode`,
+`CanvasNetViewer_Render_Failures_HaveNoCommandLineWording`,
+`CanvasNetViewer_Render_ExtraSourceFailure_IsMappedOrOperationFailed`,
+`CanvasNetViewer_Render_EmbeddedSourceError_KeepsCodeLocationAndDetailCode`,
+`CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
+`CanvasNetViewer_Render_StreamInvalidArguments_Throw`
+
+Asserts the rows of issue #166 through `Render(stream, fileName)` and `Render(path)`: a Mermaid syntax error is
+`mermaid-error` with the detail code `mermaid-syntax-error`, the location `diagram.mmd` line 2 column 5, and the
+`MermaidSyntaxException` inside; a PlantUML message without a target is `plantuml-error` with `plantuml-syntax-error` at
+line 3; an OpenSCAD syntax error is `scad-error` with `scad-syntax-error` at line 2 column 1; a truncated chart is
+`vega-lite-error` located in its text and not a depth error, and an invalid `type` is located at line 4 and the pointer
+`/encoding/x/type` (no detail code, because the message of the library has no `vl-*` identifier); malformed SVG markup
+is `corrupt-input` with the line and column of the XML error and no detail code; under `UnderRoots(site)` a chart's
+`data.url`, a PlantUML `!include`, and a model's `include` of the parent folder are each `file-access-denied`, located
+(the pointer `/data/url`, line 2, line 1) and with the denial in the chain of inner exceptions; a missing file is
+`input-not-found`, an unknown extension `unsupported-format`, a picture over `MaxDecodedPixels` `budget-exceeded` (with
+the `ImageSourceBudgetException` inside and a hint that names `MaxDecodedPixels`), and a stream longer than 16 MiB
+`input-unreadable`, none of them located; the strict failures of a model, a chart, a Mermaid and a PlantUML diagram,
+and an SVG link, the triangle limit of a model, and an SVG larger than the largest image name no option of the
+command-line tool (no `--` option) in the message or the hint; an extra source that throws `InvalidDataException` is
+`corrupt-input` and one that throws any other exception `operation-failed`, each with the original inside; and a
+Mermaid diagram embedded in an SVG file with a syntax error keeps its code, location, and detail code with a message
+that names both files.
 
 #### CanvasNetViewer-CanvasNetViewer-LoaderSources: Linked Files Are Drawn By The Loader
 

@@ -19,6 +19,7 @@ N/A - standard test environment; the tests use no files.
 
 - All unit tests pass with zero failures.
 - The code, message, hint, and inner exception are kept as given, and the hint and the inner exception are optional.
+- The location and the detail code are `null` unless they are given, and keep what they are given.
 - The 17 constants have the documented strings.
 
 ### Test Scenarios
@@ -28,6 +29,12 @@ the constructor are the ones the properties return, and the type is an `InvalidO
 
 **ViewerException_Constructor_HintAndCauseAreOptional**: with only a code and a message, the hint and the inner
 exception are `null`.
+
+**ViewerException_LocationAndDetailCode_DefaultToNullAndAreSettable**: an exception created without them has a `null`
+`Location` and `DetailCode`, and one initialized with the location `flow.mmd` line 2 column 5 and the detail code
+`mermaid-syntax-error` returns them. Where the library fills them is verified with the tests of `CanvasNetViewer`
+(requirement `CanvasNetViewer-CanvasNetViewer-RenderErrors`) and `SourceLoader`
+(`CanvasNetViewer-Imaging-SourceLoader-ErrorDetails`).
 
 **ErrorCodes_Constants_AreTheDocumentedStableStrings**: each of the 20 constants equals its string
 (`usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`,

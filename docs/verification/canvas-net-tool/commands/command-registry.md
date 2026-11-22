@@ -5,7 +5,9 @@
 `CommandRegistry` is verified with unit tests in `CommandRegistryTests.cs`. The tests build registries holding
 `TestCommand` instances (a configurable `ICommand` defined in the test project, which records the arguments it
 received and can be made to throw), so no mocking framework is needed and no shipped command is involved.
-`Context` instances are created from real argument arrays. The help tests use the real, embedded topic catalog
+`Context` instances are created from real argument arrays. One test runs the real `render` command of the default
+registry on OpenSCAD models in a temporary folder, to show the codes of the library's shared mapping in the words of the
+command line. The help tests use the real, embedded topic catalog
 (`HelpTopics`, verified by its own unit tests) and capture the standard output of the `help` command with `ToolHost`.
 
 #### Test Environment
@@ -17,8 +19,9 @@ output.
 
 - All unit tests pass with zero failures.
 - Names and aliases resolve ignoring case; duplicates and the reserved name `help` are rejected.
-- A command runs with exactly the command arguments; a `ToolException` gets the command name; any other
-  exception propagates unchanged.
+- A command runs with exactly the command arguments; a `ToolException` gets the command name; a `ViewerException` of
+  the library keeps its code, message, location, detail code, and inner exception, names the command, and has its hint
+  in the words of the command line; any other exception propagates unchanged.
 - An unknown command produces a usage error with a suggestion only when one is within an edit distance of two.
 - Help text lists commands, aliases, summaries, options, the help topics, and the global options.
 - Help resolves a command or a topic by name or alias; the examples of a topic can be listed or printed (as the exact
@@ -65,6 +68,20 @@ the typed command.
 `ToolException` that lacks one and an existing name is kept; code and message are intact.
 
 **CommandRegistry_Run_UnexpectedException_PropagatesUnchanged**: the same exception instance escapes.
+
+**CommandRegistry_Run_ViewerException_KeepsLocationAndDetailCode**: a `ViewerException` thrown by a command becomes a
+`ToolException` naming the command with the same code, message, location (`model.scad` line 2 column 1), detail code,
+and inner exception, and with the hint "Without --strict ..." instead of "Without strict mode ...".
+
+**CommandRegistry_CommandLineHint_LibraryPhrases_NameTheOptions**: every phrase of the library's hints is worded with
+the option of the tool (`--strict`, `--max-triangles`, `--scale`, `--width`, `--height`), a hint without such a phrase
+is kept, and a `null` hint stays `null`.
+
+**CommandRegistry_Run_RenderOfFailingModels_ReportsLibraryCodesInCommandLineWords**: the `render` command of the
+default registry reports an OpenSCAD syntax error as `scad-error` with `scad-syntax-error` at line 2, an unsupported
+feature with `--strict` as `unsupported-feature` located at line 1 with a hint that names `--strict`, and a model over
+`--max-triangles 1` as `budget-exceeded` with a hint that names `--max-triangles`; each names the command and writes no
+output.
 
 **CommandRegistry_Run_HelpCommandWithName_PrintsCommandHelp** and
 **CommandRegistry_Run_HelpCommandWithoutName_PrintsTopLevelHelp**: the built-in help command prints a command's

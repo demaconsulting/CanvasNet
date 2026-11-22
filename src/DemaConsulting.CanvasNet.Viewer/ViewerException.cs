@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.ImageSources;
+
 namespace DemaConsulting.CanvasNet.Viewer;
 
 /// <summary>
@@ -110,6 +112,12 @@ public static class ErrorCodes
 ///     needs. The class is not sealed for that reason. <see cref="ViewerException"/> and <see cref="ErrorCodes"/> are in the
 ///     <c>DemaConsulting.CanvasNet.Viewer</c> namespace, while the operations that throw them are in
 ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c>: an example that catches one needs both <c>using</c> directives.
+///     A failure of the source of a file (a syntax error of a diagram, a model or a chart, malformed SVG markup, a
+///     reference the file-access policy denied) also says where it is (<see cref="Location"/>) and carries the code of
+///     the format library (<see cref="DetailCode"/>), so a caller can point at the line without reading the message; the
+///     original exception of the library is the <see cref="Exception.InnerException"/>. The failures of
+///     <see cref="CanvasNetViewer.Render(string, ViewerRenderOptions?)"/> never name an option of the command-line tool in
+///     their message or hint. The exception is immutable once thrown and safe to read from any thread.
 /// </remarks>
 public class ViewerException : InvalidOperationException
 {
@@ -136,4 +144,29 @@ public class ViewerException : InvalidOperationException
     ///     Gets the optional suggestion for correcting the failure, or <see langword="null"/>.
     /// </summary>
     public string? Hint { get; }
+
+    /// <summary>
+    ///     Gets where in the source the failure is, or <see langword="null"/> when it is not known.
+    /// </summary>
+    /// <remarks>
+    ///     Set for a failure of the source of a file: a syntax or evaluation error of an OpenSCAD model, an error of a
+    ///     Vega-Lite chart (with the JSON pointer of the property when the library knows it), an error of a Mermaid or a
+    ///     PlantUML diagram, an unsupported feature the library located, and malformed XML of an SVG file. The file is the
+    ///     name the library reports (the file name for a stream), and the line and column count from 1; any part the
+    ///     library does not know is <see langword="null"/>. A failure that has no place in a source (a missing file, a
+    ///     size or pixel limit) has no location.
+    /// </remarks>
+    public ImageDiagnosticLocation? Location { get; init; }
+
+    /// <summary>
+    ///     Gets the code the format library gave the failure, or <see langword="null"/> when it gave none.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="Code"/> is the stable code that is the same for every format (<c>mermaid-error</c>); this is the
+    ///     finer code of the library: for example <c>mermaid-syntax-error</c>, <c>plantuml-syntax-error</c>,
+    ///     <c>scad-syntax-error</c>, the leading <c>vl-*</c> identifier of a Vega-Lite message, or the name of the feature
+    ///     of an <c>unsupported-feature</c> failure. Malformed SVG markup and the failures that do not come from a format
+    ///     library have none.
+    /// </remarks>
+    public string? DetailCode { get; init; }
 }

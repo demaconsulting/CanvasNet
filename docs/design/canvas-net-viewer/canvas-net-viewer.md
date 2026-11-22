@@ -111,9 +111,12 @@ owns it; the `OpenedSource` disposes it on every path where it was not handed ov
 `LoadContext` that charges every surface to the request (`EnsureWithinBudget`), observes the cancellation token, draws a
 nested SVG through the scoped resolver of the request (so the depth, cycle and budget limits of the render hold), and
 returns a document page at its fitted size; (6) read the page and convert the notes of the loader to
-`ImageSourceDiagnostic` (keeping `Detail`, `Location`, `Page` and `Origin`). A `ViewerException` that wraps a library
-failure is rethrown as the original exception, so the documented `InnerException` of an `ImageSourceException` holds;
-one without an inner exception (a size limit, a missing include of a model) is thrown as it is.
+`ImageSourceDiagnostic` (keeping `Detail`, `Location`, `Page` and `Origin`). For an **embedded** picture a
+`ViewerException` that wraps a library failure is rethrown as the original exception, so the documented
+`InnerException` of an `ImageSourceException` holds for a resolver the caller drives, and the embedding render maps it
+again with the shared mapping; one without an inner exception (a size limit, a missing include of a model) is thrown as
+it is. For a **direct** render (the request carries `DirectRenderOptions`) the mapped `ViewerException` is thrown as it
+is, with its code, location, detail code, and the library exception as its inner exception.
 
 **`CreateImageResolver(folder, options)`** and **`CreateImageResolver(folder, extraSources, options)`**: validate the
 arguments and return `new FolderImageResolver(folder, sources, options)`, where `sources` is the built-in list, followed
@@ -137,32 +140,30 @@ page count, anchors, and feature positions (with whether they were truncated) th
 `DirectRenderOptions`. The file therefore goes through the same
 regular-file check, size limit, dispatch, and limits as an embedded link, but not the policy. A raster is asked for no
 size (the post-processing below
-keeps the documented fit rule). An `ImageSourceRefusedException` becomes a `ViewerException` with the code
-`page-out-of-range`; an `ImageSourceException` whose inner exception is a `ViewerException` (a caller mistake or a limit
-that happened inside the loader) is rethrown as that `ViewerException`, while a library failure stays an
-`ImageSourceException`.
+keeps the documented fit rule). `RenderDirect` is the single exit of the failures of a direct render (see *Error
+Handling*).
 
 **`Render(stream, fileName, options)`**: the same, with `FolderImageResolver.Render(stream, fileName, ...)`; the base
 folder is `options.Folder` or none, so a stream cannot reach the disk by accident. The options are validated first,
 before
 the stream is read.
 
-**Building the `ViewerImage`**: the picture a source returns is used as is, except for the sizes the caller asked for.
-A vector source is asked for the requested size; a raster is always returned at its natural size, so when both `Width`
-and `Height` are given and the picture has another size, it is fitted inside the box (aspect ratio kept, centered over a
+**Building the `ViewerImage`**: the picture a source returns is used as is, except for the sizes the caller asked for. A
+vector source is asked for the requested size; a raster is always returned at its natural size, so when both `Width` and
+`Height` are given and the picture has another size, it is fitted inside the box (aspect ratio kept, centered over a
 transparent background) so the result is exactly that size; with one dimension, it is scaled to keep the aspect ratio.
 The notes are those of the file followed by those of the files it embedded; the printed text and the embedded images
 follow the same order. The resolver clamps a requested size to 1 to `Surface.MaxDimension`, which is why the options are
 validated to that range up front: a larger or non-positive value would otherwise be rendered at one size and
 post-processed to another. The anchors of a model and the feature positions of a diagram or a chart follow the fit or
 the resize: the steps are recorded as applied operations and mapped with `ImagePipeline.MapAnchors` and
-`ImagePipeline.MapPositions`, so the boxes and pixels of `ViewerImage.Positions` are those of the returned picture.
-The post-processing allocates a second buffer next to the surface of the source (peak memory
-is both), so before it fits or resizes, the viewer checks the final size (width times height) against
-`FolderImageResolver.RemainingPixels`, the live part of the shared `MaxDecodedPixels` budget that is still free (the
-surface of the source is already charged; see the budget contract on `ImageSourceRequest`), and throws
-`ImageSourceBudgetException` (disposing the source's surface) when it does not fit. A vector surface that is already the
-requested size is not post-processed and costs nothing more.
+`ImagePipeline.MapPositions`, so the boxes and pixels of `ViewerImage.Positions` are those of the returned picture. The
+post-processing allocates a second buffer next to the surface of the source (peak memory is both), so before it fits or
+resizes, the viewer checks the final size (width times height) against `FolderImageResolver.RemainingPixels`, the live
+part of the shared `MaxDecodedPixels` budget that is still free (the surface of the source is already charged; see the
+budget contract on `ImageSourceRequest`), and throws the `budget-exceeded` `ViewerException` (disposing the source's
+surface) when it does not fit. A vector surface that is already the requested size is not post-processed and costs
+nothing more.
 
 ### Position Bindings
 
@@ -182,16 +183,24 @@ outside `options.Folder` is not an error; a `Width` or `Height` that is given an
 `SourceLoader.FindOptionProblem` rejects throw `ArgumentOutOfRangeException` (parameter `options`, message naming the
 member) before any file or stream is read; a page the file does not have is a `ViewerException` with the code
 `page-out-of-range`, and a model whose `include` is missing, a size limit, or a Visio `Dpi` that is not a whole number
-is a `ViewerException` too; a final picture that does not fit in what is left of `MaxDecodedPixels` throws
-`ImageSourceBudgetException`. The other failures are those of `FolderImageResolver.Render`: `FileNotFoundException` for
-a missing file, `FileReferenceException` when the file is not a regular file, is larger than 16 MiB, or cannot be read,
-`NotSupportedException` when no source claims the extension (the message lists the extensions), `ImageSourceException`
-when the file is found but cannot be drawn (the original failure is the inner exception), and
-`OperationCanceledException`. An unsupported feature is a note unless `ThrowOnUnsupportedFeature` is set. A link the
-file-access policy denies is the warning `image-access-denied`, and with `ThrowOnUnsupportedFeature` a `ViewerException`
-with the code `file-access-denied`; a denied include or data file fails the picture with an `ImageSourceException` whose
-chain of inner exceptions holds the `FileReferenceException` (the loader's `file-access-denied` wraps a library failure,
-so the adapter rethrows the library exception). A feature position selector that matched nothing is the note
+is a `ViewerException` too. Every other failure of the input leaves through `RenderDirect`, which turns each one into
+a `ViewerException` with the original exception as its inner exception: an `ImageSourceRefusedException` is
+`page-out-of-range`; an `ImageSourceException` whose inner exception is a `ViewerException` (every failure of a built-in
+source, already mapped by the loader with its code, location, and detail code) is rethrown as that `ViewerException`;
+any other `ImageSourceException` (a picture an SVG file embeds, whose source threw the library exception, or an extra
+source) is mapped by the shared mapping of the loader (`SourceLoader.MapFailure` for the file itself,
+`SourceLoader.SvgImages.MapPicture` for an embedded picture, whose message names both files), and is `operation-failed`
+when the mapping does not know it; an `ImageSourceBudgetException` (the picture, or the final picture of a resized
+render, does not fit in `MaxDecodedPixels`) is `budget-exceeded` with a hint that names `MaxDecodedPixels`; the
+`FileNotFoundException` of a missing file is `input-not-found` (through the shared mapping); the
+`NotSupportedException` of an extension no source claims is `unsupported-format` (the message lists the extensions);
+the `FileReferenceException` of a file that is not a regular file, is larger than 16 MiB, or cannot be read, and the
+`InvalidDataException` of a stream longer than 16 MiB are `input-unreadable`. A cancellation stays an
+`OperationCanceledException`. The messages and hints name no option of the command-line tool. An unsupported feature
+is a note unless `ThrowOnUnsupportedFeature` is set. A link the file-access policy denies is the warning
+`image-access-denied`, and with `ThrowOnUnsupportedFeature` a `ViewerException` with the code `file-access-denied`; a
+denied include or data file, at any level, fails the render with `file-access-denied`, whose chain of inner exceptions
+holds the `FileReferenceException`. A feature position selector that matched nothing is the note
 `positions-unmatched` (the loader adds it), and with `ThrowOnUnsupportedFeature` a `ViewerException` with the code
 `positions-unmatched`, thrown before the picture is returned.
 

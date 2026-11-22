@@ -365,7 +365,7 @@ public static partial class SourceLoader
             }
             catch (ArgumentException ex)
             {
-                return new OptionProblem($"A --param value is not valid: {OneLine(ex.Message)}");
+                return new OptionProblem($"A chart parameter value is not valid: {OneLine(ex.Message)}");
             }
         }
 
@@ -414,7 +414,7 @@ public static partial class SourceLoader
             }
             catch (ArgumentException ex)
             {
-                return new OptionProblem($"A -D definition is not valid: {OneLine(ex.Message)}");
+                return new OptionProblem($"A model definition is not valid: {OneLine(ex.Message)}");
             }
         }
 

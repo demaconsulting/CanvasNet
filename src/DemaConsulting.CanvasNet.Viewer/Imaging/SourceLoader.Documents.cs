@@ -42,7 +42,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.UsageError,
                 $"The resolution {dpi} is not valid for this source: it needs a whole number of dots per inch.",
-                "Use a whole number for --dpi, for example --dpi 150.");
+                "Use a whole number of dots per inch, for example 150.");
         }
     }
 
