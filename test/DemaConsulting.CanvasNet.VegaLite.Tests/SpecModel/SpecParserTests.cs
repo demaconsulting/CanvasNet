@@ -756,6 +756,70 @@ public class SpecParserTests
     }
 
     /// <summary>
+    ///     Validates that truncated JSON is a located syntax error that names the container left open, not a depth
+    ///     error (the text of GitHub issue 163).
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_TruncatedSpecification_IsLocatedSyntaxErrorNotDepth()
+    {
+        // Arrange: two lines, nesting depth 3, the closing braces are missing
+        const string json = "{ \"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"a\" } \n";
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "chart.vl.json"));
+
+        // Assert: the error is at the end of the text and names the innermost open object ("encoding" at 1:30)
+        Assert.Equal(
+            "chart.vl.json:2:1: Malformed JSON: the specification ends before the object opened at line 1, column 30 is closed.",
+            ex.Message);
+        Assert.Equal(2, ex.Location.Line);
+        Assert.Equal(1, ex.Location.Column);
+        Assert.DoesNotContain("deeper", ex.Message, StringComparison.Ordinal);
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Validates that truncated JSON nested exactly as deep as the limit is still a syntax error, not a depth error,
+    ///     and that an open array is named as such.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_TruncatedAtTheDepthLimit_IsSyntaxErrorNotDepth()
+    {
+        // Arrange: three open containers under a limit of three, the text ends inside the innermost array
+        var shallow = new VegaLiteLimits { MaxJsonDepth = 3 };
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse("{\"a\":[[1", "t.json", shallow));
+
+        // Assert
+        Assert.Equal(
+            "t.json:1:9: Malformed JSON: the specification ends before the array opened at line 1, column 7 is closed.",
+            ex.Message);
+        Assert.DoesNotContain("deeper", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that nesting one level beyond the limit is the depth error, located at the container that goes too
+    ///     deep with its JSON pointer.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_DepthBeyondTheLimit_IsLocatedAtTheContainer()
+    {
+        // Arrange: the fourth container opens at line 2, column 3 under a limit of three
+        var shallow = new VegaLiteLimits { MaxJsonDepth = 3 };
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse("{\"a\":\n[[[1]]]}", "deep.json", shallow));
+
+        // Assert
+        Assert.Equal(
+            "deep.json:2:3 /a/0/0: The specification is nested deeper than the limit of 3 levels (VegaLiteLimits.MaxJsonDepth).",
+            ex.Message);
+        Assert.Equal("/a/0/0", ex.Location.Pointer);
+        Assert.Null(ex.InnerException);
+    }
+
+    /// <summary>
     ///     Validates the conservative unknown-property policy: unknown properties warn once at their key, valid
     ///     Vega-Lite keys never warn.
     /// </summary>

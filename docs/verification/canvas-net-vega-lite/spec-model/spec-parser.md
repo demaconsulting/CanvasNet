@@ -102,8 +102,9 @@ position.
 `SpecParserTests.SpecParser_Parse_MalformedUtf8InStringIsRejectedNotReplaced`,
 `SpecParserTests.SpecParser_Parse_MalformedUtf8InNameOrStructureIsRejected`,
 `SpecParserTests.SpecParser_Parse_ValidMultiByteUtf8IsAccepted`,
-`SpecParserTests.SpecParser_Parse_UnpairedSurrogateInStringIsRejected`
-
+`SpecParserTests.SpecParser_Parse_UnpairedSurrogateInStringIsRejected`,
+`SpecParserTests.SpecParser_Parse_TruncatedSpecification_IsLocatedSyntaxErrorNotDepth`,
+`SpecParserTests.SpecParser_Parse_TruncatedAtTheDepthLimit_IsSyntaxErrorNotDepth`
 Asserts that malformed JSON (a bare word at line 2, column 11 followed by a second problem on line 3) is reported at the
 first problem as `bad.json:2:11: Malformed JSON: ...` with the reader's exception as inner exception and no internal
 property names in the message; that empty text, whitespace, a non-object root, trailing content, a trailing comma, a
@@ -114,7 +115,11 @@ and `C1 BF`, an encoded high and low surrogate (`ED A0 80`, `ED BF BF`), a code 
 stray continuation byte, truncated two-, three-, and four-byte sequences and `FE`, in a string value, in a property
 name, and outside a string; well-formed two-, three-, and four-byte text is read unchanged with and without a byte-order
 mark; and a string with an unpaired high or low surrogate is rejected at its line and column (line 2, column 10 after an
-astral character that counts as two columns), while a valid surrogate pair is accepted.
+astral character that counts as two columns), while a valid surrogate pair is accepted. Truncated text is a syntax
+error, never a depth error: the two-line specification of GitHub issue 163, which ends inside the `encoding` object, is
+reported exactly as `chart.vl.json:2:1: Malformed JSON: the specification ends before the object opened at line 1,
+column 30 is closed.`, and a text that ends inside an array nested exactly as deep as a limit of 3 names that array
+(line 1, column 7) and does not mention the depth limit.
 
 ##### Wrong Types And Values Are Reported At The First Offending Pointer
 
@@ -173,10 +178,12 @@ accepted silently (a theory over the names).
 ##### Limits Fail Closed
 
 **Tests**: `SpecParserTests.SpecParser_Parse_DepthAndSourceLimitsFailClosed`,
+`SpecParserTests.SpecParser_Parse_DepthBeyondTheLimit_IsLocatedAtTheContainer`,
 `VegaLiteDocumentSpecModelTests.SpecParser_Parse_LargeInlineDataIsReadInOnePass`
 
 Asserts with a depth limit of 3 that `{"a":[[1]]}` is accepted and one more level throws a located
-`VegaLiteSpecException` ("deeper than the limit of 3"); that 5,000 nested `{"layer":[` levels fail closed under the
+`VegaLiteSpecException` ("deeper than the limit of 3") at the container that crosses the limit (line 2, column 3,
+pointer `/a/0/0`, no inner reader exception); that 5,000 nested `{"layer":[` levels fail closed under the
 default and under the ceiling limit without a stack overflow; that source over `MaxSourceLength` (from a string, from
 bytes, and the default 4,194,304 limit) throws `InvalidDataException`, while a source of exactly the limit (and with a
 byte-order mark) is accepted; that an overlong string value, key, or array element is a located error naming
