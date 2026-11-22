@@ -13,13 +13,12 @@
 #                                           dotnet format is limited to the changed .cs files unless
 #                                           project or build configuration files changed
 #
-# EXTENSION POINTS:
-#   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
-#   for adding project-specific auto-fix operations.
-#
-# MODIFICATION POLICY:
-#   Started from the reference template; customized for this repository with the scoped
-#   -Changed mode. Without -Changed every fixer runs exactly as in the template.
+# CUSTOMIZATION:
+#   This script belongs to the project: extend it as the project grows. Add steps at the
+#   [PROJECT-SPECIFIC] points, update tool versions, and add optional parameters that focus
+#   a run (here the scoped -Changed mode).
+#   Run with no arguments it must still apply every fixer (here exactly as in the template),
+#   and it always exits 0.
 
 param(
     # Run only the fixers for the changed file types.
