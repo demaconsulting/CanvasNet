@@ -133,7 +133,7 @@ SysML2 model has not been migrated to that metadata yet (the migration is deferr
 - New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
   a whole.
 
-## One Shared Package Across the SysML2 Files (`sysml2-modeling.md`)
+## One Shared Package Across the SysML2 Files (`sysml2-modeling.md`, `sysml2tools-query`)
 
 The shared standard asks each `.sysml` file to declare exactly one uniquely named package. This repository's model
 has not been migrated to that structure yet (the migration is deferred until the updated SysML2 recommendations
@@ -143,6 +143,9 @@ arrive). Until it is:
   `0.3.0-beta.3` (later versions enforce the one-package-per-file rule and reject the current model).
 - Agents do not split or rename packages piecemeal; new elements go into the existing `package CanvasNet`, so the
   model is migrated as a whole.
+- The pinned tool does not support the `--strict-unresolved` lint option that the shared standard and the
+  `sysml2tools-query` skill require, so agents validate the model with `dotnet sysml2tools lint
+  'docs/sysml2/**/*.sysml'`, as `lint.ps1` does. The migration adds the option to `lint.ps1` with the tool update.
 
 ## No Wall-Clock Dependence in Tests (`testing-principles.md`, `csharp-testing.md`)
 
