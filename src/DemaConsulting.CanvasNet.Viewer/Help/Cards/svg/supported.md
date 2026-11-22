@@ -25,7 +25,8 @@ examples:
 
 - Shapes: rect, circle, ellipse, line, polyline, polygon, path.
 - Grouping with g and a, cascading presentation attributes; transform; use and
-  symbol; marker; switch draws its first child without foreignObject.
+  symbol; marker (clipped to its box unless overflow is visible); switch draws
+  its first child without foreignObject.
 - Linear and radial gradients (with href inheritance), pattern, clipPath, and
   mask. A paint may name a fallback color (url(#g) red). objectBoundingBox units
   use the fill box, without stroke, as in browsers; on a shape with no width or
@@ -36,7 +37,7 @@ examples:
 - Filters: the fe* primitives blend, color matrix, component transfer,
   composite, convolve matrix, lighting, displacement map, drop shadow, flood,
   Gaussian blur, image, merge, morphology, offset, tile, and turbulence;
-  filterUnits.
+  filterUnits, primitiveUnits, and primitive subregions.
 - image elements with a base64 data: URI in a supported raster format (an SVG
   given as a data: URI is not drawn); image-rendering selects smooth or
   pixelated drawing.
@@ -75,8 +76,6 @@ examples:
   text. The text features rotate, textLength, vertical or rtl writing, and
   decoration are ignored (svg-text-unsupported).
 - A filter over its work budget is skipped: the element is drawn unfiltered.
-- primitiveUnits is not read and a primitive subregion is a fraction of the
-  filter region (svg-filter-unsupported).
 - Scripting, and image references CanvasNet never follows: a network URL, a UNC
   path, and a file: URI with a host. Each is reported as svg-image-unresolved
   and not drawn.

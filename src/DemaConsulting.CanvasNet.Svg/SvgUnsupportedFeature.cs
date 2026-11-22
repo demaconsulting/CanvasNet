@@ -29,15 +29,7 @@ public sealed record SvgUnsupportedFeature
     public const string TextUnsupportedCode = "svg-text-unsupported";
 
     /// <summary>
-    ///     The code of a filter that is drawn without a feature it uses: <c>primitiveUnits="objectBoundingBox"</c>, or a
-    ///     primitive subregion (<c>x</c>, <c>y</c>, <c>width</c> or <c>height</c> on an <c>fe*</c> primitive), which the
-    ///     codec reads as a fraction of the filter region instead of in the primitive units.
-    /// </summary>
-    public const string FilterUnsupportedCode = "svg-filter-unsupported";
-
-    /// <summary>
-    ///     Gets the code of the report, <see cref="TextNotDrawnCode"/>, <see cref="TextUnsupportedCode"/> or
-    ///     <see cref="FilterUnsupportedCode"/>.
+    ///     Gets the code of the report, <see cref="TextNotDrawnCode"/> or <see cref="TextUnsupportedCode"/>.
     /// </summary>
     public required string Code { get; init; }
 

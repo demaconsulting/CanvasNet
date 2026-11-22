@@ -49,5 +49,7 @@ examples:
 - ref over, newpage, create, mainframe, autoactivate, messages to or from the
   border ([->, ->], ?->), parallel messages (&), and stereotypes of participants
   are reported as plantuml-statement-unsupported and not drawn.
+- With sequenceArrowThickness above 1, a message label is moved half the extra
+  thickness further from its arrow (PlantUML lets the thick line touch it).
 - !pragma teoz is reported as ignored: PlantUML 1.2026.10 draws every sequence
   diagram with teoz, and so does this version.

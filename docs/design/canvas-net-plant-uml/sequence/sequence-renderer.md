@@ -33,7 +33,9 @@ N/A - the unit is stateless; it reads a `SequenceGeometry` and returns a `Scene`
   thickness, dashed 2 and 2 when dotted; a filled head is a 10 by 8 arrow with its notch 6 from the tip, outlined, its
   tip 2 pixels inside on the right (1 on the left) and the line ending 4 pixels before it; an open head is two lines;
   a half head is the upper or lower half; a cross is two lines of width 2 in a 10-pixel square 13 pixels inside; a
-  circle of radius 4 at the end moves the head 5.5 pixels in. A self message is three lines and a head pointing back
+  circle of radius 4 at the end moves the head 5.5 pixels in. The open head's lines have the arrow thickness, while the
+  outline of a filled or half head is 1 pixel wide at any thickness, as in PlantUML (a thick mitered outline would grow
+  the head over the label). A self message is three lines and a head pointing back
   to the life line. The number is drawn, then the label 4 pixels after it.
 - Notes (`note`, `note-text`): a sheet with a 10-pixel folded corner (and the fold drawn again), a hexagon with
   10-pixel points, or a rectangle, in the note's or the theme's color.

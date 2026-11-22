@@ -71,6 +71,43 @@ internal static partial class SvekGeometry
     }
 
     /// <summary>
+    ///     Gets points along the curve of a route (<see cref="Spline"/>): its ends and the ends of its lines, and each
+    ///     cubic piece measured at a number of even steps of its parameter.
+    /// </summary>
+    /// <param name="route">The route; at least two points.</param>
+    /// <param name="steps">The number of steps of each cubic piece; at least 1.</param>
+    /// <returns>The points, from the first end to the last.</returns>
+    public static List<SvekPoint> Flatten(IReadOnlyList<SvekPoint> route, int steps)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(steps, 1);
+        var points = new List<SvekPoint>();
+        var current = default(SvekPoint);
+        foreach (var segment in Spline(route))
+        {
+            if (segment.Kind == SceneSegmentKind.CubicTo)
+            {
+                for (var k = 1; k <= steps; k++)
+                {
+                    var t = (double)k / steps;
+                    var u = 1 - t;
+                    var (a, b, c, d) = (u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t);
+                    points.Add(new SvekPoint(
+                        (a * current.X) + (b * segment.X1) + (c * segment.X2) + (d * segment.X),
+                        (a * current.Y) + (b * segment.Y1) + (c * segment.Y2) + (d * segment.Y)));
+                }
+            }
+            else
+            {
+                points.Add(new SvekPoint(segment.X, segment.Y));
+            }
+
+            current = new SvekPoint(segment.X, segment.Y);
+        }
+
+        return points;
+    }
+
+    /// <summary>
     ///     Finds where the segment from the center of an outline toward a point leaves the outline.
     /// </summary>
     /// <remarks>

@@ -39,5 +39,4 @@ the operations of the Imaging namespace.
   vl-param-unknown stay warnings: the picture was drawn. So does
   svg-arrowhead-shape, a hint about how an arrowhead is drawn. Text that is not
   drawn or drawn without a feature (svg-text-not-drawn, svg-text-unsupported)
-  and a filter drawn without a feature (svg-filter-unsupported) are
-  unsupported-feature errors, also in an embedded SVG file.
+  is an unsupported-feature error, also in an embedded SVG file.

@@ -10,14 +10,15 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="element">The <c>feMorphology</c> element.</param>
     /// <param name="input">The already-resolved input buffer.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor.</param>
+    /// <param name="scaleX">The pixel length of one horizontal primitive unit.</param>
+    /// <param name="scaleY">The pixel length of one vertical primitive unit.</param>
     /// <returns>A new, independent output buffer.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when either resolved radius exceeds <see cref="MaxMorphologyRadiusPixels"/>.
     /// </exception>
-    private static Surface ApplyFeMorphology(XElement element, Surface input, float scale)
+    private static Surface ApplyFeMorphology(XElement element, Surface input, float scaleX, float scaleY)
     {
-        var (radiusX, radiusY) = ResolveMorphologyRadii(element, scale);
+        var (radiusX, radiusY) = ResolveMorphologyRadii(element, scaleX, scaleY);
         var working = input.Crop(0, 0, input.Width, input.Height);
         if (radiusX <= 0 && radiusY <= 0)
         {
@@ -44,12 +45,13 @@ public static partial class SvgCodec
     ///     Resolves <c>feMorphology</c>'s one- or two-component radius into integer pixel radii.
     /// </summary>
     /// <param name="element">The <c>feMorphology</c> element.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor.</param>
+    /// <param name="scaleX">The pixel length of one horizontal primitive unit.</param>
+    /// <param name="scaleY">The pixel length of one vertical primitive unit.</param>
     /// <returns>The resolved horizontal and vertical radii.</returns>
     /// <exception cref="InvalidDataException">
     ///     Thrown when either resolved radius exceeds <see cref="MaxMorphologyRadiusPixels"/>.
     /// </exception>
-    private static (int X, int Y) ResolveMorphologyRadii(XElement element, float scale)
+    private static (int X, int Y) ResolveMorphologyRadii(XElement element, float scaleX, float scaleY)
     {
         var rawRadius = (string?)element.Attribute("radius");
         if (string.IsNullOrWhiteSpace(rawRadius))
@@ -63,8 +65,8 @@ public static partial class SvgCodec
             return (0, 0);
         }
 
-        var radiusX = numbers[0] * scale;
-        var radiusY = (numbers.Count > 1 ? numbers[1] : numbers[0]) * scale;
+        var radiusX = numbers[0] * scaleX;
+        var radiusY = (numbers.Count > 1 ? numbers[1] : numbers[0]) * scaleY;
         if (!float.IsFinite(radiusX))
         {
             radiusX = 0f;

@@ -47,6 +47,34 @@ public class SequenceLayoutTests
     }
 
     /// <summary>
+    ///     Validates that a thick arrow (<c>sequenceArrowThickness 4</c>) keeps its label clear: the arrow moves down by
+    ///     half the width beyond 1 pixel (1.5 pixels) for a label above it, the row grows by as much, and a label below a
+    ///     response arrow moves down by as much too; the label tops do not move.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSequenceLayout_ThickArrow_LeavesTheLabelsClearOfTheLine()
+    {
+        // Arrange
+        const string body = "A -> B : one\nB --> A : two\nA -> B : three";
+
+        // Act
+        var (_, thin) = SequenceTestHelpers.Layout(body);
+        var (_, thick) = SequenceTestHelpers.Layout("skinparam sequenceArrowThickness 4\n" + body);
+        var (_, below) = SequenceTestHelpers.Layout("skinparam sequenceArrowThickness 4\nskinparam responseMessageBelowArrow true\n" + body);
+        var (_, thinBelow) = SequenceTestHelpers.Layout("skinparam responseMessageBelowArrow true\n" + body);
+
+        // Assert
+        var thinMessages = thin.Items.OfType<PlacedMessage>().ToList();
+        var thickMessages = thick.Items.OfType<PlacedMessage>().ToList();
+        Assert.Equal(thinMessages[0].TextTop, thickMessages[0].TextTop, 6);
+        Assert.Equal(thinMessages[0].ArrowY + 1.5, thickMessages[0].ArrowY, 6);
+        Assert.Equal(thinMessages[1].ArrowY - thinMessages[0].ArrowY + 1.5, thickMessages[1].ArrowY - thickMessages[0].ArrowY, 6);
+        var response = below.Items.OfType<PlacedMessage>().ToList()[1];
+        var thinResponse = thinBelow.Items.OfType<PlacedMessage>().ToList()[1];
+        Assert.Equal(thinResponse.TextTop - thinResponse.ArrowY + 1.5, response.TextTop - response.ArrowY, 6);
+    }
+
+    /// <summary>
     ///     Validates the activations: a box 10 pixels wide centered on the life line from the arrow that starts it,
     ///     arrows that meet the box, and a nested box 5 pixels to the right.
     /// </summary>

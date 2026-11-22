@@ -16,10 +16,13 @@ gradients (including `xlink:href`/`href` template inheritance), `use` references
 elements (referenced via `marker-start`/`marker-mid`/`marker-end`, with `markerWidth`/
 `markerHeight`, `refX`/`refY`, `markerUnits`, `orient`, and an optional `viewBox`; as in SVG 2 and browsers, the
 `marker-end` of a closed path or a `polygon` is drawn at its first point, oriented by bisecting the closing and
-the first segment), `filter`
+the first segment, and the marker content is clipped to its `markerWidth` by `markerHeight` viewport unless the
+marker sets `overflow="visible"` or `overflow="auto"`), `filter`
 elements (referenced via the `filter` presentation attribute on any directly renderable shape or
 `text` element, or on a `g`/`symbol` reference/`use` element - applied to the whole referenced
-subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes and `feBlend`/
+subtree as a single unit - with `x`/`y`/`width`/`height` filter-region attributes, `filterUnits`, `primitiveUnits`
+(under `objectBoundingBox` lengths such as `stdDeviation` and `dx` are fractions of the box), primitive subregions
+(`x`/`y`/`width`/`height` on a primitive, an omitted one taken from the union of its inputs' subregions), and `feBlend`/
 `feColorMatrix`/`feComponentTransfer`/`feComposite`/`feConvolveMatrix`/`feDiffuseLighting`/
 `feDisplacementMap`/`feDropShadow`/`feFlood`/`feGaussianBlur`/`feImage`/`feMerge`/`feMorphology`/
 `feOffset`/`feSpecularLighting`/`feTile`/`feTurbulence` primitive children), `clipPath` elements
@@ -142,8 +145,9 @@ attribute), whose grammar has no number: a number-typed result there is ignored 
 size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
 (`line-height: calc(1 + 1)` is twice each element's own font size). A negative math `line-height`
 (`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, as CSS and the browsers do, while a negative literal (`-5px`,
-`-2`) is invalid and dropped. This follows the specification
-text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
+`-2`) is invalid and dropped. This follows the specification text; browser behavior for a number-typed math function in
+an SVG attribute has not been verified. In the `font` shorthand a negative literal line height makes the whole
+declaration invalid, so `font: 10px/-5px serif` is ignored and its size and family do not apply either.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
 inside `calc()` always agree. Under the default
@@ -542,10 +546,6 @@ set. Content drawn through `use`, `marker`, `pattern`, `mask`, and `clipPath` re
   `textLength`, a vertical `writing-mode`, `direction: rtl`, `dominant-baseline`,
   `alignment-baseline`, `text-decoration`, an unsupported `baseline-shift`, and a character that no font has a glyph
   for (drawn as the missing-glyph box, named by its code point).
-- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a filter drawn without a feature it uses -
-  `primitiveUnits="objectBoundingBox"`, which is not read (primitive values stay in user units), or a primitive
-  subregion (`x`, `y`, `width` or `height` on an `fe*` primitive), which is read as a fraction of the filter
-  region; the element counted and named is the `filter`.
 
 ```csharp
 var unsupported = new List<SvgUnsupportedFeature>();
@@ -568,9 +568,9 @@ public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions ["
 resolves the file's own `image` elements through the resolver of the request, so relative links inside the
 nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
 other stop with a warning instead of recursing without end. A position binding of the nested file that is not resolved
-is a warning of the result with its `svg-binding-*` code, and text or a filter the nested file cannot draw as written is
-an `Unsupported` note with its `svg-text-*` or `svg-filter-unsupported` code; with `ThrowOnUnsupportedFeature` set on
-the request, such a feature throws `UnsupportedImageFeatureException` instead.
+is a warning of the result with its `svg-binding-*` code, and text the nested file cannot draw is an `Unsupported` note
+with its `svg-text-*` code; with `ThrowOnUnsupportedFeature` set on the request, such text throws
+`UnsupportedImageFeatureException` instead.
 
 ##### SvgCodec Default Fonts
 

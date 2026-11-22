@@ -93,6 +93,28 @@ public class SvekGeometryTests
     }
 
     /// <summary>
+    ///     Validates the points along the curve of a route: the two ends of a line, and for a curve the even steps of
+    ///     each cubic piece from the first end to the last, the middle step at the middle of the quadratic curve.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekGeometry_Flatten_FollowsTheCurve()
+    {
+        // Act
+        var line = SvekGeometry.Flatten([new(1, 2), new(3, 4)], 8);
+        var curve = SvekGeometry.Flatten([new(0, 0), new(30, 60), new(90, 0)], 8);
+
+        // Assert
+        Assert.Equal([new SvekPoint(1, 2), new SvekPoint(3, 4)], line);
+        Assert.Equal(9, curve.Count);
+        Assert.Equal(new SvekPoint(0, 0), curve[0]);
+        Assert.Equal(90, curve[^1].X, 9);
+        Assert.Equal(0, curve[^1].Y, 9);
+        Assert.Equal(37.5, curve[4].X, 9);
+        Assert.Equal(30, curve[4].Y, 9);
+        Assert.Throws<ArgumentOutOfRangeException>(() => SvekGeometry.Flatten([new(0, 0), new(1, 1)], 0));
+    }
+
+    /// <summary>
     ///     Validates the clipping of a direction from the center of an outline to the rectangle, the ellipse, the circle,
     ///     and the diamond.
     /// </summary>

@@ -226,7 +226,10 @@ sections:
               markerWidth/markerHeight, refX/refY, markerUnits
               (strokeWidth or userSpaceOnUse), orient (auto, auto-start-reverse, a fixed
               angle in degrees, or the fixed 0-degree default when omitted/blank), and an
-              optional viewBox, while never rendering a marker for
+              optional viewBox, clipping the marker content to its markerWidth/markerHeight
+              viewport unless the marker's computed overflow property is visible or auto (the CSS-wide
+              keywords initial and unset give visible, revert gives the user-agent hidden, and inherit
+              takes the parent's computed value), while never rendering a marker for
               rect/circle/ellipse and never inheriting the referencing shape's own
               fill/stroke into the marker's own content.
             justification: |
@@ -235,7 +238,9 @@ sections:
               flowcharts, or annotated line art need these to render rather than silently
               vanish, with correct per-vertex placement, orientation, sizing, and an
               independent presentation-attribute cascade matching the SVG specification's
-              marker-content model.
+              marker-content model. The SVG 2 user-agent style sheet sets overflow: hidden on
+              marker, so browsers clip marker content to the marker viewport; content that fits
+              the viewport is drawn exactly as before.
             tests:
               - SvgCodec_Load_MarkerEndOnLine_RendersArrowheadPastLineEnd
               - SvgCodec_Load_MarkerStartMidEndOnPolyline_RendersDistinctMarkersAtEachVertex
@@ -247,6 +252,10 @@ sections:
               - SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine
               - SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently
               - SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight
+              - SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault
+              - SvgCodec_Load_MarkerOverflowVisible_IsNotClipped
+              - SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport
+              - SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot
               - SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds
               - SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker
               - SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke
@@ -599,17 +608,14 @@ sections:
               for text drawn without a feature it uses (rotate, textLength, a vertical
               writing-mode, direction rtl, dominant-baseline,
               alignment-baseline, text-decoration, an unsupported baseline-shift, or a character no
-              font covers), and svg-filter-unsupported for a filter applied with
-              primitiveUnits="objectBoundingBox" or a primitive subregion (x, y, width or height on
-              an fe* primitive); it shall cover all drawn content, report nothing for content that is
-              not drawn by design, skip the checks when no handler is set, and never change the
+              font covers), and no other code; it shall cover all drawn content, report nothing for content
+              that is not drawn by design, skip the checks when no handler is set, and never change the
               pixels or fail the render.
             justification: |
               Text that silently disappears or loses its layout is the hardest rendering defect
               for a reader to notice; a report lets a host tell the author, or fail a strict
-              build, while the rest of the document is still drawn. The codec does not implement
-              primitiveUnits and reads a primitive subregion as a fraction of the filter region,
-              so a filter that uses either is drawn differently from a browser; the report says so.
+              build, while the rest of the document is still drawn. A filter, primitive units and
+              subregions included, is drawn as specified and reports nothing.
             tests:
               - SvgCodec_UnsupportedFeatureHandler_TextPath_ReportsTextNotDrawn
               - SvgCodec_UnsupportedFeatureHandler_RotateTextLengthAndWritingMode_ReportsOneUnsupportedWithEveryFeature
@@ -620,8 +626,8 @@ sections:
               - SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing
               - SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels
               - SvgCodec_UnsupportedFeatureHandler_DefaultIsNull
-              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported
-              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsNothing
+              - SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsNothing
 
           - id: CanvasNetSvg-SvgCodec-FontWeightStyleCascade
             title: >-
@@ -1038,13 +1044,16 @@ sections:
               treated as absent so the default applies; and on font-size, line-height, the
               other font properties and the font shorthand, and on the text dx and dy, it shall be
               dropped so the next lower source applies, else the inherited
-              value remains.
+              value remains, a font shorthand whose line-height is a negative literal (such as
+              font: 10px/-5px serif) being invalid and dropped as a whole.
             justification: |
               Geometry keeps its strict InvalidDataException behavior because existing callers and
               tests rely on it, and a missing geometry value cannot be defaulted meaningfully.
               Optional and presentation-level values follow the CSS invalid-declaration rule so a
               document with one bad value still renders, as it does in a browser. Stating the
-              classes explicitly lets a caller predict the outcome of any malformed value.
+              classes explicitly lets a caller predict the outcome of any malformed value. A
+              shorthand with an invalid component is invalid as a whole (CSS Cascade 4), and Edge
+              ignores font: 10px/-5px serif entirely, its font size included.
             tests:
               - SvgCodec_Load_MalformedGeometryLength_ThrowsInvalidDataException
               - SvgCodec_Load_MalformedStrokeLength_ThrowsInvalidDataException
@@ -1058,6 +1067,7 @@ sections:
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
+              - SvgCodec_Load_FontShorthandNegativeLineHeight_DropsTheWholeDeclaration
               - SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException
               - SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits
               - SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150
@@ -1132,15 +1142,25 @@ sections:
               x/y/width/height, drawing nothing when that box has no width or no height, and
               honoring filterUnits (under userSpaceOnUse the region is in absolute user units,
               a percentage or an omitted attribute's initial value being of the viewport, and an
-              empty box drawing the filter normally), and tolerating any other primitive type as
-              a no-op passthrough of its own input.
+              empty box drawing the filter normally), honoring primitiveUnits (under
+              objectBoundingBox the primitive lengths stdDeviation, dx/dy, radius, the
+              displacement scale and the light positions, and the primitive subregions, being
+              fractions of the box, each length scaled on its own axis), clipping each
+              primitive's result to its subregion (x/y/width/height in primitive units, a
+              userSpaceOnUse percentage being of the viewport, each omitted one taken from the
+              default subregion: the union of the input subregions, or the filter region for a
+              primitive without inputs, with a standard input, or for feTile), and tolerating any
+              other primitive type as a no-op passthrough of its own input.
             justification: |
               Real-world SVG documents commonly use filter="url(#id)" for common effects
               such as a solid-color halo/background behind text labels (the reported
               real-world bug this feature fixes: SvgRenderer's own midpoint line labels use
               exactly this pattern, and previously lost their halo entirely, causing label
               text to overlap the line beneath it); callers relying on this common pattern
-              need it to actually render rather than silently vanish.
+              need it to actually render rather than silently vanish. Filter Effects 1 defines
+              primitiveUnits and the filter primitive subregion; drawing them as Edge does keeps
+              authored shadows and tiles in place (Edge headless renders confirm the expected
+              pixels of the tests).
             tests:
               - SvgCodec_Load_FeFloodFilter_RendersSolidColorBehindElement
               - SvgCodec_Load_FeFloodFeMergeFilter_RendersFloodBehindSourceGraphic
@@ -1162,6 +1182,11 @@ sections:
               - SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke
               - SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing
               - SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource
+              - SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths
+              - SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions
+              - SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis
               - SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula
               - SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped
               - SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange
@@ -1414,7 +1439,8 @@ sections:
             title: >-
               The SvgCodec class shall evaluate feTile primitives by repeating the resolved
               upstream primitive subregion across the filter region, while leaving primitives
-              with no declared subregion unaffected by the new subregion mechanism.
+              whose inputs and own subregion cover the whole filter region unaffected by the
+              subregion mechanism.
             justification: |
               Tiling a prior primitive's own subregion is the core purpose of feTile and is
               required by authored patterns that intentionally generate one small filtered
@@ -2174,8 +2200,7 @@ sections:
           - id: CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes
             title: >-
               The Svg package's image source shall return each feature of the linked SVG file that the
-              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported,
-              svg-filter-unsupported) as an
+              codec reports as not supported (svg-text-not-drawn, svg-text-unsupported) as an
               Unsupported note of the result with that code, and, when the request asks to throw on an
               unsupported feature, shall fail with UnsupportedImageFeatureException naming the first code.
             justification: |

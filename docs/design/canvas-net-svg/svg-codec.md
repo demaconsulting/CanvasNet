@@ -138,14 +138,12 @@ only partially outside this codec's supported feature set. Within a `style` elem
 engine (see *CSS `<style>` Element and Selector-Based Styling* below), sibling (`+`/`~`)
 combinators, pseudo-classes, `@media`/other at-rules, and `!important` are explicitly out of
 scope - see that section for the per-construct rationale and failure-mode. Within the supported
-`marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) and clipping marker
-content to its own `markerWidth`/`markerHeight` viewport (`overflow`) are both explicitly out of
-scope. Within the supported `filter` feature itself, `primitiveUnits` (not read: primitive values stay in user
-units) and the user-space reading of a primitive subregion (`x`/`y`/`width`/`height` on an `fe*` primitive is
-read as a fraction of the filter region), both reported as `svg-filter-unsupported` (see *Unsupported-Feature
-Reports*), a `filter` on a shape's own `marker`
+`marker` feature itself, `markerContentUnits` (a rarely-used SVG 2 attribute) is explicitly out of scope; marker
+content is clipped to its `markerWidth`/`markerHeight` viewport per `overflow` (see *Marker viewport clipping*
+below). Within the supported `filter` feature itself, `primitiveUnits` and primitive subregions are drawn as
+specified (see *Primitive units and subregions*), while a `filter` on a shape's own `marker`
 content (has no effect - `marker` content is never recursed into by the ordinary element walk, so
-a group-level filter on a `<g>` inside a `marker` is never reached) are explicitly out of
+a group-level filter on a `<g>` inside a `marker` is never reached) is explicitly out of
 scope. Encountering a genuinely unrecognized `fe*` primitive name (any type this codec does not
 recognize by name) tolerantly passes through its resolved input rather than rejecting or
 skipping the whole filter. `feImage` is now supported in both its raster-href and
@@ -362,8 +360,9 @@ with `isRoot` so its own font size is the `rem` basis for the rest of its proper
 | F, font | `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | the declaration is dropped: the next lower source applies (inline style, then stylesheet, then the presentation attribute, then the `font` attribute), and the value is inherited only when none is valid (no offset for `dx`/`dy`) |
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
-`stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
-primitive subregion fractions.
+`stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region fractions. A primitive
+subregion is a length under `primitiveUnits="userSpaceOnUse"` and a fraction under `objectBoundingBox` (see *Primitive
+units and subregions*).
 
 **Root width/height.** `ParseLength` resolves them with a throwaway state (`CreateRootSizeState`): a
 percentage or a viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their
@@ -472,7 +471,9 @@ ignored. A negative literal (`-5px`, `-2`) is invalid and ignored, but a negativ
 (`calc(10px - 20px)`, `calc(1 - 2)`) is clamped to 0, because CSS Values 4 (Range Checking) clamps an
 out-of-range math function instead of rejecting it, as Edge does.
 `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
-`font: 10px/calc(1 + 1) Family` is accepted. `ResolveComputedLineHeight` picks the first valid of
+`font: 10px/calc(1 + 1) Family` is accepted, `font: 10px/calc(1px - 5px) Family` sets a line height of 0, and a
+negative literal (`font: 10px/-5px Family`, `font: 10px/-2 Family`) makes the whole shorthand invalid: the
+declaration is ignored, its size and family included, as Edge does. `ResolveComputedLineHeight` picks the first valid of
 CSS and the `font` attribute, else inherits, and is shared by the element cascade and
 `ReadRootLineHeight`. Inside `line-height` itself `lh` resolves against the parent's line height and
 font size, and `rlh` on the root against the initial values (CSS Values 4, font-relative lengths):
@@ -711,17 +712,32 @@ both new capabilities:
   `preserveAspectRatio` attribute instead keeps its original, simpler fit (a plain "meet"-
   equivalent uniform scale-down with no centering step) completely unchanged, for two reasons:
   first, to guarantee this default path's pre-existing pixel output never regresses; second,
-  because a marker's content is always anchored by its own `refX`/`refY` (never clipped to
-  `markerWidth`/`markerHeight` - see *Out-of-scope subset* above), so once that anchoring is
+  because a marker's content is always anchored by its own `refX`/`refY`, so once that anchoring is
   applied, a viewBox's own origin and an `<align>`'s `Min`/`Mid`/`Max` offset both algebraically
-  cancel out of the final rendered position regardless of their value - only the uniform scale
+  cancel out of the final rendered position of the content regardless of their value - only the uniform scale
   factor itself (`meet`'s smaller ratio versus `slice`'s larger one) is ever visibly different
-  between the default path and an explicit `preserveAspectRatio`. Routing the default (no
-  attribute) case through the same origin/align-honoring formula would therefore be a purely
-  internal correctness improvement, not a visible behavior change - reserved for if marker-content
-  clipping is ever implemented - so it is deliberately kept as a distinct code path instead of
-  being unified, to avoid any incidental floating-point (ULP) difference in the default path's
-  output.
+  between the default path and an explicit `preserveAspectRatio`. The content transform is therefore
+  deliberately kept as a distinct code path instead of being unified, to avoid any incidental floating-point (ULP)
+  difference in the default path's output. The origin and alignment do not cancel for the marker viewport that
+  `overflow` clips to, so the viewport is always placed through the full SVG fit (see *Marker viewport clipping*).
+- **Marker viewport clipping.** A marker's `overflow` (inline `style`, stylesheet rule, or attribute, read with
+  `ResolveElementProperty` and resolved to its computed value by `ResolveComputedOverflow`: `initial` and `unset` give
+  `visible`, `revert` gives the user-agent value, and `inherit` takes the parent's computed value) defaults to `hidden`
+  (the SVG 2 user-agent style sheet sets it on `marker`); `visible` and `auto` leave the content unclipped, and
+  `hidden`, `scroll`, `clip`, and any other value clip it to the viewport, the `markerWidth` by `markerHeight` box.
+  `TryComputeMarkerContentTransform` returns the viewport with the content transform: its size, the fit from content
+  (`viewBox`) space into viewport space (`ComputePreserveAspectRatioFit` with the explicit `preserveAspectRatio`, else
+  the default `xMidYMid meet`, so the `viewBox` origin and alignment are honored), and the transform from viewport space
+  into the shape's frame (the inverse fit composed with the content transform). `RenderOneMarker` draws the content
+  directly, exactly as before, when the marker does not clip or when the content's painted bounds, mapped into viewport
+  space, lie inside the viewport (within 1e-3), so an arrowhead that fits its box keeps its pixels. Those bounds come
+  from `ComputeChildrenLocalBounds` once per marker element and viewport size and are cached on the render context
+  (`MarkerContentBounds`), so a marker repeated along many shapes runs the bounds pre-pass once. Otherwise
+  `RenderMarkerClipped` renders the content into an offscreen buffer covering the viewport's pixel bounds (cut to the
+  target surface), multiplies its alpha by the antialiased coverage of the viewport rectangle (`PathFiller.Fill`,
+  `ApplyCoverageClip`), and composites it onto the target (`CompositeFilterResultOntoCanvas`). The two buffers are
+  charged to the shared `FilterWorkBudget`; when it is exhausted, or the viewport's pixel bounds cannot be represented,
+  the content is drawn directly (unclipped), and a viewport entirely off the surface draws nothing.
 
 An intrinsic size that is positive and finite (passing the checks above) can still be small
 enough — a subnormal float, for example — that dividing the requested raster dimensions by it
@@ -1051,8 +1067,9 @@ always exactly the temporary surface's own dimensions - this invariant is what l
 `feMerge` both reuse `Surface.CompositeOver(Surface)` (which requires equal-size surfaces) unchanged, with no new
 per-pixel blending math. `feFlood` fills a buffer with a solid, alpha-scaled color (`flood-color`/`flood-opacity`).
 `feGaussianBlur` approximates a Gaussian blur with three passes of a sliding-window box blur (cost independent of the
-requested radius, unlike a naive per-pixel-kernel blur), reading only the first (isotropic) component of `stdDeviation`
-and clamping it to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large requested radius cannot
+requested radius, unlike a naive per-pixel-kernel blur), reading `stdDeviation` as one number for both axes or an x/y
+pair (a box radius per axis; an axis whose radius is zero is not blurred)
+and clamping each to a fixed `MaxFilterBlurStdDeviationPixels` bound so a pathologically large requested radius cannot
 translate into unbounded per-pixel work. `feOffset` shifts a buffer's content by `dx`/`dy` (scaled by the element's own
 transform). `feComposite` implements Porter-Duff `over` by delegating to `Surface.CompositeOver`, implements
 `in`/`out`/`atop`/`xor` via one small, dedicated per-pixel premultiplied-alpha helper, and implements `arithmetic` via a
@@ -1102,16 +1119,35 @@ malformed kernel sizes tolerate by passing the input through unchanged, while an
 `xChannelSelector`/`yChannelSelector`, scaling displacement by the primitive's `scale` and the
 current transform just as `feOffset` and `feMorphology` already convert authored SVG lengths to
 pixels. `feTile` now has meaningful behavior because filter evaluation records each primitive's
-own declared `x`/`y`/`width`/`height` subregion: when a primitive declares at least one of those
-attributes, its computed output is clipped to that subregion once, generically, after the
-primitive-specific work finishes, and `feTile` repeats exactly that clipped upstream subregion
-across the full filter region. Because every pre-existing primitive in this repository's fixtures
-omitted primitive subregion attributes entirely, the default path remains the full filter region
-and therefore preserves all prior behavior unchanged. `feDropShadow` is expressed in terms of the
+subregion (see *Primitive units and subregions*): each computed output is clipped to its subregion once,
+generically, after the primitive-specific work finishes, and `feTile` repeats exactly that clipped upstream subregion
+across the full filter region. A primitive whose inputs are standard inputs and that declares no subregion keeps the
+full filter region, so filters without subregions draw exactly as before. `feDropShadow` is expressed in terms of the
 existing primitives' own semantics - blur the alpha-only source, offset it, flood it with the
 requested color/opacity, then composite the source graphic over that shadow - so it reuses the
 same blur, offset, flood, and compositing behavior the simpler primitives had already
 established.
+
+**Primitive units and subregions.** `FilterChain` reads the filter's `primitiveUnits` once. Under the default
+`userSpaceOnUse` the primitive space is user space: `PrimitiveToPixel` is the referencing element's transform and both
+axes use the uniform `Scale` (`EstimateUniformScale`), exactly as before. Under `objectBoundingBox`, `PrimitiveToPixel`
+prepends `ComputeObjectBoundingBoxMap(ReferenceBounds)` (the fill box), and `ScaleX`/`ScaleY` are the pixel lengths of
+one unit on each axis, so `stdDeviation` (one number or an x/y pair, now read per axis in both modes), `dx`/`dy`,
+`radius` and the displacement `scale` are fractions of the box on their own axis, and a light's `x`/`y`/`pointsAt` map
+through `PrimitiveToPixel` with `z` scaled by `LengthScale` (`sqrt((ScaleX^2 + ScaleY^2) / 2)`, the normalized diagonal,
+as Chromium resolves it). `surfaceScale` and `feTurbulence`'s `baseFrequency` stay in user space, as Edge draws them.
+Each primitive gets a subregion (Filter Effects 1, filter primitive subregion): `ResolveDefaultPrimitiveSubregion` takes
+the union of the subregions of the inputs it references (`FilterChain.SubregionOf`), the filter region for a standard
+input (`SourceGraphic`, `SourceAlpha`, or an unknown name that falls back to the source), and the filter region for
+`feFlood`, `feImage`, `feTurbulence`, an `feMerge` with no node, and `feTile`. `ResolvePrimitiveSubregionPixelBounds`
+applies the declared `x`/`y`/`width`/`height` in primitive units (a user length, a percentage of the viewport under
+`userSpaceOnUse`; a fraction or percentage of the box under `objectBoundingBox`), each omitted or unparseable one taken
+from the default subregion mapped back into primitive units, maps the rectangle through `PrimitiveToPixel`, and takes
+its pixel bounds rounded outward (a value within 1e-3 of a whole pixel snaps to it) and clamped to the filter region; a
+zero or negative size gives an empty subregion. A primitive that declares a subregion gets a clipped copy
+(`ClipPrimitiveOutputToSubregion`, charged one work unit in `CountFilterPrimitiveWorkUnits`); a new output whose default
+subregion is smaller than the filter region is cleared outside it in place (`ClearOutsideSubregion`, no allocation), and
+a pass-through keeps its input. Under a rotation the subregion is its bounding box, as the filter region is.
 
 `feImage` supports both forms SVG uses in practice. A raster/data-URI `href` reuses the same
 image-decoding helpers already introduced for Phase 4's standalone `<image>` element support: the
@@ -2053,8 +2089,7 @@ Passing the **scoped resolver of the request** on is what makes nesting work wit
 elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
 render apply. When the request has no resolver the nested file's external links are not drawn. The notes of the result
 are the position bindings of the file that were not resolved, as `svg` warnings with their codes, and the features the
-codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` or
-`svg-filter-unsupported` codes;
+codec reports through `SvgLoadOptions.UnsupportedFeatureHandler`, as `Unsupported` notes with their `svg-text-*` codes;
 when the request sets `ThrowOnUnsupportedFeature`, the first such feature disposes the surface and throws
 `UnsupportedImageFeatureException` with its code instead. Content
 that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
@@ -2172,14 +2207,9 @@ the first 24 characters of its text), the distinct elements (the count), and up 
   `direction: rtl`, a `dominant-baseline` and a `text-decoration` on a text
   content element or an ancestor of the `text`; and each code point that `GlyphFallback.FindMissing` finds no font
   for.
-- `svg-filter-unsupported` (`SvgUnsupportedFeature.FilterUnsupportedCode`): a `filter` that is applied (from
-  `EvaluateFilterChain`, through `ReportFilterUnsupportedFeatures`) with `primitiveUnits="objectBoundingBox"`,
-  which the codec does not read, or with a primitive subregion (`x`, `y`, `width` or `height` on a direct
-  `fe*` child), which it reads as a fraction of the filter region instead of in the primitive units; the element
-  counted is the `filter`, and the message reads "filter is drawn without: ...".
 
 **Reporting.** After the document is painted, `RenderDocument` calls `Report`, which calls the handler once per code,
-`svg-text-not-drawn` first, then `svg-text-unsupported` and `svg-filter-unsupported`, with the count and the message.
+`svg-text-not-drawn` first, then `svg-text-unsupported`, with the count and the message.
 Content that is not drawn by design (inside `defs`, a
 `switch` child that is not chosen, `title`/`desc`) reports nothing; content drawn through `use`, `marker`, `pattern`,
 `mask` and `clipPath` reports like any other.

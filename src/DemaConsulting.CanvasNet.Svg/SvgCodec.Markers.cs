@@ -242,6 +242,16 @@ public static partial class SvgCodec
     private readonly record struct MarkerPlacement(Vector2 Position, float AngleDegrees, bool IsStartVertex, float LocalStrokeWidth);
 
     /// <summary>
+    ///     One marker instance's viewport: the <c>markerWidth</c> by <c>markerHeight</c> box its content
+    ///     is clipped to when <c>overflow</c> is hidden.
+    /// </summary>
+    /// <param name="Width">The viewport width (<c>markerWidth</c>), in viewport units.</param>
+    /// <param name="Height">The viewport height (<c>markerHeight</c>), in viewport units.</param>
+    /// <param name="Fit">The transform from marker content space (the <c>viewBox</c> space) into viewport space.</param>
+    /// <param name="ToShape">The transform from viewport space into the referencing shape's reference frame.</param>
+    private readonly record struct MarkerViewport(float Width, float Height, Matrix3x2 Fit, Matrix3x2 ToShape);
+
+    /// <summary>
     ///     Builds the ordered, whole-shape list of marker-eligible vertices (and their tangents)
     ///     from a <c>line</c>/<c>polyline</c>/<c>polygon</c>/<c>path</c>'s already-built
     ///     local-space outline, for <see cref="RenderMarkers"/> to place markers along.
@@ -573,7 +583,7 @@ public static partial class SvgCodec
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform, out var viewport))
         {
             return;
         }
@@ -591,10 +601,203 @@ public static partial class SvgCodec
             ViewportHeight = viewportState.ViewportHeight
         };
         var childScope = scope.NestedMarker();
-        foreach (var child in markerElement.Elements())
+        var children = markerElement.Elements().ToList();
+        if (!MarkerClipsToViewport(markerElement, context) ||
+            MarkerContentFitsViewport(markerElement, children, markerState, viewport, context, childScope))
         {
-            RenderElement(child, markerState, contentTransform, context, childScope, ref totalElements);
+            RenderChildrenDirect(children, markerState, contentTransform, context, childScope, ref totalElements);
+            return;
         }
+
+        RenderMarkerClipped(children, markerState, contentTransform, viewport, context, childScope, ref totalElements);
+    }
+
+    /// <summary>
+    ///     Determines whether a <c>marker</c> clips its content to its viewport: its <c>overflow</c>
+    ///     property (inline <c>style</c>, stylesheet rule or presentation attribute) is <c>hidden</c>
+    ///     by default for a marker (the SVG 2 user-agent style sheet), and only <c>visible</c> and
+    ///     <c>auto</c> leave the content unclipped; <c>hidden</c>, <c>scroll</c>, <c>clip</c> and any
+    ///     other value clip. CSS-wide keywords are resolved first (see
+    ///     <see cref="ResolveComputedOverflow"/>), so <c>initial</c> and <c>unset</c> leave the content
+    ///     unclipped, as in a browser.
+    /// </summary>
+    /// <param name="markerElement">The resolved <c>marker</c> element.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns><see langword="true"/> when the content is clipped to the marker viewport.</returns>
+    private static bool MarkerClipsToViewport(XElement markerElement, RenderContext context)
+    {
+        var overflow = ResolveComputedOverflow(markerElement, context);
+        return !string.Equals(overflow, "visible", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(overflow, "auto", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Resolves the computed <c>overflow</c> of an element, honoring the CSS-wide keywords for this
+    ///     non-inherited property: <c>initial</c> and <c>unset</c> give the initial value
+    ///     <c>visible</c>; <c>revert</c> and <c>revert-layer</c> give the user-agent value (as does no
+    ///     value at all); and <c>inherit</c> takes the parent's computed value (<c>visible</c> above
+    ///     the root). The user-agent value is <c>hidden</c> for the elements the SVG 2 user-agent
+    ///     style sheet names (<c>marker</c>, <c>pattern</c>, <c>symbol</c>, <c>image</c> and a
+    ///     non-root <c>svg</c>) and <c>visible</c> for every other element.
+    /// </summary>
+    /// <param name="element">The element whose computed <c>overflow</c> is resolved.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns>The computed <c>overflow</c> keyword (trimmed, in its original case).</returns>
+    private static string ResolveComputedOverflow(XElement element, RenderContext context)
+    {
+        // Walk up the ancestor chain only while the value is "inherit"; the chain is finite, so
+        // the loop always ends.
+        for (XElement? current = element; current != null; current = current.Parent)
+        {
+            var overflow = ResolveElementProperty(current, "overflow", context)?.Trim();
+            if (overflow == null ||
+                string.Equals(overflow, "revert", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(overflow, "revert-layer", StringComparison.OrdinalIgnoreCase))
+            {
+                return HasHiddenUserAgentOverflow(current) ? "hidden" : "visible";
+            }
+
+            if (string.Equals(overflow, "initial", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(overflow, "unset", StringComparison.OrdinalIgnoreCase))
+            {
+                return "visible";
+            }
+
+            if (!string.Equals(overflow, "inherit", StringComparison.OrdinalIgnoreCase))
+            {
+                return overflow;
+            }
+        }
+
+        // "inherit" on the root element takes the initial value.
+        return "visible";
+    }
+
+    /// <summary>
+    ///     Determines whether the SVG 2 user-agent style sheet sets <c>overflow: hidden</c> on an
+    ///     element (<c>svg:not(:root), image, marker, pattern, symbol</c>).
+    /// </summary>
+    /// <param name="element">The element to test.</param>
+    /// <returns><see langword="true"/> when the user-agent value is <c>hidden</c>.</returns>
+    private static bool HasHiddenUserAgentOverflow(XElement element) =>
+        element.Name.LocalName switch
+        {
+            "marker" or "pattern" or "symbol" or "image" => true,
+            "svg" => element.Parent != null,
+            _ => false
+        };
+
+    /// <summary>
+    ///     Determines whether a marker's painted content lies inside its viewport, so clipping would
+    ///     change nothing and the content can be drawn directly, exactly as an unclipped marker. The
+    ///     content bounds (in marker content space) are computed once per marker element and viewport
+    ///     size and cached on the render context, so a marker repeated along many shapes runs the bounds
+    ///     pre-pass only once.
+    /// </summary>
+    /// <param name="markerElement">The resolved <c>marker</c> element.</param>
+    /// <param name="children">The marker's child elements.</param>
+    /// <param name="markerState">The marker content's own cascaded state.</param>
+    /// <param name="viewport">The marker instance's viewport.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="childScope">The scope the marker's children are visited with.</param>
+    /// <returns><see langword="true"/> when nothing paints outside the viewport.</returns>
+    private static bool MarkerContentFitsViewport(
+        XElement markerElement,
+        IReadOnlyList<XElement> children,
+        RenderState markerState,
+        MarkerViewport viewport,
+        RenderContext context,
+        RenderScope childScope)
+    {
+        var key = (markerElement, markerState.ViewportWidth, markerState.ViewportHeight);
+        if (!context.MarkerContentBounds.TryGetValue(key, out var bounds))
+        {
+            bounds = ComputeChildrenLocalBounds(children, markerState, context, childScope).Painted;
+            context.MarkerContentBounds[key] = bounds;
+        }
+
+        if (bounds.IsEmpty)
+        {
+            return true;
+        }
+
+        // A small tolerance keeps content that touches the viewport edge (an arrowhead filling its
+        // box exactly) on the direct path despite float rounding in the fit
+        const float Tolerance = 1e-3f;
+        var fitted = bounds.Transform(viewport.Fit);
+        return fitted.X >= -Tolerance && fitted.Y >= -Tolerance &&
+               fitted.Right <= viewport.Width + Tolerance && fitted.Bottom <= viewport.Height + Tolerance;
+    }
+
+    /// <summary>
+    ///     Renders a marker's content clipped to its viewport: the content is drawn into an offscreen
+    ///     buffer covering the viewport's pixel bounds (cut to the target surface), its alpha is
+    ///     multiplied by the antialiased coverage of the viewport rectangle, and the result is
+    ///     composited onto the target surface.
+    /// </summary>
+    /// <param name="children">The marker's child elements.</param>
+    /// <param name="markerState">The marker content's own cascaded state.</param>
+    /// <param name="contentTransform">The marker content transform into the target surface's pixel space.</param>
+    /// <param name="viewport">The marker instance's viewport.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="childScope">The scope the marker's children are rendered with.</param>
+    /// <param name="totalElements">The running total-rendered-elements count.</param>
+    /// <remarks>
+    ///     The two offscreen buffers are charged to the shared effects budget
+    ///     (<see cref="FilterWorkBudget"/>); when it is exhausted, or the viewport's pixel bounds cannot
+    ///     be represented, the content is drawn directly (unclipped), the same tolerant fallback the
+    ///     effects pipeline uses. A viewport entirely off the surface draws nothing.
+    /// </remarks>
+    private static void RenderMarkerClipped(
+        IReadOnlyList<XElement> children,
+        RenderState markerState,
+        Matrix3x2 contentTransform,
+        MarkerViewport viewport,
+        RenderContext context,
+        RenderScope childScope,
+        ref int totalElements)
+    {
+        var canvas = context.Surface;
+        var region = IsFiniteTransform(viewport.ToShape)
+            ? ConvertLocalRegionToPixelBounds(new Rect(0f, 0f, viewport.Width, viewport.Height), viewport.ToShape)
+            : null;
+        if (region == null)
+        {
+            RenderChildrenDirect(children, markerState, contentTransform, context, childScope, ref totalElements);
+            return;
+        }
+
+        var (regionX, regionY, regionWidth, regionHeight) = region.Value;
+        var left = Math.Max(regionX, 0);
+        var top = Math.Max(regionY, 0);
+        var right = Math.Min(regionX + regionWidth, canvas.Width);
+        var bottom = Math.Min(regionY + regionHeight, canvas.Height);
+        if (right <= left || bottom <= top)
+        {
+            return;
+        }
+
+        var width = right - left;
+        var height = bottom - top;
+        if (!childScope.FilterWorkBudget.TryCharge(2L * width * height))
+        {
+            RenderChildrenDirect(children, markerState, contentTransform, context, childScope, ref totalElements);
+            return;
+        }
+
+        var toBuffer = Matrix3x2.CreateTranslation(-left, -top);
+        childScope.FilterWorkBudget.RecordSurfaceAllocated(width, height);
+        var content = new Surface(width, height);
+        RenderChildrenDirect(children, markerState, contentTransform * toBuffer, context with { Surface = content }, childScope, ref totalElements);
+
+        childScope.FilterWorkBudget.RecordSurfaceAllocated(width, height);
+        var coverage = new Surface(width, height);
+        var outline = new PathBuilder();
+        AppendRectOutline(outline, 0f, 0f, viewport.Width, viewport.Height);
+        PathFiller.Fill(coverage, outline.Build().Transform(viewport.ToShape * toBuffer), OpaqueWhite, FillRule.NonZero);
+
+        ApplyCoverageClip(content, coverage);
+        CompositeFilterResultOntoCanvas(content, left, top, canvas, 1f);
     }
 
     /// <summary>
@@ -627,6 +830,12 @@ public static partial class SvgCodec
     ///     <paramref name="shapeTransform"/>'s reference frame, or <see cref="Matrix3x2.Identity"/>
     ///     if this method returns <see langword="false"/>.
     /// </param>
+    /// <param name="viewport">
+    ///     The marker viewport that <c>overflow</c> clips to: its size (<c>markerWidth</c> by
+    ///     <c>markerHeight</c>), the fit transform from content space into viewport space (origin at the
+    ///     viewport's top left, the space the <c>viewBox</c> is fitted into), and the transform from
+    ///     viewport space into <paramref name="shapeTransform"/>'s reference frame.
+    /// </param>
     /// <returns>
     ///     <see langword="false"/> if <paramref name="markerElement"/>'s own <c>markerWidth</c>/
     ///     <c>markerHeight</c> is non-finite/non-positive, its resolved <c>markerUnits</c> scale is
@@ -653,9 +862,11 @@ public static partial class SvgCodec
         MarkerPlacement placement,
         RenderState viewportState,
         Matrix3x2 shapeTransform,
-        out Matrix3x2 contentTransform)
+        out Matrix3x2 contentTransform,
+        out MarkerViewport viewport)
     {
         contentTransform = Matrix3x2.Identity;
+        viewport = default;
         var vertexPosition = placement.Position;
         var vertexAngleDegrees = placement.AngleDegrees;
         var isStartVertex = placement.IsStartVertex;
@@ -718,6 +929,18 @@ public static partial class SvgCodec
             * Matrix3x2.CreateRotation(DegreesToRadians(angleDegrees))
             * Matrix3x2.CreateTranslation(vertexPosition)
             * shapeTransform;
+
+        // The viewport that overflow clips to is the markerWidth by markerHeight box into which the
+        // viewBox is fitted per SVG: its origin and the (default xMidYMid meet) alignment are
+        // honored. The default fit above drops both, which the refX/refY anchoring cancels for the
+        // content itself, but not for the viewport, so the viewport is placed through the full fit
+        var viewportFit = viewBox.HasValue
+            ? ComputePreserveAspectRatioFit(
+                viewBox.Value.Origin, viewBox.Value.Size, markerWidth, markerHeight, ParsePreserveAspectRatio(explicitParRaw))
+            : Matrix3x2.Identity;
+        viewport = Matrix3x2.Invert(viewportFit, out var viewportToContent)
+            ? new MarkerViewport(markerWidth, markerHeight, viewportFit, viewportToContent * contentTransform)
+            : default;
 
         return IsFiniteTransform(contentTransform);
     }
@@ -784,7 +1007,7 @@ public static partial class SvgCodec
             throw new InvalidDataException("Exceeded the maximum <marker> reference nesting depth.");
         }
 
-        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform))
+        if (!TryComputeMarkerContentTransform(markerElement, placement, viewportState, shapeTransform, out var contentTransform, out _))
         {
             return null;
         }

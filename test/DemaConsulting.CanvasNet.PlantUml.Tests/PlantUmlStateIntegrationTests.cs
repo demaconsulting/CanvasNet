@@ -188,4 +188,77 @@ public class PlantUmlStateIntegrationTests
         });
         Assert.Equal((2, 2), (model.Elements.Single(e => e.Id == "Running").Regions.Count, model.Elements.Single(e => e.Id == "Panel").Regions.Count));
     }
+
+    /// <summary>
+    ///     Validates that the transition labels keep clear of the lines and the states (the state-labels shape: a label
+    ///     on a link into a state beside another, a label between two states of a row, and one inside a composite
+    ///     state): every label is at least 3 pixels from every drawn line and arrowhead and at least 8 pixels from every
+    ///     state, as PlantUML leaves about 4 and 10 pixels.
+    /// </summary>
+    [Fact]
+    public void CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates()
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse("@startuml\n[*] --> Draft\nDraft --> Review : submit\nReview -left-> Rejected : declined\nstate Shipping {\n  [*] -right-> Packed\n  Packed -right-> Moving : picked up\n}\nReview --> Shipping\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        var labels = scene.Items.OfType<SceneText>().Where(t => t.Role == "link-label").ToList();
+        Assert.Equal(["submit", "declined", "picked up"], labels.Select(l => l.Text));
+        var lines = scene.Items.OfType<ScenePath>().Where(p => p.Role is "link" or "link-head").Select(PointsAlong).ToList();
+        var states = scene.Items.OfType<ScenePath>().Where(p => p.Role == "state").Select(p => Scene.BoundsOf([p])!.Value).ToList();
+        foreach (var label in labels)
+        {
+            var box = label.Box;
+            var nearestLine = lines.SelectMany(points => points).Min(p => DistanceTo(box, p));
+            Assert.True(nearestLine >= 3, $"'{label.Text}' is {nearestLine} from a line");
+            Assert.All(states, state =>
+            {
+                var gap = Math.Max(Math.Max(state.X - box.Right, box.X - state.Right), Math.Max(state.Y - box.Bottom, box.Y - state.Bottom));
+                Assert.True(gap >= 8, $"'{label.Text}' is {gap} from the state at {state}");
+            });
+        }
+    }
+
+    /// <summary>
+    ///     Gets points along a path: its ends and 64 points along each of its lines and cubic curves.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <returns>The points.</returns>
+    private static List<(double X, double Y)> PointsAlong(ScenePath path)
+    {
+        var points = new List<(double X, double Y)>();
+        var (x0, y0) = (0.0, 0.0);
+        foreach (var segment in path.Segments.Where(s => s.Kind != SceneSegmentKind.Close))
+        {
+            for (var k = segment.Kind == SceneSegmentKind.MoveTo ? 64 : 1; k <= 64; k++)
+            {
+                var t = k / 64.0;
+                var u = 1 - t;
+                points.Add(segment.Kind == SceneSegmentKind.CubicTo
+                    ? ((u * u * u * x0) + (3 * u * u * t * segment.X1) + (3 * u * t * t * segment.X2) + (t * t * t * segment.X),
+                       (u * u * u * y0) + (3 * u * u * t * segment.Y1) + (3 * u * t * t * segment.Y2) + (t * t * t * segment.Y))
+                    : (x0 + ((segment.X - x0) * t), y0 + ((segment.Y - y0) * t)));
+            }
+
+            (x0, y0) = (segment.X, segment.Y);
+        }
+
+        return points;
+    }
+
+    /// <summary>
+    ///     Gets the distance from a rectangle to a point (zero inside it).
+    /// </summary>
+    /// <param name="box">The rectangle.</param>
+    /// <param name="point">The point.</param>
+    /// <returns>The distance.</returns>
+    private static double DistanceTo(SceneRect box, (double X, double Y) point)
+    {
+        var dx = Math.Max(0, Math.Max(box.X - point.X, point.X - box.Right));
+        var dy = Math.Max(0, Math.Max(box.Y - point.Y, point.Y - box.Bottom));
+        return Math.Sqrt((dx * dx) + (dy * dy));
+    }
 }

@@ -125,6 +125,80 @@ public class SvekLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the label of a link drawn in a row leaves room on both sides: at least 8 pixels to each of the
+    ///     two units it is between and <see cref="SvekLayout.LabelClearance"/> above the line (PlantUML leaves about 10
+    ///     and 4 pixels).
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_RowLabels_ClearOfBothBoxesAndTheLine()
+    {
+        // Arrange: a wide label between two narrow entities
+        var (a, b) = (Entity("A", 40, 40), Entity("B", 40, 40));
+        var diagram = new SvekDiagram { Entities = [a, b], Links = [new SvekLink("l", a, b) { Length = 1, Label = "a long label here" }] };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var (boxA, boxB) = (BoxOf(placement, "A"), BoxOf(placement, "B"));
+        var link = LinkOf(placement, "l");
+        var label = link.Label!.Box;
+        Assert.True(label.X - boxA.Right >= 8 && boxB.X - label.Right >= 8, $"label {label} between {boxA} and {boxB}");
+        Assert.True(link.Route[0].Y - label.Bottom >= SvekLayout.LabelClearance - 1e-6);
+    }
+
+    /// <summary>
+    ///     Validates that the label of a link into a unit of a row (the state-labels shape: Draft to Review, with Review
+    ///     beside Rejected), which dagre places beside its own route, keeps <see cref="SvekLayout.LabelClearance"/> from
+    ///     the drawn curve, which runs to the unit's place in the row, and overlaps no entity.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelOfLinkIntoARow_ClearOfTheDrawnCurve()
+    {
+        // Arrange
+        var (start, draft, review, rejected, shipping) = (Entity("Start", 20, 20), Entity("Draft", 50, 50), Entity("Review", 66, 50), Entity("Rejected", 75, 50), Entity("Shipping", 285, 98));
+        var diagram = new SvekDiagram
+        {
+            Entities = [start, draft, review, rejected, shipping],
+            Links =
+            [
+                new SvekLink("start", start, draft),
+                new SvekLink("submit", draft, review) { Label = "submit" },
+                new SvekLink("declined", review, rejected) { Length = 1, Direction = LinkDirection.Left, Label = "declined" },
+                new SvekLink("ship", review, shipping),
+            ],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var link = LinkOf(placement, "submit");
+        var label = link.Label!.Box;
+        var curve = SvekGeometry.Flatten(link.Route, 16);
+        var nearest = Enumerable.Range(1, curve.Count - 1).Min(k => RectToSegment(label, curve[k - 1], curve[k]));
+        Assert.True(nearest >= SvekLayout.LabelClearance - 0.01, $"label {label} is {nearest} from the curve");
+        Assert.All(placement.Entities, e => Assert.False(Overlap(label, e.Box), $"label {label} overlaps {e.Entity.Id}"));
+    }
+
+    /// <summary>
+    ///     Gets the distance from a rectangle to a segment (zero when they touch or cross), measured at 64 points along
+    ///     the segment.
+    /// </summary>
+    /// <param name="box">The rectangle.</param>
+    /// <param name="a">The start of the segment.</param>
+    /// <param name="b">The end of the segment.</param>
+    /// <returns>The distance.</returns>
+    private static double RectToSegment(SceneRect box, SvekPoint a, SvekPoint b) =>
+        Enumerable.Range(0, 65).Select(k =>
+        {
+            var (x, y) = (a.X + ((b.X - a.X) * k / 64), a.Y + ((b.Y - a.Y) * k / 64));
+            var dx = Math.Max(0, Math.Max(box.X - x, x - box.Right));
+            var dy = Math.Max(0, Math.Max(box.Y - y, y - box.Bottom));
+            return Math.Sqrt((dx * dx) + (dy * dy));
+        }).Min();
+
+    /// <summary>
     ///     Validates the direction hints: up puts the second end above the first and keeps the route from the first end
     ///     to the second; left and right keep both ends in one rank.
     /// </summary>
@@ -201,7 +275,8 @@ public class SvekLayoutTests
 
     /// <summary>
     ///     Validates that links drawn in a row between the same two units are kept apart: the first straight, the
-    ///     second an arc below, the third an arc above, and the label of an arc at the middle of its curve, beside it.
+    ///     second an arc below, the third an arc above, and the label of an arc at the middle of its curve, beside it and
+    ///     clear of it by <see cref="SvekLayout.LabelClearance"/>.
     /// </summary>
     [Fact]
     public void PlantUmlSvekLayout_Run_ParallelLinksInARow_AreSpreadApart()
@@ -231,7 +306,70 @@ public class SvekLayoutTests
         Assert.True(third.Route[1].Y < middle - SvekLayout.ParallelArcStep + 1e-6);
         var apex = (second.Route[0].Y + (2 * second.Route[1].Y) + second.Route[2].Y) / 4;
         var label = second.Label!.Box;
-        Assert.True(label.Bottom <= apex + 1e-6 && label.Bottom >= apex - SvekLayout.LabelOffset - 2);
+        Assert.True(label.Bottom <= apex - SvekLayout.LabelClearance + 1e-6 && label.Bottom >= apex - SvekLayout.LabelClearance - 10, $"label {label} apex {apex}");
+    }
+
+    /// <summary>
+    ///     Validates that a label with no clear place within 32 pixels (the label of a loop on a small entity, right of
+    ///     which stands a large entity of its row) stays where it was placed: right of the loop, at the middle of the
+    ///     entity.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelWithNoClearPlace_StaysWhereItWasPlaced()
+    {
+        // Arrange
+        var (a, b) = (Entity("A", 40, 40), Entity("B", 200, 200));
+        var diagram = new SvekDiagram
+        {
+            Entities = [a, b],
+            Links = [new SvekLink("row", a, b) { Length = 1 }, new SvekLink("loop", a, a) { Label = "loop label" }],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var boxA = BoxOf(placement, "A");
+        var label = LinkOf(placement, "loop").Label!.Box;
+        Assert.Equal(boxA.Right + 18 + 8 + SvekLayout.LabelOffset, label.X, 6);
+        Assert.Equal(boxA.Y + (boxA.Height / 2), label.Y + (label.Height / 2), 6);
+    }
+
+    /// <summary>
+    ///     Validates that the labels of two links between the same two entities, one each way, are not moved onto the
+    ///     other link or onto each other: each label keeps off the drawn curve of the other link and the two labels do
+    ///     not overlap.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSvekLayout_Run_LabelsOfTwoWayLinks_StayOffTheOtherLink()
+    {
+        // Arrange
+        var (start, idle, running) = (Entity("Start", 20, 20), Entity("Idle", 50, 40), Entity("Running", 70, 40));
+        var diagram = new SvekDiagram
+        {
+            Entities = [start, idle, running],
+            Links =
+            [
+                new SvekLink("init", start, idle),
+                new SvekLink("start", idle, running) { Label = "start" },
+                new SvekLink("stop", running, idle) { Label = "stop" },
+            ],
+        };
+
+        // Act
+        var placement = Place(diagram);
+
+        // Assert
+        var (go, back) = (LinkOf(placement, "start"), LinkOf(placement, "stop"));
+        foreach (var (link, other) in new[] { (go, back), (back, go) })
+        {
+            var label = link.Label!.Box;
+            var curve = SvekGeometry.Flatten(other.Route, 16);
+            var nearest = Enumerable.Range(1, curve.Count - 1).Min(k => RectToSegment(label, curve[k - 1], curve[k]));
+            Assert.True(nearest > 0, $"label {label} touches the other link");
+        }
+
+        Assert.False(Overlap(go.Label!.Box, back.Label!.Box), "the labels overlap");
     }
 
     /// <summary>

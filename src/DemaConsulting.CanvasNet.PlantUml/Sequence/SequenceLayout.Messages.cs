@@ -153,7 +153,7 @@ internal sealed partial class SequenceLayout
         var top = state.Y;
         var below = Theme.ResponseBelowArrow && message.Arrow.Dotted;
         var arrowY = below ? top + 6 : top + info.TextHeight + 4;
-        var textTop = below ? arrowY + 2 : top + 4;
+        var textTop = below ? arrowY + 2 + ArrowClearance : top + 4;
         var leftHead = (toLeft ? message.Arrow.ToHead : message.Arrow.FromHead) != ArrowHead.None;
         var rightHead = (toLeft ? message.Arrow.FromHead : message.Arrow.ToHead) != ArrowHead.None;
         var textX = AlignText(xLeft, xRight, info.TextWidth, (leftHead, rightHead), toLeft);

@@ -234,7 +234,8 @@ actions (`#F1F1F1`), pale yellow notes (`#FEFFDD`), dark lines and arrows, dashe
 at PlantUML's sizes (participants 14 pixels, messages 13, activity texts 12, titles 14 bold).
 
 `skinparam` changes that look, one setting per line (`skinparam arrowColor #2F6DB3`) or in a block
-(`skinparam participant { BackgroundColor #DDEEFF }`). The supported subset:
+(`skinparam participant { BackgroundColor #DDEEFF }`, one setting per line inside the braces; blocks may nest), in every
+diagram type. The supported subset:
 
 - Elements: the eight participant kinds (`participant`, `actor`, `boundary`, `control`, `entity`, `database`,
   `collections`, `queue`), `note`, `sequenceGroup` and `sequenceGroupHeader`, `sequenceBox`, `sequenceDivider`,
@@ -570,7 +571,8 @@ relationship, transition, and link. The known differences from PlantUML are:
   shadows, gradients (the first color is used), or hand-written mode.
 - **Sequence diagrams.** `ref over`, `newpage`, `create`, `mainframe`, `autoactivate`, messages to or from the border
   (`[->`, `->]`, `?->`), parallel messages (`&`), and stereotypes of participants are reported as
-  `plantuml-statement-unsupported` and not drawn.
+  `plantuml-statement-unsupported` and not drawn. With `sequenceArrowThickness` above 1, a message label is moved half
+  the extra thickness further from its arrow, where PlantUML lets the thick line touch the label.
 - **Activity diagrams.** `switch` blocks, `goto` and `label`, `break`, the specification and description language box
   styles (`:text|`, `:text<`, `:text>`, `:text/`, `:text]`, `:text}`, drawn as a plain box), and the frames of
   `package`, `rectangle`, and `card` groups are reported as `plantuml-statement-unsupported`. An arrow with several

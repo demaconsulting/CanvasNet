@@ -37,11 +37,11 @@ public class SvgUnsupportedFeatureTests
     }
 
     /// <summary>
-    ///     Test that a filter applied with <c>primitiveUnits="objectBoundingBox"</c> is reported once as drawn without
-    ///     that feature, however many elements apply it, and that the pixels are the same as without a handler.
+    ///     Test that a filter applied with <c>primitiveUnits="objectBoundingBox"</c>, which is now drawn as specified, is
+    ///     not reported, and that the pixels are the same as without a handler.
     /// </summary>
     [Fact]
-    public void SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported()
+    public void SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsNothing()
     {
         // Arrange: one filter in objectBoundingBox primitive units, applied by two rects
         var svg = Doc(
@@ -57,24 +57,20 @@ public class SvgUnsupportedFeatureTests
         using var withHandler = SvgCodec.Load(withHandlerStream, 200, 100, null, new SvgLoadOptions { UnsupportedFeatureHandler = _ => { } });
 
         // Assert
-        var report = Assert.Single(reports);
-        Assert.Equal(SvgUnsupportedFeature.FilterUnsupportedCode, report.Code);
-        Assert.Equal(1, report.Count);
-        Assert.StartsWith("filter is drawn without: primitiveUnits=\"objectBoundingBox\"", report.Message, StringComparison.Ordinal);
-        Assert.Contains("<filter id=\"f\">", report.Message, StringComparison.Ordinal);
+        Assert.Empty(reports);
         Assert.True(AreIdentical(withoutHandler, withHandler));
     }
 
     /// <summary>
-    ///     Test that a filter with a primitive subregion is reported as drawn without that feature, and that a filter in
-    ///     the default primitive units without subregions is not reported.
+    ///     Test that a filter with a primitive subregion, which is now drawn as specified, is not reported, and neither is
+    ///     a filter in the default primitive units without subregions.
     /// </summary>
     [Fact]
-    public void SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported()
+    public void SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsNothing()
     {
-        // Arrange: a subregion on a flood, and a plain user-space filter that needs nothing unsupported
+        // Arrange: a subregion on a flood, and a plain user-space filter
         var svg = Doc(
-            "<filter id='s'><feFlood flood-color='lime' x='0' y='0' width='0.5' height='0.5'/></filter>" +
+            "<filter id='s'><feFlood flood-color='lime' x='10' y='10' width='20' height='20'/></filter>" +
             "<filter id='u' filterUnits='userSpaceOnUse' x='100' y='0' width='100' height='100'><feFlood flood-color='red'/></filter>" +
             "<rect x='10' y='10' width='40' height='40' fill='blue' filter='url(#s)'/>" +
             "<rect x='110' y='10' width='40' height='40' fill='blue' filter='url(#u)'/>");
@@ -83,11 +79,7 @@ public class SvgUnsupportedFeatureTests
         var reports = Reports(svg);
 
         // Assert
-        var report = Assert.Single(reports);
-        Assert.Equal(SvgUnsupportedFeature.FilterUnsupportedCode, report.Code);
-        Assert.Equal(1, report.Count);
-        Assert.Contains("primitive subregion", report.Message, StringComparison.Ordinal);
-        Assert.Contains("<filter id=\"s\">", report.Message, StringComparison.Ordinal);
+        Assert.Empty(reports);
     }
 
     /// <summary>

@@ -202,6 +202,12 @@ text, the boxes of the participant heads and tails, the life lines, and the mess
 that every fixture has a golden; renders every fixture in strict mode with no report at its measured size; and asserts
 the title, node, edge, and subgraph counts of the page fixture.
 
+**Tests**: `PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_ThickArrowsAndLargeLabels_LabelsClearTheArrows`
+
+Lays out two messages with `sequenceArrowThickness 4` and `arrowFontSize 30`, with the response label above and
+below its arrow, and asserts that no label box comes within 1 pixel of a message line's band or an arrow head's box,
+each grown by half its stroke width.
+
 ### CanvasNetPlantUml-Activity: Activity Diagrams Are Drawn As PlantUML Draws Them
 
 **Tests**: `PlantUmlReferenceLayoutTests.CanvasNetPlantUml_Activity_ReferenceLayout_MatchesPlantUml`,
@@ -263,6 +269,12 @@ same line style, arrow heads congruent with PlantUML's, and labels; asserts that
 every fixture in strict mode with no report at its measured size; asserts the title, node, edge, and subgraph counts of
 the composite, concurrent, notes, and page fixtures; and asserts that the separators of concurrent regions are dashed
 8 and 10, 1.5 wide, across the composite state for `--` and down it for `||`.
+
+**Tests**: `PlantUmlStateIntegrationTests.CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates`
+
+Lays out a state diagram with a labeled transition into a state beside another, a labeled transition between two
+states of a row, and a labeled transition between two states of a composite state, and asserts that every transition
+label is at least 3 pixels from every drawn transition line and arrowhead and at least 8 pixels from every state.
 
 ### CanvasNetPlantUml-Component: Component Diagrams Are Drawn With PlantUML's Shapes
 
@@ -468,6 +480,15 @@ Opens every diagram of the user guide gallery (`docs/user_guide/examples/plantum
 that each is a supported sequence, activity, class, object, state, use case, component, or deployment diagram and that
 every drawn type is shown;
 renders each in strict mode and asserts no report, the measured size, and a picture that is not blank.
+
+**Tests**: `PlantUmlSystemIntegrationTests.CanvasNetPlantUml_SkinParamBlock_ColorsTheElementInEveryType`,
+`PlantUmlSequenceIntegrationTests.CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants`
+
+Lays out a diagram of every drawn type (sequence, activity, class, object, state, use case, component, and deployment)
+that starts with a `skinparam element { BackgroundColor #DBEAFE }` block and asserts its type, no report in strict
+mode, and a shape filled with `#DBEAFE`; lays out a sequence diagram with that block for `participant`, with and
+without a participant declaration, and asserts the sequence type, no report, and every participant head filled with
+`#DBEAFE`.
 
 ### CanvasNetPlantUml-ImageSource: A Linked Diagram Is Drawn
 

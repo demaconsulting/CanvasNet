@@ -2406,7 +2406,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 16 8'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2436,7 +2436,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2465,7 +2465,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2506,7 +2506,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 12 12'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2537,7 +2537,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2568,7 +2568,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
-                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse'>
+                <marker id='bar' markerWidth='6' markerHeight='2' refX='0' refY='0' orient='auto-start-reverse' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='2' y='-0.5' width='2' height='1' fill='red'/>
                 </marker>
               </defs>
@@ -2733,6 +2733,164 @@ public class SvgCodecTests
         // Assert: a point that would only be covered by the unfitted, raw 10x10 content remains
         // transparent - proving the viewBox fit actually scaled the content down
         Assert.Equal(0, surface[9, 9].A);
+    }
+
+    /// <summary>
+    ///     Builds a 20x20 document whose line ends at (10,10) with a 4x4 <c>userSpaceOnUse</c> marker
+    ///     anchored at its top left, whose blue content (12x12, from -4 to 8) overflows the marker
+    ///     viewport on every side.
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    /// <returns>The SVG document.</returns>
+    private static string OverflowingMarkerSvg(string markerAttributes) =>
+        $"""
+        <svg viewBox='0 0 20 20'>
+          <defs>
+            <marker id='m' markerWidth='4' markerHeight='4' refX='0' refY='0' markerUnits='userSpaceOnUse' {markerAttributes}>
+              <rect x='-4' y='-4' width='12' height='12' fill='blue'/>
+            </marker>
+          </defs>
+          <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+        </svg>
+        """;
+
+    /// <summary>
+    ///     Proves a marker's content is clipped to its viewport (<c>markerWidth</c> by <c>markerHeight</c>
+    ///     at the anchor) by default, and with an explicit <c>overflow="hidden"</c>, as the SVG 2 user-agent
+    ///     style sheet makes <c>overflow</c> hidden for a marker (also restored by <c>revert</c>). Edge
+    ///     (headless) draws only the 4x4 square from (10,10) to (14,14).
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("overflow='hidden'")]
+    [InlineData("style='overflow: scroll'")]
+    [InlineData("style='overflow: revert'")]
+    public void SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault(string markerAttributes)
+    {
+        // Arrange
+        var svg = OverflowingMarkerSvg(markerAttributes);
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: inside the viewport the content paints; outside it (but inside the content) nothing does
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[12, 12]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[13, 10]);
+        Assert.Equal(0, surface[16, 16].A);
+        Assert.Equal(0, surface[12, 16].A);
+        Assert.Equal(0, surface[16, 12].A);
+        Assert.Equal(0, surface[8, 8].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>overflow="visible"</c> or <c>auto</c>, as an attribute or in a <c>style</c>, leaves
+    ///     a marker's content unclipped, as Edge (headless) draws it: the whole 12x12 square from (6,6) to
+    ///     (18,18). The CSS-wide keywords <c>initial</c> and <c>unset</c> give the initial value
+    ///     <c>visible</c>, and <c>inherit</c> takes the <c>defs</c> parent's <c>visible</c>.
+    /// </summary>
+    /// <param name="markerAttributes">Extra attributes for the <c>marker</c> element.</param>
+    [Theory]
+    [InlineData("overflow='visible'")]
+    [InlineData("style='overflow:visible'")]
+    [InlineData("overflow='auto'")]
+    [InlineData("style='overflow: initial'")]
+    [InlineData("style='overflow: unset'")]
+    [InlineData("overflow='inherit'")]
+    public void SvgCodec_Load_MarkerOverflowVisible_IsNotClipped(string markerAttributes)
+    {
+        // Arrange
+        var svg = OverflowingMarkerSvg(markerAttributes);
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the content paints outside the viewport too
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[12, 12]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[16, 16]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[7, 7]);
+    }
+
+    /// <summary>
+    ///     Proves a marker with a <c>viewBox</c> clips to its viewport in user space: the 10x10 <c>viewBox</c>
+    ///     is fitted into a 4x4 marker (scale 0.4) anchored at its center (5,5), so the viewport covers
+    ///     (8,8) to (12,12) around the (10,10) vertex, while the 20x20 content (from -5 to 15 in the
+    ///     <c>viewBox</c>) would cover (6,6) to (14,14). Edge (headless) draws only the viewport square.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport()
+    {
+        // Arrange
+        const string svg = """
+            <svg viewBox='0 0 20 20'>
+              <defs>
+                <marker id='m' markerWidth='4' markerHeight='4' refX='5' refY='5' viewBox='0 0 10 10' markerUnits='userSpaceOnUse'>
+                  <rect x='-5' y='-5' width='20' height='20' fill='blue'/>
+                </marker>
+              </defs>
+              <line x1='2' y1='10' x2='10' y2='10' stroke='black' stroke-width='1' marker-end='url(#m)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: the viewport paints, the overflowing content beyond it does not
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[8, 8]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[11, 11]);
+        Assert.Equal(0, surface[6, 6].A);
+        Assert.Equal(0, surface[13, 13].A);
+        Assert.Equal(0, surface[13, 8].A);
+    }
+
+    /// <summary>
+    ///     Proves a marker whose content fits its viewport draws exactly the same pixels whether
+    ///     <c>overflow</c> clips or not: clipping has nothing to remove. The cases cover a square
+    ///     <c>viewBox</c>, a <c>viewBox</c> with a negative origin (the common D3 arrowhead
+    ///     <c>0 -5 10 10</c>), and a <c>viewBox</c> centered in a wider marker, so the viewport honors the
+    ///     <c>viewBox</c> origin and the default <c>xMidYMid meet</c> alignment.
+    /// </summary>
+    /// <param name="markerAttributes">The marker's size, anchor and <c>viewBox</c>.</param>
+    /// <param name="pathData">The arrowhead outline in <c>viewBox</c> units.</param>
+    [Theory]
+    [InlineData("markerWidth='10' markerHeight='10' refX='10' refY='5' viewBox='0 0 10 10'", "M0,0 L10,5 L0,10 z")]
+    [InlineData("markerWidth='6' markerHeight='6' refX='10' refY='0' viewBox='0 -5 10 10'", "M0,-5 L10,0 L0,5 z")]
+    [InlineData("markerWidth='12' markerHeight='6' refX='10' refY='5' viewBox='0 0 10 10'", "M0,0 L10,5 L0,10 z")]
+    public void SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot(string markerAttributes, string pathData)
+    {
+        // Arrange: an oriented arrowhead on a diagonal line, scaled by the stroke width
+        var template = $"""
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <marker id='a' {markerAttributes} orient='auto' OVERFLOW>
+                  <path d='{pathData}' fill='red'/>
+                </marker>
+              </defs>
+              <line x1='5' y1='5' x2='30' y2='25' stroke='black' stroke-width='2' marker-end='url(#a)'/>
+            </svg>
+            """;
+
+        // Act
+        using var hiddenStream = ToStream(template.Replace("OVERFLOW", string.Empty, StringComparison.Ordinal));
+        var hidden = SvgCodec.Load(hiddenStream, 40, 40);
+        using var visibleStream = ToStream(template.Replace("OVERFLOW", "overflow='visible'", StringComparison.Ordinal));
+        var visible = SvgCodec.Load(visibleStream, 40, 40);
+
+        // Assert: the arrowhead is drawn, and clipping removes none of it
+        var redPixels = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 40; x++)
+            {
+                Assert.Equal(visible[x, y], hidden[x, y]);
+                redPixels += hidden[x, y] == new Rgba32(255, 0, 0, 255) ? 1 : 0;
+            }
+        }
+
+        Assert.True(redPixels > 10, $"Expected a drawn arrowhead, found {redPixels} red pixels.");
     }
 
     /// <summary>
@@ -3123,10 +3281,10 @@ public class SvgCodecTests
 
     /// <summary>
     ///     Regression test: <c>stdDeviation="2&#x9;3"</c> (tab-separated x/y radii) must still
-    ///     tokenize on the tab and parse the first radius as <c>2</c>, producing the same softened
-    ///     halo as the equivalent space-separated <c>stdDeviation="2"</c> case above - rather than
-    ///     treating the whole value as one unparseable token (which would silently fall back to a
-    ///     zero radius, disabling the blur).
+    ///     tokenize on the tab and read the x radius as <c>2</c> and the y radius as <c>3</c>, producing
+    ///     a softened halo like the space-separated <c>stdDeviation="2"</c> case above (slightly
+    ///     stronger, from the taller vertical blur) - rather than treating the whole value as one
+    ///     unparseable token (which would silently fall back to a zero radius, disabling the blur).
     /// </summary>
     [Fact]
     public void SvgCodec_Load_FeGaussianBlurStdDeviationTabSeparated_RendersBlurredHaloBehindContent()
@@ -3156,9 +3314,9 @@ public class SvgCodecTests
         Assert.Equal(new Rgba32(0, 128, 0, 255), surface[50, 50]);
 
         // Assert: just outside the rect's own edge, a softened (partially transparent, not
-        // hard-edged) orange halo is visible - proving the first token ("2") was actually parsed
-        // and used as the blur radius, rather than falling back to zero
-        Assert.Equal(new Rgba32(255, 161, 0, 19), surface[61, 50]);
+        // hard-edged) orange halo is visible - proving the tokens ("2" and "3") were actually parsed
+        // and used as the blur radii, rather than falling back to zero
+        Assert.Equal(new Rgba32(255, 158, 0, 21), surface[61, 50]);
 
         // Assert: a couple of pixels further out, past the blur's influence, nothing remains
         Assert.Equal(0, surface[62, 50].A);
@@ -4570,7 +4728,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 4 4'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feFlood flood-color='red' x='0' y='0' width='0.5' height='0.5' result='seed'/>
+                  <feFlood flood-color='red' x='0' y='0' width='2' height='2' result='seed'/>
                   <feTile in='seed'/>
                 </filter>
               </defs>
@@ -4695,12 +4853,12 @@ public class SvgCodecTests
     [Fact]
     public void SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight()
     {
-        // Arrange
+        // Arrange: a 5-unit subregion in user space (the default primitiveUnits), the right half
         const string svg = """
             <svg viewBox='0 0 10 10'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feFlood flood-color='red' x='0.5' y='0' width='0.5' height='1'/>
+                  <feFlood flood-color='red' x='5' y='0' width='5' height='10'/>
                 </filter>
               </defs>
               <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
@@ -4714,6 +4872,171 @@ public class SvgCodecTests
         // Assert
         Assert.Equal(0, surface[2, 5].A);
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[7, 5]);
+    }
+
+    /// <summary>
+    ///     Proves a primitive subregion under the default <c>primitiveUnits="userSpaceOnUse"</c> is read in user
+    ///     units (a percentage of the viewport), not as a fraction of the filter region: on a 10x10 user space
+    ///     drawn at 20x20 pixels, <c>x="5" width="5"</c> (or <c>50%</c>) floods pixel columns 10 to 19. Edge
+    ///     (headless) floods the same columns.
+    /// </summary>
+    /// <param name="subregion">The subregion attributes of the flood.</param>
+    [Theory]
+    [InlineData("x='5' y='0' width='5' height='10'")]
+    [InlineData("x='50%' width='50%'")]
+    public void SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths(string subregion)
+    {
+        // Arrange
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1'>
+                  <feFlood flood-color='red' {subregion}/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 20);
+
+        // Assert: columns 0 to 9 are empty, 10 to 19 flooded
+        Assert.Equal(0, surface[9, 10].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[10, 10]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[19, 19]);
+    }
+
+    /// <summary>
+    ///     Proves a primitive's omitted subregion attributes default to the union of its inputs' subregions
+    ///     (Filter Effects 1): an <c>feOffset</c> of a flood confined to x 2 to 8 is clipped to that same span,
+    ///     so the shifted flood shows only from 6 to 8; with <c>width="8"</c> alone, x still defaults to 2, so
+    ///     it shows from 6 to 10. Edge (headless) draws the same spans.
+    /// </summary>
+    /// <param name="offsetAttributes">Extra attributes for the <c>feOffset</c>.</param>
+    /// <param name="redColumn">A pixel column that is red.</param>
+    /// <param name="clearColumn">A pixel column the shifted flood would cover without the subregion, which is clear.</param>
+    [Theory]
+    [InlineData("", 7, 9)]
+    [InlineData("width='8'", 9, 11)]
+    public void SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion(string offsetAttributes, int redColumn, int clearColumn)
+    {
+        // Arrange: the flood covers x 2 to 8; the offset moves it 4 to the right
+        var svg = $"""
+            <svg viewBox='0 0 20 10'>
+              <defs>
+                <filter id='f' filterUnits='userSpaceOnUse' x='0' y='0' width='20' height='10'>
+                  <feFlood flood-color='red' x='2' y='0' width='6' height='10' result='a'/>
+                  <feOffset in='a' dx='4' {offsetAttributes}/>
+                </filter>
+              </defs>
+              <rect x='0' y='0' width='20' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 20, 10);
+
+        // Assert: the flood moved off its start, shows inside the subregion, and is clipped after it
+        Assert.Equal(0, surface[3, 5].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[redColumn, 5]);
+        Assert.Equal(0, surface[clearColumn, 5].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> reads <c>feOffset</c>'s <c>dx</c> as a fraction of the
+    ///     box width: <c>dx="0.5"</c> on a 10-unit box shifts it 5 units (not half a unit). Edge (headless) shifts it
+    ///     the same.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox()
+    {
+        // Arrange: a 10x10 box at (10,10); the filter region is twice the box wide
+        const string svg = """
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <filter id='f' x='0' y='0' width='2' height='1' primitiveUnits='objectBoundingBox'>
+                  <feOffset dx='0.5'/>
+                </filter>
+              </defs>
+              <rect x='10' y='10' width='10' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 40, 40);
+
+        // Assert: the box now spans x 15 to 25
+        Assert.Equal(0, surface[13, 15].A);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 15]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[24, 15]);
+        Assert.Equal(0, surface[25, 15].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> reads a primitive subregion as fractions (or
+    ///     percentages) of the box: <c>x="0.5" width="0.5"</c> on a 20x10 box at (10,10) floods only its right
+    ///     half, x 20 to 30. Edge (headless) floods the same half.
+    /// </summary>
+    /// <param name="subregion">The subregion attributes of the flood.</param>
+    [Theory]
+    [InlineData("x='0.5' width='0.5'")]
+    [InlineData("x='50%' y='0%' width='50%' height='100%'")]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions(string subregion)
+    {
+        // Arrange
+        var svg = $"""
+            <svg viewBox='0 0 40 40'>
+              <defs>
+                <filter id='f' x='0' y='0' width='1' height='1' primitiveUnits='objectBoundingBox'>
+                  <feFlood flood-color='red' {subregion}/>
+                </filter>
+              </defs>
+              <rect x='10' y='10' width='20' height='10' fill='blue' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 40, 40);
+
+        // Assert: the left half is empty, the right half flooded
+        Assert.Equal(0, surface[15, 15].A);
+        Assert.Equal(0, surface[19, 15].A);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[20, 15]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[29, 19]);
+    }
+
+    /// <summary>
+    ///     Proves <c>primitiveUnits="objectBoundingBox"</c> scales <c>stdDeviation</c> per axis by the box: on a
+    ///     40x10 box, <c>stdDeviation="0.1"</c> is 4 units across and 1 unit down, so 6 units beside the box the
+    ///     blur still shows while 6 units above it nothing does. Edge (headless) blurs the same way.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis()
+    {
+        // Arrange: a 40x10 box at (20,30), with a filter region large enough for both spreads
+        const string svg = """
+            <svg viewBox='0 0 80 70'>
+              <defs>
+                <filter id='f' x='-0.5' y='-2' width='2' height='5' primitiveUnits='objectBoundingBox'>
+                  <feGaussianBlur stdDeviation='0.1'/>
+                </filter>
+              </defs>
+              <rect x='20' y='30' width='40' height='10' fill='black' filter='url(#f)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 80, 70);
+
+        // Assert: 6 units left of the box the blur shows, 6 units above it nothing does
+        Assert.True(surface[14, 35].A > 10, $"Expected the horizontal blur 6 units out, got {surface[14, 35]}.");
+        Assert.Equal(0, surface[40, 23].A);
     }
 
     /// <summary>
@@ -5632,9 +5955,9 @@ public class SvgCodecTests
     ///     shared <c>ComputePreserveAspectRatioFit</c> helper as the root <c>svg</c>/a <c>symbol</c>
     ///     - distinct from a marker with no explicit attribute at all, which always uses a "meet"
     ///     -equivalent scale (see <see cref="SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight"/>).
-    ///     Exercises <c>slice</c> specifically: because a marker's content is always anchored by
-    ///     its own <c>refX</c>/<c>refY</c> (never clipped to <c>markerWidth</c>/<c>markerHeight</c>
-    ///     - see this class's remarks), an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
+    ///     Exercises <c>slice</c> specifically: the marker sets <c>overflow="visible"</c>, so its content
+    ///     is not clipped to <c>markerWidth</c>/<c>markerHeight</c>, and because a marker's content is
+    ///     always anchored by its own <c>refX</c>/<c>refY</c>, an <c>&lt;align&gt;</c>'s Min/Mid/Max offset has no visible
     ///     effect on an unclipped marker (the offset is a rigid translation that always cancels
     ///     out relative to the anchor point), so <c>meet</c> versus <c>slice</c>'s different
     ///     uniform scale factor is the one part of an explicit <c>preserveAspectRatio</c> that
@@ -5653,7 +5976,7 @@ public class SvgCodecTests
         const string svg = """
             <svg viewBox='0 0 20 20'>
               <defs>
-                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse'>
+                <marker id='sl' markerWidth='8' markerHeight='8' refX='8' refY='4' viewBox='0 0 16 8' preserveAspectRatio='xMidYMid slice' markerUnits='userSpaceOnUse' overflow='visible'>
                   <rect x='0' y='0' width='16' height='8' fill='green'/>
                 </marker>
               </defs>
@@ -11668,7 +11991,7 @@ public class SvgCodecTests
             <svg viewBox='0 0 10 10'>
               <defs>
                 <filter id='f' x='0' y='0' width='1' height='1'>
-                  <feImage href='{dataUri}' x='0.5' y='0' width='0.5' height='1' preserveAspectRatio='none'/>
+                  <feImage href='{dataUri}' x='5' y='0' width='5' height='10' preserveAspectRatio='none'/>
                 </filter>
               </defs>
               <rect x='0' y='0' width='10' height='10' fill='black' filter='url(#f)'/>

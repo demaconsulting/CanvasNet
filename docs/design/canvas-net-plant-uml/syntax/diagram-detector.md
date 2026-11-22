@@ -79,10 +79,13 @@ state diagram. The unit's behavior is specified by the
 - `OtherType(text)` - `[*]` is a state, `(*)` a legacy activity, a bracketed name followed by a gantt verb a gantt
   chart, another bracketed name a component, a parenthesized name a use case, and the keyword table names the rest; a
   time statement `@0` is a timing diagram.
-- `OuterStatements`, `BlockCloser`, `IsCloser` - the statements of a multi-line `note`, `hnote`, `rnote`, `legend`,
-  `title`, `header`, `footer`, `caption` (also aligned, `left footer`), `ref`, `skinparam ... {`, and `<style>` block
-  are text and are skipped up to the closing statement; a closer that starts with `end` is also accepted with a space
-  after `end` (`end legend` closes `legend` as `endlegend` does). An activity action that opens with `:` (after an
+- `OuterStatements`, `BlockCloser`, `IsCloser`, `ClosesBlock` - the statements of a multi-line `note`, `hnote`, `rnote`,
+  `legend`, `title`, `header`, `footer`, `caption` (also aligned, `left footer`), `ref`, `skinparam ... {`, and
+  `<style>` block are text and are skipped up to the closing statement; a closer that starts with `end` is also
+  accepted with a space after `end` (`end legend` closes `legend` as `endlegend` does). A skin parameter block counts
+  its nested `element {` blocks, so only the brace that closes the outer block ends it, and that brace is not an outer
+  statement: the block is one common statement that every type accepts (a `}` left over would refuse the sequence
+  diagram and turn it into a class diagram). An activity action that opens with `:` (after an
   optional color) and does not end with `;` (or one of the box-style endings) on its line is text up to the line that
   ends it, which is skipped with it; a `floating note` opens a note block like `note`. The graph families read the
   statements with `openActionIsText` false: an action that is never closed is one statement and the lines after it

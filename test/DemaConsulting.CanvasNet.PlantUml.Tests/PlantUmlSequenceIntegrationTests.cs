@@ -38,6 +38,69 @@ public class PlantUmlSequenceIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a sequence diagram with a skin parameter block (<c>skinparam participant { ... }</c>) is read as
+    ///     a sequence diagram, with or without a participant declaration, and fills every participant head with the
+    ///     block's color, without reports.
+    /// </summary>
+    /// <param name="declaration">The statements between the block and the message.</param>
+    [Theory]
+    [InlineData("participant A\n")]
+    [InlineData("")]
+    public void CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants(string declaration)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse($"@startuml\nskinparam participant {{\n  BackgroundColor #DBEAFE\n}}\n{declaration}A -> B : x\n@enduml\n");
+        var (options, warnings, unsupported) = PlantUmlTestHelpers.Collecting(strict: true);
+
+        // Act
+        var scene = document.LayoutScene(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal("sequence", document.DiagramType);
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role == "participant-head").ToList();
+        Assert.NotEmpty(heads);
+        Assert.All(heads, head => Assert.Equal(new Canvas.Rgba32(0xDB, 0xEA, 0xFE, 255), head.Fill));
+    }
+
+    /// <summary>
+    ///     Validates that the labels of thick arrows in a large font (<c>sequenceArrowThickness 4</c>,
+    ///     <c>arrowFontSize 30</c>) clear the arrows: no label box comes within 1 pixel of the band of a message line or
+    ///     the box of an arrow head, each grown by half its stroke width, whether the response label is above or below
+    ///     its arrow.
+    /// </summary>
+    /// <param name="setting">An extra skin parameter.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("skinparam responseMessageBelowArrow true\n")]
+    public void CanvasNetPlantUml_Sequence_ThickArrowsAndLargeLabels_LabelsClearTheArrows(string setting)
+    {
+        // Arrange
+        var document = PlantUmlDocument.Parse($"@startuml\nskinparam sequenceArrowThickness 4\nskinparam arrowFontSize 30\n{setting}A -> B : render\nB --> A : PNG\n@enduml\n");
+
+        // Act
+        var scene = document.LayoutScene(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        static SceneRect Grown(ScenePath path)
+        {
+            var box = Scene.BoundsOf([path])!.Value;
+            var grow = ((path.Stroke?.Width ?? 0) / 2) + 1;
+            return new SceneRect(box.X - grow, box.Y - grow, box.Width + (2 * grow), box.Height + (2 * grow));
+        }
+
+        static bool Overlap(SceneRect a, SceneRect b) =>
+            a.X < b.X + b.Width && b.X < a.X + a.Width && a.Y < b.Y + b.Height && b.Y < a.Y + a.Height;
+
+        var labels = scene.Items.OfType<SceneText>().Where(t => t.Role == "message-text").ToList();
+        var arrows = scene.Items.OfType<ScenePath>().Where(p => p.Role is "message" or "message-head").Select(Grown).ToList();
+        Assert.Equal(2, labels.Count);
+        Assert.Equal(4, arrows.Count);
+        Assert.All(labels, label => Assert.All(arrows, arrow => Assert.False(Overlap(label.Box, arrow), $"'{label.Text}' {label.Box} meets {arrow}")));
+    }
+
+    /// <summary>
     ///     Validates that every original fixture renders with the features it uses drawn: no unsupported feature, no
     ///     warning, a picture of its natural size.
     /// </summary>

@@ -11,12 +11,14 @@ public static partial class SvgCodec
     /// <param name="element">The <c>feDisplacementMap</c> element.</param>
     /// <param name="input">The already-resolved <c>in</c> buffer.</param>
     /// <param name="displacementMap">The already-resolved <c>in2</c> displacement buffer.</param>
-    /// <param name="scale">The local-space-to-pixel-space scale factor.</param>
+    /// <param name="scaleX">The pixel length of one horizontal primitive unit, applied to the x displacement.</param>
+    /// <param name="scaleY">The pixel length of one vertical primitive unit, applied to the y displacement.</param>
     /// <returns>A new, independent output buffer.</returns>
-    private static Surface ApplyFeDisplacementMap(XElement element, Surface input, Surface displacementMap, float scale)
+    private static Surface ApplyFeDisplacementMap(XElement element, Surface input, Surface displacementMap, float scaleX, float scaleY)
     {
         var rawScale = ParsePercentOrNumber((string?)element.Attribute("scale") ?? string.Empty, 1f) ?? 0f;
-        var pixelScale = rawScale * scale;
+        var pixelScaleX = rawScale * scaleX;
+        var pixelScaleY = rawScale * scaleY;
         var xSelector = ReadDisplacementChannelSelector((string?)element.Attribute("xChannelSelector"));
         var ySelector = ReadDisplacementChannelSelector((string?)element.Attribute("yChannelSelector"));
 
@@ -28,8 +30,8 @@ public static partial class SvgCodec
             for (var x = 0; x < input.Width; x++)
             {
                 var mapPixel = displacementRow[x];
-                var displacedX = x + (pixelScale * ((ReadDisplacementChannel(mapPixel, xSelector) / 255f) - 0.5f));
-                var displacedY = y + (pixelScale * ((ReadDisplacementChannel(mapPixel, ySelector) / 255f) - 0.5f));
+                var displacedX = x + (pixelScaleX * ((ReadDisplacementChannel(mapPixel, xSelector) / 255f) - 0.5f));
+                var displacedY = y + (pixelScaleY * ((ReadDisplacementChannel(mapPixel, ySelector) / 255f) - 0.5f));
                 if (displacedX < 0f || displacedX >= input.Width || displacedY < 0f || displacedY >= input.Height)
                 {
                     continue;

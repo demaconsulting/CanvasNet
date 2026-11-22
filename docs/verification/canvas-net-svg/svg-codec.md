@@ -287,6 +287,10 @@ rejected with `InvalidDataException` once the bounded recursion guard is exceede
 `SvgCodec_Load_MarkerStartOrientAutoStartReverse_PointsAwayFromLine`,
 `SvgCodec_Load_MarkerUnitsUserSpaceOnUseVsStrokeWidthDefault_ScalesDifferently`,
 `SvgCodec_Load_MarkerWithViewBox_FitsContentToMarkerWidthHeight`,
+`SvgCodec_Load_MarkerContentBeyondViewport_IsClippedByDefault`,
+`SvgCodec_Load_MarkerOverflowVisible_IsNotClipped`,
+`SvgCodec_Load_MarkerWithViewBoxOverflowHidden_ClipsToTheFittedViewport`,
+`SvgCodec_Load_MarkerContentInsideViewport_DrawsTheSamePixelsClippedOrNot`,
 `SvgCodec_Load_MarkerOnMultiSubpathPath_AppliesStartEndOnlyAtWholePathEnds`,
 `SvgCodec_Load_MarkerOnRectCircleEllipse_NeverRendersMarker`,
 `SvgCodec_Load_MarkerContent_DoesNotInheritReferencingShapeFillOrStroke`,
@@ -340,7 +344,15 @@ shape inside a `marker` element's own content with a `filter="url(#id)"` attribu
 renders exactly as if that `filter` attribute were absent - the marker's own fill color, not the flood's - a regression
 test for a defect where marker-content rendering re-entered the same shape/text dispatch used everywhere else, which
 unconditionally resolved and evaluated a shape's own `filter` attribute, contradicting this codec's documented "filters
-on marker content have no effect" scope decision.
+on marker content have no effect" scope decision. The orientation tests whose bar extends past its 6 by 2 viewport set
+`overflow="visible"`, so they test orientation alone. Asserts a marker whose 12 by 12 content overflows its 4 by 4
+viewport on every side is clipped to the viewport by default and with `overflow="hidden"`, `overflow: scroll` or
+`overflow: revert` (inside painted, outside transparent), and is drawn whole with `overflow="visible"`,
+`style="overflow:visible"`, `overflow="auto"`, `overflow: initial`, `overflow: unset` or `overflow="inherit"` (the
+`defs` parent's `visible`); asserts a marker with a `viewBox` (10 by 10 into 4 by 4, anchored at its center) clips to
+the fitted viewport, not to the unscaled content; and asserts an oriented, stroke-scaled arrowhead that fits its
+viewport draws exactly the same pixels with clipping and with `overflow="visible"`. The expected pixels of the clipping
+tests were checked against Edge headless renders of the same documents at ten times the size.
 
 #### CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio: Marker Explicit preserveAspectRatio Fitting
 
@@ -353,14 +365,14 @@ explicit `preserveAspectRatio` keeps the unchanged default fit.
 test proving an explicit `preserveAspectRatio="... slice"` attribute on a marker with
 its own `viewBox` selects `slice`'s larger uniform scale (`max(...)`) rather than the pre-existing
 default path's `meet`-equivalent (`min(...)`) scale, exercised via a canvas point covered only by
-the wider `slice` fit. It deliberately does not exercise `<align>`/origin variation: because a
-marker's content is always anchored by its own `refX`/`refY` (never clipped to
-`markerWidth`/`markerHeight`), an `<align>`'s `Min`/`Mid`/`Max` offset and the viewBox's own
+the wider `slice` fit. The marker sets `overflow="visible"`. It deliberately does not exercise `<align>`/origin
+variation: because an unclipped marker's content is always anchored by its own `refX`/`refY`, an `<align>`'s
+`Min`/`Mid`/`Max` offset and the viewBox's own
 origin both algebraically cancel out of the final rendered position once that ref-anchoring is
 applied, regardless of their value - only the uniform scale factor itself is ever visibly
 different between the default (no attribute) path and an explicit `preserveAspectRatio`, making
-`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability given
-this codec's marker content is never clipped.
+`meet` versus `slice` the only genuinely pixel-distinguishable part of this new capability for
+unclipped content (the clipped viewport honors the origin and alignment; see the marker rendering tests above).
 
 #### CanvasNetSvg-SvgCodec-MarkerReferenceCycle: Marker Reference Dangling and Cycle Rejection
 
@@ -682,8 +694,8 @@ group requiring the `Extensibility` feature draws the next child only, not the o
 `SvgCodec_UnsupportedFeatureHandler_SeveralElements_ReportsOnceWithTheCount`,
 `SvgCodec_UnsupportedFeatureHandler_PlainAndStyledText_ReportsNothing`,
 `SvgCodec_UnsupportedFeatureHandler_DoesNotChangeThePixels`, `SvgCodec_UnsupportedFeatureHandler_DefaultIsNull`,
-`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsFilterUnsupported`,
-`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsFilterUnsupported`
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveUnitsObjectBoundingBox_ReportsNothing`,
+`SvgCodec_UnsupportedFeatureHandler_FilterPrimitiveSubregion_ReportsNothing`
 
 Asserts that a `textPath` is one `svg-text-not-drawn` report naming `textPath` and the text; that `rotate`,
 `textLength`, a vertical `writing-mode`, `dominant-baseline`, `text-decoration`, an unknown `baseline-shift` and
@@ -697,10 +709,9 @@ not-drawn one first, with the count (a text drawn twice through `use` counts onc
 plain and styled text, letter and word spacing, an `x` list, a `switch` fallback, `title`, `defs` content and
 white-space-only text report
 nothing; that a render with a handler draws the same pixels as one without; and that the handler is `null` by default.
-A filter in `primitiveUnits="objectBoundingBox"` applied by two rects is one `svg-filter-unsupported` report with a
-count of 1, starting "filter is drawn without: primitiveUnits="objectBoundingBox"" and naming `<filter id="f">`, with
-the same pixels as a render without a handler; a filter with a primitive subregion is one such report naming the
-primitive subregion, while a `filterUnits="userSpaceOnUse"` filter without either reports nothing.
+A filter in `primitiveUnits="objectBoundingBox"` applied by two rects, which is drawn as specified, reports
+nothing, with the same pixels as a render without a handler; a filter with a primitive subregion and a
+`filterUnits="userSpaceOnUse"` filter without either report nothing too.
 
 #### CanvasNetSvg-SvgCodec-ImageSourceUnsupportedNotes: Unsupported Notes Of A Linked SVG File
 
@@ -1247,6 +1258,7 @@ default region; a number-typed `calc(0.5 + 0.25)` is accepted as a gradient's `x
 `SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
 `SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
 `SvgCodec_Load_InvalidFontShorthand_IsDropped`,
+`SvgCodec_Load_FontShorthandNegativeLineHeight_DropsTheWholeDeclaration`,
 `SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException`,
 `SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits`,
 `SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150`,
@@ -1270,7 +1282,9 @@ basis counts as absent. Class F: a malformed `font-size` (attribute and inline s
 and the next lower source applies, else the parent's size is inherited (see the fall-through tests
 under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored (a negative
 literal `line-height` of `-5px` or `-2` leaves the `calc(1lh + 30px)` bar at the normal 90), an invalid
-shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
+shorthand is dropped whole (a negative literal line height such as `font: 10px/-5px serif` included: the group's
+`font-size` of 20 stays in effect, so a `calc(1em + 30px)` bar is 50 wide, as Edge draws it, against 40 for the valid
+`font: 10px/5px serif`), and a zero or negative size still renders no text (existing behavior).
 A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
 malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to
 throw `InvalidDataException` in a geometry length, `stroke-width`, a dash entry and a dash offset
@@ -1332,6 +1346,11 @@ for `filter`'s own dedicated coverage - it is no longer an out-of-scope construc
 `SvgCodec_Load_FilterRegionOnStrokedShape_UsesGeometryBoundsNotStroke`,
 `SvgCodec_Load_ObjectBoundingBoxEffectsOnHorizontalLine_PaintNothing`,
 `SvgCodec_Load_OpacityWithFeFloodFilter_AppliesOpacityToFilteredResultNotSource`,
+`SvgCodec_Load_FePrimitiveSubregionUserSpace_ReadsUserLengths`,
+`SvgCodec_Load_FePrimitiveSubregionOmittedAttributes_DefaultToTheInputUnion`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ScalesOffsetByTheBox`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_ReadsSubregionFractions`,
+`SvgCodec_Load_FilterPrimitiveUnitsObjectBoundingBox_BlurScalesPerAxis`,
 `SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticAlpha_MatchesFormulaNotHardcodedOrDropped`,
 `SvgCodec_Load_FeCompositeOperatorArithmeticOutOfRangeResult_ClampsToValidByteRange`,
@@ -1358,7 +1377,15 @@ stroked horizontal `line` because the region does not need the object bounding b
 asserts the region on a stroked `rect` is laid out on its fill geometry box, so the
 stroke outside that box is not flooded, and that a filter on a stroked horizontal `line` (an object
 bounding box with no height) draws nothing, as in Edge; and asserts `feOffset` shifts its input by
-`dx`/`dy` prior to compositing back onto the canvas. Two real fixture files corroborate this end to end:
+`dx`/`dy` prior to compositing back onto the canvas. Primitive units and subregions: under the default
+`primitiveUnits="userSpaceOnUse"` a flood subregion `x="5" width="5"` (or `50%` of the viewport) on a 10-unit user space
+drawn at 20 pixels floods pixel columns 10 to 19; an `feOffset` with no subregion of a flood confined to x 2 to 8 is
+clipped to that span (the shifted flood shows from 6 to 8), and with `width="8"` alone its x still defaults to 2; under
+`primitiveUnits="objectBoundingBox"` an `feOffset` `dx="0.5"` shifts a 10-unit box by 5 units, a flood subregion
+`x="0.5" width="0.5"` (or `50%`) floods the right half of a 20x10 box, and `stdDeviation="0.1"` on a 40x10 box blurs 4
+units across but 1 unit down (the blur shows 6 units beside the box and not 6 units above it). Every expected pixel of
+these tests was checked against an Edge headless render of the same document.
+Two real fixture files corroborate this end to end:
 `SvgFixtures/label-halo.svg` mirrors the reported real-world bug (a `filter="url(#label-bg)"`
 white halo behind a line's own midpoint label, previously invisible while `filter` was ignored),
 and the large, real, third-party `SvgFixtures/InkscapeFilters.svg` (see
@@ -1715,11 +1742,11 @@ reduces cleanly to identity when authored to do so.
 `SvgCodec_Load_FePrimitiveWithSubregion_ClipsOutputToDeclaredXYWidthHeight`,
 `SvgCodec_Load_FePrimitiveWithoutSubregion_UnaffectedByNewMechanism`
 
-Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion
-and that a downstream `feTile` repeats exactly that clipped tile across the broader filter
-region. The companion regressions prove the new subregion mechanism remains opt-in: when no
-primitive subregion is declared, existing whole-region behavior remains unchanged and `feTile`
-degenerates to an identity repeat of the full input.
+Asserts a primitive that declares its own `x`/`y`/`width`/`height` is clipped to that subregion, read in user units
+(a flood at `x="5" width="5"` of a 10-unit box fills its right half, as Edge draws it), and that a downstream `feTile`
+repeats exactly that clipped tile (a 2-unit square) across the broader filter region. The companion regressions prove
+that when no primitive subregion is declared and the inputs are standard inputs, existing whole-region behavior remains
+unchanged and `feTile` degenerates to an identity repeat of the full input.
 
 #### CanvasNetSvg-SvgCodec-FeDropShadow: `feDropShadow` Expansion of Existing Primitives
 
@@ -1738,10 +1765,10 @@ shadow offset behavior rather than leaving the shadow without that shift.
 `SvgCodec_Load_FeImageElementReferenceHrefExceedingMaxUseDepth_TolerantlyRendersEmpty`,
 `SvgCodec_Load_FeImageDanglingElementReference_RendersEmptyWithoutThrowing`
 
-Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion with the
-expected fitted output; asserts an `href="#id"` reference renders the resolved SVG element into an
-offscreen primitive surface and exposes that result to later primitives; asserts the reused
-`MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
+Asserts a raster/data-URI `href` is decoded and sampled into the primitive subregion (`x="5" width="5"` in user units,
+the right half of a 10-unit box, as Edge draws it) with the expected fitted output; asserts an `href="#id"` reference
+renders the resolved SVG element into an offscreen primitive surface and exposes that result to later primitives;
+asserts the reused `MaxUseDepth` recursion guard tolerantly produces no nested output once reached; and asserts a
 reference to a missing id is ignored without throwing.
 
 #### CanvasNetSvg-SvgCodec-FeDiffuseLighting: `feDiffuseLighting` Lambertian Surface Lighting

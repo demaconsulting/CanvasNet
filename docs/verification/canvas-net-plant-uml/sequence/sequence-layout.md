@@ -40,6 +40,12 @@ participant past the longer label plus 14.
 Asserts the heads ending at 42.609, the first arrow at 72.961, the next 30.352 lower, the tails at 121.313, the height
 with the foot box and the margin, and the direction of the reply.
 
+**Tests**: `SequenceLayoutTests.PlantUmlSequenceLayout_ThickArrow_LeavesTheLabelsClearOfTheLine`
+
+Lays out three messages at the default thickness and with `sequenceArrowThickness 4`, and asserts that the thick
+arrow is 1.5 pixels lower under the same label top and that the next row starts 1.5 pixels later; with
+`responseMessageBelowArrow`, asserts that the label below the response arrow is 1.5 pixels further from it.
+
 ##### CanvasNetPlantUml-Sequence-SequenceLayout-Activations: Activation Boxes
 
 **Tests**: `SequenceLayoutTests.PlantUmlSequenceLayout_Activations_BoxesAndArrowEnds`

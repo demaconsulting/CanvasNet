@@ -176,7 +176,8 @@ sections:
           activations, returns, numbering, notes, groups, boxes, dividers, delays, spaces, page texts, and the
           supported skin parameters) with the layout of PlantUML's sequence engine, so that the size, the texts, the
           participants, the life lines, and the message lines of the reference fixtures agree with PlantUML's within
-          1.5 pixels, and shall count participants as nodes, messages as edges, and boxes as subgraphs.
+          1.5 pixels, shall keep message labels clear of their arrows at any arrow thickness and font size, and shall
+          count participants as nodes, messages as edges, and boxes as subgraphs.
         tags: [system]
         justification: |
           Sequence diagrams are the most used PlantUML diagrams in documentation; a picture must look like the one
@@ -190,6 +191,7 @@ sections:
           - CanvasNetPlantUml_Sequence_ReferenceGoldens_CoverEveryFixture
           - CanvasNetPlantUml_Sequence_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_Sequence_Facts_CountParticipantsMessagesAndBoxes
+          - CanvasNetPlantUml_Sequence_ThickArrowsAndLargeLabels_LabelsClearTheArrows
 
       - id: CanvasNetPlantUml-Activity
         title: >-
@@ -254,9 +256,10 @@ sections:
           pseudo-states of every composite state; choices, forks, joins, and junctions; composite states with
           concurrent regions; notes; hide empty description; page texts; the direction; and the supported skin
           parameters) with PlantUML's shapes, texts, colors, and decorations, laid out in ranks so that no two
-          elements overlap, so that every state, circle, diamond, and composite state of the reference fixtures has
-          the size, texts, and colors of PlantUML's (positions may differ), and shall count states and pseudo-states
-          as nodes, transitions as edges, and composite states as subgraphs.
+          elements overlap and the transition labels keep clear of the lines and the states, so that every state,
+          circle, diamond, and composite state of the reference fixtures has the size, texts, and colors of
+          PlantUML's (positions may differ), and shall count states and pseudo-states as nodes, transitions as edges,
+          and composite states as subgraphs.
         tags: [system]
         justification: |
           State diagrams are a common PlantUML diagram; PlantUML lays them out with Graphviz, which this library does
@@ -276,6 +279,7 @@ sections:
           - CanvasNetPlantUml_State_Fixtures_RenderWithoutReports
           - CanvasNetPlantUml_State_Facts_CountStatesTransitionsAndComposites
           - CanvasNetPlantUml_State_ConcurrentRegions_DrawDashedSeparators
+          - CanvasNetPlantUml_State_TransitionLabels_ClearOfLinesAndStates
 
       - id: CanvasNetPlantUml-Component
         title: >-
@@ -417,9 +421,9 @@ sections:
 
       - id: CanvasNetPlantUml-DefaultLook
         title: >-
-          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters,
-          with the fonts bundled with CanvasNet only, so that two renders of the same document and options have
-          identical pixels on every machine.
+          The library shall draw a diagram with PlantUML's default look, changed by its supported skin parameters
+          (written on one line or in a block, in every drawn type), with the fonts bundled with CanvasNet only, so
+          that two renders of the same document and options have identical pixels on every machine.
         tags: [system]
         justification: |
           Pictures are compared and checked into documentation; they must look like PlantUML's and must not depend on
@@ -444,6 +448,8 @@ sections:
           - CanvasNetPlantUml_Deployment_Render_IsDeterministicAndScaled
           - CanvasNetPlantUml_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetPlantUml_Gallery_RendersStrictWithoutWarnings
+          - CanvasNetPlantUml_SkinParamBlock_ColorsTheElementInEveryType
+          - CanvasNetPlantUml_Sequence_SkinParamBlock_ColorsTheParticipants
 
       - id: CanvasNetPlantUml-ImageSource
         title: >-

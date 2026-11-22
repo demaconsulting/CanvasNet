@@ -315,6 +315,9 @@ public class SvgFontSizeTests
     [InlineData("font: bold TestFont")]
     [InlineData("font: 12px/ TestFont")]
     [InlineData("font: 12px/abc TestFont")]
+    [InlineData("font: 12px/-5px TestFont")]
+    [InlineData("font: 12px/-2 TestFont")]
+    [InlineData("font: 12px/-10% TestFont")]
     [InlineData("font: revert")]
     public void SvgCodec_Load_InvalidFontShorthand_IsDropped(string style) =>
         Assert.Equal(30.0, SvgLengthTestSupport.MeasureFontSizeOf(

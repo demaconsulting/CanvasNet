@@ -71,6 +71,24 @@ public class SequenceRendererTests
     }
 
     /// <summary>
+    ///     Validates that a thick arrow draws its line and its open head with the arrow's width, while its filled and half
+    ///     heads keep a 1 pixel outline, as in PlantUML, so that the heads do not grow over the labels.
+    /// </summary>
+    [Fact]
+    public void PlantUmlSequenceRenderer_ThickArrow_HeadsKeepAThinOutline()
+    {
+        // Act
+        var scene = SequenceTestHelpers.Draw("skinparam sequenceArrowThickness 4\nA -> B\nA -\\ B\nA -/ B\nA ->> B");
+
+        // Assert
+        var heads = scene.Items.OfType<ScenePath>().Where(p => p.Role == "message-head").ToList();
+        Assert.Equal([1.0, 1.0, 1.0, 4.0], heads.Select(h => h.Stroke!.Width));
+        Assert.Equal([true, true, true, false], heads.Select(h => h.Fill is not null));
+        var bodies = scene.Items.OfType<ScenePath>().Where(p => p.Role == "message").ToList();
+        Assert.All(bodies, b => Assert.Equal(4, b.Stroke!.Width));
+    }
+
+    /// <summary>
     ///     Validates a self message: three lines and a head pointing back to the life line, and a numbered label.
     /// </summary>
     [Fact]

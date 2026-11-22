@@ -182,6 +182,18 @@ internal sealed partial class SvekLayout
     /// <summary>The space between a link and its label (dagre's <c>labeloffset</c>).</summary>
     public const double LabelOffset = 2;
 
+    /// <summary>
+    ///     The least space between a label and the drawn curves of the links (PlantUML leaves about 4 pixels), and the
+    ///     space above or beside the middle of a link that dagre gives no label place.
+    /// </summary>
+    public const double LabelClearance = 4;
+
+    /// <summary>
+    ///     The space a label between two neighbors of a row leaves to them, together (PlantUML leaves about 10 pixels
+    ///     on each side).
+    /// </summary>
+    public const double RowLabelSpace = 20;
+
     /// <summary>The space between a note and the text inside it, left (PlantUML's <c>Opale.marginX1</c>).</summary>
     public const double NoteMarginLeft = 6;
 
@@ -190,6 +202,12 @@ internal sealed partial class SvekLayout
 
     /// <summary>The space between a note and the text inside it, above and below.</summary>
     public const double NoteMarginY = 5;
+
+    /// <summary>The farthest, in pixels, a label is moved away from the curve of its link to keep its clearance.</summary>
+    private const int LabelClearSteps = 32;
+
+    /// <summary>The number of points each cubic piece of a curve is measured at when a label is kept clear of it.</summary>
+    private const int CurveSteps = 16;
 
     /// <summary>The diagram.</summary>
     private readonly SvekDiagram _diagram;

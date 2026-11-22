@@ -24,7 +24,8 @@ PNG.
 ## Supported
 
 - skinparam: one setting per line (skinparam arrowColor #2F6DB3) or a block
-  (skinparam participant { ... }); settings outside the subset are the warning
+  (skinparam participant { ... }, one setting per line, blocks may nest) in
+  every diagram type; settings outside the subset are the warning
   plantuml-skinparam-ignored.
 - Elements: the eight participant kinds, note, sequenceGroup and
   sequenceGroupHeader, sequenceBox, sequenceDivider, sequenceDelay,
