@@ -54,6 +54,13 @@ public static partial class SourceLoader
     internal const string StrictModeHint = "Without strict mode the feature is left out and reported in the diagnostics.";
 
     /// <summary>
+    ///     The color a vector picture (an SVG file, a document page, a model, a chart, a diagram) is drawn over when no
+    ///     background is chosen: opaque white. The command-line tool and <c>CanvasNetViewer.Render</c> both use it, for the
+    ///     picture and for the margin a pad or a fit adds around it; a raster keeps its transparency.
+    /// </summary>
+    internal static readonly Rgba32 DefaultVectorBackground = new(255, 255, 255, 255);
+
+    /// <summary>
     ///     Reads the facts about a file without rendering it, under <see cref="FileAccessPolicy.AllowAll"/>.
     /// </summary>
     /// <remarks>

@@ -166,20 +166,27 @@ sections:
           - id: CanvasNetViewer-CanvasNetViewer-RenderOptions
             title: >-
               The ViewerRenderOptions class shall let Render draw a chosen page (Page, from 1, default 1) at a chosen
-              resolution (Dpi), over a chosen background (Background, none by default so that a document, a model and
-              an SVG file stay transparent and a chart keeps its own), and an OpenSCAD model with chosen view options
+              resolution (Dpi), over a chosen background (Background; when not set, the default the command-line tool
+              uses: opaque white for an SVG file, a document page, a model, and a Mermaid diagram, the own background
+              of a PlantUML diagram and a chart, white unless the source sets another, and no flattening for a raster;
+              a fully transparent color, set explicitly, keeps a vector picture transparent; the pictures the file
+              embeds are always drawn transparent), and an OpenSCAD model with chosen view options
               (Scad); CanvasNetViewer shall validate them before it reads the file (ArgumentOutOfRangeException),
               report a page the file does not have as a ViewerException with the code page-out-of-range, give the
-              same pixels as the SourceLoader for equal options, and return in the ViewerImage the page drawn
+              same pixels as the SourceLoader for equal options, the defaults included, and return in the ViewerImage
+              the page drawn
               (Page), the number of pages of the file (PageCount), and the anchors of a model (Anchors) besides the
               notes and printed text. A PDF, presentation or drawing shall be parsed once by a render, not once for
               its page facts and again for the page. With ThrowOnUnsupportedFeature, a link of an SVG file that is not
               drawn shall fail the render with the code unsupported-feature, as the strict mode of the tool does; a
-              picture fitted into a Width by Height box shall have the Background in its margin, and its anchors shall
+              picture fitted into a Width by Height box shall have the Background in its margin (when not set, white
+              for a vector picture and transparent for a raster), and its anchors shall
               follow the picture.
             justification: |
               A caller that wants page N of a document, or a model from one view, with its notes and anchors, should
-              not have to leave CanvasNetViewer for the Imaging operations of the tool.
+              not have to leave CanvasNetViewer for the Imaging operations of the tool. One default background for the
+              tool and the library means the same file looks the same from both, and an opaque default keeps dark text
+              readable where the picture is shown without a page behind it (a viewer, a vision model).
             tests:
               - CanvasNetViewer_Render_Path_ParsesTheDocumentOnce
               - CanvasNetViewer_Render_Stream_ParsesTheDocumentOnce
@@ -190,6 +197,11 @@ sections:
               - CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution
               - CanvasNetViewer_Render_StreamWithPage_DrawsThePage
               - CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange
+              - CanvasNetViewer_Render_DefaultBackground_IsOpaqueWhiteForVectorKinds
+              - CanvasNetViewer_Render_TransparentBackground_KeepsAlpha
+              - CanvasNetViewer_Render_DefaultBackground_LeavesRasterUnchanged
+              - CanvasNetViewer_Render_EmbeddedPictures_StayTransparent
+              - CanvasNetViewer_Render_VectorInBox_MarginIsWhiteByDefault
 
           - id: CanvasNetViewer-CanvasNetViewer-ResourceLimits
             title: >-

@@ -16,8 +16,9 @@ public sealed record ViewerRenderOptions
     ///     Gets the width in pixels of the picture, or <see langword="null"/> for the natural width (or, when only the
     ///     height is given, the width that keeps the aspect ratio). A vector source draws at the requested size; a raster
     ///     is returned by its source at its natural size, so the viewer resamples it: with both <see cref="Width"/> and
-    ///     <see cref="Height"/> it fits the picture inside that box (keeping its aspect ratio, centered on a transparent
-    ///     background) so the result is exactly that size, with one dimension it scales to keep the aspect ratio. When
+    ///     <see cref="Height"/> it fits the picture inside that box (keeping its aspect ratio, centered on the
+    ///     <see cref="Background"/>, by default transparent for a raster) so the result is exactly that size, with one
+    ///     dimension it scales to keep the aspect ratio. When
     ///     given, it must be from 1 to <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/> (8192);
     ///     <see cref="CanvasNetViewer"/> throws <see cref="ArgumentOutOfRangeException"/> for any other value before it
     ///     reads the file. For a raster this differs from <c>SourceOptions.Width</c> and <c>Height</c> of the Imaging
@@ -59,12 +60,16 @@ public sealed record ViewerRenderOptions
     public double? Dpi { get; init; }
 
     /// <summary>
-    ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> for the default: no
-    ///     flattening, so a document page, a model and an SVG file come back over a <b>transparent</b> background and a
-    ///     Vega-Lite chart keeps its own. Any color other than fully transparent flattens the picture over it (a raster
-    ///     with transparency too). When <see cref="Width"/> and <see cref="Height"/> fit the picture into a box, the margin
-    ///     around it has this color (transparent when none is given), and the pixel positions in
-    ///     <see cref="ViewerImage.Anchors"/> follow the picture into the box.
+    ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> (not set) for the default,
+    ///     the same as the <c>canvasnet</c> tool's: a vector picture (an SVG file, a PDF, PPTX or VSDX page, an OpenSCAD
+    ///     model, a Vega-Lite chart, a Mermaid or PlantUML diagram) comes back over <b>opaque white</b> (a PlantUML
+    ///     diagram and a Vega-Lite chart keep their own background, white unless the source sets another), and a raster
+    ///     comes back unchanged, with its transparency. A color with alpha 0, such as <c>new Rgba32(0, 0, 0, 0)</c>, is
+    ///     set explicitly and keeps a vector picture transparent; any other color flattens the picture over it (a raster
+    ///     with transparency too). Pictures the file embeds (in an SVG file, a Mermaid diagram or a chart) are always
+    ///     drawn transparent, so the file shows through them. When <see cref="Width"/> and <see cref="Height"/> fit the
+    ///     picture into a box, the margin around it has this color (when not set: white for a vector picture, transparent
+    ///     for a raster), and the pixel positions in <see cref="ViewerImage.Anchors"/> follow the picture into the box.
     /// </summary>
     public DemaConsulting.CanvasNet.Canvas.Rgba32? Background { get; init; }
 

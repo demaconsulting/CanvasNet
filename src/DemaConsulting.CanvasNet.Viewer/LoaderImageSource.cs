@@ -35,8 +35,9 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
     public double? Dpi { get; init; }
 
     /// <summary>
-    ///     Gets the color transparent areas are flattened over, or <see langword="null"/> for the default of the source:
-    ///     transparent for a vector source (the chart keeps its own background) and no flattening for a raster.
+    ///     Gets the color transparent areas are flattened over, or <see langword="null"/> for the default of the loader,
+    ///     the same as the command-line tool's: <see cref="SourceLoader.DefaultVectorBackground"/> for a vector source (a
+    ///     PlantUML diagram and a Vega-Lite chart keep their own background) and no flattening for a raster.
     /// </summary>
     public Rgba32? Background { get; init; }
 
@@ -59,6 +60,12 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
     ///     Gets or sets the number of pages the file has (set by the source).
     /// </summary>
     public int PageCount { get; set; } = 1;
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the file is a vector source (set by the source), so a fit of the viewer
+    ///     gives its margin the same default background as the picture.
+    /// </summary>
+    public bool IsVector { get; set; }
 
     /// <summary>
     ///     Gets or sets the anchors a model declared (set by the source).
@@ -104,7 +111,8 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///         does not declare is the warning <c>vl-param-unknown</c>, not an error) and the theme it names for a Mermaid
 ///         diagram (<c>#theme=dark</c>, like <c>--theme dark</c>). It never inherits the options of its
 ///         embedding file. <b>A direct render</b> gets its options
-///         from <see cref="DirectRenderOptions"/>.
+///         from <see cref="DirectRenderOptions"/>, and without a background color the default of the loader (opaque
+///         white for a vector source, as the tool).
 ///     </para>
 ///     <para>
 ///         <b>Failures.</b> A page that does not exist or a fragment value that cannot be used is an
@@ -336,6 +344,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         {
             direct.DrawnPage = options.Page;
             direct.PageCount = info.PageCount;
+            direct.IsVector = kind.IsVector();
             direct.Anchors = loaded.Anchors;
             direct.ReportedPositions = loaded.Positions;
             direct.PositionsTruncated = loaded.PositionsTruncated;
@@ -449,7 +458,9 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             FileAccess = request.FileAccess,
             Width = vector && request.PixelWidth is { } w ? Math.Clamp(w, 1, Surface.MaxDimension) : null,
             Height = vector && request.PixelHeight is { } h ? Math.Clamp(h, 1, Surface.MaxDimension) : null,
-            Background = direct?.Background ?? DefaultBackground(kind),
+            // The file of a direct render gets the caller's color or the loader default (as the tool); an embedded picture
+            // stays transparent, so the embedding document shows through
+            Background = direct is not null ? direct.Background : DefaultBackground(kind),
             Scad = scad,
             VegaLite = chart,
             Mermaid = ReadDiagram(request.Fragment),
@@ -461,7 +472,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     }
 
     /// <summary>
-    ///     Gets the color a source is drawn over when nobody chose one.
+    ///     Gets the color a picture that a document embeds is drawn over (a direct render uses the loader default instead).
     /// </summary>
     /// <param name="kind">The kind of the file.</param>
     /// <returns>Transparent for a vector source, so the embedding document shows through; <see langword="null"/> for a chart (it keeps its own background) and for a raster (it is not flattened).</returns>

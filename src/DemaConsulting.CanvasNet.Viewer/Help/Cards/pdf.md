@@ -58,8 +58,8 @@ the operations of the Imaging namespace.
   {{maxDpi}}). A 72 by 48 point page is 96 by 64 pixels at 96 dpi.
 - `Scale`: Multiply the natural size by a factor; a `Width` and a `Height` also
   size the page, fitted inside the box and never stretched.
-- `Background`: The color the page is flattened over (`SourceOptions` uses white
-  by default).
+- `Background`: The color the page is flattened over (white by default);
+  a transparent color keeps alpha.
 - `ThrowOnUnsupportedFeature`: Accepted, but PDF has no diagnostics channel, so
   strict mode changes nothing.
 

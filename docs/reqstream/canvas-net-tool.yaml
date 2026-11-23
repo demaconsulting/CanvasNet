@@ -1027,7 +1027,8 @@ sections:
         title: >-
           The tool shall by default overwrite an existing output file (refusing with `--no-clobber`),
           refuse an output that is the input, flatten transparency over white for SVG sources, for
-          pages of documents, and for JPEG output, turn a JPEG upright by its EXIF orientation, and
+          pages of documents, for models and diagrams, and for JPEG output, turn a JPEG upright by its
+          EXIF orientation, and
           refuse an image larger than 8192 pixels on a side before decoding it.
         tags: [system]
         justification: |
@@ -1040,6 +1041,7 @@ sections:
           - CanvasNetTool_Defaults_ExistingOutputAndSameFile_FollowPolicy
           - CanvasNetTool_Defaults_Transparency_FlattenedOverWhiteForSvgAndJpeg
           - CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent
+          - CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent
           - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
           - CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright

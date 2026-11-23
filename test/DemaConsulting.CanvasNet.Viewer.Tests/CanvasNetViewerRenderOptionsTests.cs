@@ -16,6 +16,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests;
 public class CanvasNetViewerRenderOptionsTests
 {
     /// <summary>
+    ///     The opaque white a vector picture is drawn over by default.
+    /// </summary>
+    private static readonly Rgba32 White = new(255, 255, 255, 255);
+
+    /// <summary>
     ///     A stream that fails when it is read, to prove that a render is refused before the content is touched.
     /// </summary>
     private sealed class UnreadableStream : Stream
@@ -75,7 +80,7 @@ public class CanvasNetViewerRenderOptionsTests
     /// <returns>The test data.</returns>
     public static TheoryData<string> ParityKeys()
     {
-        return ["png", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite"];
+        return ["png", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml"];
     }
 
     /// <summary>
@@ -93,14 +98,14 @@ public class CanvasNetViewerRenderOptionsTests
         using var image = CanvasNetViewer.Render(path, new ViewerRenderOptions { Page = 2, Dpi = 192 });
         using var first = CanvasNetViewer.Render(path);
 
-        // Assert: 2 times the 96 dpi size of the page, green, over a transparent background
+        // Assert: 2 times the 96 dpi size of the page, green, over the default white background
         Assert.Equal((256, 384), (image.Surface.Width, image.Surface.Height));
         Assert.Equal(new Rgba32(0, 153, 0, 255), image.Surface[128, 192]);
         Assert.Equal((2, 2), (image.Page, image.PageCount));
         Assert.Equal("pdf", image.Format);
         Assert.Equal((192, 128), (first.Surface.Width, first.Surface.Height));
         Assert.Equal((1, 2), (first.Page, first.PageCount));
-        Assert.Equal(0, first.Surface[170, 20].A);
+        Assert.Equal(White, first.Surface[170, 20]);
         Assert.Empty(image.Anchors);
     }
 
@@ -116,10 +121,10 @@ public class CanvasNetViewerRenderOptionsTests
         // Act
         using var image = CanvasNetViewer.Render(stream, "deck.pptx", new ViewerRenderOptions { Page = 2 });
 
-        // Assert: slide 2 is blue over its top half
+        // Assert: slide 2 is blue over its top half, over the default white background below
         Assert.Equal((FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight), (image.Surface.Width, image.Surface.Height));
         Assert.Equal(new Rgba32(0, 0, 255, 255), image.Surface[240, 90]);
-        Assert.Equal(0, image.Surface[240, 270].A);
+        Assert.Equal(White, image.Surface[240, 270]);
         Assert.Equal((2, 2), (image.Page, image.PageCount));
     }
 
@@ -202,8 +207,8 @@ public class CanvasNetViewerRenderOptionsTests
     }
 
     /// <summary>
-    ///     Test that a background flattens a transparent page, an SVG file and a raster with transparency, and that the
-    ///     defaults stay transparent for the vector kinds.
+    ///     Test that a background flattens a transparent page and an SVG file, that the defaults are white for these
+    ///     vector kinds, and that a fully transparent background keeps them transparent.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_Background_FlattensTransparentAreas()
@@ -213,18 +218,150 @@ public class CanvasNetViewerRenderOptionsTests
         var pdf = FixtureFactory.WriteSource(directory.Path, "pdf");
         var svg = FixtureFactory.WriteText(directory.Path, "empty.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>");
         var red = new Rgba32(255, 0, 0, 255);
+        var clear = new ViewerRenderOptions { Background = new Rgba32(0, 0, 0, 0) };
 
         // Act
         using var pdfDefault = CanvasNetViewer.Render(pdf);
         using var pdfRed = CanvasNetViewer.Render(pdf, new ViewerRenderOptions { Background = red });
+        using var pdfClear = CanvasNetViewer.Render(pdf, clear);
         using var svgDefault = CanvasNetViewer.Render(svg);
         using var svgRed = CanvasNetViewer.Render(svg, new ViewerRenderOptions { Background = red });
+        using var svgClear = CanvasNetViewer.Render(svg, clear);
 
-        // Assert: the top-right quarter of the page is transparent by default and red with a background
-        Assert.Equal(0, pdfDefault.Surface[170, 20].A);
+        // Assert: the top-right quarter of the page is white by default, red with a background, clear on request
+        Assert.Equal(White, pdfDefault.Surface[170, 20]);
         Assert.Equal(red, pdfRed.Surface[170, 20]);
-        Assert.Equal(0, svgDefault.Surface[5, 5].A);
+        Assert.Equal(0, pdfClear.Surface[170, 20].A);
+        Assert.Equal(White, svgDefault.Surface[5, 5]);
         Assert.Equal(red, svgRed.Surface[5, 5]);
+        Assert.Equal(0, svgClear.Surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Gets the vector kinds whose default background is checked, with their source text.
+    /// </summary>
+    /// <returns>The test data: the file name and its content.</returns>
+    public static TheoryData<string, string> VectorSources()
+    {
+        return new TheoryData<string, string>
+        {
+            { "empty.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'/>" },
+            { "flow.mmd", "flowchart LR\n  A --> B\n" },
+            { "seq.puml", "@startuml\nAlice -> Bob : hi\n@enduml\n" },
+            { "cube.scad", "cube(10);\n" }
+        };
+    }
+
+    /// <summary>
+    ///     Test that an SVG file, a Mermaid diagram, a PlantUML diagram and an OpenSCAD model come back over opaque white
+    ///     when no background is chosen, as the command-line tool draws them.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
+    /// <param name="content">The source text.</param>
+    [Theory]
+    [MemberData(nameof(VectorSources))]
+    public void CanvasNetViewer_Render_DefaultBackground_IsOpaqueWhiteForVectorKinds(string fileName, string content)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, fileName, content);
+
+        // Act
+        using var image = CanvasNetViewer.Render(path);
+
+        // Assert: the corner is opaque white
+        Assert.Equal(White, image.Surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Test that a fully transparent background, set explicitly, keeps an SVG file, a Mermaid diagram, a PlantUML
+    ///     diagram and an OpenSCAD model transparent.
+    /// </summary>
+    /// <param name="fileName">The file name.</param>
+    /// <param name="content">The source text.</param>
+    [Theory]
+    [MemberData(nameof(VectorSources))]
+    public void CanvasNetViewer_Render_TransparentBackground_KeepsAlpha(string fileName, string content)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, fileName, content);
+
+        // Act
+        using var image = CanvasNetViewer.Render(path, new ViewerRenderOptions { Background = new Rgba32(0, 0, 0, 0) });
+
+        // Assert: the corner is transparent
+        Assert.Equal(0, image.Surface[0, 0].A);
+    }
+
+    /// <summary>
+    ///     Test that a raster with transparency keeps its alpha when no background is chosen, also in the margin of a
+    ///     box it is fitted into.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_DefaultBackground_LeavesRasterUnchanged()
+    {
+        // Arrange: a half-transparent green picture
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "half.png");
+        File.WriteAllBytes(path, ViewerFixtures.Png(4, 4, new Rgba32(0, 255, 0, 128)));
+
+        // Act
+        using var natural = CanvasNetViewer.Render(path);
+        using var boxed = CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 10, Height = 6 });
+
+        // Assert: the picture keeps its alpha and the margin is transparent
+        Assert.Equal(128, natural.Surface[1, 1].A);
+        Assert.InRange(boxed.Surface[5, 3].A, 1, 254);
+        Assert.Equal(0, boxed.Surface[0, 3].A);
+    }
+
+    /// <summary>
+    ///     Test that a model and a diagram an SVG file embeds are drawn transparent, so only the rendered file gets the
+    ///     background: by default the area around the picture is white, and with a transparent background it is clear.
+    /// </summary>
+    /// <param name="fileName">The file name of the embedded picture.</param>
+    /// <param name="content">Its source text.</param>
+    [Theory]
+    [InlineData("part.scad", ViewerFixtures.Cube)]
+    [InlineData("flow.mmd", "flowchart LR\n  A --> B\n")]
+    public void CanvasNetViewer_Render_EmbeddedPictures_StayTransparent(string fileName, string content)
+    {
+        // Arrange: an SVG file without a background of its own that shows the picture
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, fileName, content);
+        var svg = FixtureFactory.WriteText(
+            directory.Path,
+            "doc.svg",
+            $"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='{fileName}' width='100' height='100'/></svg>");
+
+        // Act
+        using var white = CanvasNetViewer.Render(svg);
+        using var clear = CanvasNetViewer.Render(svg, new ViewerRenderOptions { Background = new Rgba32(0, 0, 0, 0) });
+
+        // Assert: the picture is drawn, and its corner shows what is behind it
+        Assert.Equal(fileName, Assert.Single(white.Embedded).Href);
+        Assert.Equal(White, white.Surface[1, 1]);
+        Assert.Equal(0, clear.Surface[1, 1].A);
+    }
+
+    /// <summary>
+    ///     Test that a vector picture fitted into a box gets a white margin when no background is chosen, as the picture.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_VectorInBox_MarginIsWhiteByDefault()
+    {
+        // Arrange: page 2 of the PDF is portrait (2 to 3), so a wide box leaves a margin at the sides
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteSource(directory.Path, "pdf");
+
+        // Act
+        using var image = CanvasNetViewer.Render(path, new ViewerRenderOptions { Page = 2, Width = 90, Height = 60 });
+
+        // Assert
+        Assert.Equal((90, 60), (image.Surface.Width, image.Surface.Height));
+        Assert.Equal(White, image.Surface[1, 30]);
+        Assert.Equal(White, image.Surface[88, 30]);
     }
 
     /// <summary>
@@ -312,9 +449,8 @@ public class CanvasNetViewerRenderOptionsTests
     }
 
     /// <summary>
-    ///     Test that rendering a file with the viewer gives the pixels the loader of the tool gives for the same file and
-    ///     the equivalent options (the defaults of the two differ only in the background of a vector source, which is
-    ///     given here).
+    ///     Test that rendering a file with the viewer gives the pixels the loader of the tool gives for the same file
+    ///     with the default options of both: one default background (white for a vector source, none for a raster).
     /// </summary>
     /// <param name="key">The kind of source.</param>
     [Theory]
@@ -324,13 +460,12 @@ public class CanvasNetViewerRenderOptionsTests
         // Arrange
         using var directory = new TempDirectory();
         var path = FixtureFactory.WriteSource(directory.Path, key);
-        var white = new Rgba32(255, 255, 255, 255);
 
         // Act
-        using var viewer = CanvasNetViewer.Render(path, new ViewerRenderOptions { Background = white });
-        using var loader = SourceLoader.Load(path, new SourceOptions { Background = white });
+        using var viewer = CanvasNetViewer.Render(path);
+        using var loader = SourceLoader.Load(path, new SourceOptions());
 
-        // Assert: a chart keeps its own background (also white here) in both
+        // Assert: the same pixels, format and notes
         SurfaceAssert.Equal(loader.Surface, viewer.Surface);
         Assert.Equal(loader.Info.Format.ToFormatName(), viewer.Format);
         Assert.Equal(loader.Diagnostics.Select(d => (d.Code, d.Message)), viewer.Diagnostics.Select(d => (d.Code, d.Message)));

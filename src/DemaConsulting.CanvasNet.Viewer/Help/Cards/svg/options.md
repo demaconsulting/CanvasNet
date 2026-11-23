@@ -20,9 +20,8 @@ the operations of the Imaging namespace.
   sharp, never enlarged afterwards.
 - `Scale`: Multiply the intrinsic size by a factor (`SourceOptions.Scale`; it
   takes precedence over `Width` and `Height`).
-- `Background`: The color transparency is flattened over.
-  `CanvasNetViewer.Render` keeps the transparency by default; `SourceOptions`
-  flattens over white by default, and a transparent color keeps alpha.
+- `Background`: The color transparency is flattened over, white by default; a
+  transparent color keeps alpha.
 - `Folder` (`ViewerRenderOptions` only): The folder the image hrefs are relative
   to; by default the folder of the drawing.
 - `FileAccess`: The `FileAccessPolicy` that decides which local files the image

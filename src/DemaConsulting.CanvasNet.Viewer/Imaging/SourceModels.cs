@@ -616,7 +616,8 @@ public sealed record SourceOptions
     ///     </list>
     ///     <para>
     ///         <see cref="Scale"/> takes precedence over both sizes. <c>CanvasNetViewer.Render</c> is different for a
-    ///         raster: with both sizes it fits the picture inside the box over a transparent margin.
+    ///         raster: with both sizes it fits the picture inside the box over a transparent margin (or the background
+    ///         it is given).
     ///     </para>
     /// </remarks>
     public int? Width { get; init; }

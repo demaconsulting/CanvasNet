@@ -256,6 +256,11 @@ Resolving `part.scad#view=front&def.width=20` and
 `CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent`,
 `CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError`,
 `CanvasNetViewer_Render_Background_FlattensTransparentAreas`,
+`CanvasNetViewer_Render_DefaultBackground_IsOpaqueWhiteForVectorKinds`,
+`CanvasNetViewer_Render_TransparentBackground_KeepsAlpha`,
+`CanvasNetViewer_Render_DefaultBackground_LeavesRasterUnchanged`,
+`CanvasNetViewer_Render_EmbeddedPictures_StayTransparent`,
+`CanvasNetViewer_Render_VectorInBox_MarginIsWhiteByDefault`,
 `CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn`,
 `CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail`,
 `CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
@@ -266,11 +271,17 @@ Asserts the defaults of the new options; that `Page = 2` with `Dpi = 192` gives 
 and `ViewerImage.Page` and `PageCount` report the page drawn and the number of pages; that a page beyond the last is a
 `ViewerException` with the code `page-out-of-range`; that a page of 0, a `Dpi` of 0, NaN or 2401, a width of 0, and a
 bad model option each throw `ArgumentOutOfRangeException` before the stream is read; that a fractional `Dpi` for a Visio
-drawing is a `usage-error`; that `Background` flattens a transparent SVG while no background keeps it transparent (and a
-chart keeps its own); that a model gets its view and variables, reports its anchors, echo, and notes with `Detail` and
-`Location`; the exception shapes (a missing include is a `ViewerException` with `scad-error`, a corrupt raster an
-`ImageSourceException` whose inner exception is the codec's); that the pixels equal those of `SourceLoader.Load` for
-equal options; and that a raster in a box is fitted and charged.
+drawing is a `usage-error`; that `Background` flattens a transparent PDF page and SVG file; that without a background
+an SVG file, a PDF page, a Mermaid diagram, a PlantUML diagram, and a model come back over opaque white, as the tool
+draws them, while an explicit fully transparent background keeps them transparent (and a chart keeps its own); that a
+raster with transparency keeps its alpha by default, also with a transparent margin in a box, while a vector page in a
+box gets a white margin; that a model and a diagram an SVG file embeds are drawn transparent, so only the rendered file
+gets the background; that a model gets its view and variables, reports its anchors, echo, and notes with `Detail` and
+`Location`; the exception shapes (a missing include is a `ViewerException` with `scad-error`, a corrupt raster a
+`ViewerException` with `corrupt-input` whose inner exception is the codec's); that the pixels, format, and notes equal
+those of `SourceLoader.Load` with the default options of both, for every kind including the diagrams, which proves the
+shared default background; and that a raster in a box is fitted and charged. The tool side of the shared default is
+verified by `CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent` (`CanvasNetTool-System-Defaults`).
 
 #### CanvasNetViewer-CanvasNetViewer-ResourceLimits: Limits Of Charts And Diagrams Set By The Host
 

@@ -288,32 +288,35 @@ VSDX file, 1 by default; a page the file does not have is a `ViewerException` wi
 value below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is
 sized at, 96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color
 transparent areas are flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box,
-whose anchors follow the picture; null keeps the transparency of a document, a model, an SVG file, and a diagram, and
-the own background of a chart), `Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time,
-and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite chart: the values of its parameters, the option
-behind `--param`; see below), `Folder` (the base of the relative references of the rendered file; by default the folder
-of the file, or none for a stream), `FileAccess` (the file-access policy for every file the rendered file references,
-`FileAccessPolicy.AllowAll` by default; see below), `ThrowOnUnsupportedFeature` (an unsupported feature fails instead
-of being drawn without it and reported; for an SVG file it also fails on a link that is not drawn, as `--strict` does: a
-missing file, a picture too large, an unusable fragment, or a page that does not exist is a `ViewerException` with the
-code `unsupported-feature`, while an unknown fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels
-the render may decode in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192
-picture, so set it to render one larger image; when a raster is resized to the requested size, the final picture is a
-second buffer that counts against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that
-does not fit is `budget-exceeded`), `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` (the resource limits of a
-chart and a diagram, at every level of nesting; null keeps the defaults of each library; see *Limits of charts and
-diagrams* below), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?*
-below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries
-`Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document),
-`Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their
-pixels; empty for every other file), and `Embedded`. Every failure of the file is a `ViewerException` with the code the
-`canvasnet` tool reports for the same file (see *Handling render errors* below); only a mistake in the options
-(`ArgumentOutOfRangeException`, `ArgumentNullException`) and a cancellation (`OperationCanceledException`) have other
-types. Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the
-source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas
-`SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model
-that the rendered file embeds chooses its own page or view, and sets its own variables or parameters, with the fragment
-of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
+whose anchors follow the picture; null, when not set, draws a vector picture - an SVG file, a PDF, PPTX, or VSDX page, a
+model, a chart, or a diagram - over opaque white, as the `canvasnet` tool does (a PlantUML diagram and a Vega-Lite chart
+keep their own background, white unless the source sets another), and leaves a raster unchanged; set
+`new Rgba32(0, 0, 0, 0)` to keep a vector picture transparent, for example to place it on a page of another color;
+pictures the file embeds are always drawn transparent, so the file shows through), `Scad` (the `ScadViewOptions` of a
+model: the view, angles, projection, `Defines`, time, and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite
+chart: the values of its parameters, the option behind `--param`; see below), `Folder` (the base of the relative
+references of the rendered file; by default the folder of the file, or none for a stream), `FileAccess` (the file-access
+policy for every file the rendered file references, `FileAccessPolicy.AllowAll` by default; see below),
+`ThrowOnUnsupportedFeature` (an unsupported feature fails instead of being drawn without it and reported; for an SVG
+file it also fails on a link that is not drawn, as `--strict` does: a missing file, a picture too large, an unusable
+fragment, or a page that does not exist is a `ViewerException` with the code `unsupported-feature`, while an unknown
+fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels the render may decode in total; null keeps the
+resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render one larger image; when a
+raster is resized to the requested size, the final picture is a second buffer that counts against the same budget, so a
+10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit is `budget-exceeded`), `VegaLiteLimits`,
+`MermaidLimits`, and `PlantUmlLimits` (the resource limits of a chart and a diagram, at every level of nesting; null
+keeps the defaults of each library; see *Limits of charts and diagrams* below), `ExtraSources` (see *`ExtraSources` or
+`CreateImageResolver`?* below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the
+surface) and carries `Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk
+a document), `Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared,
+with their pixels; empty for every other file), and `Embedded`. Every failure of the file is a `ViewerException` with
+the code the `canvasnet` tool reports for the same file (see *Handling render errors* below); only a mistake in the
+options (`ArgumentOutOfRangeException`, `ArgumentNullException`) and a cancellation (`OperationCanceledException`) have
+other types. Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses
+the source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin (or the
+`Background`), whereas `SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes*
+below). A document or model that the rendered file embeds chooses its own page or view, and sets its own variables or
+parameters, with the fragment of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 #### Handling render errors
 
@@ -463,7 +466,7 @@ fails with `file-access-denied`. The `Imaging` operations carry the policy in `S
 `SourceLoader.Probe(input, policy)` apply it to the files a probe reads; the overloads without a policy use
 `FileAccessPolicy.AllowAll`. Every resource limit holds whatever the policy.
 
-To render page 2 of a PDF document at 192 dpi, over white, in memory:
+To render page 2 of a PDF document at 192 dpi, over light gray, in memory:
 
 <!-- compile -->
 
@@ -473,7 +476,7 @@ using DemaConsulting.CanvasNet.Viewer;
 
 using var page = CanvasNetViewer.Render(
     "reports/q3.pdf",
-    new ViewerRenderOptions { Page = 2, Dpi = 192, Background = new Rgba32(255, 255, 255, 255) });
+    new ViewerRenderOptions { Page = 2, Dpi = 192, Background = new Rgba32(240, 240, 240, 255) });
 
 Console.WriteLine($"page {page.Page} of {page.PageCount}: {page.Surface.Width}x{page.Surface.Height}");
 foreach (var note in page.Diagnostics)
@@ -780,7 +783,7 @@ per kind:
 
 `Scale` takes precedence: when it is set, `Width` and `Height` are ignored (the command line rejects the combination).
 `CanvasNetViewer.Render` is different for a raster: with both sizes it fits the picture inside the box over a
-transparent margin (see `ViewerRenderOptions`).
+transparent margin, unless its `Background` is set (see `ViewerRenderOptions`).
 
 **Cropping.** Every value of a `GeometrySpec` is a non-negative `Dimension` (`Dimension.Pixels(n)` or
 `Dimension.Percent(n)`): the origin must be 0 or more, the width and the height must be more than 0, and a percentage
@@ -1208,7 +1211,7 @@ request with a missing member, or a null element in a list, is a defect of the c
 or with a custom one; without it the extension decides.
 
 A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is the simple way to get a picture of a file
-(transparent background for vector files, the fit of a raster into a box, the file-access policy, and the same
+(white background for vector files, as the tool, the fit of a raster into a box, the file-access policy, and the same
 `ViewerException` codes with messages and hints that name no option of the tool), and the `Imaging` operations are the
 way the `canvasnet` tool works (document pages and resolution, EXIF orientation, a flattened background, the ordered
 pipeline, and the `ViewerException` codes). The messages and hints of the operations are written for the command line
@@ -1522,6 +1525,15 @@ image sources); the `canvasnet` tool follows them.
    `PlantUmlLimits` set the resource limits of the Vega-Lite, Mermaid, and PlantUML libraries for one render, tighter or
    looser, for the rendered file and every file it embeds (see *Limits of charts and diagrams*). They are null by
    default, which keeps the previous behavior. Raise a limit only for content you trust.
+4. **Behavior change: vector pictures are opaque white by default.** `CanvasNetViewer.Render` used to return an SVG
+   file, a PDF, PPTX, or VSDX page, an OpenSCAD model, and a Mermaid or PlantUML diagram over a transparent background
+   when `ViewerRenderOptions.Background` was not set, while the `canvasnet` tool drew them over white. Dark text on a
+   transparent background is easy to miss, for example by a person in a viewer without a checkerboard or by a vision
+   model. `Render` now uses the tool's default: a vector picture comes back over opaque white (a Vega-Lite chart and a
+   PlantUML diagram keep their own background, white unless the source sets another), and so does the margin when
+   `Width` and `Height` fit it into a box. A raster (PNG, JPEG, ...) is unchanged and keeps its transparency, and the
+   pictures a file embeds are still drawn transparent, so the embedding file shows through. Migration: to keep the old
+   behavior, set `Background = new Rgba32(0, 0, 0, 0)`.
 
 ## Examples
 

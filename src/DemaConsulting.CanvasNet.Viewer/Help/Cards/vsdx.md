@@ -52,8 +52,8 @@ the operations of the Imaging namespace.
 - `Page`: The page to draw, counted from 1 (default 1).
 - `Dpi`: Resolution in dots per inch (default 96, a whole number above 0 and at
   most {{maxDpi}}).
-- `Background`: The color transparency is flattened over (`SourceOptions` uses
-  white by default).
+- `Background`: The color transparency is flattened over (white by default);
+  a transparent color keeps alpha.
 - `ThrowOnUnsupportedFeature`: Strict mode: fail with unsupported-feature
   instead of drawing with an approximation.
 

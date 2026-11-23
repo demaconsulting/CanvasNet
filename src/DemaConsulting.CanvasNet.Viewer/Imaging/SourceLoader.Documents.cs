@@ -124,7 +124,7 @@ public static partial class SourceLoader
         /// <summary>
         ///     Gets the color the page is rendered over: white unless the options say otherwise.
         /// </summary>
-        protected Rgba32 Background => Options.Background ?? new Rgba32(255, 255, 255, 255);
+        protected Rgba32 Background => Options.Background ?? DefaultVectorBackground;
 
         /// <summary>
         ///     Renders a page to a surface of a given size.

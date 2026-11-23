@@ -183,7 +183,9 @@ public static class CanvasNetViewer
     /// <param name="path">The path of the file; it must exist and its extension must be one of <see cref="Extensions"/> (or claimed by an extra source).</param>
     /// <param name="options">What to render and how, or <see langword="null"/> for the natural size.</param>
     /// <returns>
-    ///     The picture with its notes, text, format and embedded images; the caller disposes it. It writes no file; to
+    ///     The picture with its notes, text, format and embedded images; the caller disposes it. A vector picture comes back
+    ///     over opaque white unless <see cref="ViewerRenderOptions.Background"/> sets another color (alpha 0 keeps it
+    ///     transparent), as the <c>canvasnet</c> tool draws it; a raster keeps its transparency. It writes no file; to
     ///     save the picture with a format or quality use <c>ImageWriter.Write</c> of the
     ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace. A document that embeds
     ///     other files (an SVG file, a model with includes) finds them relative to its folder (the links of the file
@@ -254,7 +256,10 @@ public static class CanvasNetViewer
     ///     (optional) is the base of the files the document itself includes or embeds, read under
     ///     <see cref="ViewerRenderOptions.FileAccess"/>; without it none are resolved.
     /// </param>
-    /// <returns>The picture with its notes, text, format, page and embedded images; the caller disposes it.</returns>
+    /// <returns>
+    ///     The picture with its notes, text, format, page and embedded images, over the same default background as
+    ///     <see cref="Render(string, ViewerRenderOptions?)"/>; the caller disposes it.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown, before the stream is read, for the options that <see cref="Render(string, ViewerRenderOptions?)"/>
@@ -461,7 +466,8 @@ public static class CanvasNetViewer
             // asked for: the box when both dimensions are given (the picture fitted inside it), or the aspect-preserving size.
             // The final buffer exists next to the surface of the source (already charged), so it must fit in what is left of
             // the live budget; nothing is allocated after it, so it only needs checking, not charging. The anchors follow the
-            // same scale and offset as the pixels, and the margin of a fit has the background the caller chose
+            // same scale and offset as the pixels, and the margin of a fit has the background the caller chose, else the
+            // default of the picture (white for a vector source, as the picture itself; transparent for a raster)
             var steps = new List<AppliedOperation>();
             var (sourceWidth, sourceHeight) = (surface.Width, surface.Height);
             if (settings.Width is { } width && settings.Height is { } height)
@@ -469,7 +475,8 @@ public static class CanvasNetViewer
                 if (surface.Width != width || surface.Height != height)
                 {
                     EnsureFinalBufferFits(resolver, width, height);
-                    var fitted = FitIntoBox(surface, width, height, settings.Background ?? new Rgba32(0, 0, 0, 0), steps);
+                    var margin = settings.Background ?? (direct.IsVector ? SourceLoader.DefaultVectorBackground : new Rgba32(0, 0, 0, 0));
+                    var fitted = FitIntoBox(surface, width, height, margin, steps);
                     surface.Dispose();
                     surface = fitted;
                 }

@@ -96,7 +96,7 @@ public static partial class SourceLoader
                 ThrowForUnsupported(unsupported, info.Path);
             }
 
-            var background = options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = options.Background ?? DefaultVectorBackground;
             if (background.A > 0)
             {
                 surface = Replace(surface, surface.FlattenOver(background));
@@ -162,7 +162,7 @@ public static partial class SourceLoader
                 ThrowForUnsupported(unsupported, info.Path);
             }
 
-            var background = options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = options.Background ?? DefaultVectorBackground;
             if (background.A > 0)
             {
                 surface = Replace(surface, surface.FlattenOver(background));

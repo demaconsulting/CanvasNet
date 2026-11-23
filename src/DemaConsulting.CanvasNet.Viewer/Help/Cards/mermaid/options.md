@@ -23,9 +23,8 @@ the operations of the Imaging namespace.
 - `Scale`: The natural size is Mermaid's SVG view box in pixels; a scale factor,
   a `Width`, or a `Height` draws the diagram sharply at another size (a diagram
   larger than {{maxDimension}} pixels on a side needs one of them).
-- `Background`: The color under the diagram (white by default for
-  `SourceOptions`); a transparent color keeps the transparency of Mermaid's own
-  SVG.
+- `Background`: The color under the diagram (white by default);
+  a transparent color keeps the transparency of Mermaid's own SVG.
 - `ThrowOnUnsupportedFeature`: Strict mode (`SourceOptions.Strict`): every
   unsupported construct, and a picture that is not drawn, becomes an
   unsupported-feature error.

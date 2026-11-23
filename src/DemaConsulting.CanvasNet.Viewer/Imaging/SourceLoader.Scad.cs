@@ -230,7 +230,7 @@ public static partial class SourceLoader
             var view = Options.Scad ?? new ScadViewOptions();
             var (azimuth, elevation) = ResolveView(view);
             var (width, height) = ComputeTargetSize(Info.Path, Info.Width, Info.Height, Options);
-            var background = Options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = Options.Background ?? DefaultVectorBackground;
 
             // The surface is charged before the model is evaluated, so a model that cannot be paid for costs nothing
             Context.ChargeSurface(width, height);

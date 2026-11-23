@@ -397,7 +397,7 @@ public static partial class SourceLoader
             // resolver based at the folder of the diagram
             var scoped = Context.UseScopedResolver;
             var images = scoped ? null : new SvgImages(Info.Path, Options);
-            var background = Options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = Options.Background ?? DefaultVectorBackground;
             // Without a width or a height the diagram is drawn at its natural size times the scale, placed exactly as Mermaid
             // places it (the library rounds the size the same way as ComputeTargetSize); a box is fitted
             var exact = Options.Width is null && Options.Height is null;

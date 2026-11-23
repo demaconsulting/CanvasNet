@@ -56,8 +56,8 @@ the operations of the Imaging namespace.
 - `Page`: The slide to draw, counted from 1 (default 1).
 - `Dpi`: Resolution in dots per inch (default 96, above 0 and at most
   {{maxDpi}}).
-- `Background`: The color the slide is cleared to first (`SourceOptions` uses
-  white by default); a declared slide background is painted over it.
+- `Background`: The color the slide is cleared to first (white by
+  default); a declared slide background is painted over it.
 - `ThrowOnUnsupportedFeature`: Strict mode: fail with unsupported-feature when
   an EMF or WMF picture would be skipped.
 

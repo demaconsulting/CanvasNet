@@ -15,8 +15,8 @@ a rendered file references is read by the core `FolderImageResolver` under the f
 the system-level architecture.
 
 The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requirements (`ImageSources`,
-`CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, `ResourceLimits`,
-`ExtraSources`, `FileAccess`,
+`CreateImageResolver`, `RenderPath`, `RenderStream`, `RenderErrors`, `LoaderSources`, `RenderOptions`,
+`ResourceLimits`, `ExtraSources`, `FileAccess`,
 `FileAccessDenied`, and `Positions`) in
 `docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml`. The unit comprises `CanvasNetViewer.cs`,
 `ViewerRenderOptions.cs`, `ViewerImage.cs`, and `LoaderImageSource.cs` (the adapter, with the internal
@@ -48,13 +48,17 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   (the page, the resolution, the background, the model view options, the chart parameters, and `Positions`, the
   `PositionSelection` of the feature positions) and the output of the render
   (the page drawn, the
-  number of pages, the anchors, and `ReportedPositions` and `PositionsTruncated`, the positions a diagram or a chart
+  number of pages, whether the file is a vector source (`IsVector`, for the default margin of a fit), the anchors, and
+  `ReportedPositions` and `PositionsTruncated`, the positions a diagram or a chart
   reported), handed through `FolderImageResolver.Render(..., options)`. Only the file rendered directly gets the
   selection: a link builds its options without `DirectRenderOptions`, so a picture a document embeds never reports
   positions.
 - **`ViewerRenderOptions`** (immutable record) — `Width` and `Height` (nullable; none = natural size, one = keep the
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
-  `Dpi` (nullable; none = 96), `Background` (nullable; none = no flattening), `Scad` (a `ScadViewOptions`, nullable),
+  `Dpi` (nullable; none = 96), `Background` (nullable; none = the default of the `SourceLoader`, which the tool uses
+  too: `SourceLoader.DefaultVectorBackground`, opaque white, for a vector source, the own background of a PlantUML
+  diagram and a Vega-Lite chart, and no flattening for a raster; a color with zero alpha, set explicitly, keeps a vector
+  source transparent), `Scad` (a `ScadViewOptions`, nullable),
   `VegaLite` (a `ChartOptions` with the values of the parameters of a chart, nullable; the option behind `--param`),
   `Folder` (the base of the relative references of the rendered file, not a boundary; by default the folder of the file
   for a render by path, none for a stream), `FileAccess` (the `FileAccessPolicy` of every file the rendered file
@@ -105,7 +109,10 @@ usable being an `ImageSourceRefusedException` with the code `image-fragment-inva
 `request.FileAccess` as the `SourceOptions.FileAccess` of the load (so the includes, data and
 pictures of a linked model, chart, diagram or SVG file are read under the policy of the render, anchored at its
 origin),
-a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
+the background: for a direct render the `Background` of the `DirectRenderOptions` as given, so `null` keeps the
+default of the loader (white for a vector source, as the tool), and for a link a transparent background for a vector
+source and none for a chart (`DefaultBackground`), so the embedding document shows through, and for a vector source
+the placement as `Width` and
 `Height`; an embedded file never inherits the options of its embedder, and only `DirectRenderOptions` carry the
 `Positions` selection, so a linked picture never reports positions); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
@@ -157,8 +164,10 @@ the stream is read.
 
 **Building the `ViewerImage`**: the picture a source returns is used as is, except for the sizes the caller asked for. A
 vector source is asked for the requested size; a raster is always returned at its natural size, so when both `Width` and
-`Height` are given and the picture has another size, it is fitted inside the box (aspect ratio kept, centered over a
-transparent background) so the result is exactly that size; with one dimension, it is scaled to keep the aspect ratio.
+`Height` are given and the picture has another size, it is fitted inside the box (aspect ratio kept, centered over the
+`Background`, or when none is given over `SourceLoader.DefaultVectorBackground` for a vector source, which the adapter
+reports in `DirectRenderOptions.IsVector`, and transparent for a raster or an extra source) so the result is exactly
+that size; with one dimension, it is scaled to keep the aspect ratio.
 The notes are those of the file followed by those of the files it embedded; the printed text and the embedded images
 follow the same order. The resolver clamps a requested size to 1 to `Surface.MaxDimension`, which is why the options are
 validated to that range up front: a larger or non-positive value would otherwise be rendered at one size and

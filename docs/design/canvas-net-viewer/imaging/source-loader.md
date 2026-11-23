@@ -52,7 +52,10 @@ what the fragment of the input chose, an `InputSelection`; `null` for an input w
 (computed: the path, and `#` and the fragment when there is a selection).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
-`Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
+`Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`; `null` is the default the
+tool and `CanvasNetViewer.Render` share: `DefaultVectorBackground`, opaque white, for a vector source, which the SVG,
+document, model, and Mermaid loads and the pad default of `ImageRenderer` and `ImageInspector` all read from that one
+constant, the own background of a PlantUML diagram and a Vega-Lite chart, and no flattening for a raster), `AutoOrient`
 (default `true`), `Scad` (a nullable `ScadViewOptions`; the defaults when absent), `VegaLite` (a nullable
 `ChartOptions`, see *Chart parameters* below), `Mermaid` (a nullable `DiagramOptions`), and `FileAccess` (the
 `FileAccessPolicy` of every file the source reads beside it: the pictures of an SVG file, a chart or a diagram, the

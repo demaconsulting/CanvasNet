@@ -259,6 +259,10 @@ transparent edge keeps its transparency as a PNG and is white there as a JPEG.
 **CanvasNetTool_Defaults_DocumentBackground_WhiteUnlessTransparent**: a page the document does not paint is white
 by default, transparent in a PNG with `--background transparent`, and white again in a JPEG, for each document.
 
+**CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent**: the corner of a model, a Mermaid diagram,
+and a PlantUML diagram is opaque white by default (the default `CanvasNetViewer.Render` shares) and transparent with
+`--background transparent`.
+
 **CanvasNetTool_Defaults_JpegWithExif_IsTurnedUpright**: a JPEG with the EXIF orientation 8 is written upright (8x12)
 by default, as stored (12x8) with `--no-auto-orient`, and the upright pixels are the stored pixels turned.
 

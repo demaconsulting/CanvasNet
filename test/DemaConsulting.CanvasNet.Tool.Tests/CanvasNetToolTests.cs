@@ -1148,6 +1148,38 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that a model and the two kinds of diagram are rendered over white by default, the default the viewer
+    ///     library shares, and keep transparency on request.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent()
+    {
+        // Arrange: a model and two diagrams whose top-left corner nothing paints
+        using var directory = new TempDirectory();
+        var sources = new Dictionary<string, string>
+        {
+            ["cube.scad"] = "cube(10);\n",
+            ["flow.mmd"] = "flowchart LR\n  A --> B\n",
+            ["seq.puml"] = "@startuml\nAlice -> Bob : hi\n@enduml\n"
+        };
+
+        foreach (var (name, content) in sources)
+        {
+            var input = FixtureFactory.WriteText(directory.Path, name, content);
+
+            // Act
+            ToolHost.Invoke("render", input, "-o", directory.Combine(name + ".png"));
+            ToolHost.Invoke("render", input, "--background", "transparent", "-o", directory.Combine(name + "-transparent.png"));
+
+            // Assert: white by default, transparent when asked
+            using var white = PngCodec.Load(directory.Combine(name + ".png"));
+            using var transparent = PngCodec.Load(directory.Combine(name + "-transparent.png"));
+            Assert.Equal(new Rgba32(255, 255, 255, 255), white[0, 0]);
+            Assert.Equal(0, transparent[0, 0].A);
+        }
+    }
+
+    /// <summary>
     ///     Test that features the libraries cannot draw are reported in the diagnostics of the result, and that the strict
     ///     option turns them into an error.
     /// </summary>
