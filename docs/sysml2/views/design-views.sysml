@@ -27,7 +27,8 @@ package CanvasNetDesignViews {
 
     // Several systems, so an interconnection view draws each system part def as a frame with its
     // direct subsystem and unit usages. Documentation is filtered out so the overview stays
-    // readable.
+    // readable. sysml2tools lays the exposed frames side by side in one row and has no option to
+    // wrap them, so this view is wide; SoftwareDependencyView below draws the same systems compactly.
     view SoftwareStructureView : InterconnectionView {
         expose CanvasNet::CanvasNetSystem;
         expose CanvasNetSvg::CanvasNetSvgSystem;
@@ -44,6 +45,33 @@ package CanvasNetDesignViews {
         expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
         expose CanvasNetTool::CanvasNetToolSystem;
         filter not (@SysML::Documentation);
+    }
+
+    // The dependencies between the systems: a general view draws each system part def as a box
+    // and every dependency whose two ends are both exposed system part defs as a dashed arrow.
+    // Part usages are filtered out, or the general view draws each one as its own box; the
+    // system boxes still list their parts. Documentation is filtered out as in the overview.
+    view SoftwareDependencyView : GeneralView {
+        doc /* The dependencies between the CanvasNet systems. The dependencies of the systems on
+         * the subsystems of the core CanvasNet system (Canvas, Codecs, Geometry, Drawing, Fonts,
+         * Rendering, Files, ImageSources, Positions, and Packaging), which nearly every system
+         * uses, are omitted: those subsystems are not exposed, so those edges are not drawn. */
+        expose CanvasNet::CanvasNetSystem;
+        expose CanvasNetSvg::CanvasNetSvgSystem;
+        expose CanvasNetPdf::CanvasNetPdfSystem;
+        expose CanvasNetPptx::CanvasNetPptxSystem;
+        expose CanvasNetCharts::CanvasNetChartsSystem;
+        expose CanvasNetVsdx::CanvasNetVsdxSystem;
+        expose CanvasNetRender3D::CanvasNetRender3DSystem;
+        expose CanvasNetScad::CanvasNetScadSystem;
+        expose CanvasNetVegaLite::CanvasNetVegaLiteSystem;
+        expose CanvasNetViewer::CanvasNetViewerSystem;
+        expose CanvasNetLayout::CanvasNetLayoutSystem;
+        expose CanvasNetMermaid::CanvasNetMermaidSystem;
+        expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetTool::CanvasNetToolSystem;
+        filter not (@SysML::Documentation);
+        filter not (@SysML::PartUsage);
     }
 
     view CanvasNetView : InterconnectionView {

@@ -493,11 +493,16 @@ The following topics are explicitly excluded from this design documentation:
 ## Software Structure
 
 The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the
-diagram below by SysML2Tools as part of the build pipeline. AI agents should query the
-SysML2 model directly (see the `sysml2tools-query` skill) rather than parsing this
-diagram or the prose below.
+diagrams below by SysML2Tools as part of the build pipeline. AI agents should query the
+SysML2 model directly (see the `sysml2tools-query` skill) rather than parsing these
+diagrams or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
+
+The software dependency view below draws the same systems with the dependencies between them, leaving out the
+dependencies on the core CanvasNet subsystems that nearly every system has.
+
+![Software Dependencies](SoftwareDependencyView.svg)
 
 The package architecture diagram below complements the structure view: where the view shows every system with its
 direct subsystems and units, the diagram shows only the NuGet packages, which package references which, and how
