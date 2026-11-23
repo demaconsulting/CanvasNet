@@ -499,8 +499,8 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-The package architecture diagram below complements the structure view: where the view shows every system, subsystem,
-and unit of the model, the diagram shows only the NuGet packages, which package references which, and how
+The package architecture diagram below complements the structure view: where the view shows every system with its
+direct subsystems and units, the diagram shows only the NuGet packages, which package references which, and how
 applications and the `canvasnet` tool reach them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens

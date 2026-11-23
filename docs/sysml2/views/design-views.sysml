@@ -25,25 +25,25 @@ package CanvasNetDesignViews {
     private import CanvasNetVegaLite::*;
     private import CanvasNetVsdx::*;
 
-    // Several systems, so a general view draws each system with its members. Documentation and
-    // comments are filtered out so the overview stays readable.
-    view SoftwareStructureView : GeneralView {
-        expose CanvasNetSystem::**;
-        expose CanvasNetSvgSystem::**;
-        expose CanvasNetPdfSystem::**;
-        expose CanvasNetPptxSystem::**;
-        expose CanvasNetChartsSystem::**;
-        expose CanvasNetVsdxSystem::**;
-        expose CanvasNetRender3DSystem::**;
-        expose CanvasNetScadSystem::**;
-        expose CanvasNetVegaLiteSystem::**;
-        expose CanvasNetViewer::CanvasNetViewerSystem::**;
-        expose CanvasNetLayoutSystem::**;
-        expose CanvasNetMermaidSystem::**;
-        expose CanvasNetPlantUmlSystem::**;
-        expose CanvasNetToolSystem::**;
+    // Several systems, so an interconnection view draws each system part def as a frame with its
+    // direct subsystem and unit usages. Documentation is filtered out so the overview stays
+    // readable.
+    view SoftwareStructureView : InterconnectionView {
+        expose CanvasNet::CanvasNetSystem;
+        expose CanvasNetSvg::CanvasNetSvgSystem;
+        expose CanvasNetPdf::CanvasNetPdfSystem;
+        expose CanvasNetPptx::CanvasNetPptxSystem;
+        expose CanvasNetCharts::CanvasNetChartsSystem;
+        expose CanvasNetVsdx::CanvasNetVsdxSystem;
+        expose CanvasNetRender3D::CanvasNetRender3DSystem;
+        expose CanvasNetScad::CanvasNetScadSystem;
+        expose CanvasNetVegaLite::CanvasNetVegaLiteSystem;
+        expose CanvasNetViewer::CanvasNetViewerSystem;
+        expose CanvasNetLayout::CanvasNetLayoutSystem;
+        expose CanvasNetMermaid::CanvasNetMermaidSystem;
+        expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetTool::CanvasNetToolSystem;
         filter not (@SysML::Documentation);
-        filter not (@SysML::Comment);
     }
 
     view CanvasNetView : InterconnectionView {
