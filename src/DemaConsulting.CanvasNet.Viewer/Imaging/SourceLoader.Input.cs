@@ -2,6 +2,7 @@ using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 
@@ -205,6 +206,25 @@ public static partial class SourceLoader
     }
 
     /// <summary>
+    ///     The resource limits of the chart and diagram libraries that a caller sets, each <see langword="null"/> for the
+    ///     library default.
+    /// </summary>
+    /// <param name="VegaLite">The limits of a Vega-Lite chart, or <see langword="null"/> for <see cref="VegaLiteLimits.Default"/>.</param>
+    /// <param name="Mermaid">The limits of a Mermaid diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
+    /// <param name="PlantUml">The limits of a PlantUML diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
+    /// <remarks>
+    ///     The probe and the render of a source both use them, so a raised limit is not refused by the probe and a lowered
+    ///     one refuses the source before it is drawn. The tool always uses <see cref="Default"/>.
+    /// </remarks>
+    internal sealed record SourceLimits(VegaLiteLimits? VegaLite, MermaidLimits? Mermaid, PlantUmlLimits? PlantUml)
+    {
+        /// <summary>
+        ///     Gets the limits that keep every library default.
+        /// </summary>
+        public static SourceLimits Default { get; } = new(null, null, null);
+    }
+
+    /// <summary>
     ///     The hooks and policies that an embedding resolver gives the loader. The tool gives none (<see cref="Default"/>).
     /// </summary>
     internal sealed class LoadContext
@@ -267,6 +287,12 @@ public static partial class SourceLoader
         ///     matched is the binding's own outcome (<c>svg-binding-unmatched</c>), so the embedded render is quiet.
         /// </remarks>
         public bool WarnUnmatchedPositions { get; init; } = true;
+
+        /// <summary>
+        ///     Gets the resource limits of a chart and a diagram; <see cref="SourceLimits.Default"/> by default. Give the
+        ///     probe of the source (<see cref="OpenInput"/>) the same limits.
+        /// </summary>
+        public SourceLimits Limits { get; init; } = SourceLimits.Default;
 
         /// <summary>
         ///     Charges a surface about to be allocated, when a hook is set.
@@ -365,7 +391,7 @@ public static partial class SourceLoader
             }
             catch (ArgumentException ex)
             {
-                return new OptionProblem($"A --param value is not valid: {OneLine(ex.Message)}");
+                return new OptionProblem($"A chart parameter value is not valid: {OneLine(ex.Message)}");
             }
         }
 
@@ -414,7 +440,7 @@ public static partial class SourceLoader
             }
             catch (ArgumentException ex)
             {
-                return new OptionProblem($"A -D definition is not valid: {OneLine(ex.Message)}");
+                return new OptionProblem($"A model definition is not valid: {OneLine(ex.Message)}");
             }
         }
 

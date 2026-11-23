@@ -20,6 +20,8 @@ examples:
 - `--quality`: JPEG quality {{qualityMin}} to {{qualityMax}}, default
   {{qualityDefault}}.
 - `--max-triangles`: Default {{scadMaxTriangles}} triangles.
+- **Charts and diagrams**: The Vega-Lite, Mermaid, and PlantUML limits cannot
+  be changed on the command line.
 - `--size`: A model is 800x800 pixels unless --size, --width, --height, or
   --scale is given; --scale, --width, or --height makes a diagram smaller.
 - `--positions`: render --positions returns at most {{positionsMax}} items

@@ -46,12 +46,17 @@ sections:
                   The SpecParser unit shall give every node its RFC 6901 pointer (with ~0 and ~1
                   escaping), the one-based line and column of its value, and the position of its key,
                   counting columns in UTF-16 code units, and shall report malformed JSON with the
-                  location of the first offending character.
+                  location of the first offending character, reporting text that ends inside an open object
+                  or array as a syntax error that names the line and column where that container was opened.
                 justification: |
                   Located diagnostics are only trustworthy when the positions are exact and computed by
-                  one agreed rule.
+                  one agreed rule. Truncated text is a common authoring mistake; naming the container that
+                  was left open tells the author what is missing, where a depth or generic message would
+                  point the wrong way.
                 tests:
                   - SpecParser_Parse_MalformedJsonReportsFirstLocation
+                  - SpecParser_Parse_TruncatedSpecification_IsLocatedSyntaxErrorNotDepth
+                  - SpecParser_Parse_TruncatedAtTheDepthLimit_IsSyntaxErrorNotDepth
                   - SpecParser_Parse_LocationsCountUtf16CodeUnits
                   - SpecParser_Parse_ValidInlineSpecRecordsJsonPointerAndLineColumn
                   - SpecNode_ToString_DescribesKindPointerAndPosition
@@ -417,15 +422,18 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Limits
                 title: >-
                   The SpecParser unit shall reject source text longer than the source-length limit with
-                  an InvalidDataException, nesting deeper than the JSON-depth limit and strings longer
-                  than the string-length limit with a located VegaLiteSpecException, and numbers outside
-                  the double range, while using an explicit stack so that no input can overflow the call
-                  stack.
+                  an InvalidDataException, nesting deeper than the JSON-depth limit (and only such nesting)
+                  with a VegaLiteSpecException located at the container that crosses the limit, strings
+                  longer than the string-length limit with a located VegaLiteSpecException, and numbers
+                  outside the double range, while using an explicit stack so that no input can overflow
+                  the call stack.
                 justification: |
                   Recursion over untrusted nesting would let a hostile specification terminate the host
-                  process, and unbounded text would exhaust memory.
+                  process, and unbounded text would exhaust memory. The depth error must name only real
+                  nesting, so that an author is never sent to look for nesting that is not there.
                 tests:
                   - SpecParser_Parse_DepthAndSourceLimitsFailClosed
+                  - SpecParser_Parse_DepthBeyondTheLimit_IsLocatedAtTheContainer
                   - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Metadata

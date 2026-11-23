@@ -1,8 +1,8 @@
 namespace DemaConsulting.CanvasNet.VegaLite;
 
 /// <summary>
-///     Collects the warnings and unsupported-feature reports of one call, in the order they occur, and delivers
-///     them to the caller's handlers once the work is done.
+///     Collects the warnings, unsupported-feature reports and informational notes of one call, in the order they
+///     occur, and delivers them to the caller's handlers once the work is done.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -12,7 +12,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         a failed call it is ignored so that the original failure is the one the caller sees.
 ///     </para>
 ///     <para>
-///         Identical reports (same message and location, and for a warning the same optional key) are recorded once. At most
+///         Identical reports (same message and location, and for a warning the same optional key) are recorded once.
+///         An informational note (<see cref="Info"/>) is recorded and delivered like a warning, to its own handler, and
+///         never throws, so strict mode never fails on one. At most
 ///         <see cref="VegaLiteLimits.MaxDiagnostics"/> reports are kept; the first one beyond the cap is replaced by a
 ///         single <c>vl-diagnostics-suppressed</c> notice and the rest are dropped, so a hostile specification cannot
 ///         grow the buffer without bound. Strict mode is unaffected by the cap: the first unsupported feature is always
@@ -22,14 +24,17 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </remarks>
 internal sealed class VegaLiteReportSink
 {
-    /// <summary>The recorded reports in order; each is a warning or an unsupported feature.</summary>
-    private readonly List<(VegaLiteDiagnostic? Warning, VegaLiteUnsupportedFeature? Unsupported)> _events = [];
+    /// <summary>The recorded reports in order; each is a warning, an unsupported feature or an informational note (exactly one of the three is set).</summary>
+    private readonly List<(VegaLiteDiagnostic? Warning, VegaLiteUnsupportedFeature? Unsupported, VegaLiteDiagnostic? Info)> _events = [];
 
     /// <summary>The warnings recorded so far, each with its optional de-duplication key, for de-duplication.</summary>
     private readonly HashSet<(VegaLiteDiagnostic Warning, string? Key)> _seenWarnings = [];
 
     /// <summary>The unsupported features recorded so far, for de-duplication.</summary>
     private readonly HashSet<VegaLiteUnsupportedFeature> _seenUnsupported = [];
+
+    /// <summary>The informational notes recorded so far, for de-duplication.</summary>
+    private readonly HashSet<VegaLiteDiagnostic> _seenInfo = [];
 
     /// <summary>The maximum number of reports that are kept.</summary>
     private readonly int _maxReports;
@@ -70,7 +75,26 @@ internal sealed class VegaLiteReportSink
         var warning = new VegaLiteDiagnostic(message, location);
         if (_seenWarnings.Add((warning, distinctKey)))
         {
-            Add((warning, null));
+            Add((warning, null, null));
+        }
+    }
+
+    /// <summary>
+    ///     Records an informational note: something the author may want to know although the chart is drawn as
+    ///     Vega-Lite draws it (for example <c>vl-type-inferred</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Unlike <see cref="Unsupported"/>, a note never throws, also in strict mode: it reports a decision of
+    ///     Vega-Lite, not a construct that is drawn differently.
+    /// </remarks>
+    /// <param name="message">The identifier and description of the note.</param>
+    /// <param name="location">The location it is about.</param>
+    public void Info(string message, VegaLiteLocation location)
+    {
+        var note = new VegaLiteDiagnostic(message, location);
+        if (_seenInfo.Add(note))
+        {
+            Add((null, null, note));
         }
     }
 
@@ -87,7 +111,7 @@ internal sealed class VegaLiteReportSink
         if (_seenUnsupported.Add(report))
         {
             // Strict mode delivers the report that it throws for, even when the buffer is full of earlier reports
-            Add((null, report), force: _throwOnUnsupported);
+            Add((null, report, null), force: _throwOnUnsupported);
         }
 
         // Strict mode must stop at the first report even when the buffer is full
@@ -102,9 +126,10 @@ internal sealed class VegaLiteReportSink
     /// </summary>
     /// <param name="warningHandler">The warning handler, or null.</param>
     /// <param name="unsupportedHandler">The unsupported-feature handler, or null.</param>
-    public void Deliver(Action<VegaLiteDiagnostic>? warningHandler, Action<VegaLiteUnsupportedFeature>? unsupportedHandler)
+    /// <param name="infoHandler">The handler of the informational notes, or null to drop them.</param>
+    public void Deliver(Action<VegaLiteDiagnostic>? warningHandler, Action<VegaLiteUnsupportedFeature>? unsupportedHandler, Action<VegaLiteDiagnostic>? infoHandler = null)
     {
-        foreach (var (warning, unsupported) in _events)
+        foreach (var (warning, unsupported, info) in _events)
         {
             if (warning is not null)
             {
@@ -113,6 +138,10 @@ internal sealed class VegaLiteReportSink
             else if (unsupported is not null)
             {
                 unsupportedHandler?.Invoke(unsupported);
+            }
+            else if (info is not null)
+            {
+                infoHandler?.Invoke(info);
             }
         }
     }
@@ -123,11 +152,12 @@ internal sealed class VegaLiteReportSink
     /// </summary>
     /// <param name="warningHandler">The warning handler, or null.</param>
     /// <param name="unsupportedHandler">The unsupported-feature handler, or null.</param>
-    public void DeliverIgnoringHandlerFailures(Action<VegaLiteDiagnostic>? warningHandler, Action<VegaLiteUnsupportedFeature>? unsupportedHandler)
+    /// <param name="infoHandler">The handler of the informational notes, or null to drop them.</param>
+    public void DeliverIgnoringHandlerFailures(Action<VegaLiteDiagnostic>? warningHandler, Action<VegaLiteUnsupportedFeature>? unsupportedHandler, Action<VegaLiteDiagnostic>? infoHandler = null)
     {
         try
         {
-            Deliver(warningHandler, unsupportedHandler);
+            Deliver(warningHandler, unsupportedHandler, infoHandler);
         }
 #pragma warning disable CA1031 // A handler's failure must not mask the failure that is already being reported
         catch (Exception)
@@ -142,7 +172,7 @@ internal sealed class VegaLiteReportSink
     /// </summary>
     /// <param name="report">The report.</param>
     /// <param name="force">Whether to keep the report beyond the cap (the report that strict mode throws for).</param>
-    private void Add((VegaLiteDiagnostic?, VegaLiteUnsupportedFeature?) report, bool force = false)
+    private void Add((VegaLiteDiagnostic?, VegaLiteUnsupportedFeature?, VegaLiteDiagnostic?) report, bool force = false)
     {
         if (force || _events.Count < _maxReports)
         {
@@ -158,6 +188,7 @@ internal sealed class VegaLiteReportSink
                 new VegaLiteDiagnostic(
                     $"vl-diagnostics-suppressed: further diagnostics were suppressed after the limit of {_maxReports} (VegaLiteLimits.MaxDiagnostics).",
                     default),
+                null,
                 null));
         }
     }

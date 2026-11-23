@@ -245,6 +245,11 @@ the
 file, and keeps the library's exception; plain Vega named like a chart is a `vega-lite-error`; a missing file is
 `input-not-found`.
 
+**SourceLoader_Load_FieldWithoutType_ReportsInfoNoteAndStrictPasses**: the chart of issue #165 (a `bar` whose `x` is a
+field without a type), loaded in strict mode, is drawn and returns exactly one note: source `vega-lite`, severity
+`info`, code `vega-lite-info`, detail `vl-type-inferred`, the pointer `/encoding/x` as its location, and a message that
+names the file, the field `'a'`, the `'x'` channel, and the inferred type `nominal`.
+
 **SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded**: real failures of the library with a row limit of 1
 and a
 scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budget-exceeded` with a hint and the
@@ -381,7 +386,7 @@ missing file is looked for.
 padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
 `mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that journey
 diagrams are not supported, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the
-code, with a hint that says the type is not supported and mentions `--strict`, and the library's
+code, with a hint that says the type is not supported and mentions strict mode, and the library's
 `MermaidUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures**: a flowchart with a style declaration outside the
@@ -405,8 +410,8 @@ text limit is `corrupt-input` naming the file.
 
 **SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption**: a chain of 120 nodes from left to right is probed with
 a natural width above 8192 pixels (the size read from the library's message, whose text this test pins), is `size-limit`
-with a hint that names `--scale` when it is loaded without a size option, and loads at a scale of 0.25 at a quarter of
-the natural width with the default node fill.
+with a hint that names the scale that fits when it is loaded without a size option, and loads at a scale of 0.25 at a
+quarter of the natural width with the default node fill.
 
 **SourceLoader_Load_MermaidTruncatedOrDamaged_IsExpectedErrorOrLoads**: every prefix of `shipping.mermaid`, the empty
 one included, either loads or is a `mermaid-error` or `corrupt-input`, never another exception, and 200 bytes of
@@ -450,7 +455,7 @@ than 200 pixels of the element fill, more than 100 dark pixels of the outlines a
 **SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `legacy.pu` is probed with the facts
 `activity-legacy`, not supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note
 (source `plantuml`, severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is
-`unsupported-feature` naming the code, with a hint that names `--strict` and the library's
+`unsupported-feature` naming the code, with a hint that names strict mode and the library's
 `PlantUmlUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_PlantUml_MapsWarningsAndUnsupportedFeatures**: a diagram with `!theme cerulean` and an ignored
@@ -568,7 +573,7 @@ draw nothing but the background.
 **SourceLoader_Load_DefineWithInvalidName_ThrowsUsageError**, and **SourceLoader_Load_Time_SetsTheSpecialVariable**: a
 number, a flag, and a text each replace the assignment in a parametric model and give four different pictures; the
 operation lists them as `name=value` in name order with text in quotes; a name with a dollar sign in the middle is
-a `usage-error` that mentions `-D`; `$t` changes the model and is listed only when given.
+a `usage-error` that mentions the model definition; `$t` changes the model and is listed only when given.
 
 **SourceLoader_Load_EchoWarningAndUnsupported_AreReturned** and
 **SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature**: a model that echoes, calls a module
@@ -576,15 +581,15 @@ that does not exist, and uses `surface` returns the echo line with its `ECHO:` p
 position, and an `unsupported` note whose code is `scad-module-surface`, and the picture is still drawn; with strict
 mode
 the same model is an `unsupported-feature` error that names the feature and the position in one line, with a hint
-that mentions `--strict`.
+that mentions strict mode.
 
 **SourceLoader_Load_TriangleLimitExceeded_ThrowsBudgetExceeded**, **SourceLoader_Load_TriangleLimitLargeEnough_Loads**,
 **SourceLoader_Load_EvaluationLimitExceeded_ThrowsBudgetExceeded**, and
 **SourceLoader_MapScadEvaluation_LimitAndOtherFailures_MapToTheirCodes**: a limit of one triangle is `budget-exceeded`
-with "Triangle limit exceeded (limit 1)", the position, and a hint that names `--max-triangles`; a limit of 100,000
-loads and is recorded in the operation; runaway recursion and a loop of a billion iterations are `budget-exceeded`
-with a hint that the limit cannot be changed; a library failure worded with a limit, or caused by the renderer's
-budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
+with "Triangle limit exceeded (limit 1)", the position, and a hint that names `ScadViewOptions.MaxTriangles`; a limit of
+100,000 loads and is recorded in the operation; runaway recursion and a loop of a billion iterations are
+`budget-exceeded` with a hint that the limit cannot be raised; a library failure worded with a limit, or caused by the
+renderer's budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
 
 **SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow**,
 **SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile**, **SourceLoader_Load_MissingInclude_ThrowsScadError**,
@@ -717,10 +722,11 @@ both, with rounding and the one-pixel minimum; a raster is resized and the opera
 **SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding**, and
 **SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption**: exact, scaled, aspect-derived, and natural sizes beyond
 8192 are `size-limit` with messages and hints that say which size is too large; a size that follows the natural size (no
-option, or `--scale`) names the scale that fits in the message, the hint
-(`Use --scale 12 (or less), --width, or --height to choose a smaller size.`), and the exception's `Data`, while an exact
-size has none; 8192 itself is allowed; a PNG header declaring 9000x9000 is refused for its size (not as corrupt) while
-probing still reports it; an SVG of 100000x50 is refused at its natural size and renders at a width that is allowed.
+option, or a scale) names the scale that fits in the message, the hint
+(`Use a scale of 12 or less, or a smaller width or height.`, which names no option of the command-line tool), and the
+exception's `Data`, while an exact size has the hint `Use a smaller scale, width, or height.`; 8192 itself is allowed; a
+PNG header declaring 9000x9000 is refused for its size (not as corrupt) while probing still reports it; an SVG of
+100000x50 is refused at its natural size and renders at a width that is allowed.
 
 **SourceLoader_FitScale_NaturalSize_RoundsDownToTwoDigits**: the scale that fits is the maximum over the larger side
 rounded down to two significant digits without trailing zeros (14374 pixels wide or tall gives `0.56`, 20000 gives
@@ -758,6 +764,15 @@ its own sweep);
 **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
+
+**SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode**: the shared mapping fills in the location and the detail
+code of a source error for a file the command-line tool loads: a Mermaid syntax error (`mermaid-error`,
+`mermaid-syntax-error`, line 2), a PlantUML message without a target (`plantuml-error`, `plantuml-syntax-error`, line
+3), an OpenSCAD syntax error (`scad-error`, `scad-syntax-error`, line 2), and a truncated chart (`vega-lite-error`, with
+a line and no detail code, because the library gives a chart error none) each carry the location the library reports,
+and malformed SVG markup (`corrupt-input`) carries the path of the file with the line and column of the XML error, no
+detail code, and the codec's `InvalidDataException` inside; a chart with a `geoshape` mark loaded in strict mode is
+`unsupported-feature` with the detail code `vl-mark-geoshape`; a missing file (`input-not-found`) has neither.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.
@@ -813,6 +828,13 @@ once per surface with its size before it is decoded, a refusal stops the load be
 a scoped resolver draws the nested pictures and adds no notes of its own while a null one leaves the links unresolved,
 and
 a document page comes back at its fitted size without the margin.
+
+**SourceLoader_Limits_ApplyToTheProbeAndTheLoad** (`SourceLoaderInputTests.cs`, for a Vega-Lite chart, a Mermaid
+diagram, and a PlantUML diagram): a small source that the default probe accepts is refused with `budget-exceeded` by a
+probe given a lower limit (`MaxDataRows` 2 for three rows, `MaxNodes` 2 for three nodes, `MaxNodes` 1 for two
+participants), and by a load whose `LoadContext.Limits` has that limit after a probe with the defaults, so each of the
+two uses the limits it is given; the default context keeps `SourceLimits.Default`, the defaults of the libraries that
+the command line uses.
 
 **SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile**,
 **SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile**,

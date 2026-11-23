@@ -288,8 +288,9 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Veg
   `TimeZone` (`null` is UTC; the only zone the renderer uses, for dates without an offset, `date:` formats, local time
   units, time scales, ticks and labels, and the local date functions; never the host's zone), `ContainerWidth` and
   `ContainerHeight` (the size of a
-  `"container"` chart; 400 by 300 by default), `Fonts`, `Limits`, the handlers `WarningHandler` and
-  `UnsupportedFeatureHandler`, `ThrowOnUnsupportedFeature`, and the feature positions `PositionHandler`
+  `"container"` chart; 400 by 300 by default), `Fonts`, `Limits`, the handlers `WarningHandler`,
+  `UnsupportedFeatureHandler`, and `InfoHandler` (the notes for information only, such as `vl-type-inferred`),
+  `ThrowOnUnsupportedFeature`, and the feature positions `PositionHandler`
   (`Action<ImagePosition>?`) and `PositionKindFilter` (`Func<string, bool>?`).
 - **`VegaLiteFontOptions`** (sealed, immutable): `UseSystemFonts` (whether installed fonts are searched for an
   explicitly named family; `false` by default) and `AdditionalDirectories` (extra directories scanned first; empty by
@@ -342,9 +343,11 @@ Each interface, with its direction and format, and its constraints:
 - **`VegaLiteDocument.Render(int, int, ...)` (exact size)** (Inbound and outbound; Width, height, options, a token; a
   `Surface`): Width and height from 1 to `Surface.MaxDimension`, validated first; the natural chart is scaled uniformly
   to fit and centered, margins take the background; `Scale` is not used.
-- **`VegaLiteRenderOptions.WarningHandler`, `UnsupportedFeatureHandler`** (Outbound; Delegates receiving
-  `VegaLiteDiagnostic` and `VegaLiteUnsupportedFeature`): Called once per distinct report, in document order, on the
-  calling thread, after the work finished and before the method returns or throws.
+- **`VegaLiteRenderOptions.WarningHandler`, `UnsupportedFeatureHandler`, `InfoHandler`** (Outbound; Delegates receiving
+  `VegaLiteDiagnostic`, `VegaLiteUnsupportedFeature`, and `VegaLiteDiagnostic`): Called once per distinct report, in
+  document order, on the calling thread, after the work finished and before the method returns or throws. An
+  informational note (`vl-type-inferred`: a field without a type, drawn with the type Vega-Lite infers) goes to
+  `InfoHandler` only and never makes strict mode throw.
 - **`VegaLiteRenderOptions.PositionHandler`, `PositionKindFilter`** (Outbound; A delegate receiving core `ImagePosition`
   values; a kind filter): Called by both `Render` methods once per feature (titles, views, axes, and legends, then marks
   in drawing order), on the calling thread, after the painting (so an image mark's box is the rectangle its picture was
@@ -1236,6 +1239,7 @@ Each area, what is supported, and what is reported (with its identifier) outside
   - Supported: `quantitative`, `temporal`, `nominal`, `ordinal` (a temporal field is date-parsed, has a time scale, and
     is labeled as dates).
   - Reported (identifier) when outside the supported subset: `geojson`: `vl-type-geojson`.
+  - A field without a `type` is drawn with the type Vega-Lite infers and noted for information as `vl-type-inferred`.
 - **Encoding properties**
   - Supported: `field`, `type`, `value` (a constant, or `{"expr": ...}` for color, fill, stroke, opacity, and the size
     of a symbol, line, trail, or text mark), `datum` (a number or text, a date text on a temporal channel), `timeUnit`
@@ -1570,6 +1574,9 @@ of an expression function (`geoArea` gives `vl-expr-function-geoarea`; the messa
   be faceted: a layer of a layered view, a layered view whose encoding has the channel, or the `spec` of a facet (the
   channel is ignored). Narrowed in Phase 11: the channels of a unit view that is faceted are drawn and not reported.
 - **`vl-type-geojson`** (Unsupported): The `type` of a channel.
+- **`vl-type-inferred`** (Info): A channel definition with a `field` and no `type` (not a datum, a secondary or error
+  channel, or an ignored channel): the chart is drawn with the type Vega-Lite infers, and the note at the channel names
+  the field and that type. Delivered to `InfoHandler`; strict mode never throws for it.
 - **`vl-shape-path-invalid`** (Warning): A shape that is neither a symbol name nor SVG path data that parses: the
   `shape` of a mark, the `value` of a `shape` channel, an entry of its `scale.range`, or the `symbolType` of a legend; a
   circle is drawn (Vega throws for such a path), and a path with no command draws nothing and is reported too. Custom

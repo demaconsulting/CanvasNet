@@ -50,17 +50,18 @@ public static partial class SourceLoader
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <param name="fileAccess">The file-access policy of the files the diagram includes.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
     /// <returns>The facts about the file: the natural size of the diagram, 4 channels, and its type, title, and counts.</returns>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>plantuml-error</c> when the text is not a valid diagram or cannot be laid out,
     ///     <c>budget-exceeded</c> when a limit is exceeded, <c>file-access-denied</c> when the policy refuses an include,
     ///     and <c>corrupt-input</c> when the text is longer than the limit.
     /// </exception>
-    private static SourceInfo ProbePlantUml(SourceInput input, long bytes, FileAccessPolicy fileAccess)
+    private static SourceInfo ProbePlantUml(SourceInput input, long bytes, FileAccessPolicy fileAccess, PlantUmlLimits? limits)
     {
         var path = input.Name;
-        var document = Read(path, SourceKind.PlantUml, () => OpenPlantUml(input, fileAccess));
-        var size = Read(path, SourceKind.PlantUml, () => MeasurePlantUml(document, path, CancellationToken.None));
+        var document = Read(path, SourceKind.PlantUml, () => OpenPlantUml(input, fileAccess, limits));
+        var size = Read(path, SourceKind.PlantUml, () => MeasurePlantUml(document, limits, path, CancellationToken.None));
         var diagram = new DiagramFacts(
             document.DiagramType,
             document.IsSupported,
@@ -83,19 +84,21 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="fileAccess">The file-access policy of the includes.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
     /// <returns>The parsed diagram.</returns>
-    private static PlantUmlDocument OpenPlantUml(SourceInput input, FileAccessPolicy fileAccess)
+    private static PlantUmlDocument OpenPlantUml(SourceInput input, FileAccessPolicy fileAccess, PlantUmlLimits? limits)
     {
         using var stream = input.Open();
         return PlantUmlDocument.Open(
             stream,
-            new PlantUmlOpenOptions { SourceName = input.Name, BaseDirectory = input.Directory, FileAccess = fileAccess });
+            new PlantUmlOpenOptions { SourceName = input.Name, BaseDirectory = input.Directory, FileAccess = fileAccess, Limits = limits });
     }
 
     /// <summary>
     ///     Measures the natural size of a PlantUML diagram without reporting anything.
     /// </summary>
     /// <param name="document">The diagram.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
     /// <param name="path">The path of the file, for messages.</param>
     /// <param name="cancellationToken">The token that cancels the measure.</param>
     /// <returns>
@@ -103,16 +106,16 @@ public static partial class SourceLoader
     ///     bring it within the limit, or the load is refused with <c>size-limit</c>).
     /// </returns>
     /// <exception cref="ViewerException">Thrown with code <c>size-limit</c> or <c>plantuml-error</c> for an argument failure of the library.</exception>
-    internal static PlantUmlSize MeasurePlantUml(PlantUmlDocument document, string path, CancellationToken cancellationToken)
+    internal static PlantUmlSize MeasurePlantUml(PlantUmlDocument document, PlantUmlLimits? limits, string path, CancellationToken cancellationToken)
     {
         try
         {
-            return document.Measure(new PlantUmlRenderOptions(), cancellationToken);
+            return document.Measure(new PlantUmlRenderOptions { Limits = limits ?? PlantUmlLimits.Default }, cancellationToken);
         }
         catch (ArgumentOutOfRangeException ex) when (ex.ParamName == "scale")
         {
             // The library refuses a natural size beyond the largest surface at scale 1 and names the size, in the words of
-            // the Mermaid library; the diagram still has that size, and a smaller --scale, --width, or --height draws it
+            // the Mermaid library; the diagram still has that size, and a smaller scale, width, or height draws it
             var match = MermaidOversizeMessage.Match(ex.Message);
             if (match.Success
                 && int.TryParse(match.Groups["width"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var width)
@@ -124,7 +127,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.SizeLimit,
                 $"'{path}' lays out larger than the maximum of {Surface.MaxDimension} pixels per side: {OneLine(ex.Message)}",
-                "Split the diagram, or draw it with a smaller --scale.",
+                "Split the diagram, or draw it at a smaller scale, width, or height.",
                 ex);
         }
         catch (ArgumentException ex)
@@ -145,25 +148,27 @@ public static partial class SourceLoader
     /// <returns>
     ///     The exception to throw: <c>file-access-denied</c> when the file-access policy refused an include,
     ///     <c>budget-exceeded</c> for <c>plantuml-limit-exceeded</c> (a limit on nodes, edges, includes, nesting, label
-    ///     length, layout work, or painted pixels), otherwise <c>plantuml-error</c>; the hint of the library is kept.
+    ///     length, layout work, or painted pixels), otherwise <c>plantuml-error</c>; the hint of the library is kept, and
+    ///     the location and the <c>plantuml-*</c> code of the failure are the <see cref="ViewerException.Location"/> and
+    ///     <see cref="ViewerException.DetailCode"/>.
     /// </returns>
     internal static ViewerException MapPlantUml(string code, string stage, string message, string? hint, Exception exception)
     {
         if (IsFileAccessDenial(exception))
         {
-            return new ViewerException(ErrorCodes.FileAccessDenied, $"PlantUML include denied: {OneLine(message)}", FileAccessDeniedHint, exception);
+            return SourceFailure(ErrorCodes.FileAccessDenied, $"PlantUML include denied: {OneLine(message)}", FileAccessDeniedHint, exception);
         }
 
         if (code == PlantUmlDiagnosticCodes.LimitExceeded)
         {
-            return new ViewerException(
+            return SourceFailure(
                 ErrorCodes.BudgetExceeded,
                 $"The PlantUML diagram exceeds a limit: {OneLine(message)}",
-                hint ?? "Simplify the diagram; this limit cannot be changed from the command line.",
+                hint ?? "Simplify the diagram.",
                 exception);
         }
 
-        return new ViewerException(ErrorCodes.PlantUmlError, $"PlantUML {stage} error: {OneLine(message)}", hint, exception);
+        return SourceFailure(ErrorCodes.PlantUmlError, $"PlantUML {stage} error: {OneLine(message)}", hint, exception);
     }
 
     /// <summary>
@@ -174,12 +179,14 @@ public static partial class SourceLoader
     /// <param name="notes">The list the warnings and unsupported features are added to.</param>
     /// <param name="strict"><see langword="true"/> to make the first unsupported construct an error.</param>
     /// <param name="scale">The factor of the natural size, for a render at the natural size.</param>
+    /// <param name="limits">The resource limits of the diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
     /// <returns>The options.</returns>
-    private static PlantUmlRenderOptions CreatePlantUmlOptions(Rgba32? background, List<ImageDiagnostic> notes, bool strict, double scale)
+    private static PlantUmlRenderOptions CreatePlantUmlOptions(Rgba32? background, List<ImageDiagnostic> notes, bool strict, double scale, PlantUmlLimits? limits)
     {
         return new PlantUmlRenderOptions
         {
             Scale = scale,
+            Limits = limits ?? PlantUmlLimits.Default,
             Background = background,
             ThrowOnUnsupportedFeature = strict,
             WarningHandler = warning => notes.Add(
@@ -258,7 +265,7 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown when the file cannot be read or is not a valid diagram.</exception>
         public static PlantUmlPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.PlantUml, () => OpenPlantUml(input, options.FileAccess));
+            var document = Read(info.Path, SourceKind.PlantUml, () => OpenPlantUml(input, options.FileAccess, context.Limits.PlantUml));
             return new PlantUmlPageSource(document, info, options, input, context);
         }
 
@@ -271,7 +278,7 @@ public static partial class SourceLoader
             // Without a width or a height the diagram is drawn at its natural size times the scale (the library rounds the
             // size the same way as ComputeTargetSize); a box is fitted
             var exact = Options.Width is null && Options.Height is null;
-            var renderOptions = CreatePlantUmlOptions(Options.Background, notes, Options.Strict, exact ? Options.Scale ?? 1 : 1);
+            var renderOptions = CreatePlantUmlOptions(Options.Background, notes, Options.Strict, exact ? Options.Scale ?? 1 : 1, Context.Limits.PlantUml);
 
             // The surface is charged before the diagram is drawn, so a diagram that cannot be paid for costs nothing
             Context.ChargeSurface(width, height);

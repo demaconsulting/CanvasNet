@@ -9,8 +9,12 @@ see-also:
 
 - A diagnostic is a note of a successful render (`ViewerImage.Diagnostics`, each
   with its `Severity`, `Code`, `Message`, and `Detail`): the picture was drawn
-  without a feature (severity unsupported) or with a questionable construct
-  (severity warning). Read the diagnostics even when the render succeeded.
+  without a feature (severity unsupported), with a questionable construct
+  (severity warning), or exactly as written, with a note for information only
+  (severity info). Read the diagnostics even when the render succeeded.
+- An info note never fails a render, not even in strict mode. The only one is
+  vega-lite-info, a chart field without a type (detail vl-type-inferred, at the
+  channel): the note names the type Vega-Lite gave it.
 - A SCAD model's echo output is kept as the model printed it ('ECHO: <text>',
   `ViewerImage.Echo`).
 - Only SCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, PPTX

@@ -113,7 +113,8 @@ sections:
               properties, legends, guide properties, expressions, transforms, parameters, projections,
               compositions, and autosize modes - with a stable lower-case vl-* identifier, a message, and
               the location of the construct, sorted by position, once per feature and location, and
-              shall report nothing for a construct the renderer supports.
+              shall report nothing for a construct the renderer supports except, when asked, the
+              informational note vl-type-inferred for a field without a type.
             justification: |
               Unsupported features must be visible and distinguishable from mistakes, and a gap that the
               renderer does not report would be silently skipped.
@@ -138,6 +139,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-OffsetReports
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-ScaleInvalidReports
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-InferredType
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -154,6 +156,7 @@ sections:
               - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
               - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
               - FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported
+              - FeatureCatalog_Visit_FieldWithoutType_ReportsInferredTypeWhenAsked
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 
           - id: CanvasNetVegaLite-SpecModel-LayerValidation

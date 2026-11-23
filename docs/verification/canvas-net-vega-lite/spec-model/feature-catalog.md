@@ -805,3 +805,15 @@ channel is not reported on an image and is `vl-channel-url` on a bar; that `x2` 
 `vl-mark-invalid-domains` with a resolver, and that an image with a resolver and a condition of the `url` channel
 reports `vl-encoding-condition`; and that
 the image layers of a layered view are silenced together by a resolver.
+
+##### A Field Without A Type Is Noted For Information Only When Asked
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_FieldWithoutType_ReportsInferredTypeWhenAsked`
+
+Asserts, for the chart of issue #165 (a `bar` whose `x` channel is `{"field": "a"}`), that `Visit` without
+`reportInferredTypes` returns no report, and that with it the single report is `vl-type-inferred` of the kind `Info` at
+`/encoding/x`, whose message names the field `'a'`, the `'x'` channel, and the inferred type `nominal`; and, for a chart
+whose `x` is a field with the time unit `month` and no type, whose `x2` is a field without a type, whose `y` writes the
+type, whose `color` is a datum, and whose `tooltip` is a field without a type, that the only report is the note at
+`/encoding/x` and that it names the inferred type `temporal` (a secondary channel, a written type, a datum, and an
+ignored channel are not reported).

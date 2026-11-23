@@ -1,8 +1,10 @@
 namespace DemaConsulting.CanvasNet.VegaLite;
 
 /// <summary>
-///     A warning produced while reading or rendering a Vega-Lite specification: something questionable that does
-///     not stop rendering, such as an empty inline dataset or a <c>$schema</c> version that is not fully supported.
+///     A warning or an informational note produced while reading or rendering a Vega-Lite specification: something questionable that does
+///     not stop rendering, such as an empty inline dataset or a <c>$schema</c> version that is not fully supported, or
+///     something Vega-Lite decided on its own, such as the type of a field without a <c>type</c> (<c>vl-type-inferred</c>,
+///     delivered to <see cref="VegaLiteRenderOptions.InfoHandler"/>).
 /// </summary>
 /// <remarks>
 ///     The message starts with a stable identifier of the form <c>vl-*</c> followed by a colon (for example

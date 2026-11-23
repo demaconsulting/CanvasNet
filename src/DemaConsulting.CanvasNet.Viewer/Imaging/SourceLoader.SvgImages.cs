@@ -167,7 +167,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 code,
                 $"'{holder}' {what}.",
-                $"Without --strict the image is left out and reported as the warning {unresolved.Code}.");
+                $"Without strict mode the image is left out and reported as the warning {unresolved.Code}.");
         }
 
         /// <summary>
@@ -180,23 +180,39 @@ public static partial class SourceLoader
         /// </returns>
         public ViewerException Map(ImageSourceException failure)
         {
-            var inner = failure.InnerException ?? failure;
-            try
+            var mapped = MapPicture(failure, _svgName);
+            if (mapped is null)
             {
-                Read<object>(failure.Href, KindOfName(failure.Href), () =>
-                {
-                    ExceptionDispatchInfo.Capture(inner).Throw();
-                    return string.Empty;
-                });
-            }
-            catch (ViewerException ex)
-            {
-                var embedder = failure.Embedder ?? _svgName;
-                return new ViewerException(ex.Code, $"'{embedder}' embeds '{failure.Href}': {ex.Message}", ex.Hint, ex);
+                // A failure that is not an allow-listed one is a defect and escapes as itself
+                ExceptionDispatchInfo.Capture(failure.InnerException ?? failure).Throw();
             }
 
-            // Read maps every exception it lets through to a ViewerException or rethrows it, so this is not reached
-            throw failure;
+            return mapped;
+        }
+
+        /// <summary>
+        ///     Maps the failure of a picture that was found but could not be drawn with the shared mapping of the loader
+        ///     (<see cref="MapFailure"/>), for every caller that draws pictures through a resolver.
+        /// </summary>
+        /// <param name="failure">The failure the resolver reported.</param>
+        /// <param name="embedder">The name of the file that holds the link when the failure does not say.</param>
+        /// <returns>
+        ///     The exception to throw: the code, hint, location and detail code the loader gives the underlying failure (a
+        ///     <see cref="ViewerException"/> of the loader is taken as it is), with a message that names both files and the
+        ///     underlying <see cref="ViewerException"/> as the inner exception; or <see langword="null"/> when the underlying
+        ///     failure is not an allow-listed one.
+        /// </returns>
+        internal static ViewerException? MapPicture(ImageSourceException failure, string embedder)
+        {
+            var inner = failure.InnerException ?? failure;
+            var mapped = inner as ViewerException ?? MapFailure(inner, failure.Href, KindOfName(failure.Href));
+            return mapped is null
+                ? null
+                : new ViewerException(mapped.Code, $"'{failure.Embedder ?? embedder}' embeds '{failure.Href}': {mapped.Message}", mapped.Hint, mapped)
+                {
+                    Location = mapped.Location,
+                    DetailCode = mapped.DetailCode
+                };
         }
 
         /// <summary>

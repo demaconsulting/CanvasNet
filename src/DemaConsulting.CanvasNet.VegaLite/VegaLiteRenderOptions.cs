@@ -18,10 +18,11 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         copied defensively and exposed read-only, so later changes to the caller's collections have no effect.
 ///     </para>
 ///     <para>
-///         Reporting is uniform: warnings go to <see cref="WarningHandler"/> and constructs that are recognized but
-///         not supported go to <see cref="UnsupportedFeatureHandler"/>, once, in the order they were found, on the
+///         Reporting is uniform: warnings go to <see cref="WarningHandler"/>, constructs that are recognized but
+///         not supported go to <see cref="UnsupportedFeatureHandler"/> and notes for information only (such as
+///         <c>vl-type-inferred</c>) go to <see cref="InfoHandler"/>, once, in the order they were found, on the
 ///         thread that made the call, before the method returns or throws. <see cref="ThrowOnUnsupportedFeature"/>
-///         turns the first unsupported construct into a <see cref="VegaLiteUnsupportedFeatureException"/>.
+///         turns the first unsupported construct into a <see cref="VegaLiteUnsupportedFeatureException"/>; a note never fails.
 ///     </para>
 /// </remarks>
 public sealed class VegaLiteRenderOptions
@@ -293,6 +294,24 @@ public sealed class VegaLiteRenderOptions
     /// </summary>
     /// <remarks>Delivered like <see cref="WarningHandler"/>.</remarks>
     public Action<VegaLiteUnsupportedFeature>? UnsupportedFeatureHandler { get; init; }
+
+    /// <summary>
+    ///     Gets the callback that receives the informational notes, or <see langword="null"/> to drop them.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A note tells the author something Vega-Lite decided on its own while the chart is drawn exactly as Vega-Lite
+    ///         draws it. The only note so far is <c>vl-type-inferred</c>: a channel with a <c>field</c> but no <c>type</c>
+    ///         is drawn with the type Vega-Lite infers (usually <c>nominal</c>, so a number field is read as categories),
+    ///         and the note, located at the channel definition, names the field and that type. Writing the <c>type</c>
+    ///         silences it.
+    ///     </para>
+    ///     <para>
+    ///         Delivered like <see cref="WarningHandler"/>, in order with the other reports. A note is never a warning and
+    ///         never an unsupported feature: <see cref="ThrowOnUnsupportedFeature"/> never fails on one.
+    ///     </para>
+    /// </remarks>
+    public Action<VegaLiteDiagnostic>? InfoHandler { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether the first unsupported construct aborts the call with a

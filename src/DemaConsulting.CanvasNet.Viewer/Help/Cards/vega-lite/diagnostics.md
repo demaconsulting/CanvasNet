@@ -16,6 +16,13 @@ see-also:
   source vega-lite, the severity unsupported, and its code; the message gives
   file, line, column, and JSON pointer. In strict mode the first one fails with
   unsupported-feature.
+- `vl-type-inferred`: Information, not a warning: a channel has a field but no
+  type, so it gets the type Vega-Lite infers (nominal unless a timeUnit, bin,
+  aggregate, sort array, or scale.type says otherwise), and a number field on x
+  becomes a row of categories. Reported with the severity info, the code
+  vega-lite-info, and the detail vl-type-inferred, at the channel (for example
+  /encoding/x); the message names the field and the type. It never fails strict
+  mode. Write the type to choose another and to silence it.
 - `vl-mark-<type>`: A mark that is not drawn, for example vl-mark-geoshape; the
   view is drawn without marks.
 - `vl-channel-geo`: A longitude or latitude channel.

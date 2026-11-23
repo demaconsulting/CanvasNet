@@ -77,12 +77,23 @@ sections:
                 title: >-
                   The DiagramDetector unit shall name the type of a diagram that no drawn type reads from the first
                   statement that only another type uses (legacy activity, timing, gantt), as a
-                  type that is not drawn, with a hint that lists the drawn types.
+                  type that is not drawn, with a hint that lists the drawn types. A first word that is the whole left
+                  end of an arrow (Agent -> : x) is a name, not a declaration keyword of another type or of a graph
+                  family (agent, node, file, card, class, object, state, ...), so that an unreadable message from a
+                  participant with such a name is a located sequence syntax error at the message, while a declaration
+                  followed by a link keeps naming its type.
                 justification: |
-                  A diagram of a type that is not drawn must be reported as such, not as a syntax error.
+                  A diagram of a type that is not drawn must be reported as such, not as a syntax error. Participants
+                  are often named Agent, Node, or File: one broken message from such a participant must point at that
+                  message, not turn the whole diagram into a deployment, class, or state diagram whose parser then
+                  refuses a valid participant declaration.
                 tests:
                   - PlantUmlDiagramDetector_Detect_OtherTypeKeyword_IsRecognized
                   - PlantUmlDiagramDetector_UnsupportedHint_ListsDrawnTypes
+                  - PlantUmlDiagramDetector_Detect_BadMessageFromKeywordNamedParticipant_IsSequenceErrorAtTheMessage
+                  - PlantUmlDiagramDetector_Detect_MessagesFromKeywordNamedParticipants_AreSequence
+                  - PlantUmlDiagramDetector_Detect_KeywordDeclarationsWithLinks_KeepTheirType
+                  - PlantUmlDiagramDetector_StartsWithArrowFromFirstWord_ReadsTheLeftEnd
 
               - id: CanvasNetPlantUml-Syntax-DiagramDetector-Errors
                 title: >-

@@ -112,9 +112,11 @@ sections:
           The library shall render any file of a supported format, given as a path or as a stream with a file
           name, as a picture at its natural size or at a requested size (for a document, the chosen page at a
           chosen resolution, over a chosen background), returning the picture with its format, page, notes, printed
-          text, anchors, and embedded images, and shall fail with a specific exception for a missing file,
-          an unknown file type, a file that cannot be drawn, a page that does not exist, a path that is not a
-          regular file, and a canceled render.
+          text, anchors, and embedded images, and shall report every failure of the file (a missing file, an
+          unknown file type, a file that cannot be drawn, a page that does not exist, a path that is not a regular
+          file) as one exception type with the stable code of the command-line tool and the place of an error in the
+          source, and a canceled render as a cancellation; the host shall be able to set the resource limits of a chart
+          and a diagram for a render.
         tags: [system]
         justification: |
           Applications that only want to show a file (a viewer, a thumbnail generator, a report builder) should
@@ -122,9 +124,12 @@ sections:
         children:
           - CanvasNetViewer-CanvasNetViewer-RenderPath
           - CanvasNetViewer-CanvasNetViewer-RenderStream
+          - CanvasNetViewer-CanvasNetViewer-RenderErrors
           - CanvasNetViewer-CanvasNetViewer-RenderOptions
+          - CanvasNetViewer-CanvasNetViewer-ResourceLimits
         tests:
           - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources
+          - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
 
       - id: CanvasNetViewer-FileAccess
         title: >-

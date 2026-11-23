@@ -44,7 +44,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     <para>
 ///         Rendering supports a limited subset of the language: constructs that the renderer does not
 ///         support (the documented supported subset) are reported with stable <c>vl-*</c> identifiers (see
-///         <see cref="VegaLiteUnsupportedFeature"/>), never skipped silently; supported constructs are not reported. The
+///         <see cref="VegaLiteUnsupportedFeature"/>), never skipped silently; supported constructs are not reported, except that a field
+///         without a <c>type</c> is noted for information as <c>vl-type-inferred</c> (it is drawn with the type Vega-Lite infers; see
+///         <see cref="VegaLiteRenderOptions.InfoHandler"/>). The
 ///         expressions of the supported sites (static parameters, <c>calculate</c> and <c>filter</c> transforms, row-bound
 ///         mark values) are compiled when the document is opened, so an expression with a syntax error, a parameter cycle or a
 ///         reference to a parameter that does not exist is a <see cref="VegaLiteSpecException"/> at that point.
@@ -77,11 +79,11 @@ public sealed partial class VegaLiteDocument
         SourceName = options.SourceName;
         MarkTypes = _metadata.Marks.Select(m => m.Type).ToList().AsReadOnly();
 
-        // Everything that can be said about the text alone is decided once: the parse warnings and the catalog of
-        // recognized-but-unsupported constructs, merged into document order (the sort is stable, so reports at one
-        // position keep their order)
+        // Everything that can be said about the text alone is decided once: the parse warnings, the catalog of
+        // recognized-but-unsupported constructs and the informational notes about inferred types, merged into document
+        // order (the sort is stable, so reports at one position keep their order)
         Reports = tree.Warnings
-            .Concat(FeatureCatalog.Visit(tree))
+            .Concat(FeatureCatalog.Visit(tree, reportInferredTypes: true))
             .OrderBy(r => r.Location.Line)
             .ThenBy(r => r.Location.Column)
             .ToList()
@@ -151,8 +153,8 @@ public sealed partial class VegaLiteDocument
     internal SpecTree Tree => _tree;
 
     /// <summary>
-    ///     Gets the findings about the text in document order: the parse warnings and the catalog of constructs that are
-    ///     recognized but not supported (internal; delivered on every measure and render).
+    ///     Gets the findings about the text in document order: the parse warnings, the catalog of constructs that are
+    ///     recognized but not supported, and the informational notes (<c>vl-type-inferred</c>) (internal; delivered on every measure and render).
     /// </summary>
     internal IReadOnlyList<FeatureReport> Reports { get; }
 
@@ -176,7 +178,7 @@ public sealed partial class VegaLiteDocument
 
         var config = options.Config is null ? null : ConfigResolver.Resolve(_tree, options.Config);
         return _tree.Warnings
-            .Concat(FeatureCatalog.Visit(_tree, config, hasResolver))
+            .Concat(FeatureCatalog.Visit(_tree, config, hasResolver, reportInferredTypes: true))
             .Concat(FeatureCatalog.VisitCallerConfig(options.Config))
             .OrderBy(r => r.Location.Line)
             .ThenBy(r => r.Location.Column)

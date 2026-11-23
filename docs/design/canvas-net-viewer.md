@@ -73,10 +73,10 @@ The system exposes the following public API:
   resolver and takes extra sources from `ViewerRenderOptions.ExtraSources` instead.
 - **`CanvasNetViewer.Render(path, options)`** / **`Render(stream, fileName, options)`**: draw one file as a
   `ViewerImage` (the picture, its format, the notes, the printed text, and the embedded images). Throw
-  `FileNotFoundException`, `NotSupportedException` (no source claims the extension), `FileReferenceException` (the file
-  is not a regular file, is too large, or cannot be read), `ViewerException` (with `ThrowOnUnsupportedFeature`, also
-  `file-access-denied` for a link the file-access policy denied), `ImageSourceException` (a file that is found but
-  cannot be drawn), and `OperationCanceledException`. The file a caller renders by path may lie anywhere (also outside
+  `ArgumentNullException` (a null argument), `ArgumentException` (a stream that cannot be read),
+  `ArgumentOutOfRangeException` (options that are not usable, before anything is read), `ViewerException` (every
+  failure of the input, with its stable `Code`, `Location`, and `DetailCode`, and the original exception inside), and
+  `OperationCanceledException`. The file a caller renders by path may lie anywhere (also outside
   the folder option and behind a link): it is the caller's choice and is never judged by the file-access policy.
 - **`ViewerRenderOptions`**: `Width`, `Height`, `Folder` (the base of relative links, not a boundary), `FileAccess` (the
   `FileAccessPolicy` of every file the rendered file references, at every level; `FileAccessPolicy.AllowAll` by

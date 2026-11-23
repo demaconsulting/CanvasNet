@@ -42,7 +42,7 @@ public static partial class SourceLoader
             throw new ViewerException(
                 ErrorCodes.UsageError,
                 $"The resolution {dpi} is not valid for this source: it needs a whole number of dots per inch.",
-                "Use a whole number for --dpi, for example --dpi 150.");
+                "Use a whole number of dots per inch, for example 150.");
         }
     }
 
@@ -124,7 +124,7 @@ public static partial class SourceLoader
         /// <summary>
         ///     Gets the color the page is rendered over: white unless the options say otherwise.
         /// </summary>
-        protected Rgba32 Background => Options.Background ?? new Rgba32(255, 255, 255, 255);
+        protected Rgba32 Background => Options.Background ?? DefaultVectorBackground;
 
         /// <summary>
         ///     Renders a page to a surface of a given size.

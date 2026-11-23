@@ -52,9 +52,11 @@ the rendered picture. The style card of each format shows the syntax:
 ## Light and dark backgrounds
 
 - A drawing, chart, diagram, or model is drawn over the background color of the
-  render (white unless the host says otherwise). A transparent background keeps
-  it clear for a slide or a colored page; JPEG has no transparency, so it is
-  flattened over the background.
+  render: opaque white unless the host says otherwise, which suits a viewer
+  without a checkerboard and a vision model. A transparent background (alpha 0)
+  keeps it clear for a slide or a colored page, but dark text on it is hard to
+  read where nothing is behind it; JPEG has no transparency, so it is flattened
+  over the background.
 - For a dark page use a dark background together with a dark design (the Mermaid
   theme dark, light chart text and axes).
 - Inside an SVG figure a diagram and a model stay transparent, and a chart

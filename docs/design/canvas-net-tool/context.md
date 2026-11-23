@@ -64,14 +64,16 @@ and `compare` (also before a failed `compare` threshold is reported) - and the `
 so that a feature left out of the picture is not silent in text mode. It writes nothing when `Json` is true (the JSON
 result carries the same notes and standard output stays one document) and, like every other output, nothing to the
 console when silent (the log file still receives it). Each echo line is written as the model printed it
-(`ECHO: <text>`), then each note as `Unsupported: <code>: <message>` for severity `unsupported` or
+(`ECHO: <text>`), then each note as `Unsupported: <code>: <message>` for severity `unsupported`,
+`Info: <code>: <message>` for severity `info` (a note for information only, such as `vega-lite-info`), or
 `Warning: <code>: <message>` for any other severity, followed by `(<origin>, page <n>)` with whichever of the origin (an
 input path or `input a`/`input b`) and the page there is. At most `MaxReportedLines` (20) echo lines and 20 notes are
 written; one closing line each counts the rest (`... and N more echo lines (use --json for all)` and
 `... and N more diagnostics (use --json for all)`). Every line is escaped first (`EscapeControlCharacters`): a control
 character (C0, DEL, C1, such as ESC and NUL), a line or paragraph separator, or a bidirectional control is written as
 `\n`, `\r`, `\t`, or `\uXXXX`, so that a model cannot inject terminal sequences; the same text is unchanged in the JSON
-result. Notes are colored yellow, echo lines are not colored, and neither sets the error state.
+result. Warnings and unsupported notes are colored yellow, informational notes and echo lines are not colored, and none
+of them sets the error state.
 
 **Dispose**: Disposes the log file writer, flushing buffered content.
 

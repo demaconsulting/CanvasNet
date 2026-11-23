@@ -60,6 +60,12 @@ internal sealed partial class SpecParser
     /// <summary>The frames of the open containers while reading, kept for the pointers of errors and warnings.</summary>
     private Frame?[] _frames = [];
 
+    /// <summary>
+    ///     The depth of the innermost open container while reading (-1 before the root opens and after it closes), kept
+    ///     so that a reader failure at the end of the text can name the container that was never closed.
+    /// </summary>
+    private int _depth = -1;
+
     /// <summary>The byte offset up to which the incremental locator has scanned.</summary>
     private int _scanOffset;
 
@@ -251,12 +257,17 @@ internal sealed partial class SpecParser
     /// <summary>
     ///     Reads the JSON into a tree with one forward pass and an explicit stack.
     /// </summary>
+    /// <remarks>
+    ///     The nesting limit is enforced here, by the parser's own depth count, rather than by the reader: the reader
+    ///     gets one level of headroom so that it never reports the limit itself, and every failure it reports is then
+    ///     a syntax error. This keeps truncated text from being mistaken for text that is nested too deeply.
+    /// </remarks>
     /// <returns>The root node.</returns>
-    /// <exception cref="JsonException">Thrown by the reader for malformed JSON and excessive depth.</exception>
-    /// <exception cref="VegaLiteSpecException">Thrown for a root that is not an object, an overlong string or an out-of-range number.</exception>
+    /// <exception cref="JsonException">Thrown by the reader for malformed JSON.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown for a root that is not an object, nesting deeper than the limit, an overlong string or an out-of-range number.</exception>
     private SpecNode Read()
     {
-        var reader = new Utf8JsonReader(_bytes, new JsonReaderOptions { MaxDepth = _limits.MaxJsonDepth });
+        var reader = new Utf8JsonReader(_bytes, new JsonReaderOptions { MaxDepth = _limits.MaxJsonDepth + 1 });
 
         // The first token decides whether this is a specification at all: it must be an object
         if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
@@ -287,7 +298,19 @@ internal sealed partial class SpecParser
                     {
                         var position = Locate(reader.TokenStartIndex);
                         var (name, index, keyLine, keyColumn) = NextChildIdentity(frames, depth);
+
+                        // The new container makes depth + 2 open containers; one more than the limit is rejected at
+                        // the container itself, before its frame is used
+                        if (depth + 2 > _limits.MaxJsonDepth)
+                        {
+                            throw Fail(
+                                $"The specification is nested deeper than the limit of {_limits.MaxJsonDepth} levels (VegaLiteLimits.MaxJsonDepth).",
+                                PointerOfChild(depth, name, index),
+                                reader.TokenStartIndex);
+                        }
+
                         depth++;
+                        _depth = depth;
                         var frame = frames[depth] ??= new Frame();
                         frame.Reset(
                             reader.TokenType == JsonTokenType.StartObject ? SpecNodeKind.Object : SpecNodeKind.Array,
@@ -301,6 +324,7 @@ internal sealed partial class SpecParser
                     {
                         var frame = frames[depth]!;
                         depth--;
+                        _depth = depth;
                         var node = new SpecNode(frame.Kind, frame.Name, frame.Index, frame.Position, null, 0, false, frame.Children.ToArray());
                         frame.Children.Clear();
                         frame.Names?.Clear();
@@ -511,12 +535,18 @@ internal sealed partial class SpecParser
     /// <summary>
     ///     Converts a JSON reader failure into a specification exception with a UTF-16 line and column.
     /// </summary>
+    /// <remarks>
+    ///     Every reader failure is a syntax error, because the nesting limit is enforced by <see cref="Read"/> itself.
+    ///     When the reader ran out of text while a container was still open, the description names that container and
+    ///     where it was opened, which tells the author what is missing better than the reader's own wording.
+    /// </remarks>
     /// <param name="ex">The reader exception.</param>
     /// <returns>The specification exception.</returns>
     private VegaLiteSpecException FromJsonException(JsonException ex)
     {
         // The reader reports a zero-based line and byte position; unknown positions leave the location at the start
         VegaLiteLocation location;
+        var atEnd = false;
         if (ex.LineNumber is { } line0 && ex.BytePositionInLine is { } bytePosition)
         {
             var offset = 0L;
@@ -528,12 +558,23 @@ internal sealed partial class SpecParser
                 }
             }
 
+            atEnd = offset + bytePosition >= _bytes.Length;
             var position = Locate(Math.Min(offset + bytePosition, _bytes.Length));
             location = new VegaLiteLocation(_file, string.Empty, position.Line, position.Column);
         }
         else
         {
             location = new VegaLiteLocation(_file, string.Empty, 1, 1);
+        }
+
+        // Text that ends inside a container is truncated: name the innermost container that was never closed
+        if (atEnd && _depth >= 0 && _frames[_depth] is { } open)
+        {
+            var kind = open.Kind == SpecNodeKind.Object ? "object" : "array";
+            return new VegaLiteSpecException(
+                $"Malformed JSON: the specification ends before the {kind} opened at line {open.Position.Line}, column {open.Position.Column} is closed.",
+                location,
+                ex);
         }
 
         // The reader's own message ends with its zero-based coordinates, which would contradict ours
@@ -544,10 +585,7 @@ internal sealed partial class SpecParser
             message = message[..cut];
         }
 
-        var description = message.Contains("depth", StringComparison.OrdinalIgnoreCase)
-            ? $"The specification is nested deeper than the limit of {_limits.MaxJsonDepth} levels (VegaLiteLimits.MaxJsonDepth)."
-            : "Malformed JSON: " + message;
-        return new VegaLiteSpecException(description, location, ex);
+        return new VegaLiteSpecException("Malformed JSON: " + message, location, ex);
     }
 
     /// <summary>

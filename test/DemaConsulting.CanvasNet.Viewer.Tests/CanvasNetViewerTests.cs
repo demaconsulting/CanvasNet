@@ -1,6 +1,13 @@
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
+using DemaConsulting.CanvasNet.Positions;
+using DemaConsulting.CanvasNet.Scad;
+using DemaConsulting.CanvasNet.VegaLite;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests;
 
@@ -173,7 +180,8 @@ public class CanvasNetViewerTests
         // Assert
         Assert.Equal((12, 8), (byDefault.Surface.Width, byDefault.Surface.Height));
         Assert.Equal((12, 8), (fits.Surface.Width, fits.Surface.Height));
-        Assert.Throws<ImageSourceBudgetException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 95 }));
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 95 }));
+        Assert.Equal(ErrorCodes.BudgetExceeded, refused.Code);
         Assert.Throws<ArgumentOutOfRangeException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = -1 }));
     }
 
@@ -194,7 +202,8 @@ public class CanvasNetViewerTests
         var probe = Viewer.Imaging.SourceLoader.Probe(path);
 
         // Act: 300 000 pays for both picture loads and the probed size but not the drawn diagram; 400 000 pays for all
-        var refused = Assert.Throws<ImageSourceBudgetException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 300_000 }));
+        var refused = Assert.IsType<ImageSourceBudgetException>(
+            Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 300_000 })).InnerException);
         using var drawn = CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 400_000 });
 
         // Assert: the refusal is for the drawn pixels, and the diagram that fits is drawn larger than the probe measured
@@ -259,10 +268,31 @@ public class CanvasNetViewerTests
         // Assert: past the validation the render fails for the budget, not for the argument
         Assert.Equal((1, 1), (smallest.Surface.Width, smallest.Surface.Height));
         Assert.Equal((1, 1), (byStream.Surface.Width, byStream.Surface.Height));
-        Assert.Throws<ImageSourceBudgetException>(
-            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = Surface.MaxDimension, MaxDecodedPixels = 96 }));
-        Assert.Throws<ImageSourceBudgetException>(
-            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Height = Surface.MaxDimension, MaxDecodedPixels = 96 }));
+        Assert.IsType<ImageSourceBudgetException>(Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = Surface.MaxDimension, MaxDecodedPixels = 96 })).InnerException);
+        Assert.IsType<ImageSourceBudgetException>(Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Height = Surface.MaxDimension, MaxDecodedPixels = 96 })).InnerException);
+    }
+
+    /// <summary>
+    ///     Test the chart of issue #165 through the stream entry point in strict mode: a field without a type is drawn, and the image carries one informational note
+    ///     (<c>vega-lite-info</c>, detail <c>vl-type-inferred</c>, located at the channel) instead of no diagnostic at all.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ChartFieldWithoutType_ReportsInfoNoteInStrictMode()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("""{ "data": {"values":[{"a":1}]}, "mark": "bar", "encoding": { "x": { "field": "a" } } }"""));
+
+        // Act
+        using var image = CanvasNetViewer.Render(stream, "chart.vl.json", new ViewerRenderOptions { ThrowOnUnsupportedFeature = true });
+
+        // Assert: the note names the field and the inferred type, at the channel
+        var note = Assert.Single(image.Diagnostics);
+        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Info, "vega-lite-info", "vl-type-inferred"), (note.Source, note.Severity, note.Code, note.Detail));
+        Assert.Equal("/encoding/x", note.Location?.Pointer);
+        Assert.Contains("The field 'a' of the 'x' channel has no type; it is read as nominal", note.Message, StringComparison.Ordinal);
+        Assert.True(image.Surface.Width > 0);
     }
 
     /// <summary>
@@ -278,10 +308,10 @@ public class CanvasNetViewerTests
         var path = folder.WriteBytes("logo.png", ViewerFixtures.Png(10, 10, ViewerFixtures.Green));
 
         // Act
-        var refused = Assert.Throws<ImageSourceBudgetException>(
-            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 1, MaxDecodedPixels = 100 }));
-        var refusedBoxed = Assert.Throws<ImageSourceBudgetException>(
-            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 1, Height = 1, MaxDecodedPixels = 100 }));
+        var refused = Assert.IsType<ImageSourceBudgetException>(Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 1, MaxDecodedPixels = 100 })).InnerException);
+        var refusedBoxed = Assert.IsType<ImageSourceBudgetException>(Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 1, Height = 1, MaxDecodedPixels = 100 })).InnerException);
         using var fits = CanvasNetViewer.Render(path, new ViewerRenderOptions { Width = 1, MaxDecodedPixels = 101 });
         using var natural = CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 100 });
 
@@ -463,7 +493,8 @@ public class CanvasNetViewerTests
 
     /// <summary>
     ///     Test that the policy of the render reaches the includes of a model an SVG file embeds: a confined policy fails
-    ///     the render with an exception whose chain of inner exceptions holds the denial, and the default draws the model.
+    ///     the render with <c>file-access-denied</c>, whose chain of inner exceptions holds the denial and which names both
+    ///     files, and the default draws the model.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy()
@@ -476,17 +507,20 @@ public class CanvasNetViewerTests
         var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
 
         // Act
-        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, confined));
         using var allowed = CanvasNetViewer.Render(path);
 
         // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code);
+        Assert.StartsWith("'doc.svg' embeds 'part.scad': ", ex.Message, StringComparison.Ordinal);
         Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind);
         Assert.Single(allowed.Embedded);
     }
 
     /// <summary>
     ///     Test that the policy of the render reaches the data of a chart an SVG file embeds: a confined policy fails the
-    ///     render with an exception whose chain of inner exceptions holds the denial, and the default draws the chart.
+    ///     render with <c>file-access-denied</c>, whose chain of inner exceptions holds the denial, and the default draws
+    ///     the chart.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy()
@@ -501,10 +535,11 @@ public class CanvasNetViewerTests
         var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
 
         // Act
-        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, confined));
         using var allowed = CanvasNetViewer.Render(path);
 
         // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code);
         Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind);
         Assert.Single(allowed.Embedded);
     }
@@ -532,7 +567,7 @@ public class CanvasNetViewerTests
 
         // Act
         using var drawn = CanvasNetViewer.Render(plain, noLinks);
-        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(linked, noLinks));
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(linked, noLinks));
 
         // Assert
         Assert.Single(drawn.Embedded);
@@ -574,8 +609,9 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
-    ///     Test that a render by path fails for a missing file, an unknown extension, a corrupt file (with the original
-    ///     failure inside), and a null path, and that a folder option that holds the file works.
+    ///     Test that a render by path fails with the codes of the tool for a missing file, an unknown extension, and a
+    ///     corrupt file (with the original failure inside), with an argument exception for a null path, and that a folder
+    ///     option that holds the file works.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions()
@@ -587,12 +623,17 @@ public class CanvasNetViewerTests
         var inner = folder.WriteBytes("sub/inner.png", ViewerFixtures.Png(2, 2, ViewerFixtures.Green));
 
         // Act / Assert
-        Assert.Throws<FileNotFoundException>(() => CanvasNetViewer.Render(folder.Combine("missing.png")));
-        var unsupported = Assert.Throws<NotSupportedException>(() => CanvasNetViewer.Render(folder.Combine("notes.txt")));
+        var missing = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(folder.Combine("missing.png")));
+        Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
+        Assert.IsType<FileNotFoundException>(missing.InnerException);
+        var unsupported = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(folder.Combine("notes.txt")));
+        Assert.Equal(ErrorCodes.UnsupportedFormat, unsupported.Code);
         Assert.Contains(".svg", unsupported.Message, StringComparison.Ordinal);
-        var corrupt = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(bad));
+        Assert.IsType<NotSupportedException>(unsupported.InnerException);
+        var corrupt = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(bad));
+        Assert.Equal(ErrorCodes.CorruptInput, corrupt.Code);
         Assert.IsType<InvalidDataException>(corrupt.InnerException);
-        Assert.Null(corrupt.Embedder);
+        Assert.Null(corrupt.Location);
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render((string)null!));
         using var withFolder = CanvasNetViewer.Render(inner, new ViewerRenderOptions { Folder = folder.Path });
         Assert.Equal((2, 2), (withFolder.Surface.Width, withFolder.Surface.Height));
@@ -632,12 +673,13 @@ public class CanvasNetViewerTests
 
         // Act
         using var lenient = CanvasNetViewer.Render(path);
-        var strict = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { ThrowOnUnsupportedFeature = true }));
+        var strict = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { ThrowOnUnsupportedFeature = true }));
 
         // Assert
         Assert.Contains(lenient.Diagnostics, d => d.Severity == ImageDiagnosticSeverity.Unsupported);
         Assert.Equal("scad", lenient.Format);
-        Assert.NotNull(strict.InnerException);
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+        Assert.IsType<ScadUnsupportedFeatureException>(strict.InnerException);
     }
 
     /// <summary>
@@ -663,15 +705,365 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
-    ///     Test that a stream with an unknown extension and null arguments are rejected.
+    ///     Test that a stream with an unknown extension, a stream that cannot be read, and null arguments are rejected.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_StreamInvalidArguments_Throw()
     {
-        // Arrange / Act / Assert
-        Assert.Throws<NotSupportedException>(() => CanvasNetViewer.Render(new MemoryStream(), "x.unknown"));
+        // Arrange: a stream that is closed cannot be read
+        var closed = new MemoryStream(ViewerFixtures.Png(2, 2, ViewerFixtures.Green));
+        closed.Dispose();
+
+        // Act / Assert
+        Assert.Equal(ErrorCodes.UnsupportedFormat, Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(new MemoryStream(), "x.unknown")).Code);
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render((Stream)null!, "x.png"));
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render(new MemoryStream(), null!));
+        Assert.Equal("content", Assert.Throws<ArgumentException>(() => CanvasNetViewer.Render(closed, "x.png")).ParamName);
+    }
+
+    /// <summary>
+    ///     Test the Mermaid row of issue #166: a syntax error is a <see cref="ViewerException"/> with the code of the tool,
+    ///     the line and column in <see cref="ViewerException.Location"/>, the library's code in
+    ///     <see cref="ViewerException.DetailCode"/>, and the library exception inside.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("flowchart LR\n  A -> B\n"));
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(stream, "diagram.mmd"));
+
+        // Assert
+        Assert.Equal((ErrorCodes.MermaidError, "mermaid-syntax-error"), (ex.Code, ex.DetailCode));
+        Assert.Equal(new ImageDiagnosticLocation("diagram.mmd", 2, 5, null), ex.Location);
+        Assert.IsType<MermaidSyntaxException>(ex.InnerException);
+        Assert.Contains("diagram.mmd:2:5", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a PlantUML syntax error is a <see cref="ViewerException"/> with the code of the tool, the line in
+    ///     <see cref="ViewerException.Location"/>, the library's code in <see cref="ViewerException.DetailCode"/>, and the
+    ///     library exception inside.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode()
+    {
+        // Arrange: the message line of issue #164, which has no target
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("@startuml\nparticipant Agent\nAgent -> : call tool\n@enduml\n"));
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(stream, "flow.puml"));
+
+        // Assert
+        var inner = Assert.IsType<PlantUmlSyntaxException>(ex.InnerException);
+        Assert.Equal((ErrorCodes.PlantUmlError, inner.Code), (ex.Code, ex.DetailCode));
+        Assert.Equal("plantuml-syntax-error", ex.DetailCode);
+        Assert.Equal(("flow.puml", 3), (ex.Location?.File, ex.Location?.Line));
+    }
+
+    /// <summary>
+    ///     Test the OpenSCAD row of issue #166: a syntax error is <c>scad-error</c> with the line and column of the library
+    ///     and its code <c>scad-syntax-error</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ScadSyntaxError_ThrowsViewerExceptionWithLocation()
+    {
+        // Arrange
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("cube([10, 10, 10]\nsphere(5);\n"));
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(stream, "model.scad"));
+
+        // Assert
+        Assert.Equal((ErrorCodes.ScadError, "scad-syntax-error"), (ex.Code, ex.DetailCode));
+        Assert.Equal(new ImageDiagnosticLocation("model.scad", 2, 1, null), ex.Location);
+        Assert.IsType<ScadSyntaxException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Test that a Vega-Lite chart cut short (issue #163) is <c>vega-lite-error</c> at the end of the text, not a depth
+    ///     error, and that an invalid property is located by its line and JSON pointer, both without a detail code: the
+    ///     library gives a chart error none.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation()
+    {
+        // Arrange
+        using var truncated = new MemoryStream(Encoding.UTF8.GetBytes("{\n  \"mark\": \"bar\",\n  \"encoding\": {\n"));
+        using var invalid = new MemoryStream(Encoding.UTF8.GetBytes("{\n  \"data\": {\"values\": [{\"a\": 1}]},\n  \"mark\": \"bar\",\n  \"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"bogus\"}}\n}\n"));
+
+        // Act
+        var cut = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(truncated, "chart.vl.json"));
+        var wrong = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(invalid, "chart.vl.json"));
+
+        // Assert: the truncated chart is located in its text, is not a depth error, and has no detail code
+        Assert.Equal(ErrorCodes.VegaLiteError, cut.Code);
+        Assert.IsType<VegaLiteSpecException>(cut.InnerException);
+        Assert.DoesNotContain("deeper", cut.Message, StringComparison.Ordinal);
+        Assert.Equal("chart.vl.json", cut.Location?.File);
+        Assert.NotNull(cut.Location?.Line);
+        Assert.Null(cut.DetailCode);
+
+        // Assert: the invalid type is located by its line and pointer; the library gives a chart error no detail code
+        Assert.Equal(ErrorCodes.VegaLiteError, wrong.Code);
+        Assert.Equal("/encoding/x/type", wrong.Location?.Pointer);
+        Assert.Equal(4, wrong.Location?.Line);
+        Assert.Null(wrong.DetailCode);
+    }
+
+    /// <summary>
+    ///     Test the SVG row of issue #166: malformed markup is <c>corrupt-input</c> with the line and column of the XML
+    ///     failure in <see cref="ViewerException.Location"/> and no detail code.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MalformedSvg_ThrowsCorruptInputWithXmlLineAndColumn()
+    {
+        // Arrange: the rect is never closed, so the end tag of the root does not match (line 2)
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">\n  <rect width=\"5\"></svg>\n"));
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(stream, "figure.svg"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.CorruptInput, ex.Code);
+        Assert.Null(ex.DetailCode);
+        Assert.Equal(("figure.svg", 2), (ex.Location?.File, ex.Location?.Line));
+        Assert.NotNull(ex.Location?.Column);
+        Assert.IsType<InvalidDataException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Test the file-access rows of issue #166: a chart's data, a PlantUML include and a model's include outside the
+    ///     policy are each <c>file-access-denied</c>, located in the source that names the file, with the denial in the
+    ///     chain of inner exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_DeniedReferences_ThrowFileAccessDenied()
+    {
+        // Arrange: three sources in site/ that read a file of the parent folder
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("data.csv", "a,b\nA,3\n");
+        folder.WriteText("lib.scad", "module part() { cube(8, center = true); }\n");
+        folder.WriteText("common.iuml", "Alice -> Bob : hi\n");
+        var chart = folder.WriteText(
+            "site/chart.vl.json",
+            "{\n  \"mark\": \"bar\",\n  \"data\": {\"url\": \"../data.csv\"},\n  \"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"nominal\"}}\n}\n");
+        var diagram = folder.WriteText("site/flow.puml", "@startuml\n!include ../common.iuml\n@enduml\n");
+        var model = folder.WriteText("site/part.scad", "include <../lib.scad>\npart();\n");
+        var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act
+        var chartDenied = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(chart, confined));
+        var diagramDenied = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(diagram, confined));
+        var modelDenied = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(model, confined));
+
+        // Assert: one code for every kind of reference, with the place that names the file
+        Assert.All(new[] { chartDenied, diagramDenied, modelDenied }, ex => Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code));
+        Assert.All(new[] { chartDenied, diagramDenied, modelDenied }, ex => Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind));
+        Assert.IsType<VegaLiteRenderException>(chartDenied.InnerException);
+        Assert.Equal("/data/url", chartDenied.Location?.Pointer);
+        Assert.IsType<PlantUmlSyntaxException>(diagramDenied.InnerException);
+        Assert.Equal(2, diagramDenied.Location?.Line);
+        Assert.IsType<ScadEvaluationException>(modelDenied.InnerException);
+        Assert.Equal(1, modelDenied.Location?.Line);
+    }
+
+    /// <summary>
+    ///     Test that the failures of the input that are not in its source are <see cref="ViewerException"/>s with the codes
+    ///     of the tool and the original exception inside: a missing file, an unknown extension, a picture over the pixel
+    ///     budget, and a stream longer than 16 MiB.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_InputFailures_ThrowViewerExceptionWithCode()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        var logo = folder.WriteBytes("logo.png", ViewerFixtures.Png(12, 8, ViewerFixtures.Green));
+        using var huge = new MemoryStream(new byte[(16 * 1024 * 1024) + 1]);
+
+        // Act
+        var missing = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(folder.Combine("missing.png")));
+        var unknown = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(new MemoryStream([1]), "notes.txt"));
+        var budget = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(logo, new ViewerRenderOptions { MaxDecodedPixels = 10 }));
+        var tooLong = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(huge, "big.png"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
+        Assert.IsType<FileNotFoundException>(missing.InnerException);
+        Assert.Equal(ErrorCodes.UnsupportedFormat, unknown.Code);
+        Assert.IsType<NotSupportedException>(unknown.InnerException);
+        Assert.Equal(ErrorCodes.BudgetExceeded, budget.Code);
+        Assert.Equal(96, Assert.IsType<ImageSourceBudgetException>(budget.InnerException).RequestedPixels);
+        Assert.Contains("MaxDecodedPixels", budget.Hint, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.InputUnreadable, tooLong.Code);
+        Assert.IsType<InvalidDataException>(tooLong.InnerException);
+        Assert.All(new[] { missing, unknown, budget, tooLong }, ex => Assert.Null(ex.Location));
+    }
+
+    /// <summary>
+    ///     Test that a caller's stream whose reading fails is <c>input-unreadable</c> with the failure inside, also when
+    ///     the stream refuses with a <see cref="NotSupportedException"/>, and that a name no source claims is
+    ///     <c>unsupported-format</c> before the stream is read.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_StreamReadFailures_AreInputUnreadable()
+    {
+        // Arrange: streams that fail when they are read
+        using var broken = new FailingReadStream(new IOException("the device is gone"));
+        using var refusing = new FailingReadStream(new NotSupportedException("the stream cannot be read now"));
+        using var unknownName = new FailingReadStream(new IOException("not expected"));
+
+        // Act
+        var io = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(broken, "a.png"));
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(refusing, "a.png"));
+        var unknown = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(unknownName, "x.unknown"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.InputUnreadable, io.Code);
+        Assert.IsType<IOException>(io.InnerException);
+        Assert.Equal(ErrorCodes.InputUnreadable, refused.Code);
+        Assert.IsType<NotSupportedException>(refused.InnerException);
+        Assert.Contains("'a.png' cannot be read", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UnsupportedFormat, unknown.Code);
+        Assert.Equal(0, unknownName.Reads);
+    }
+
+    /// <summary>
+    ///     A readable stream whose every read fails with the exception it was given, and that counts the reads.
+    /// </summary>
+    /// <param name="failure">The exception every read throws.</param>
+    private sealed class FailingReadStream(Exception failure) : MemoryStream
+    {
+        /// <summary>
+        ///     Gets the number of reads that were tried.
+        /// </summary>
+        public int Reads { get; private set; }
+
+        /// <inheritdoc />
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Reads++;
+            throw failure;
+        }
+    }
+
+    /// <summary>
+    ///     Test that the messages and hints of the failures of a render name no option of the command-line tool: the
+    ///     strict failures of a model, a chart, both diagrams, an SVG link and a position selector that matched nothing,
+    ///     the limits of a model, and a picture larger than the largest image.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_Failures_HaveNoCommandLineWording()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        var strict = new ViewerRenderOptions { ThrowOnUnsupportedFeature = true };
+        var sources = new (string Name, string Text, ViewerRenderOptions Options)[]
+        {
+            ("offset.scad", "offset(r = 1) square(2);\n", strict),
+            ("geo.vl.json", "{\"data\": {\"values\": []}, \"mark\": \"geoshape\"}", strict),
+            ("journey.mmd", "journey\n    title Feed the ducks\n", strict),
+            ("legacy.pu", "@startuml\n(*) --> First\nFirst --> Second\n@enduml\n", strict),
+            ("links.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("missing.png", 0)), strict),
+            ("big.scad", "cube(1);\n", new ViewerRenderOptions { Scad = new ScadViewOptions { MaxTriangles = 1 } }),
+            ("wide.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" height=\"10\"/>", new ViewerRenderOptions()),
+            ("flow.mmd", "flowchart LR\n  A --> B\n", new ViewerRenderOptions { Positions = PositionSelection.Parse(["node:Zed"]), ThrowOnUnsupportedFeature = true }),
+        };
+
+        // Act
+        var failures = sources
+            .Select(s => Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(folder.WriteText(s.Name, s.Text), s.Options)))
+            .ToList();
+
+        // Assert: the expected codes, and no command-line option in any message or hint
+        Assert.Equal(
+            [ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature,
+             ErrorCodes.UnsupportedFeature, ErrorCodes.BudgetExceeded, ErrorCodes.SizeLimit, ErrorCodes.PositionsUnmatched],
+            failures.Select(f => f.Code));
+        Assert.All(failures, f => Assert.NotNull(f.Hint));
+        Assert.All(failures, f => Assert.DoesNotMatch(CommandLineOption, f.Message));
+        Assert.All(failures, f => Assert.DoesNotMatch(CommandLineOption, f.Hint!));
+        Assert.Contains("strict mode", failures[0].Hint, StringComparison.Ordinal);
+        Assert.Contains("ScadViewOptions.MaxTriangles", failures[5].Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     The pattern of an option of the command-line tool (<c>--strict</c>, <c>--max-triangles</c>), which no failure of
+    ///     the library may name; an arrow of a diagram (<c>--&gt;</c>) is not one.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex CommandLineOption = new("(?<![\\w-])--[a-z]");
+
+    /// <summary>
+    ///     Test that an extra source that fails is mapped like the built-in sources: a library exception of the shared
+    ///     mapping gets its code, and any other failure is <c>operation-failed</c>, with the original exception inside.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_ExtraSourceFailure_IsMappedOrOperationFailed()
+    {
+        // Arrange: one source that reports bad data and one that fails in its own way
+        var options = new ViewerRenderOptions
+        {
+            ExtraSources =
+            [
+                new FailingSource("corrupt", ".bad", new InvalidDataException("the header is damaged")),
+                new FailingSource("broken", ".oops", new ArithmeticException("a defect"))
+            ]
+        };
+
+        // Act
+        var corrupt = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(new MemoryStream([1]), "x.bad", options));
+        var failed = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(new MemoryStream([1]), "x.oops", options));
+
+        // Assert
+        Assert.Equal(ErrorCodes.CorruptInput, corrupt.Code);
+        Assert.IsType<InvalidDataException>(corrupt.InnerException);
+        Assert.Equal(ErrorCodes.OperationFailed, failed.Code);
+        Assert.IsType<ArithmeticException>(failed.InnerException);
+    }
+
+    /// <summary>
+    ///     Test that a picture an SVG file embeds that fails in its source is mapped with the same codes, location and detail
+    ///     code as the file itself, with a message that names both files.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_EmbeddedSourceError_KeepsCodeLocationAndDetailCode()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("flow.mmd", "flowchart LR\n  A -> B\n");
+        var path = folder.WriteText("doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("flow.mmd", 0)));
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path));
+
+        // Assert
+        Assert.Equal((ErrorCodes.MermaidError, "mermaid-syntax-error"), (ex.Code, ex.DetailCode));
+        Assert.Equal(new ImageDiagnosticLocation("flow.mmd", 2, 5, null), ex.Location);
+        Assert.StartsWith("'doc.svg' embeds 'flow.mmd': ", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     A source that always fails with the exception it was given, as a source of an application might.
+    /// </summary>
+    /// <param name="name">The name of the source.</param>
+    /// <param name="extension">The extension it claims.</param>
+    /// <param name="failure">The exception it throws.</param>
+    private sealed class FailingSource(string name, string extension, Exception failure) : IImageSource
+    {
+        /// <inheritdoc />
+        public string Name { get; } = name;
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> Extensions { get; } = [extension];
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> Schemes => [];
+
+        /// <inheritdoc />
+        public ImageSourceResult Render(ImageSourceRequest request) => throw failure;
     }
 
     /// <summary>

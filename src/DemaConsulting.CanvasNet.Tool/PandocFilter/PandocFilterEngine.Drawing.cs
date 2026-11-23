@@ -54,16 +54,23 @@ internal interface IPictureDrawer
 ///     process, with the arguments the Lua filter passed to <c>canvasnet render ... --json</c> and
 ///     <c>canvasnet flatten ... --json</c>, so a picture is drawn exactly as those commands draw it.
 /// </summary>
-/// <remarks>Stateless and safe to call from several threads at once.</remarks>
+/// <remarks>
+///     Stateless and safe to call from several threads at once. A note for information only (severity <c>info</c>, such as
+///     the <c>vega-lite-info</c> note of a chart field without a type) is left out: it is not a warning, and the filter
+///     returns its notes as Pandoc warnings, which a build may treat as failures.
+/// </remarks>
 internal sealed class ToolPictureDrawer : IPictureDrawer
 {
+    /// <summary>The severity of a note for information only, which is not returned as a warning.</summary>
+    private const string InfoSeverity = "info";
+
     /// <inheritdoc />
     public PictureDrawing Render(IReadOnlyList<string> args)
     {
         var (_, _, result) = RenderCommand.Execute(args);
         return new PictureDrawing(
             true,
-            [.. result.Pages.SelectMany(page => page.Diagnostics).Select(d => new PictureDiagnostic(d.Code, d.Message, d.Origin.Count > 0))],
+            [.. result.Pages.SelectMany(page => page.Diagnostics).Where(d => d.Severity != InfoSeverity).Select(d => new PictureDiagnostic(d.Code, d.Message, d.Origin.Count > 0))],
             [.. result.Pages.SelectMany(page => page.Echo)]);
     }
 
@@ -73,7 +80,7 @@ internal sealed class ToolPictureDrawer : IPictureDrawer
         var (_, result, _, _) = FlattenCommand.Execute(args);
         return new PictureDrawing(
             result.Flattened,
-            [.. result.Diagnostics.Select(d => new PictureDiagnostic(d.Code, d.Message, d.Origin.Count > 0))],
+            [.. result.Diagnostics.Where(d => d.Severity != InfoSeverity).Select(d => new PictureDiagnostic(d.Code, d.Message, d.Origin.Count > 0))],
             [.. result.Echo]);
     }
 }
@@ -329,8 +336,8 @@ internal sealed partial class PandocFilterEngine
     /// <returns>The exception to throw.</returns>
     /// <remarks>
     ///     A picture larger than the maximum image size whose size follows its natural size carries the scale that fits
-    ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint, which names the command-line options, is replaced by one that
-    ///     names the <c>scale</c> attribute.
+    ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint is replaced by one that names the <c>scale</c>
+    ///     attribute.
     /// </remarks>
     private static ToolException ToolFailure(string prefix, Exception ex, string owner, string kind)
     {

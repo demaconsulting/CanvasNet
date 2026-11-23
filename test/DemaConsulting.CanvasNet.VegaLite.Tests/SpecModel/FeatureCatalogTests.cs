@@ -2008,4 +2008,48 @@ public class FeatureCatalogTests
         Assert.Equal([("vl-param-selection-id", "/params/0")], callerRestoresIdentity);
         Assert.Empty(specificationOnly);
     }
+
+    /// <summary>
+    ///     Validates that, when asked for, a field definition without a type is reported for information at the channel, naming the field and the type Vega-Lite infers, and that
+    ///     nothing is reported without the request, with a written type, for a datum, for a secondary channel, or for the field of an ignored channel.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_FieldWithoutType_ReportsInferredTypeWhenAsked()
+    {
+        // Arrange: the issue's chart, then one chart with a channel of each kind that is not reported and a time unit that infers temporal
+        var issue = SpecParser.Parse("""{ "data": { "values": [ { "a": 1 } ] }, "mark": "bar", "encoding": { "x": { "field": "a" } } }""");
+        var mixed = SpecParser.Parse("""
+            {
+              "data": { "values": [ { "a": 1, "b": 2, "d": "2024-01-01" } ] },
+              "mark": "bar",
+              "encoding": {
+                "x": { "field": "d", "timeUnit": "month" },
+                "x2": { "field": "d" },
+                "y": { "field": "b", "type": "quantitative" },
+                "color": { "datum": "fixed" },
+                "tooltip": { "field": "a" }
+              }
+            }
+            """);
+
+        // Act
+        var notAsked = FeatureCatalog.Visit(issue);
+        var asked = FeatureCatalog.Visit(issue, reportInferredTypes: true);
+        var mixedReports = FeatureCatalog.Visit(mixed, reportInferredTypes: true);
+
+        // Assert: nothing unless asked; then one note for information at the channel that names the field and nominal
+        Assert.Empty(notAsked);
+        var note = Assert.Single(asked);
+        Assert.Equal("vl-type-inferred", note.Id);
+        Assert.Equal(FeatureReportKind.Info, note.Kind);
+        Assert.Equal("/encoding/x", note.Location.Pointer);
+        Assert.Contains("'a'", note.Message, StringComparison.Ordinal);
+        Assert.Contains("'x' channel", note.Message, StringComparison.Ordinal);
+        Assert.Contains("read as nominal", note.Message, StringComparison.Ordinal);
+
+        // Assert: only the x channel without a type is noted (a time unit infers temporal); x2, a written type, a datum and the ignored tooltip are not
+        var mixedNote = Assert.Single(mixedReports);
+        Assert.Equal(("vl-type-inferred", "/encoding/x"), (mixedNote.Id, mixedNote.Location.Pointer));
+        Assert.Contains("read as temporal", mixedNote.Message, StringComparison.Ordinal);
+    }
 }

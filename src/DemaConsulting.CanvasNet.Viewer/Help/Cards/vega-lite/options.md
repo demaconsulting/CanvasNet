@@ -38,6 +38,10 @@ the operations of the Imaging namespace.
   (chart.vl.json#param.cutoff=50; the fragment wins over the option for that
   input, and a name the chart does not declare is then the warning
   vl-param-unknown instead of an error).
+- `VegaLiteLimits`: The resource limits of the chart
+  (`ViewerRenderOptions.VegaLiteLimits`), lower or higher than the defaults,
+  for the chart and every chart it embeds; raise one only for trusted content
+  (see [[limits]]).
 - The options of a model (`ScadViewOptions`) do not apply to a chart. A probe
   (`SourceLoader.Probe`) reports the laid-out size, and in `SourceInfo.Chart`
   the marks and data references, without drawing.

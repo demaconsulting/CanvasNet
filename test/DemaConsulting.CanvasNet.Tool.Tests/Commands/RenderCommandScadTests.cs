@@ -371,7 +371,7 @@ public class RenderCommandScadTests
         // Assert: the code, one line that says which limit, and no file
         Assert.Equal(ErrorCodes.BudgetExceeded, exception.Code);
         Assert.Contains("Triangle limit exceeded (limit 1)", exception.Message);
-        Assert.Contains("--max-triangles", exception.Hint);
+        Assert.Contains("MaxTriangles", exception.Hint);
         Assert.DoesNotContain('\n', exception.Message);
         Assert.False(File.Exists(output));
     }

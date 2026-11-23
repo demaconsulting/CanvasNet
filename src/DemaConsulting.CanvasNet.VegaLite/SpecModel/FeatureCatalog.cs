@@ -9,8 +9,8 @@ using DemaConsulting.CanvasNet.VegaLite.Transforms;
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 /// <summary>
-///     Whether a <see cref="FeatureReport"/> is a warning about the text or a construct that is recognized but not
-///     rendered.
+///     Whether a <see cref="FeatureReport"/> is a warning about the text, a construct that is recognized but not
+///     rendered, or a note for information only.
 /// </summary>
 internal enum FeatureReportKind
 {
@@ -19,6 +19,12 @@ internal enum FeatureReportKind
 
     /// <summary>A recognized Vega-Lite construct that the renderer does not implement (delivered as a <see cref="VegaLiteUnsupportedFeature"/>).</summary>
     UnsupportedFeature,
+
+    /// <summary>
+    ///     Information only: the chart is drawn exactly as Vega-Lite draws it, and the note tells the author what Vega-Lite decided on its own
+    ///     (delivered as a <see cref="VegaLiteDiagnostic"/> to <see cref="VegaLiteRenderOptions.InfoHandler"/>; strict mode never fails on it).
+    /// </summary>
+    Info,
 }
 
 /// <summary>
@@ -28,7 +34,7 @@ internal enum FeatureReportKind
 /// <param name="Id">The stable <c>vl-*</c> identifier (lower case, for example <c>vl-mark-geoshape</c>).</param>
 /// <param name="Message">The description, without the identifier and the location.</param>
 /// <param name="Location">The location of the construct (the value, or the key for an unknown property or a duplicate key).</param>
-/// <param name="Kind">Whether the finding is a warning or an unsupported feature.</param>
+/// <param name="Kind">Whether the finding is a warning, an unsupported feature or a note for information only.</param>
 internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation Location, FeatureReportKind Kind);
 
 /// <summary>
@@ -40,7 +46,8 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         The catalog is the single place that defines the boundary of what the renderer supports. It reads the
 ///         <see cref="SpecTree"/> only (no data, no files, no network) and returns one report per construct, in
 ///         document order (sorted by line and column; reports at the same position keep the order they were found in).
-///         Reports about supported constructs are never produced: a supported mark, channel, scale type or data source
+///         Reports about supported constructs are never produced, except the informational <c>vl-type-inferred</c>, which is produced only when it is
+///         asked for (<see cref="Visit"/> takes <c>reportInferredTypes</c>): a supported mark, channel, scale type or data source
 ///         (inline rows, a relative local CSV, TSV, DSV or JSON file, a named dataset, a sequence, <c>format.parse</c>
 ///         and <c>format.property</c>) is simply absent from the result. Remote data is the only kind of file source that is reported, because it is
 ///         never fetched; a local file that cannot be read is not a feature of the specification and fails the render instead. Strict mode of the document throws at the first
@@ -65,6 +72,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows (<c>vl-mark-invalid-show</c> was retired in Phase 13: <c>show</c> and null draw the invalid row at zero or at the first value of the domain, and are not reported); the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, xOffset, yOffset, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
+///         <item><term><c>vl-type-inferred</c> (info)</term><description>the definition of a channel that has a <c>field</c> but no <c>type</c>, when <see cref="Visit"/> is asked for it (<c>reportInferredTypes</c>): the chart is drawn with the type
+///         that Vega-Lite infers (<see cref="ChannelDefinitions.TypeOf"/>, <c>nominal</c> unless a time unit, a bin, an aggregate, a sort array or a scale type says otherwise), and the note names the field and that type.
+///         A secondary channel (<c>x2</c>, <c>y2</c>, <c>theta2</c>, <c>radius2</c>) and an error channel take the type of their main channel and are not reported, nor is a datum (its value decides its type).</description></item>
 ///         <item><term><c>vl-shape-path-invalid</c> (warning)</term><description>a shape that is neither a symbol name nor SVG path data that parses: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (Phase 13: custom SVG path shapes are drawn, scaled by the symbol size as vega's <c>pathSymbol</c>; a path that does not parse is drawn as a circle, a path without a command draws nothing). <c>vl-shape-path</c> and <c>vl-scale-interpolate-cubehelix</c> were retired in Phase 13 and are never produced again: the <c>cubehelix</c> and <c>cubehelix-long</c> interpolations are drawn.</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
 ///         <item><term><c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c> (<c>vl-encoding-...</c>)</term><description>that property of a supported channel (<c>vl-encoding-impute</c> was retired in Phase 13: the impute of a position channel is run by the pipeline and the impute of any other channel is ignored, as Vega-Lite does, without a report). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin; not the one of a stacked <c>theta</c> or <c>radius</c> of a text mark, which places the label in its slice); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
@@ -181,12 +191,16 @@ internal static class FeatureCatalog
     /// <param name="hasImageResolver">
     ///     Whether the caller supplied a <see cref="VegaLiteRenderOptions.ImageResolver"/>. The <c>image</c> mark draws a picture only through one, so without it the mark is reported as <c>vl-mark-image</c>.
     /// </param>
-    /// <returns>The reports in document order; empty when the specification uses only supported constructs.</returns>
+    /// <param name="reportInferredTypes">
+    ///     Whether a field definition without a <c>type</c> is reported as the informational <c>vl-type-inferred</c> (<see cref="FeatureReportKind.Info"/>). Off by default, so that the
+    ///     catalog lists only what is not drawn as written; the document asks for the notes, which it delivers to <see cref="VegaLiteRenderOptions.InfoHandler"/>.
+    /// </param>
+    /// <returns>The reports in document order; empty when the specification uses only supported constructs (and, with <paramref name="reportInferredTypes"/>, writes every type).</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="tree"/> is null.</exception>
-    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree, ResolvedConfig? config = null, bool hasImageResolver = false)
+    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree, ResolvedConfig? config = null, bool hasImageResolver = false, bool reportInferredTypes = false)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        var walker = new Walker(tree, config, hasImageResolver);
+        var walker = new Walker(tree, config, hasImageResolver, reportInferredTypes);
         walker.Run();
 
         // LINQ's ordering is stable, so reports at one position keep the order in which they were found; a finding that several layers share (a channel of the encoding that
@@ -382,17 +396,22 @@ internal static class FeatureCatalog
         /// <summary>Whether the caller supplied an image resolver, which the <c>image</c> mark needs to draw anything.</summary>
         private readonly bool _hasImageResolver;
 
+        /// <summary>Whether a field definition without a <c>type</c> is reported as the informational <c>vl-type-inferred</c>.</summary>
+        private readonly bool _reportInferredTypes;
+
         /// <summary>
         ///     Initializes a walker.
         /// </summary>
         /// <param name="tree">The specification.</param>
         /// <param name="config">The effective configuration, or null.</param>
         /// <param name="hasImageResolver">Whether the caller supplied an image resolver.</param>
-        public Walker(SpecTree tree, ResolvedConfig? config, bool hasImageResolver)
+        /// <param name="reportInferredTypes">Whether a field definition without a type is reported for information.</param>
+        public Walker(SpecTree tree, ResolvedConfig? config, bool hasImageResolver, bool reportInferredTypes)
         {
             _tree = tree;
             _config = config;
             _hasImageResolver = hasImageResolver;
+            _reportInferredTypes = reportInferredTypes;
             _staticTexts = new HashSet<SpecNode>(tree.Expressions.StaticReferences.Select(r => r.Text), ReferenceEqualityComparer.Instance);
         }
 
@@ -1231,6 +1250,7 @@ internal static class FeatureCatalog
                 Unsupported("vl-type-geojson", "GeoJSON fields are not supported.", type);
             }
 
+            VisitInferredType(name, definition);
             VisitBin(name, definition);
             VisitStack(name, definition);
             VisitSort(name, definition);
@@ -1273,6 +1293,51 @@ internal static class FeatureCatalog
             }
 
             VisitLegend(name, definition);
+        }
+
+        /// <summary>
+        ///     Reports, for information, a field definition without a <c>type</c> and the type that Vega-Lite infers for it (<c>vl-type-inferred</c>), when the caller asked for it.
+        /// </summary>
+        /// <remarks>
+        ///     A missing type is valid Vega-Lite and the chart is drawn as Vega-Lite draws it, but the inferred type (usually <c>nominal</c>) often surprises an author who meant a
+        ///     number or a date, so the note names the field and the type. A secondary or error channel takes the type of its main channel and a datum the type of its value, so
+        ///     neither is reported.
+        /// </remarks>
+        /// <param name="name">The channel name.</param>
+        /// <param name="definition">The channel (or condition) definition object.</param>
+        private void VisitInferredType(string name, SpecNode definition)
+        {
+            if (!_reportInferredTypes
+                || definition["field"] is not { IsNull: false } field
+                || definition["type"] is not null
+                || definition["datum"] is not null
+                || ChannelDefinitions.MainChannelOf(name) is not null
+                || name is "xError" or "xError2" or "yError" or "yError2")
+            {
+                return;
+            }
+
+            // A field named by a repeat is the field of each copy; it has no single name to quote
+            string what;
+            if (field.IsString)
+            {
+                what = $"The field '{field.StringValue}'";
+            }
+            else if (field is { IsObject: true } && field["repeat"] is not null)
+            {
+                what = "The repeated field";
+            }
+            else
+            {
+                return;
+            }
+
+            var inferred = ChannelDefinitions.TypeOf(definition, name);
+            Reports.Add(new FeatureReport(
+                "vl-type-inferred",
+                $"{what} of the '{name}' channel has no type; it is read as {inferred}, the type Vega-Lite infers. Write a \"type\" (quantitative, temporal, ordinal or nominal) to choose it.",
+                _tree.Locate(definition),
+                FeatureReportKind.Info));
         }
 
         /// <summary>

@@ -369,7 +369,7 @@ public class SourceLoaderVegaLiteTests
         // Strict: an unsupported-feature error that names the feature and the hint
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains("vl-mark-geoshape", strict.Message);
-        Assert.Contains("--strict", strict.Hint);
+        Assert.Contains("strict mode", strict.Hint);
         Assert.IsType<VegaLiteUnsupportedFeatureException>(strict.InnerException);
 
         // A specification error is a vega-lite-error with the location, on one line
@@ -387,6 +387,29 @@ public class SourceLoaderVegaLiteTests
 
         // A missing file is input-not-found, as for every other kind
         Assert.Equal(ErrorCodes.InputNotFound, Assert.Throws<ViewerException>(() => SourceLoader.Probe(directory.Combine("gone.vl.json"))).Code);
+    }
+
+    /// <summary>
+    ///     Test that a field without a type is reported as the informational note <c>vega-lite-info</c> (severity <c>info</c>, detail <c>vl-type-inferred</c>, located at the
+    ///     channel) that names the field and the inferred type, and that strict mode still draws the chart.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_FieldWithoutType_ReportsInfoNoteAndStrictPasses()
+    {
+        // Arrange: the chart of issue #165
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "chart.vl.json", """{ "data": { "values": [ { "a": 1 } ] }, "mark": "bar", "encoding": { "x": { "field": "a" } } }""");
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: one note for information, no warning, at the channel, naming the field and the type
+        var note = Assert.Single(loaded.Diagnostics);
+        Assert.Equal(("vega-lite", "info", "vega-lite-info", "vl-type-inferred"), (note.Source, note.Severity, note.Code, note.Detail));
+        Assert.Equal("/encoding/x", note.Location?.Pointer);
+        Assert.Contains("The field 'a' of the 'x' channel has no type; it is read as nominal", note.Message);
+        Assert.Contains($"{path}:", note.Message);
+        Assert.True(loaded.Surface.Width > 0);
     }
 
     /// <summary>

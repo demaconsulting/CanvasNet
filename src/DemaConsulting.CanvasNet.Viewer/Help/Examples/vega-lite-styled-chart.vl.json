@@ -17,7 +17,7 @@
   "mark": "bar",
   "encoding": {
     "x": {"field": "month", "type": "ordinal", "sort": null, "title": null},
-    "xOffset": {"field": "status", "sort": ["Shipped", "Held"]},
+    "xOffset": {"field": "status", "type": "ordinal", "sort": ["Shipped", "Held"]},
     "y": {"field": "orders", "type": "quantitative", "title": "Orders"},
     "color": {"field": "status", "type": "nominal", "sort": ["Shipped", "Held"], "title": null}
   },

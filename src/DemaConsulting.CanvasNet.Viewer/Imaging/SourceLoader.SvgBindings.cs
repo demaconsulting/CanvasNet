@@ -88,6 +88,6 @@ public static partial class SourceLoader
         throw new ViewerException(
             ErrorCodes.SvgBindingFailed,
             $"'{holder}' has a position binding that was not resolved ({failed.Code}): {failed.Message}",
-            $"Without --strict the binding keeps the numbers written in the file and is reported as the warning {failed.Code}.");
+            $"Without strict mode the binding keeps the numbers written in the file and is reported as the warning {failed.Code}.");
     }
 }

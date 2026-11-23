@@ -53,7 +53,7 @@ public partial class HelpCatalogTests
     /// <summary>
     ///     The error codes only the tool reports, which the tool's command-line additions of <c>errors/codes</c> list.
     /// </summary>
-    private static readonly string[] ToolOnlyErrorCodes = [ErrorCodes.OperationFailed, ErrorCodes.ThresholdFailed, ErrorCodes.PandocFilterError];
+    private static readonly string[] ToolOnlyErrorCodes = [ErrorCodes.ThresholdFailed, ErrorCodes.PandocFilterError];
 
     /// <summary>
     ///     Matches the diagnostic identifiers a card may cite.

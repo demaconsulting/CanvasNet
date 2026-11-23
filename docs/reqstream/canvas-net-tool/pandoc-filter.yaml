@@ -21,10 +21,12 @@ sections:
           cache folder with the options its attributes ask for, every SVG drawing that links one is its flattened copy,
           and every Mermaid or PlantUML code block is a figure (with a caption) or a paragraph that shows its picture,
           while every
-          other element, attribute, and text of the document is unchanged.
+          other element, attribute, and text of the document is unchanged, and shall return the notes the tool reports
+          for a picture as warnings, leaving out a note for information only (such as vega-lite-info).
         justification: |
           A documentation build must show models, charts, diagrams, and document pages in any output format, written
-          as ordinary pictures and code blocks of the document, without changing anything else.
+          as ordinary pictures and code blocks of the document, without changing anything else. A note for
+          information only is not a warning, and a build that treats warnings as failures must not fail for one.
         children:
           - CanvasNetTool-PandocFilter-PandocAst-ApiVersion
           - CanvasNetTool-PandocFilter-PandocAst-VisitOrder
@@ -55,6 +57,7 @@ sections:
           - PandocFilter_Run_RealPictures_DrawnTheSameWithOneOrFourJobs
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
           - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
+          - PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning
 
       - id: CanvasNetTool-PandocFilter-Cache
         title: >-

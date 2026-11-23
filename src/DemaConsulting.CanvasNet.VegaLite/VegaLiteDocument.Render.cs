@@ -224,13 +224,13 @@ public sealed partial class VegaLiteDocument
         }
         catch
         {
-            sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler);
+            sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler, options.InfoHandler);
             throw;
         }
 
         try
         {
-            sink.Deliver(options.WarningHandler, options.UnsupportedFeatureHandler);
+            sink.Deliver(options.WarningHandler, options.UnsupportedFeatureHandler, options.InfoHandler);
         }
         catch
         {
@@ -594,11 +594,11 @@ public sealed partial class VegaLiteDocument
             }
             catch (VegaLiteUnsupportedFeatureException)
             {
-                sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler);
+                sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler, options.InfoHandler);
                 throw;
             }
 
-            sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler);
+            sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler, options.InfoHandler);
             throw;
         }
     }
@@ -615,13 +615,18 @@ public sealed partial class VegaLiteDocument
         foreach (var report in ReportsFor(options))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (report.Kind == FeatureReportKind.Warning)
+            switch (report.Kind)
             {
-                sink.Warn($"{report.Id}: {report.Message}", report.Location);
-            }
-            else
-            {
-                sink.Unsupported(report.Id, report.Message, report.Location);
+                case FeatureReportKind.Warning:
+                    sink.Warn($"{report.Id}: {report.Message}", report.Location);
+                    break;
+                case FeatureReportKind.Info:
+                    // A note for information never stops strict mode
+                    sink.Info($"{report.Id}: {report.Message}", report.Location);
+                    break;
+                default:
+                    sink.Unsupported(report.Id, report.Message, report.Location);
+                    break;
             }
         }
     }

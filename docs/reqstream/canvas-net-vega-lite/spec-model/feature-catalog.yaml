@@ -47,8 +47,8 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-SupportedSilent
                 title: >-
-                  The FeatureCatalog unit shall return no report for a specification that uses only the
-                  supported subset and shall not report channels or properties that Vega-Lite does not
+                  The FeatureCatalog unit shall return no warning or unsupported-feature report for a specification that
+                  uses only the supported subset and shall not report channels or properties that Vega-Lite does not
                   define or that the renderer deliberately ignores (tooltip, href, description, key).
                 justification: |
                   Reporting a supported construct would make every chart noisy, and reporting an unknown
@@ -57,6 +57,19 @@ sections:
                   - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
                   - FeatureCatalog_Visit_UnknownChannelIsNotReported
                   - FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-InferredType
+                title: >-
+                  The FeatureCatalog unit shall, when asked to, report a channel definition that has a field but no
+                  type as the informational note vl-type-inferred at the channel definition, naming the field and the
+                  type that Vega-Lite infers, and shall not report a definition with a type, a datum, a secondary or
+                  error channel, or an ignored channel, nor any note when it is not asked to.
+                justification: |
+                  A missing type is valid Vega-Lite but the inferred type (usually nominal) often surprises an author
+                  who meant a number or a date; a located note that names the type tells them what was chosen, and
+                  asking for it keeps the list of unsupported constructs free of notes about supported ones.
+                tests:
+                  - FeatureCatalog_Visit_FieldWithoutType_ReportsInferredTypeWhenAsked
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
                 title: >-

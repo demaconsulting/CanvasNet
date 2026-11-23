@@ -27,7 +27,8 @@ public class VegaLiteDefaultTypeIntegrationTests
         "{ \"width\": 200, \"height\": 100, \"data\": { \"values\": " + data + " }, \"mark\": " + mark + ", \"encoding\": " + encoding + " }";
 
     /// <summary>
-    ///     Draws a document in strict mode (a missing type is valid Vega-Lite, so nothing may be reported or thrown).
+    ///     Draws a document in strict mode (a missing type is valid Vega-Lite, so no warning may be reported and nothing thrown; the informational note
+    ///     <c>vl-type-inferred</c> is not a warning).
     /// </summary>
     /// <param name="json">The specification text.</param>
     /// <param name="scene">The scene that the document builds.</param>
@@ -76,6 +77,38 @@ public class VegaLiteDefaultTypeIntegrationTests
         // Assert: the text is the string, with and without the type
         Assert.Equal(["Successful"], inferred.FindAll("mark-text").Select(e => ((SceneText)e.Item).Text));
         Assert.Equal(["Successful"], nominal.FindAll("mark-text").Select(e => ((SceneText)e.Item).Text));
+    }
+
+    /// <summary>
+    ///     Validates the chart of issue #165: an <c>x</c> field without a type, rendered in strict mode, delivers one informational note <c>vl-type-inferred</c> at the channel that
+    ///     names the field and the inferred type <c>nominal</c>, while no warning is reported and nothing is thrown.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_DefaultType_InfoNoteNamesTheInferredTypeAndStrictModePasses()
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse("""{ "data": { "values": [ { "a": 1 } ] }, "mark": "bar", "encoding": { "x": { "field": "a" } } }""");
+        var notes = new List<VegaLiteDiagnostic>();
+        var warnings = new List<string>();
+        var unsupported = new List<string>();
+        var options = new VegaLiteRenderOptions
+        {
+            ThrowOnUnsupportedFeature = true,
+            WarningHandler = w => warnings.Add(w.Message),
+            UnsupportedFeatureHandler = u => unsupported.Add(u.Feature),
+            InfoHandler = notes.Add
+        };
+
+        // Act
+        using var surface = document.Render(options, Ct);
+
+        // Assert: the chart is drawn, with one note for information and no warning or unsupported feature
+        Assert.True(surface.Width > 0 && surface.Height > 0);
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var note = Assert.Single(notes);
+        Assert.StartsWith("vl-type-inferred: The field 'a' of the 'x' channel has no type; it is read as nominal", note.Message, StringComparison.Ordinal);
+        Assert.Equal("/encoding/x", note.Location.Pointer);
     }
 
     /// <summary>

@@ -80,6 +80,13 @@ produces.
   side is size-limit unless a scale factor, a width, or a height makes it
   smaller.
 
+## Setting the chart and diagram limits
+
+- **Hosts**: A program sets the Vega-Lite, Mermaid, and PlantUML limits for one
+  render with `ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, and
+  `PlantUmlLimits`, lower or higher than the defaults, for the file and every
+  file it embeds. Raise a limit only for content you trust.
+
 ## SVG and documents
 
 - **SVG**: At most 5,000,000 characters, nesting depth 100, and 100,000 rendered

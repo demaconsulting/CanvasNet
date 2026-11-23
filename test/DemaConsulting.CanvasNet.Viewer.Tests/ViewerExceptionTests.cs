@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.ImageSources;
+
 namespace DemaConsulting.CanvasNet.Viewer.Tests;
 
 /// <summary>
@@ -37,6 +39,26 @@ public class ViewerExceptionTests
         // Assert
         Assert.Null(exception.Hint);
         Assert.Null(exception.InnerException);
+    }
+
+    /// <summary>
+    ///     Test that the location and the detail code are null unless they are given, and keep what they are given.
+    /// </summary>
+    [Fact]
+    public void ViewerException_LocationAndDetailCode_DefaultToNullAndAreSettable()
+    {
+        // Arrange
+        var where = new ImageDiagnosticLocation("flow.mmd", 2, 5, null);
+
+        // Act
+        var plain = new ViewerException(ErrorCodes.UsageError, "bad");
+        var located = new ViewerException(ErrorCodes.MermaidError, "Mermaid syntax error") { Location = where, DetailCode = "mermaid-syntax-error" };
+
+        // Assert
+        Assert.Null(plain.Location);
+        Assert.Null(plain.DetailCode);
+        Assert.Equal(where, located.Location);
+        Assert.Equal("mermaid-syntax-error", located.DetailCode);
     }
 
     /// <summary>

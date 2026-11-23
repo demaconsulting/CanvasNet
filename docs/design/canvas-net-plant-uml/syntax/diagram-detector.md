@@ -79,6 +79,14 @@ state diagram. The unit's behavior is specified by the
 - `OtherType(text)` - `[*]` is a state, `(*)` a legacy activity, a bracketed name followed by a gantt verb a gantt
   chart, another bracketed name a component, a parenthesized name a use case, and the keyword table names the rest; a
   time statement `@0` is a timing diagram.
+- `StartsWithArrowFromFirstWord(text)` and `DeclarationWord(text)` - a first word that is the whole left end of an
+  arrow (`Agent -> : call tool`, `node --> db`) names a participant or an element, so `DeclarationWord` gives an empty
+  word for it and `OtherType`, the class, description, and state acceptance rules, and the object declaration lookup
+  compare that word with their keyword tables instead of the first word. One unreadable message from a participant
+  named `Agent`, `Node`, `File`, `Class`, `State`, ... is then refused by every family and reported as a sequence
+  syntax error at its own line, not as a deployment (or class, or state) diagram whose parser refuses a valid
+  `participant` line. A declaration keeps its keyword (`agent A --> B` has more than the first word on the left), and
+  a link between plain names stays accepted through the link reader.
 - `OuterStatements`, `BlockCloser`, `IsCloser`, `ClosesBlock` - the statements of a multi-line `note`, `hnote`, `rnote`,
   `legend`, `title`, `header`, `footer`, `caption` (also aligned, `left footer`), `ref`, `skinparam ... {`, and
   `<style>` block are text and are skipped up to the closing statement; a closer that starts with `end` is also

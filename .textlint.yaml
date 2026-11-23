@@ -57,6 +57,7 @@ words:
   - uncentered
   - yhat
   - maxiters
+  - maxcpucount
   - deskew
   - titleorient
   - clipheight

@@ -446,7 +446,9 @@ phase 10 reads.
   concatenation, facet, or repeat as in any view. (Until Phase 11 only the root and its layers were compiled; the rule
   `IsDrawnView` that decided it is gone.)
 
-**Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
+**Limits and invariants.** The parser enforces `MaxJsonDepth` itself: before a container is pushed it checks that the
+number of open containers stays within the limit, and the reader's depth option is one level higher so that the reader
+never reports the limit (every reader failure is then a syntax error). The frame array has `MaxJsonDepth + 1` entries;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
 an error; a duplicate key keeps the last value at the position of the first occurrence.
 
@@ -461,10 +463,14 @@ an error; a duplicate key keeps the last value at the position of the first occu
   (a stray or truncated byte, an overlong encoding, an encoded surrogate, a code point above U+10FFFF) is a
   malformed-JSON
   error at its position, never U+FFFD; `Open(Stream)` and `Open(path)` pass their raw bytes here.
-- `Run()` / `Read()` - read with `Utf8JsonReader` (depth option set from the limits) one token at a time, push and pop
-  frames on an explicit array indexed by depth (frames are reused), create nodes with their positions through an
+- `Run()` / `Read()` - read with `Utf8JsonReader` (depth option one above the limit) one token at a time, push and pop
+  frames on an explicit array indexed by depth (frames are reused), reject a container that would open more than
+  `MaxJsonDepth` containers at its own position and pointer, create nodes with their positions through an
   incremental line and column locator (a forward scan that only advances), and apply the duplicate-key policy.
-  A `JsonException` is translated into a `VegaLiteSpecException` with the position the reader stopped at.
+  A `JsonException` is translated into a `VegaLiteSpecException` with the position the reader stopped at; when the
+  reader stopped at the end of the text while a container was open, the message names the innermost open container
+  ("Malformed JSON: the specification ends before the object opened at line 1, column 30 is closed."), otherwise it is
+  `Malformed JSON: ` followed by the reader's message.
 - The validation pass (in `SpecParser.Validation.cs`) visits the root view and each nested view with an explicit work
   stack in document order, so the first problem reported is the first one in the text, applies the rule tables to the
   known properties, and adds a `vl-unknown-property` warning for each unknown key of a view, mark definition,
@@ -594,7 +600,8 @@ was thrown and nothing is returned. The parser is single-use and not thread-safe
 The parser is fail-fast: the first problem aborts the parse with one exception and no recovery is attempted. Text
 longer than `MaxSourceLength` is an `InvalidDataException` (no location is meaningful). Everything else is a
 `VegaLiteSpecException` with the source name, pointer, line, and column of the offending construct: malformed JSON (the
-first problem), invalid UTF-8, nesting deeper than `MaxJsonDepth` (at the crossing), a string longer than
+first problem; text that ends inside an open container names the container and where it was opened), invalid UTF-8,
+nesting deeper than `MaxJsonDepth` (at the container that crosses it, never for truncated text), a string longer than
 `MaxStringLength`, a number outside the double range, a root that is not an object, any content after the root object
 other
 than whitespace (a second value is rejected at its own position), a `$schema` naming plain Vega, and a

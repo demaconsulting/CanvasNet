@@ -16,8 +16,9 @@ public sealed record ViewerRenderOptions
     ///     Gets the width in pixels of the picture, or <see langword="null"/> for the natural width (or, when only the
     ///     height is given, the width that keeps the aspect ratio). A vector source draws at the requested size; a raster
     ///     is returned by its source at its natural size, so the viewer resamples it: with both <see cref="Width"/> and
-    ///     <see cref="Height"/> it fits the picture inside that box (keeping its aspect ratio, centered on a transparent
-    ///     background) so the result is exactly that size, with one dimension it scales to keep the aspect ratio. When
+    ///     <see cref="Height"/> it fits the picture inside that box (keeping its aspect ratio, centered on the
+    ///     <see cref="Background"/>, by default transparent for a raster) so the result is exactly that size, with one
+    ///     dimension it scales to keep the aspect ratio. When
     ///     given, it must be from 1 to <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/> (8192);
     ///     <see cref="CanvasNetViewer"/> throws <see cref="ArgumentOutOfRangeException"/> for any other value before it
     ///     reads the file. For a raster this differs from <c>SourceOptions.Width</c> and <c>Height</c> of the Imaging
@@ -59,12 +60,16 @@ public sealed record ViewerRenderOptions
     public double? Dpi { get; init; }
 
     /// <summary>
-    ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> for the default: no
-    ///     flattening, so a document page, a model and an SVG file come back over a <b>transparent</b> background and a
-    ///     Vega-Lite chart keeps its own. Any color other than fully transparent flattens the picture over it (a raster
-    ///     with transparency too). When <see cref="Width"/> and <see cref="Height"/> fit the picture into a box, the margin
-    ///     around it has this color (transparent when none is given), and the pixel positions in
-    ///     <see cref="ViewerImage.Anchors"/> follow the picture into the box.
+    ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> (not set) for the default,
+    ///     the same as the <c>canvasnet</c> tool's: a vector picture (an SVG file, a PDF, PPTX or VSDX page, an OpenSCAD
+    ///     model, a Vega-Lite chart, a Mermaid or PlantUML diagram) comes back over <b>opaque white</b> (a PlantUML
+    ///     diagram and a Vega-Lite chart keep their own background, white unless the source sets another), and a raster
+    ///     comes back unchanged, with its transparency. A color with alpha 0, such as <c>new Rgba32(0, 0, 0, 0)</c>, is
+    ///     set explicitly and keeps a vector picture transparent; any other color flattens the picture over it (a raster
+    ///     with transparency too). Pictures the file embeds (in an SVG file, a Mermaid diagram or a chart) are always
+    ///     drawn transparent, so the file shows through them. When <see cref="Width"/> and <see cref="Height"/> fit the
+    ///     picture into a box, the margin around it has this color (when not set: white for a vector picture, transparent
+    ///     for a raster), and the pixel positions in <see cref="ViewerImage.Anchors"/> follow the picture into the box.
     /// </summary>
     public DemaConsulting.CanvasNet.Canvas.Rgba32? Background { get; init; }
 
@@ -154,9 +159,9 @@ public sealed record ViewerRenderOptions
     /// <remarks>
     ///     A denied picture is the warning <c>image-access-denied</c> and is not drawn; with
     ///     <see cref="ThrowOnUnsupportedFeature"/> it is a <see cref="ViewerException"/> with the code
-    ///     <c>file-access-denied</c>. A denied include or data file fails the picture; for a nested model or chart the
-    ///     <see cref="ImageSourceException"/> keeps the <see cref="FileReferenceException"/> in its chain of inner
-    ///     exceptions. To restore the confinement of earlier versions, use
+    ///     <c>file-access-denied</c>. A denied include or data file fails the picture: a direct render throws a
+    ///     <see cref="ViewerException"/> with the code <c>file-access-denied</c> whose chain of inner exceptions holds the
+    ///     <see cref="FileReferenceException"/>, at any level of nesting. To restore the confinement of earlier versions, use
     ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
@@ -199,15 +204,82 @@ public sealed record ViewerRenderOptions
     ///     Gets the most pixels the render may decode and allocate in total (the file itself and every picture it embeds), or
     ///     <see langword="null"/> for the resolver default (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>,
     ///     64,000,000). The default refuses a single 8192 x 8192 picture; set this to render one large image. A render over
-    ///     the budget throws <see cref="ImageSourceBudgetException"/>; an embedded picture over it is skipped with a
+    ///     the budget throws a <see cref="ViewerException"/> with the code <c>budget-exceeded</c> (its inner
+    ///     <see cref="ImageSourceBudgetException"/> has the pixel counts); an embedded picture over it is skipped with a
     ///     <c>svg-image-too-large</c> note. A negative value throws <see cref="ArgumentOutOfRangeException"/>. The
     ///     budget contract is described in the remarks of <see cref="ImageSourceRequest"/>.
     ///     When the render is post-processed to the requested <see cref="Width"/> and <see cref="Height"/> (a raster, or
     ///     any source that returns another size), the final picture is a second buffer that must fit in what is left of
-    ///     this budget after the surface the source produced (peak memory is both): one that does not fit throws
-    ///     <see cref="ImageSourceBudgetException"/> as well.
+    ///     this budget after the surface the source produced (peak memory is both): one that does not fit is
+    ///     <c>budget-exceeded</c> as well.
     /// </summary>
     public long? MaxDecodedPixels { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a Vega-Lite chart (source length, JSON depth, data files, bytes and rows, fields,
+    ///     views, scene items, ticks, expressions, pictures, painted pixels, and so on), or <see langword="null"/>
+    ///     (default) for <see cref="DemaConsulting.CanvasNet.VegaLite.VegaLiteLimits.Default"/>. They apply to the
+    ///     rendered chart and to every chart the rendered file embeds, at any level of nesting, from the first read of
+    ///     the file to the last pixel.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxJsonDepth</c> and <c>MaxExpressionDepth</c> at 256, <c>MaxCompositionDepth</c> at
+    ///         64. <b>Raise a limit only for content you trust</b>: the limits keep a hostile chart from exhausting
+    ///         memory and time.
+    ///     </para>
+    ///     <para>
+    ///         A chart over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> for a limit of the data, layout or painting, <c>vega-lite-error</c> for a
+    ///         limit of the structure met while the specification is read (such as the JSON depth), and
+    ///         <c>corrupt-input</c> for a source longer than <c>MaxSourceLength</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.VegaLite.VegaLiteLimits? VegaLiteLimits { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a Mermaid diagram (text size, nodes, edges, label length, nesting, layout work,
+    ///     pictures, painted pixels, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.Mermaid.MermaidLimits.Default"/>. They apply to the rendered diagram and
+    ///     to every diagram the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxNestingDepth</c> and <c>MaxYamlDepth</c> at 256. <b>Raise a limit only for
+    ///         content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         A diagram over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>mermaid-limit-exceeded</c>, or <c>corrupt-input</c>
+    ///         for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.Mermaid.MermaidLimits? MermaidLimits { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a PlantUML diagram (text size, nodes, edges, label length, nesting, includes and
+    ///     their depth, layout work, painted pixels, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits.Default"/>. They apply to the rendered diagram
+    ///     and to every diagram the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the depths that
+    ///         bound recursion: <c>MaxNestingDepth</c> at 256, <c>MaxIncludeDepth</c> at 64. <b>Raise a limit only for
+    ///         content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         A diagram over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>plantuml-limit-exceeded</c>, or
+    ///         <c>corrupt-input</c> for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits? PlantUmlLimits { get; init; }
 
     /// <summary>
     ///     Gets the token that cancels the render. The default is <see cref="CancellationToken.None"/>.

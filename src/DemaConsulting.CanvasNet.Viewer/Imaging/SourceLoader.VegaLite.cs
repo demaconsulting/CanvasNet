@@ -23,7 +23,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         fonts bundled with the library are used, so the same chart gives the same pixels on every machine. A
 ///         construct the library does not draw (yet) is returned as a diagnostic (<c>vega-lite</c>, <c>unsupported</c>,
 ///         with its stable <c>vl-*</c> identifier as the code); with <see cref="SourceOptions.Strict"/> it is an
-///         <c>unsupported-feature</c> error instead. A problem with the specification or with the chart is a
+///         <c>unsupported-feature</c> error instead. A field without a <c>type</c> is drawn with the type Vega-Lite infers
+///         and is returned as the note <c>vega-lite-info</c> (severity <c>info</c>, detail <c>vl-type-inferred</c>, located at the
+///         channel), which never fails strict mode. A problem with the specification or with the chart is a
 ///         <c>vega-lite-error</c>; this includes a specification that nests deeper than the parser limit or has a
 ///         string longer than the string limit, as the SCAD parser's nesting limit is a <c>scad-error</c>.
 ///         A limit that the library applies while it lays out or draws the chart (rows, ticks, scene items, and so
@@ -53,12 +55,19 @@ public static partial class SourceLoader
     private const string VegaLiteWarningCode = "vega-lite-warning";
 
     /// <summary>
+    ///     The code of an informational note of the Vega-Lite library in the diagnostics of a result (severity <c>info</c>; the <c>vl-*</c> identifier,
+    ///     such as <c>vl-type-inferred</c>, is the detail). A note never fails strict mode.
+    /// </summary>
+    private const string VegaLiteInfoCode = "vega-lite-info";
+
+    /// <summary>
     ///     Reads what a chart declares and the size it is laid out at, by parsing and measuring it; the chart is not
     ///     drawn.
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <param name="fileAccess">The file-access policy of the files the source reads beside it.</param>
+    /// <param name="limits">The resource limits of the chart, or <see langword="null"/> for <see cref="VegaLiteLimits.Default"/>.</param>
     /// <returns>
     ///     The facts about the file: the natural size of the chart, 4 channels, and the marks, data references,
     ///     parameters, title, and schema version of the specification.
@@ -67,12 +76,12 @@ public static partial class SourceLoader
     ///     Thrown with code <c>vega-lite-error</c> when the specification or the chart is not valid, <c>budget-exceeded</c>
     ///     when a limit is exceeded, and <c>size-limit</c> when the chart is larger than <see cref="Surface.MaxDimension"/>.
     /// </exception>
-    private static SourceInfo ProbeVegaLite(SourceInput input, long bytes, FileAccessPolicy fileAccess)
+    private static SourceInfo ProbeVegaLite(SourceInput input, long bytes, FileAccessPolicy fileAccess, VegaLiteLimits? limits)
     {
         // The measure reads the data files, so it is judged by the policy of the caller like the render that follows
         var path = input.Name;
-        var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input, fileAccess));
-        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions { FileAccess = fileAccess }, null)), path));
+        var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input, fileAccess, limits));
+        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions { FileAccess = fileAccess }, null, limits)), path));
         var chart = new ChartFacts(
             [.. document.MarkTypes],
             [.. document.DataReferences.Select(r => new ChartDataReference(r.Kind.ToString().ToLowerInvariant(), r.Url, r.RowCount, r.Location.Line))],
@@ -92,13 +101,14 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="fileAccess">The file-access policy of the data files.</param>
+    /// <param name="limits">The resource limits of the chart, or <see langword="null"/> for <see cref="VegaLiteLimits.Default"/>.</param>
     /// <returns>The parsed chart.</returns>
-    private static VegaLiteDocument OpenVegaLite(SourceInput input, FileAccessPolicy fileAccess)
+    private static VegaLiteDocument OpenVegaLite(SourceInput input, FileAccessPolicy fileAccess, VegaLiteLimits? limits)
     {
         using var stream = input.Open();
         return VegaLiteDocument.Open(
             stream,
-            new VegaLiteOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name, FileAccess = fileAccess });
+            new VegaLiteOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name, FileAccess = fileAccess, Limits = limits });
     }
 
     /// <summary>
@@ -162,7 +172,8 @@ public static partial class SourceLoader
     ///     only) and the ones the tool options say (background, strictness).
     /// </summary>
     /// <param name="options">The loading options.</param>
-    /// <param name="notes">The list the warnings and unsupported features are added to, or <see langword="null"/> to drop them.</param>
+    /// <param name="notes">The list the warnings, informational notes and unsupported features are added to, or <see langword="null"/> to drop them.</param>
+    /// <param name="limits">The resource limits of the chart, or <see langword="null"/> for <see cref="VegaLiteLimits.Default"/>.</param>
     /// <param name="resolver">
     ///     The resolver that loads the pictures of the chart's <c>image</c> marks, or <see langword="null"/> for none: the chart then draws
     ///     no picture and reports <c>vl-mark-image</c>, and a measure never needs one.
@@ -173,12 +184,14 @@ public static partial class SourceLoader
     private static VegaLiteRenderOptions CreateVegaLiteOptions(
         SourceOptions options,
         List<ImageDiagnostic>? notes,
+        VegaLiteLimits? limits,
         IImageResolver? resolver = null,
         IReadOnlyDictionary<string, object?>? parameters = null,
         PositionCollector? positions = null)
     {
         return new VegaLiteRenderOptions
         {
+            Limits = limits ?? VegaLiteLimits.Default,
             PositionHandler = positions is null ? null : position => positions.Offer(position),
             PositionKindFilter = positions is null ? null : positions.IncludesKind,
             Background = options.Background,
@@ -193,6 +206,14 @@ public static partial class SourceLoader
                     {
                         Detail = ReadVegaLiteDetail(warning.Message),
                         Location = ToVegaLiteLocation(warning.Location)
+                    }),
+            InfoHandler = notes == null
+                ? null
+                : note => notes.Add(
+                    new ImageDiagnostic("vega-lite", "info", VegaLiteInfoCode, OneLine(note.ToString()))
+                    {
+                        Detail = ReadVegaLiteDetail(note.Message),
+                        Location = ToVegaLiteLocation(note.Location)
                     }),
             UnsupportedFeatureHandler = notes == null
                 ? null
@@ -210,9 +231,9 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Reads the stable <c>vl-*</c> identifier a warning of the Vega-Lite library starts its message with.
+    ///     Reads the stable <c>vl-*</c> identifier a warning or an informational note of the Vega-Lite library starts its message with.
     /// </summary>
-    /// <param name="message">The message of the warning.</param>
+    /// <param name="message">The message of the warning or note.</param>
     /// <returns>The identifier (for example <c>vl-text-missing-glyph</c>), or <see langword="null"/> when the message has none.</returns>
     private static string? ReadVegaLiteDetail(string message)
     {
@@ -251,7 +272,9 @@ public static partial class SourceLoader
     /// <returns>
     ///     The exception to throw: <c>file-access-denied</c> when the file-access policy denied a data file,
     ///     <c>budget-exceeded</c> when the chart exceeded a limit of the library (rows, fields, ticks, scene items, and so
-    ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on).
+    ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on); the
+    ///     location of the failure (with its JSON pointer) is the <see cref="ViewerException.Location"/>, and the library
+    ///     gives such a failure no detail code.
     /// </returns>
     /// <remarks>
     ///     The library names every limit it enforces in the message, either as <c>the limit of N</c>, as
@@ -263,18 +286,18 @@ public static partial class SourceLoader
         var message = OneLine(exception.Message);
         if (IsFileAccessDenial(exception))
         {
-            return new ViewerException(ErrorCodes.FileAccessDenied, $"Vega-Lite data file denied: {message}", FileAccessDeniedHint, exception);
+            return SourceFailure(ErrorCodes.FileAccessDenied, $"Vega-Lite data file denied: {message}", FileAccessDeniedHint, exception);
         }
 
         if (!IsVegaLiteLimit(message))
         {
-            return new ViewerException(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {message}", null, exception);
+            return SourceFailure(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {message}", null, exception);
         }
 
-        return new ViewerException(
+        return SourceFailure(
             ErrorCodes.BudgetExceeded,
             $"The Vega-Lite chart exceeds a limit: {message}",
-            "Simplify the chart or reduce its data; this limit cannot be changed from the command line.",
+            "Simplify the chart or reduce its data.",
             exception);
     }
 
@@ -325,7 +348,7 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown when the file cannot be read or is not a valid specification.</exception>
         public static VegaLitePageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.VegaLite, () => OpenVegaLite(input, options.FileAccess));
+            var document = Read(info.Path, SourceKind.VegaLite, () => OpenVegaLite(input, options.FileAccess, context.Limits.VegaLite));
             return new VegaLitePageSource(document, info, options, input, context);
         }
 
@@ -343,7 +366,7 @@ public static partial class SourceLoader
                 var measured = Read(
                     Info.Path,
                     SourceKind.VegaLite,
-                    () => MeasureChart(() => _document.Measure(CreateVegaLiteOptions(Options, null, null, parameters)), Info.Path));
+                    () => MeasureChart(() => _document.Measure(CreateVegaLiteOptions(Options, null, Context.Limits.VegaLite, null, parameters)), Info.Path));
                 info = Info with { Width = measured.Width, Height = measured.Height };
             }
 
@@ -354,7 +377,7 @@ public static partial class SourceLoader
             var scoped = Context.UseScopedResolver;
             var images = scoped ? null : new SvgImages(Info.Path, Options);
             var positions = CreatePositionCollector(Options);
-            var renderOptions = CreateVegaLiteOptions(Options, notes, scoped ? Context.ScopedResolver : images!.Resolver, parameters, positions);
+            var renderOptions = CreateVegaLiteOptions(Options, notes, Context.Limits.VegaLite, scoped ? Context.ScopedResolver : images!.Resolver, parameters, positions);
 
             // The surface is charged before the chart is drawn, so a chart that cannot be paid for costs nothing
             Context.ChargeSurface(width, height);

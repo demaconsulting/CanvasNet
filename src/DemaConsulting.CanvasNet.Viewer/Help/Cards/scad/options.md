@@ -24,7 +24,7 @@ the camera is in [[scad/views]].
   high-contrast drawing; a color() in the model overrides it.
 - `MaxTriangles`: The most triangles the model may produce (default
   {{scadMaxTriangles}}).
-- `Background`: The color the picture is flattened over (`SourceOptions` uses
-  white by default); a transparent color keeps alpha.
+- `Background`: The color the picture is flattened over (white by
+  default); a transparent color keeps alpha.
 - `ThrowOnUnsupportedFeature`: Strict mode (`SourceOptions.Strict`): fail with
   unsupported-feature instead of leaving a construct out.

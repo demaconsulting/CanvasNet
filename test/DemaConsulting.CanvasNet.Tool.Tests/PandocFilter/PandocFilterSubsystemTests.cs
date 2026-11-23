@@ -151,6 +151,26 @@ public class PandocFilterSubsystemTests
     }
 
     /// <summary>
+    ///     Test that the informational note of a chart field without a type (<c>vega-lite-info</c>) is not returned as a Pandoc warning, so a build that treats warnings as
+    ///     failures still passes, while the chart is drawn.
+    /// </summary>
+    [Fact]
+    public void PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning()
+    {
+        // Arrange: the chart of issue #165
+        using var tree = new FilterTree();
+        tree.Write("chart.vl.json", """{ "data": { "values": [ { "a": 1 } ] }, "mark": "bar", "encoding": { "x": { "field": "a" } } }""");
+        var document = PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("chart.vl.json")));
+
+        // Act
+        var output = tree.Run(new ToolPictureDrawer(), document);
+
+        // Assert: drawn, without a warning
+        Assert.Empty(PandocDoc.Warnings(output));
+        Assert.StartsWith("chart-", Path.GetFileName(Assert.Single(PandocDoc.ImageSources(output))), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a picture a restrictive file-access mode denies stops the run with file-access-denied, and that the
     ///     same picture is drawn when the variables allow its folder.
     /// </summary>

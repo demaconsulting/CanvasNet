@@ -53,7 +53,7 @@ internal static partial class DiagramDetector
         if (classOuter.All(s => AcceptsClass(s)))
         {
             var first = classOuter.FirstOrDefault(s => Classify(s.Text) != StatementFamily.Common) ?? classOuter[0];
-            var declaration = classOuter.FirstOrDefault(s => ClassFamilyKeywords.Contains(FirstWord(s.Text)) && FirstWord(s.Text) is not ("package" or "namespace" or "together" or "set"));
+            var declaration = classOuter.FirstOrDefault(s => ClassFamilyKeywords.Contains(DeclarationWord(s.Text)) && FirstWord(s.Text) is not ("package" or "namespace" or "together" or "set"));
             var type = declaration is not null && FirstWord(declaration.Text).ToLowerInvariant() is "object" or "map" ? "object" : "class";
             return new DetectedDiagram(type, SupportedTypes.Contains(type), FirstWord(first.Text), first.Location);
         }
@@ -151,6 +151,16 @@ internal static partial class DiagramDetector
     }
 
     /// <summary>
+    ///     Gets the word of a statement that may be a declaration keyword of a graph family: its first word, or an
+    ///     empty word when the first word is the left end of an arrow (<c>Node -&gt; : x</c> names an element, it does
+    ///     not declare a node).
+    /// </summary>
+    /// <param name="text">The statement text.</param>
+    /// <returns>The first word, or empty.</returns>
+    private static string DeclarationWord(string text) =>
+        StartsWithArrowFromFirstWord(text) ? string.Empty : FirstWord(text);
+
+    /// <summary>
     ///     Decides whether a class diagram accepts a statement: a common statement, a declaration of the class family, a
     ///     closing brace, a direction, a member (<c>Name : text</c>), or a relationship between named elements.
     /// </summary>
@@ -159,7 +169,7 @@ internal static partial class DiagramDetector
     private static bool AcceptsClass(SourceStatement statement)
     {
         var text = statement.Text;
-        var word = FirstWord(text);
+        var word = DeclarationWord(text);
         if (Classify(text) == StatementFamily.Common || text == "}" || ClassFamilyKeywords.Contains(word) || SvekSyntax.TryReadDirection(text, out _))
         {
             return true;
@@ -198,7 +208,7 @@ internal static partial class DiagramDetector
     private static bool AcceptsDescription(SourceStatement statement)
     {
         var text = statement.Text;
-        if (Classify(text) == StatementFamily.Common || text == "}" || DescriptionKeywords.Contains(FirstWord(text)) || SvekSyntax.TryReadDirection(text, out _))
+        if (Classify(text) == StatementFamily.Common || text == "}" || DescriptionKeywords.Contains(DeclarationWord(text)) || SvekSyntax.TryReadDirection(text, out _))
         {
             return true;
         }
@@ -223,7 +233,7 @@ internal static partial class DiagramDetector
     {
         var text = statement.Text;
         if (Classify(text) == StatementFamily.Common || text == "}" || text is "--" or "||" || SvekSyntax.TryReadDirection(text, out _)
-            || FirstWord(text).Equals("state", StringComparison.OrdinalIgnoreCase))
+            || DeclarationWord(text).Equals("state", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

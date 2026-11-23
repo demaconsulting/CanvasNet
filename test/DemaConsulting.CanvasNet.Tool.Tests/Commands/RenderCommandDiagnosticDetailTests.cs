@@ -89,6 +89,33 @@ public class RenderCommandDiagnosticDetailTests
     }
 
     /// <summary>
+    ///     Test that <c>render --strict</c> of a chart field without a type succeeds and reports the informational note: in JSON with the severity <c>info</c>, the code
+    ///     <c>vega-lite-info</c>, the detail <c>vl-type-inferred</c> and the pointer of the channel; as text with the prefix <c>Info:</c>.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_VegaLiteFieldWithoutType_StrictReportsInfoNote()
+    {
+        // Arrange: the chart of issue #165
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "chart.vl.json", "{\"data\":{\"values\":[{\"a\":1}]},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\"}}}");
+
+        // Act
+        var (jsonExit, stdOut, jsonErr) = ToolHost.Invoke("render", input, "-o", directory.Combine("out.png"), "--strict", "--json");
+        var (textExit, _, textErr) = ToolHost.Invoke("render", input, "-o", directory.Combine("text.png"), "--strict");
+
+        // Assert: both succeed; the JSON note is information at the channel, the text note starts with Info:
+        Assert.True(jsonExit == 0, jsonErr + stdOut);
+        Assert.True(textExit == 0, textErr);
+        using var document = JsonDocument.Parse(stdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("info", diagnostic.GetProperty("severity").GetString());
+        Assert.Equal("vega-lite-info", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("vl-type-inferred", diagnostic.GetProperty("detail").GetString());
+        Assert.Equal("/encoding/x", diagnostic.GetProperty("location").GetProperty("pointer").GetString());
+        Assert.StartsWith("Info: vega-lite-info: ", textErr.Trim(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a note of an embedded model carries <c>detail</c>, <c>location</c>, and the embedding chain as
     ///     <c>origin</c>, and that a link of the SVG file itself that was not drawn is a plain note (no <c>detail</c>,
     ///     <c>location</c>, or <c>origin</c>), while the same link in a nested SVG file names that file as <c>origin</c>.

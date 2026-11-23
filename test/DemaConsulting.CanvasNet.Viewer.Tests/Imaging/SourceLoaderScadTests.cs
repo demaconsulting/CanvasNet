@@ -392,7 +392,7 @@ public class SourceLoaderScadTests
 
         // Assert
         Assert.Equal(ErrorCodes.UsageError, exception.Code);
-        Assert.Contains("-D", exception.Message);
+        Assert.Contains("model definition", exception.Message);
         Assert.DoesNotContain('\n', exception.Message);
     }
 
@@ -543,7 +543,7 @@ public class SourceLoaderScadTests
         Assert.Equal(ErrorCodes.UnsupportedFeature, exception.Code);
         Assert.Contains("(scad-module-surface)", exception.Message);
         Assert.Contains($"{path}:1:1", exception.Message);
-        Assert.Contains("--strict", exception.Hint);
+        Assert.Contains("strict mode", exception.Hint);
         Assert.DoesNotContain('\n', exception.Message);
     }
 
@@ -564,7 +564,7 @@ public class SourceLoaderScadTests
         Assert.Equal(ErrorCodes.BudgetExceeded, exception.Code);
         Assert.Contains("Triangle limit exceeded (limit 1)", exception.Message);
         Assert.Contains($"{path}:", exception.Message);
-        Assert.Contains("--max-triangles", exception.Hint);
+        Assert.Contains("ScadViewOptions.MaxTriangles", exception.Hint);
         Assert.DoesNotContain('\n', exception.Message);
     }
 
@@ -605,7 +605,7 @@ public class SourceLoaderScadTests
         // Assert: the budget code, the message, and a hint that says the limit is fixed
         Assert.Equal(ErrorCodes.BudgetExceeded, exception.Code);
         Assert.Contains(expected, exception.Message);
-        Assert.Contains("cannot be changed", exception.Hint);
+        Assert.Contains("cannot be raised", exception.Hint);
     }
 
     /// <summary>
@@ -818,7 +818,7 @@ public class SourceLoaderScadTests
         var limitError = SourceLoader.MapScadEvaluation(limit);
         Assert.Equal(ErrorCodes.BudgetExceeded, limitError.Code);
         Assert.Contains("m.scad:3:1: Instance limit exceeded (limit 5)", limitError.Message);
-        Assert.DoesNotContain("--max-triangles", limitError.Hint);
+        Assert.DoesNotContain("MaxTriangles", limitError.Hint);
         Assert.Same(limit, limitError.InnerException);
         Assert.Equal(ErrorCodes.BudgetExceeded, SourceLoader.MapScadEvaluation(budget).Code);
         Assert.Equal(ErrorCodes.ScadError, SourceLoader.MapScadEvaluation(plain).Code);

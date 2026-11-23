@@ -219,7 +219,7 @@ public static class ImageInspector
             IReadOnlyList<AppliedOperation> applied = [];
             if (request.Operations.Count > 0)
             {
-                var defaultPad = request.Source.Background ?? (loaded.IsVector ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0));
+                var defaultPad = request.Source.Background ?? (loaded.IsVector ? SourceLoader.DefaultVectorBackground : new Rgba32(0, 0, 0, 0));
                 transformed = ImagePipeline.Apply(surface, request.Operations, defaultPad, out applied, request.Source.Background);
                 surface = transformed;
             }

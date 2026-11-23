@@ -14,14 +14,16 @@ sections:
           - id: CanvasNetViewer-ViewerException-Contract
             title: >-
               The ViewerException class shall carry a stable error code, a message, an optional hint that says what to
-              do about the failure, and an optional inner exception, and shall be an InvalidOperationException so that a
-              caller can tell an expected, user-correctable failure from a defect.
+              do about the failure, an optional inner exception, an optional location in the source (file, line,
+              column, and JSON pointer), and an optional detail code of the format library, and shall be an
+              InvalidOperationException so that a caller can tell an expected, user-correctable failure from a defect.
             justification: |
-              A program that uses the library needs to act on a failure by its code and to show the message and the hint
-              to its user, without parsing text.
+              A program that uses the library needs to act on a failure by its code, to point at the place of an error
+              in a source, and to show the message and the hint to its user, without parsing text.
             tests:
               - ViewerException_Constructor_CarriesCodeMessageHintAndCause
               - ViewerException_Constructor_HintAndCauseAreOptional
+              - ViewerException_LocationAndDetailCode_DefaultToNullAndAreSettable
 
           - id: CanvasNetViewer-ViewerException-ErrorCodes
             title: >-

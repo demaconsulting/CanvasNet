@@ -39,6 +39,26 @@ internal sealed partial class CommandRegistry
     ];
 
     /// <summary>
+    ///     The phrases of the library's hints that name a setting the command line sets with an option of its own, and the
+    ///     words of the command line for them.
+    /// </summary>
+    /// <remarks>
+    ///     The library words its hints for every caller (<c>strict mode</c>, <c>ScadViewOptions.MaxTriangles</c>, <c>a
+    ///     smaller scale, width, or height</c>); the tool names the options that set the same thing. The codes come from
+    ///     the one mapping of the library and are never changed here. Tests of the tool render through the library for
+    ///     each phrase (strict mode, the triangle limit, and both size hints), so a change of the library's wording is
+    ///     caught.
+    /// </remarks>
+    private static readonly (string Library, string CommandLine)[] CommandLinePhrases =
+    [
+        ("Without strict mode", "Without --strict"),
+        ("ScadViewOptions.MaxTriangles", "--max-triangles"),
+        ("a smaller scale, width, or height", "a smaller --scale, --width, or --height"),
+        ("Use a scale of ", "Use --scale "),
+        ("or a smaller width or height", "or a smaller --width or --height")
+    ];
+
+    /// <summary>
     ///     The registered commands in registration order.
     /// </summary>
     private readonly List<ICommand> _commands = [];
@@ -129,7 +149,8 @@ internal sealed partial class CommandRegistry
     ///     message suggests the closest command name), and with the command's own code when the command
     ///     fails; <see cref="ToolException.Command"/> is filled in when the command left it empty. A
     ///     <see cref="ViewerException"/> of the library is reported as a <see cref="ToolException"/> with the same code,
-    ///     message, and hint, so that the error report names the command.
+    ///     message, location, and detail code, and with its hint in the words of the command line (see
+    ///     <see cref="CommandLineHint"/>), so that the error report names the command and its options.
     /// </exception>
     /// <remarks>
     ///     Any other exception thrown by a command propagates unchanged: it is a defect, and the entry
@@ -168,9 +189,35 @@ internal sealed partial class CommandRegistry
         }
         catch (ViewerException ex)
         {
-            // An expected failure of the Viewer library: the same code, message, and hint, now naming the command
-            throw new ToolException(ex.Code, ex.Message, ex.Hint, ex.InnerException) { Command = command.Name };
+            // An expected failure of the Viewer library: the same code, message, location and detail code, now naming the
+            // command, with the hint in the words of the command line
+            throw new ToolException(ex.Code, ex.Message, CommandLineHint(ex.Hint), ex.InnerException)
+            {
+                Command = command.Name,
+                Location = ex.Location,
+                DetailCode = ex.DetailCode
+            };
         }
+    }
+
+    /// <summary>
+    ///     Words a hint of the library in the terms of the command line.
+    /// </summary>
+    /// <param name="hint">The hint of the library, or <see langword="null"/>.</param>
+    /// <returns>The hint with the options of the tool named, or <see langword="null"/> when there is no hint.</returns>
+    internal static string? CommandLineHint(string? hint)
+    {
+        if (hint is null)
+        {
+            return null;
+        }
+
+        foreach (var (library, commandLine) in CommandLinePhrases)
+        {
+            hint = hint.Replace(library, commandLine, StringComparison.Ordinal);
+        }
+
+        return hint;
     }
 
     /// <summary>

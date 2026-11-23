@@ -11,14 +11,17 @@ see-also:
 
 - `source`: Where the report comes from: scad, vega-lite, mermaid, plantuml,
   pptx, vsdx, or svg. PDF and raster images have no diagnostics channel.
-- `severity`: unsupported for a feature that was left out, or warning for a
-  questionable construct that still rendered.
+- `severity`: unsupported for a feature that was left out, warning for a
+  questionable construct that still rendered, or info for a note for information
+  only (vega-lite-info: a chart field without a type, detail vl-type-inferred),
+  which never fails --strict.
 - `code`: The stable generic identifier of the report, for example
   scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or
   image-page-out-of-range. A warning of a SCAD model always has the code
   scad-warning, a warning of a Vega-Lite chart the code vega-lite-warning, and a
   warning of a Mermaid diagram the code mermaid-warning, and a warning of a
-  PlantUML diagram the code plantuml-warning; the finer identifier is in detail.
+  PlantUML diagram the code plantuml-warning, and an info note of a chart the
+  code vega-lite-info; the finer identifier is in detail.
 - `message`: A description; for a model, chart, or diagram it gives file, line,
   and column.
 - `detail`: Only when the code is generic: the finer identifier of the library,
@@ -34,6 +37,7 @@ see-also:
   starts with the href as written.
 - `page`: The page of a document the report belongs to.
 - Without --json the same reports are written to standard error as
-  'Unsupported: <code>: <message>' or 'Warning: <code>: <message>' lines (and
+  'Unsupported: <code>: <message>', 'Warning: <code>: <message>', or 'Info:
+  <code>: <message>' lines (and
   echo as 'ECHO: <text>'); with --json standard error carries none of them, so
   standard output stays one JSON document.

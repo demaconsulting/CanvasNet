@@ -78,7 +78,7 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves that a Mermaid diagram is drawn by the viewer directly (transparent, as Mermaid's own picture, with the fill of the
+    ///     Proves that a Mermaid diagram is drawn by the viewer directly (over white by default, with the fill of the
     ///     default theme) and as a picture of an SVG document, where the <c>theme</c> fragment of the link chooses the theme and a
     ///     name that is not a theme refuses the link with <c>image-fragment-invalid</c>.
     /// </summary>
@@ -97,9 +97,9 @@ public class CanvasNetViewerSystemIntegrationTests
         using var direct = CanvasNetViewer.Render(Path.Combine(folder.Path, "flow.mmd"));
         using var embedded = ViewerFixtures.RenderSvg(svg, resolver);
 
-        // Assert: the direct render is a transparent diagram with the default fill and no note
+        // Assert: the direct render is a diagram over white with the default fill and no note
         Assert.Equal("mermaid", direct.Format);
-        Assert.Equal(0, direct.Surface[0, 0].A);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), direct.Surface[0, 0]);
         Assert.Contains(Enumerable.Range(0, direct.Surface.Width), x => direct.Surface[x, direct.Surface.Height / 2] == defaultFill);
         Assert.Empty(direct.Diagnostics);
 
@@ -112,7 +112,7 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves that a PlantUML diagram is drawn by the viewer directly (transparent, with the participant fill of
+    ///     Proves that a PlantUML diagram is drawn by the viewer directly (over white by default, with the participant fill of
     ///     PlantUML's default look), as the picture of an SVG <c>image</c>, and as the picture of a Mermaid node (listed
     ///     once among the embedded images), with the <c>theme</c> fragment of a link reported as a parameter PlantUML
     ///     does not take.
@@ -133,9 +133,9 @@ public class CanvasNetViewerSystemIntegrationTests
         using var embedded = ViewerFixtures.RenderSvg(svg, resolver);
         using var inMermaid = CanvasNetViewer.Render(Path.Combine(folder.Path, "flow.mmd"));
 
-        // Assert: the direct render is a transparent diagram with the participant fill and no note
+        // Assert: the direct render is a diagram over white with the participant fill and no note
         Assert.Equal("plantuml", direct.Format);
-        Assert.Equal(0, direct.Surface[0, 0].A);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), direct.Surface[0, 0]);
         Assert.Contains(Enumerable.Range(0, direct.Surface.Height), y => Enumerable.Range(0, direct.Surface.Width).Any(x => direct.Surface[x, y] == participantFill));
         Assert.Empty(direct.Diagnostics);
 
@@ -669,7 +669,8 @@ public class CanvasNetViewerSystemIntegrationTests
         {
             using var drawn = CanvasNetViewer.Render(path);
             Assert.True(drawn.Surface.Width > 0);
-            var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+            var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, confined));
+            Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code);
             Exception? current = ex;
             while (current is not null and not Files.FileReferenceException)
             {

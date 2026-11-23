@@ -393,6 +393,105 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
+    ///     Validates that an unreadable message from a participant named like a declaration keyword of another type
+    ///     (deployment, component, class, object, state, use case) is a sequence syntax error at the message, not a
+    ///     diagram of that type whose parser refuses the participant declaration.
+    /// </summary>
+    /// <param name="name">The participant name.</param>
+    [Theory]
+    [InlineData("Agent")]
+    [InlineData("Node")]
+    [InlineData("File")]
+    [InlineData("Card")]
+    [InlineData("Person")]
+    [InlineData("Stack")]
+    [InlineData("Cloud")]
+    [InlineData("Component")]
+    [InlineData("Interface")]
+    [InlineData("Class")]
+    [InlineData("Object")]
+    [InlineData("Package")]
+    [InlineData("State")]
+    [InlineData("Usecase")]
+    public void PlantUmlDiagramDetector_Detect_BadMessageFromKeywordNamedParticipant_IsSequenceErrorAtTheMessage(string name)
+    {
+        // Arrange
+        var text = $"@startuml\nactor User\nparticipant {name}\nUser -> {name} : request\n{name} -> : call tool\n{name} --> User : answer\n@enduml\n";
+
+        // Act
+        var ex = Assert.Throws<PlantUmlSyntaxException>(() => Detect(text));
+
+        // Assert
+        Assert.Equal(PlantUmlDiagnosticCodes.SyntaxError, ex.Code);
+        Assert.Equal((5, 1), (ex.Location.Line, ex.Location.Column));
+        Assert.Contains($"'{name} -> : call tool' is not a statement of a sequence diagram", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that readable messages from participants named like declaration keywords are a sequence diagram.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    [Theory]
+    [InlineData("actor User\nparticipant Agent\nUser -> Agent : request\nAgent -> User : call tool\nAgent --> User : answer")]
+    [InlineData("Agent -> Bob : hi")]
+    [InlineData("Node -> Card : x\nCard --> Node")]
+    public void PlantUmlDiagramDetector_Detect_MessagesFromKeywordNamedParticipants_AreSequence(string text)
+    {
+        // Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert
+        Assert.Equal("sequence", detected.DiagramType);
+    }
+
+    /// <summary>
+    ///     Validates that declarations by keyword followed by links keep naming their type, so the rule that a word an
+    ///     arrow starts from is a name leaves real declarations alone.
+    /// </summary>
+    /// <param name="text">The statements.</param>
+    /// <param name="type">The expected type.</param>
+    [Theory]
+    [InlineData("agent A\nnode N\nA --> N", "deployment")]
+    [InlineData("node A\nnode B\nA -> B", "deployment")]
+    [InlineData("agent X\nX --> Y", "deployment")]
+    [InlineData("component C\nC --> D", "component")]
+    [InlineData("class A\nA -> B", "class")]
+    [InlineData("state S\nS -> T", "state")]
+    [InlineData("object o\no --> p", "object")]
+    public void PlantUmlDiagramDetector_Detect_KeywordDeclarationsWithLinks_KeepTheirType(string text, string type)
+    {
+        // Act
+        var detected = Detect($"@startuml\n{text}\n@enduml\n");
+
+        // Assert: the drawn type of the declarations, recognized by the declaration keyword on line 2
+        Assert.Equal((type, true, 2), (detected.DiagramType, detected.IsSupported, detected.Location.Line));
+    }
+
+    /// <summary>
+    ///     Validates which statements start with an arrow from their first word: a message from a keyword-named
+    ///     participant does, a declaration followed by more words, a statement without an arrow, and an arrow without
+    ///     a left end do not.
+    /// </summary>
+    /// <param name="text">The statement.</param>
+    /// <param name="expected">Whether the first word is the left end of an arrow.</param>
+    [Theory]
+    [InlineData("Agent -> : call tool", true)]
+    [InlineData("node --> db", true)]
+    [InlineData("State ..> Next : x", true)]
+    [InlineData("agent A --> B", false)]
+    [InlineData("node Server", false)]
+    [InlineData("-> A : x", false)]
+    [InlineData("\"Agent\" -> B", false)]
+    public void PlantUmlDiagramDetector_StartsWithArrowFromFirstWord_ReadsTheLeftEnd(string text, bool expected)
+    {
+        // Act
+        var starts = DiagramDetector.StartsWithArrowFromFirstWord(text);
+
+        // Assert
+        Assert.Equal(expected, starts);
+    }
+
+    /// <summary>
     ///     Validates the edit distance of the nearest-tag hint.
     /// </summary>
     [Fact]

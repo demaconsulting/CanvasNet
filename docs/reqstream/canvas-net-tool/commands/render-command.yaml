@@ -438,6 +438,7 @@ sections:
           - RenderCommand_Run_ScadWarning_WritesDetailAndLocation
           - RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail
           - RenderCommand_Run_VegaLiteWarning_WritesDetail
+          - RenderCommand_Run_VegaLiteFieldWithoutType_StrictReportsInfoNote
           - RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown
           - RenderCommand_Run_PlainNote_HasNoExtraMembers
           - InspectCommand_Run_ScadWarning_WritesDetailAndLocation

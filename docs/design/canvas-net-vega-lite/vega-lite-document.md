@@ -17,7 +17,8 @@ opened). A document can then be
 the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`,
 `Layout`,
 `Marks`, and
-`Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
+`Scenegraph` subsystems and delivers the warnings, unsupported-feature reports, and informational notes to the caller's
+handlers. **Only
 `Measure` and `Render` read data and run the parameters and the row transforms over it:** inline rows, named datasets,
 and sequences need no I/O, and a local
 `data.url` is read from the places and under the file-access policy that the open options define (see *Data Subsystem
@@ -96,7 +97,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   works, see *Time zone and calendar* below), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
   (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
-  (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
+  (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), `InfoHandler`
+  (`Action<VegaLiteDiagnostic>?`, null by default: receives the notes for information only, such as `vl-type-inferred`
+  for a field without a type; a note never makes strict mode throw), and
   `ThrowOnUnsupportedFeature` (default false), and, since phase 13, `ImageResolver` (`IImageResolver?` of the core
   `ImageSources` namespace, null by default: the **only** way a chart gets a picture - the library never opens a file or
   a
@@ -163,12 +166,12 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `(description, location)` builds the message `{location}: {description}`, or just the description when the location
   is unknown; the standard parameterless, message, and message-plus-inner-exception constructors leave the location
   unknown. `VegaLiteSpecException` derives from `FormatException` because `InvalidDataException` is sealed.
-- **`VegaLiteReportSink`** (internal sealed class) - the buffer of one call: recorded warnings and unsupported
-  features in order, de-duplicated by value (a warning also by an optional key, so that a message that lists only a
-  prefix of what identifies it, such as the missing-glyph warning, does not hide a different set), capped at
-  `MaxDiagnostics`, with the strict-mode switch (strict mode always
-  records the first unsupported feature, even beyond the cap, so the handler receives it before the exception is
-  thrown).
+- **`VegaLiteReportSink`** (internal sealed class) - the buffer of one call: recorded warnings, unsupported features,
+  and informational notes (`Info`, delivered to `InfoHandler`, never throwing) in order, de-duplicated by value (a
+  warning also by an optional key, so that a message that lists only a prefix of what identifies it, such as the
+  missing-glyph warning, does not hide a different set), capped at `MaxDiagnostics`, with the strict-mode switch (strict
+  mode always records the first unsupported feature, even beyond the cap, so the handler receives it before the
+  exception is thrown).
 
 ### Key Methods
 
@@ -217,7 +220,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `SceneMarkContext` of each marks group the view path, view name, and facet values of its layer, and `WithView` gives
   the title of a chart or composition the path of its view (see *ScenePositions Unit Design*).
 - `Run(options, token, plan, finish)` - creates the sink, records the reports (`BuildPlan` ->
-  `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
+  `RecordReports`: warnings through `Warn`, informational notes (`FeatureReportKind.Info`, the catalog's
+  `vl-type-inferred`, which `Reports` and `ReportsFor` ask the catalog for) through `Info`, which never throws, and
+  unsupported features through `Unsupported`, which throws in strict mode),
   runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
   exceptions ignored; on success a handler exception propagates after the result is disposed.
 - `PrepareChart(options, token)` - the layout described in the system design (parameters, the fold of the expression
@@ -551,7 +556,8 @@ file-access policy,
 the
 budgets, and the cycle chain of the whole render; a request built by hand has none and the mark is a `vl-mark-image`
 note.
-The warnings of the library become `vega-lite-warning` notes and its unsupported features notes with the feature name as
+The warnings of the library become `vega-lite-warning` notes, its informational notes `vega-lite-info` notes of the
+severity `Info`, and its unsupported features notes with the feature name as
 the code (the request's `ThrowOnUnsupportedFeature` makes the library throw instead). The class is stateless,
 thread-safe, claims no URI scheme, and references only the core package.
 

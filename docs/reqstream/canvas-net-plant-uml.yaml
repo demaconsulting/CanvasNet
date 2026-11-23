@@ -53,6 +53,7 @@ sections:
           - CanvasNetPlantUml-PlantUmlDocument-Records
         tests:
           - CanvasNetPlantUml_Open_InvalidText_FailsLocated
+          - CanvasNetPlantUml_Open_BadMessageFromKeywordNamedParticipant_FailsAtTheMessage
           - CanvasNetPlantUml_Activity_SyntaxError_IsLocated
           - CanvasNetPlantUml_Class_SyntaxErrors_AreLocated
           - CanvasNetPlantUml_State_SyntaxErrors_AreLocated

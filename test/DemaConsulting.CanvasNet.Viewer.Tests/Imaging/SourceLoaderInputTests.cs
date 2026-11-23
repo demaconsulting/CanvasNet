@@ -1,6 +1,9 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
+using DemaConsulting.CanvasNet.PlantUml;
+using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
@@ -214,6 +217,54 @@ public class SourceLoaderInputTests
         // Assert
         Assert.Equal((100, 67), (fitted.Surface.Width, fitted.Surface.Height));
         Assert.Equal((100, 100), (boxed.Surface.Width, boxed.Surface.Height));
+    }
+
+    /// <summary>
+    ///     Test that the limits of a chart or a diagram given to the probe and to the context of a load apply to each: the
+    ///     probe with a lower limit refuses a source that the default probe accepts, and a load whose context has the
+    ///     lower limit refuses it too, with the code budget-exceeded.
+    /// </summary>
+    /// <param name="key">The kind of source: <c>vega-lite</c>, <c>mermaid</c> or <c>plantuml</c>.</param>
+    [Theory]
+    [InlineData("vega-lite")]
+    [InlineData("mermaid")]
+    [InlineData("plantuml")]
+    public void SourceLoader_Limits_ApplyToTheProbeAndTheLoad(string key)
+    {
+        // Arrange: a small source of the kind and a limit just below what it needs
+        var (name, kind, text, limits) = key switch
+        {
+            "vega-lite" => (
+                "chart.vl.json",
+                SourceKind.VegaLite,
+                "{\"data\":{\"values\":[{\"a\":1},{\"a\":2},{\"a\":3}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}",
+                new SourceLoader.SourceLimits(new VegaLiteLimits { MaxDataRows = 2 }, null, null)),
+            "mermaid" => (
+                "flow.mmd",
+                SourceKind.Mermaid,
+                "flowchart LR\n  A --> B --> C\n",
+                new SourceLoader.SourceLimits(null, new MermaidLimits { MaxNodes = 2 }, null)),
+            _ => (
+                "sequence.puml",
+                SourceKind.PlantUml,
+                "@startuml\nAlice -> Bob : hi\n@enduml\n",
+                new SourceLoader.SourceLimits(null, null, new PlantUmlLimits { MaxNodes = 1 }))
+        };
+        var input = SourceLoader.SourceInput.FromMemory(System.Text.Encoding.UTF8.GetBytes(text), name, null);
+        var info = SourceLoader.ProbeInput(input, kind, FileAccessPolicy.AllowAll);
+
+        // Act
+        var probe = Assert.Throws<ViewerException>(() => SourceLoader.ProbeInput(input, kind, FileAccessPolicy.AllowAll, limits));
+        var load = Assert.Throws<ViewerException>(() =>
+        {
+            using var pages = SourceLoader.OpenInputPages(input, info, new SourceOptions(), new SourceLoader.LoadContext { Limits = limits });
+            pages.ReadPage(1).Dispose();
+        });
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, probe.Code);
+        Assert.Equal(ErrorCodes.BudgetExceeded, load.Code);
+        Assert.Same(SourceLoader.SourceLimits.Default, SourceLoader.LoadContext.Default.Limits);
     }
 
     /// <summary>

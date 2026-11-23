@@ -52,6 +52,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteDetection
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteProbe
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteInfo
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
@@ -68,6 +69,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-Arguments
           - CanvasNetViewer-Imaging-SourceLoader-BoxFit
           - CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
+          - CanvasNetViewer-Imaging-SourceLoader-SourceLimits
           - CanvasNetViewer-Imaging-SourceLoader-OptionValidation
           - CanvasNetViewer-Imaging-SourceLoader-ChartParameters
           - CanvasNetViewer-Imaging-SourceLoader-InputFragments
@@ -297,6 +299,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-DetectErrors
           - CanvasNetViewer-Imaging-SourceLoader-SizeLimit
           - CanvasNetViewer-Imaging-SourceLoader-CorruptInput
+          - CanvasNetViewer-Imaging-SourceLoader-ErrorDetails
         tests:
           - Imaging_Convert_CorruptInput_LeavesNoOutput
           - Imaging_Convert_PageOutOfRange_LeavesNoOutput

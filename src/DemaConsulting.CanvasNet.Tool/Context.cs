@@ -409,7 +409,8 @@ internal sealed class Context : IDisposable
     ///         set the error state, so the exit code stays 0.
     ///     </para>
     ///     <para>
-    ///         An <c>unsupported</c> note is written as <c>Unsupported: &lt;code&gt;: &lt;message&gt;</c> and any other
+    ///         An <c>unsupported</c> note is written as <c>Unsupported: &lt;code&gt;: &lt;message&gt;</c>, an <c>info</c> note
+    ///         (for information only, such as <c>vega-lite-info</c>) as <c>Info: &lt;code&gt;: &lt;message&gt;</c> without a color, and any other
     ///         severity as <c>Warning: &lt;code&gt;: &lt;message&gt;</c>, followed by <c>(origin)</c> when there is one. An echo
     ///         line is written as the model printed it (<c>ECHO: ...</c>). Every control character of a note or an echo
     ///         line (ESC, NUL, and the rest of C0 and C1, line separators, bidirectional controls) is escaped as
@@ -441,11 +442,17 @@ internal sealed class Context : IDisposable
         var notes = diagnostics.ToList();
         foreach (var (origin, diagnostic) in notes.Take(MaxReportedLines))
         {
-            var prefix = diagnostic.Severity == "unsupported" ? "Unsupported" : "Warning";
+            // A note for information only is written plainly, so it does not read as a warning
+            var (prefix, color) = diagnostic.Severity switch
+            {
+                "unsupported" => ("Unsupported", ConsoleColor.Yellow),
+                "info" => ("Info", (ConsoleColor?)null),
+                _ => ("Warning", ConsoleColor.Yellow)
+            };
             var where = string.Join(
                 ", ",
                 new[] { origin, diagnostic.Page is { } page ? $"page {page}" : null }.Where(part => !string.IsNullOrEmpty(part)));
-            WriteNote($"{prefix}: {diagnostic.Code}: {diagnostic.Message}{(where.Length > 0 ? $" ({where})" : string.Empty)}", ConsoleColor.Yellow);
+            WriteNote($"{prefix}: {diagnostic.Code}: {diagnostic.Message}{(where.Length > 0 ? $" ({where})" : string.Empty)}", color);
         }
 
         if (notes.Count > MaxReportedLines)

@@ -28,6 +28,10 @@ the operations of the Imaging namespace.
   unsupported-feature error.
 - `FileAccess`: The `FileAccessPolicy` the !include files are read under (see
   [[files]]).
+- `PlantUmlLimits`: The resource limits of the diagram
+  (`ViewerRenderOptions.PlantUmlLimits`), lower or higher than the defaults, for
+  the diagram and every diagram it embeds; raise one only for trusted content
+  (see [[limits]]).
 - Theme and positions: A PlantUML diagram has neither; the Mermaid theme
   (`DiagramOptions`) and the position selectors do not apply to it.
 

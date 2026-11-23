@@ -30,7 +30,9 @@ see-also:
   time or utc; and nominal otherwise - also on x and y. A datum takes its type
   from its value (a number is quantitative, a date-time object temporal,
   anything else nominal), and x2, y2, theta2, and radius2 take the type of their
-  main channel. Write the type when another is meant.
+  main channel. Write the type when another is meant: each field without a type
+  is reported as the information note vl-type-inferred (see
+  [[vega-lite/diagnostics]]), which names the type it got.
 - Scales (linear, log, pow, sqrt, symlog, sequential, time, utc, band, point,
   ordinal, quantile, quantize, threshold, bin-ordinal), axes, legends, 68 named
   color schemes, titles, autosize, and container sizes. labelExpr of axes,

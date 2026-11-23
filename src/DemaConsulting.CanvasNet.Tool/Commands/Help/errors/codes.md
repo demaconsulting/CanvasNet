@@ -19,10 +19,9 @@ file-access mode, compare takes --resize-to, and --strict turns on strict mode
 in a shell so that & is not read as a command separator. With --strict an
 unmatched --positions selector or a failed binding writes nothing.
 
-The codes of the tool alone:
+A command that could not complete for a reason that has no more specific code
+fails with operation-failed. The codes of the tool alone:
 
-- `operation-failed`: A command could not complete for a reason that has no more
-  specific code. Read the message.
 - `threshold-failed`: compare measured a value on the wrong side of a
   --threshold limit; the result and the pictures were still written.
 - `pandoc-filter-error`: The pandoc-filter command cannot draw the pictures of a

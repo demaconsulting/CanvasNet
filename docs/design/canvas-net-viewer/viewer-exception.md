@@ -14,8 +14,16 @@ the fields of a result, and reports the code, the message, and the hint of every
 ### Data Model
 
 **ViewerException** (public, not sealed, derives from `InvalidOperationException`): `Code` (one of the `ErrorCodes`),
-`Message`, `Hint` (a sentence that says what to do, or `null`), and the inner exception (or `null`). The constructor is
-`ViewerException(code, message, hint = null, inner = null)`.
+`Message`, `Hint` (a sentence that says what to do, or `null`), the inner exception (or `null`), `Location` (an
+`ImageDiagnosticLocation` of the core library with the file, the 1-based line and column, and the JSON pointer of a
+chart, each `null` when unknown; the whole location `null` for a failure that has no place in a source), and
+`DetailCode` (the code of the format library, such as `mermaid-syntax-error`, or the feature of an
+`unsupported-feature` failure, a `vl-*` id for a chart; `null` when the library gives none, as for a Vega-Lite
+specification or render error). The constructor is
+`ViewerException(code, message, hint = null, inner = null)`; `Location` and `DetailCode` are init-only properties, so
+the constructor of every caller and of the tool's `ToolException` is unchanged and the exception is immutable once
+thrown. The loader fills them for every failure of a source through its shared mapping (see *SourceLoader*), and the
+failures of `CanvasNetViewer.Render` name no option of the command-line tool in their message or hint.
 
 **ErrorCodes** (static): the constants `UsageError`, `OperationFailed`, `InputNotFound`, `InputUnreadable`,
 `UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `ImageFragmentInvalid`, `SizeLimit`,
@@ -56,13 +64,16 @@ N/A - the unit is the error contract; it throws nothing.
 
 ### Dependencies
 
-N/A - the unit depends only on the .NET base class library.
+`ImageDiagnosticLocation` of the core `ImageSources` subsystem (the type of `Location`, shared with the notes of a
+render) and the .NET base class library.
 
 ### Callers
 
 - **SourceLoader**, **ImageWriter**, **ImagePipeline**, **ContactSheet**, **ImageRenderer**, **ImageInspector**,
   **ImageComparer**, and **MontageBuilder** - throw it for every expected failure.
+- **CanvasNetViewer** - throws it for every failure of the input of `Render`.
 - **Program**, **ResultWriter**, and **CommandRegistry** (of the tool) - catch it and report the code, the message, and
   the
-  hint; the registry wraps one thrown by a library call in a `ToolException` that names the command.
+  hint; the registry wraps one thrown by a library call in a `ToolException` that names the command and keeps the
+  location and the detail code.
 - **Library users** - catch it and branch on `Code`.

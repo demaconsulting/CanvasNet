@@ -32,8 +32,9 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         file-access policy of the render (a denied file is a <see cref="VegaLiteRenderException"/>).
 ///     </para>
 ///     <para>
-///         Warnings and unsupported features are returned as <see cref="ImageSourceResult.Diagnostics"/> (source
-///         <c>vega-lite</c>, code <c>vega-lite-warning</c> or the feature name); with
+///         Warnings, informational notes and unsupported features are returned as <see cref="ImageSourceResult.Diagnostics"/> (source
+///         <c>vega-lite</c>, code <c>vega-lite-warning</c>, <c>vega-lite-info</c> with the severity <see cref="ImageDiagnosticSeverity.Info"/> (such as
+///         <c>vl-type-inferred</c>, which never fails strict mode), or the feature name); with
 ///         <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> the first unsupported feature throws
 ///         <see cref="VegaLiteUnsupportedFeatureException"/> instead. An invalid specification throws
 ///         <see cref="VegaLiteSpecException"/>, a chart that cannot be drawn <see cref="VegaLiteRenderException"/>. The
@@ -143,6 +144,8 @@ public sealed class VegaLiteImageSource : IImageSource, IFragmentImageSource
             Parameters = parameters,
             WarningHandler = warning => diagnostics.Add(
                 new ImageSourceDiagnostic("vega-lite", ImageDiagnosticSeverity.Warning, "vega-lite-warning", OneLine(warning.ToString()))),
+            InfoHandler = note => diagnostics.Add(
+                new ImageSourceDiagnostic("vega-lite", ImageDiagnosticSeverity.Info, "vega-lite-info", OneLine(note.ToString()))),
             UnsupportedFeatureHandler = unsupported => diagnostics.Add(
                 new ImageSourceDiagnostic(
                     "vega-lite",

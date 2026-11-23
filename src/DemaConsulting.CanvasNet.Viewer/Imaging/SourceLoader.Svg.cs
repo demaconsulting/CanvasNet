@@ -96,7 +96,7 @@ public static partial class SourceLoader
                 ThrowForUnsupported(unsupported, info.Path);
             }
 
-            var background = options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = options.Background ?? DefaultVectorBackground;
             if (background.A > 0)
             {
                 surface = Replace(surface, surface.FlattenOver(background));
@@ -162,7 +162,7 @@ public static partial class SourceLoader
                 ThrowForUnsupported(unsupported, info.Path);
             }
 
-            var background = options.Background ?? new Rgba32(255, 255, 255, 255);
+            var background = options.Background ?? DefaultVectorBackground;
             if (background.A > 0)
             {
                 surface = Replace(surface, surface.FlattenOver(background));
@@ -224,7 +224,7 @@ public static partial class SourceLoader
         throw new ViewerException(
             ErrorCodes.UnsupportedFeature,
             $"'{path}' uses an SVG feature that is not supported ({first.Code}): {OneLine(first.Message)}",
-            "Without --strict the file is drawn as far as possible and the feature is reported in the diagnostics.",
+            "Without strict mode the file is drawn as far as possible and the feature is reported in the diagnostics.",
             new UnsupportedImageFeatureException(first.Code, first.Message));
     }
 
