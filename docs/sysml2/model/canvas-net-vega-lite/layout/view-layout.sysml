@@ -1,11 +1,22 @@
-package CanvasNet {
+package CanvasNetVegaLite_ViewLayout {
+    private import SoftwareItemMetadata::*;
+
     part def ViewLayout {
         doc /* The internal static ViewLayout with the ViewPadding, ViewExtents, ViewSizeHints, AutosizeType, ViewStyle, ViewLayoutRequest, ViewMeasure, and ViewLayoutResult types: Resolve reads the size, padding, autosize, backgrounds, and view style of a single view from the specification and the configuration (the data rectangle is the number in width and height, the container size for container, the size computed from the step of a discrete scale, or the configured continuous size of 300 by 300; padding is a number or an object with missing sides 0, then the configuration, then 5; the background is the caller's override, the specification's, the configuration's, or white; the plot style comes from the cell style and view configuration), Measure computes the final data rectangle, places the TitleBlock, unites the bounds of the guides and the title, and computes the canvas size (pad grows the canvas by the whole pixels the bounds reach; none uses the given size plus the padding, or exactly the given size when contains is padding; fit, fit-x, and fit-y make the width and height - or the container size - the size of the whole view, the data rectangle being what is left after the whole-pixel reach of the guides and the title and after the padding when contains is padding, so the canvas is exactly that size) and the origin of the data rectangle, Build assembles the Scene (a root group holding the view group with the plot background and border, the content in the given order, then the title), and Compute does both; the autosize is Vega-Lite's merge (pad, the fit that a container size implies with contains padding, the configuration if it sets one, the specification) with a fit dropped for a dimension that a step sizes (DroppedFit, which VegaLiteDocument reports as vl-layout-fit-step); for composed charts ResolveSize gives the size of a chart that sizes itself (a number, else the discrete size of the scale stage, else the continuous size; container is read as missing), CellBounds the bounds of a cell (data rectangle, guides, placed title, and half the stroke width), and Resolve with composition set the request of the root of a composition (size zero, no container, no plot style, autosize pad). A negative or missing size or padding is clamped or defaulted, and the canvas size is clamped to the range of an integer; the check against Surface.MaxDimension is made by VegaLiteDocument. Build takes an optional view position tag that the view group carries (the data rectangle of a single or layered view reports itself as the view; none for the root of a composition). */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs, src/DemaConsulting.CanvasNet.VegaLite/Layout/NamespaceDoc.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs, ViewLayoutCompositionTests.cs, and ViewLayoutFitTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-vega-lite/layout/view-layout.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/layout/view-layout.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Layout/NamespaceDoc.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutCompositionTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutFitTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-vega-lite/layout/view-layout.md");
+            verificationFiles = ("docs/verification/canvas-net-vega-lite/layout/view-layout.md");
+            requirementFiles = ("docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml");
+        }
     }
 }

@@ -1,10 +1,19 @@
-package CanvasNet {
+package CanvasNet_GeometrySubsystem {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNet_Rect::*;
+    public import CanvasNet_Path::*;
+    public import CanvasNet_BezierFlattening::*;
+    public import CanvasNet_SvgArcConverter::*;
+    public import CanvasNet_CornerRoundEffect::*;
+
     part def Geometry {
         doc /* Vector-geometry primitives subsystem: axis-aligned bounds (Rect), an immutable vector path and its builder (Path/PathBuilder, covering Subpath/PathCommand/PathCommandType inline), adaptive Bezier flattening (BezierFlattening), SVG-style elliptical arc conversion (SvgArcConverter), and path-level corner rounding (CornerRoundEffect, replacing polyline corners with tangent-radius circular arcs). Distinct from the Drawing subsystem, which rasterizes this geometry onto a Canvas.Surface. */
 
-        comment designRef /* Design: docs/design/canvas-net/geometry.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net/geometry.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net/geometry.yaml */
+        metadata info : SoftwareInfo {
+            designFiles = ("docs/design/canvas-net/geometry.md");
+            verificationFiles = ("docs/verification/canvas-net/geometry.md");
+            requirementFiles = ("docs/reqstream/canvas-net/geometry.yaml");
+        }
 
         part rect : Rect;
         part path : Path;

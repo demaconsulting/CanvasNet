@@ -1,11 +1,43 @@
-package CanvasNet {
+package CanvasNetMermaid_MermaidDocument {
+    private import SoftwareItemMetadata::*;
+
     part def MermaidDocument {
         doc /* The public API of CanvasNetMermaid in the DemaConsulting.CanvasNet.Mermaid namespace: the sealed, immutable, thread-safe MermaidDocument with the static Parse(string), Open(string path), and Open(Stream) entry points (strict UTF-8, byte-order mark dropped, bounded reads), the metadata properties (SourceName, DiagramType, IsSupported, Title, AccTitle, Direction, NodeCount, EdgeCount, SubgraphCount), Measure, Render, and Render(width, height); the validated MermaidOpenOptions, MermaidRenderOptions (Scale, Background, Config, Theme, ImageResolver, Now, the only clock, which a gantt chart reads for today, Limits, handlers, PositionHandler and PositionKindFilter, strict mode), and MermaidLimits; the MermaidLocation, MermaidDiagnostic, MermaidUnsupportedFeature, and MermaidSize records; the MermaidDiagnosticCodes constants; the MermaidSyntaxException, MermaidRenderException, and MermaidUnsupportedFeatureException types; the internal MermaidReportSink (ordered, de-duplicated, capped delivery on the calling thread) and pipeline seam (IMermaidDiagram, DiagramRenderContext, and DiagramRegistry, which hands each supported type to its parser - the flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph parsers - with the configuration of the text itself for the counts that depend on it and for the main branch name and order of a git graph); and the MermaidImageSource for .mmd and .mermaid files with the theme fragment parameter. Both Render methods report the feature positions of the diagram (MermaidDocument.Render.cs): with a PositionHandler (an Action of the core ImagePosition) they call the ScenePositions unit of the Scenegraph subsystem with the placement after the layout and before the painting, so the handler receives each feature once, on the calling thread, in the pixels of the returned surface (following the scale or the fit), with the source ids, ends, parallel indexes, and source lines of every supported diagram type; only the kinds the PositionKindFilter accepts are built, Measure never calls the handler, the pixels are the same with or without it, and an exception of the handler propagates after the reports recorded before it are delivered once. The internal MermaidLayoutWorkMeter derives the abstract LayoutWorkMeter of the CanvasNetLayout system's Dagre subsystem and gives every layout of a render Mermaid's failures: a layout past MermaidLimits.MaxLayoutWork (or a stack that runs short) is a located mermaid-limit-exceeded naming the limit with a hint, a layout dagre cannot complete is a located mermaid-render-failed, and every MermaidRenderException passes through the dagre layout unchanged. */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.Render.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.Pipeline.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidOpenOptions.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderOptions.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidLimits.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidLocation.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnostic.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeature.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidSize.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnosticCodes.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidSyntaxException.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderException.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeatureException.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidReportSink.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidImageSource.cs, src/DemaConsulting.CanvasNet.Mermaid/MermaidLayoutWorkMeter.cs, src/DemaConsulting.CanvasNet.Mermaid/NamespaceDoc.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRenderOptionsTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLimitsTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRecordsAndExceptionsTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReportSinkTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidImageSourceTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentPositionTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLayoutWorkMeterTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-mermaid/mermaid-document.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/mermaid-document.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/mermaid-document.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.Render.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument.Pipeline.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidOpenOptions.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderOptions.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidLimits.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidLocation.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnostic.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeature.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidSize.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnosticCodes.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidSyntaxException.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderException.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeatureException.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidReportSink.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidImageSource.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/MermaidLayoutWorkMeter.cs",
+                "src/DemaConsulting.CanvasNet.Mermaid/NamespaceDoc.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRenderOptionsTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLimitsTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRecordsAndExceptionsTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReportSinkTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidImageSourceTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentPositionTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLayoutWorkMeterTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-mermaid/mermaid-document.md");
+            verificationFiles = ("docs/verification/canvas-net-mermaid/mermaid-document.md");
+            requirementFiles = ("docs/reqstream/canvas-net-mermaid/mermaid-document.yaml");
+        }
     }
 }

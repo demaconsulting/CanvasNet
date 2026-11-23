@@ -1,11 +1,24 @@
-package CanvasNet {
+package CanvasNetLayout_DagreLayout {
+    private import SoftwareItemMetadata::*;
+
     part def DagreLayout {
         doc /* The internal static partial DagreLayout class, the entry point of the layout and the port of dagre's layout.js and util.js. Run copies the caller's graph (DagreGraph, DagreNode, and DagreEdge labels, where a null attribute takes dagre's default: ranksep 50, edgesep 20, nodesep 50, rankdir tb, minlen 1, weight 1, labeloffset 10, labelpos r) into an internal compound multigraph of LayoutGraphLabel, LayoutNode, and LayoutEdge labels, runs dagre's stages in dagre's order (edge-label space, self-edge removal, cycle breaking, nesting graph, ranking, edge-label proxies, empty-rank removal, normalization, cluster chains and borders, ordering, self-edge insertion, the coordinate system, positioning, and the undo steps, translation, and node-border intersections), and writes back every node center, every cluster size, every edge route ending on the node borders, every label center, and the drawing size. The util.js helpers (AddDummyNode, Simplify, AsNonCompoundGraph, IntersectRect, BuildLayerMatrix, NormalizeRanks, RemoveEmptyRanks, MaxRank) serve every stage. The Lodash class reproduces V8's Array.prototype.sort steps (natural run, binary insertion to the minimum run length, stable merges without galloping) and lodash's sortBy, compareAscending, min, max, and minBy, so that ties are settled as in JavaScript. Run maps an InsufficientExecutionStackException to the limit failure of the consumer's meter (LimitExceeded; a located mermaid-limit-exceeded for Mermaid) and dagre's own errors (InvalidOperationException) to the render failure of the consumer's meter (Failure; a located mermaid-render-failed for Mermaid), and lets cancellation and the consumer's own failures (recognized by the meter's IsFailure) pass through. Faithful quirks of layout.js are kept (the _.max(a, b) of assignRankMinMax, the upper-case TB/BT test, the case-sensitive l/r fix-up, half-rank label proxies, and the translateGraph maximum starting at 0). */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.cs, src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.Util.cs, src/DemaConsulting.CanvasNet.Layout/Dagre/DagreGraph.cs, src/DemaConsulting.CanvasNet.Layout/Dagre/LayoutModel.cs, src/DemaConsulting.CanvasNet.Layout/Dagre/Lodash.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreLayoutTests.cs, test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/LodashTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-layout/dagre/dagre-layout.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-layout/dagre/dagre-layout.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-layout/dagre/dagre-layout.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.cs",
+                "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreLayout.Util.cs",
+                "src/DemaConsulting.CanvasNet.Layout/Dagre/DagreGraph.cs",
+                "src/DemaConsulting.CanvasNet.Layout/Dagre/LayoutModel.cs",
+                "src/DemaConsulting.CanvasNet.Layout/Dagre/Lodash.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/DagreLayoutTests.cs",
+                "test/DemaConsulting.CanvasNet.Layout.Tests/Dagre/LodashTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-layout/dagre/dagre-layout.md");
+            verificationFiles = ("docs/verification/canvas-net-layout/dagre/dagre-layout.md");
+            requirementFiles = ("docs/reqstream/canvas-net-layout/dagre/dagre-layout.yaml");
+        }
     }
 }

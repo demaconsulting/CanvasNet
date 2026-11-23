@@ -1,11 +1,24 @@
-package CanvasNet {
+package CanvasNetScad_ScadTransforms {
+    private import SoftwareItemMetadata::*;
+
     part def ScadTransforms {
         doc /* The internal static ScadTransforms class and its color helpers: they build the transform modules (translate, rotate in vector Euler order X then Y then Z, scalar about Z or axis-angle, scale, mirror, multmatrix with a column-vector matrix transposed into the renderer's row-vector convention, and resize to a requested bounding-box size with auto proportions and exact bounds of rotated children) and the color module (CSS names from the core CssColor table (148 names plus transparent), hexadecimal and vector forms, the alpha carried into the appearance color, innermost color wins) from the results of a module's children. A transform applies to the implicit union of its children as a wrapper node carrying the matrix (an identity adds none; 2D shapes use the in-plane part and a warning for a Z coupling). An invalid argument or a singular or non-finite transform is a warning and an empty instance, except for a zero rotate axis, a zero mirror normal, and an invalid color or alpha, which keep the children; an alpha without a color is a warning; a projective multmatrix and a resize over a difference or intersection are reported as the unsupported features scad-multmatrix-projective and scad-resize-approximate; resize ignores ghosts (they contribute no propagated bounds and are left out when it recomputes exact bounds, although they remain part of the scene bounds that fit the default camera). */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms.cs, src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms.Resize.cs, src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColors.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTransformsTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadResizeTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadColorsTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTestSupport.cs */
-        comment designRef /* Design: docs/design/canvas-net-scad/scad-geometry/scad-transforms.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms.cs",
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms.Resize.cs",
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColors.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTransformsTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadResizeTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadColorsTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTestSupport.cs"
+            );
+            designFiles = ("docs/design/canvas-net-scad/scad-geometry/scad-transforms.md");
+            verificationFiles = ("docs/verification/canvas-net-scad/scad-geometry/scad-transforms.md");
+            requirementFiles = ("docs/reqstream/canvas-net-scad/scad-geometry/scad-transforms.yaml");
+        }
     }
 }

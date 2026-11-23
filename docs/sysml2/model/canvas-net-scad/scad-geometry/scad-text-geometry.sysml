@@ -1,15 +1,28 @@
-package CanvasNet {
+package CanvasNetScad_ScadTextGeometry {
+    private import SoftwareItemMetadata::*;
+
     part def ScadTextGeometry {
         doc /* The internal ScadTextGeometry static class (a partial class over two files) and the ScadFontResolver, in the DemaConsulting.CanvasNet.Scad.Geometry namespace: they build the text module (text, size, font, halign, valign, spacing, direction, language, and script) from the evaluator's instances as flat 2D shapes. A string is laid out one Unicode scalar at a time without shaping with a TrueType font from the core Fonts subsystem - the bundled Liberation Sans Regular unless a font is named, and an explicit font argument of the form Family or Family:style=Bold Italic is parsed by the ScadFontResolver and resolved by the core FontResolver (the additional directories, the installed fonts, and the bundled Liberation families with an exact-family rule), a failed lookup becoming a fallback to the bundled sans font with a warning - scaled so that the ink height of the glyph H equals the size, with the pen moved by the kerning and the spacing-multiplied advance (left to right, right to left by reversal, top to bottom and bottom to top by stacking upright glyphs), and aligned by the measured ink extents. Glyph outlines are flattened iteratively (de Casteljau, with a tolerance derived from the fragment rule) and become one polygon region per glyph component (holes and islands normalized by nesting, composite glyphs with overlapping solids split into unioned regions), combined as a union of leaves so that every consumer of 2D shapes accepts the text. Invalid arguments are warnings plus an empty result, a character the font does not map is taken from the bundled Noto fonts of the core GlyphFallback (scaled by the em size of the font that supplies the glyph) and otherwise drawn with .notdef or skipped, with one warning per instance listing the code points that no font covers, a damaged or unrepresentable outline is the unsupported feature scad-text-invalid-outline or scad-text-overlapping-contours that omits the whole text, language and script are accepted and ignored, and the lower bound of the slab of the placed vertices is checked against the triangle budget after every glyph with cancellation polled at the same points. The unit contains no recursion and its output is deterministic for the same text, options, and fonts. */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry.cs, src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry.Flattening.cs, src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFontResolver.cs, src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTestSupport.cs */
-        comment designRef /* Design: docs/design/canvas-net-scad/scad-geometry/scad-text-geometry.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry.cs",
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTextGeometry.Flattening.cs",
+                "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFontResolver.cs",
+                "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTextGeometryTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryTestSupport.cs"
+            );
+            designFiles = ("docs/design/canvas-net-scad/scad-geometry/scad-text-geometry.md");
+            verificationFiles = ("docs/verification/canvas-net-scad/scad-geometry/scad-text-geometry.md");
+            requirementFiles = ("docs/reqstream/canvas-net-scad/scad-geometry/scad-text-geometry.yaml");
+        }
+
         comment /* ScadTextGeometry uses the CanvasNet system's Fonts subsystem (TrueTypeFont, SystemFontCatalog and FontResolver) and Geometry subsystem (Path) through public API only; no core API and no InternalsVisibleTo grant exists for it. Modeled as non-owning dependency relationships, as for the sibling systems (see the CanvasNetScadSystem dependencies). */
 
-        dependency usesFonts from ScadTextGeometry to Fonts;
-        dependency usesGeometry from ScadTextGeometry to Geometry;
+        dependency usesFonts from ScadTextGeometry to CanvasNet_FontsSubsystem::Fonts;
+        dependency usesGeometry from ScadTextGeometry to CanvasNet_GeometrySubsystem::Geometry;
     }
 }

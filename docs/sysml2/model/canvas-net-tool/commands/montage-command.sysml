@@ -1,11 +1,22 @@
-package CanvasNet {
+package CanvasNetTool_MontageCommand {
+    private import SoftwareItemMetadata::*;
+
     part def MontageCommand {
         doc /* The montage command: composes images, drawings, and the pages of documents (the page chosen with page, or every page with all-pages) and OpenSCAD model views into one contact sheet. It declares its options (output, columns, cell, fit, spacing, padding, background, labels, page, all-pages, dpi, the model options, strict, file-access, allow-root, filter, quality, no-clobber), reports every mistake about the inputs, the pages, and the output before decoding anything, refuses a sheet larger than the maximum image size with size-limit before it loads an input, and composes the sheet as a stream with the ContactSheet unit (each input is loaded into its cell, a vector input rendered at the cell size and a raster input fitted, added, and disposed before the next), with the file names as labels in the bundled font when asked. The sheet is staged and published through the ImageWriter only when complete, and the result is one text line or one JSON document with the sheet geometry and the cells. An input path may end in a URL fragment that overrides the shared options for that input (part.scad#def.explode=0.5), so one file named several times is several cells, the cells of a model share a scale when a camera is fixed with the viewport variables, and the label and the fragment member of each cell show the fragment. One file-access policy, read with RenderCommand.ReadFileAccess from --file-access and --allow-root, applies to every input; under roots the default folders cover the folder of every input. */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand.cs, src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand.Options.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommandTests.cs, test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommandSourceTests.cs, test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-tool/commands/montage-command.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-tool/commands/montage-command.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-tool/commands/montage-command.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = (
+                "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand.cs",
+                "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand.Options.cs"
+            );
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommandTests.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommandSourceTests.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-tool/commands/montage-command.md");
+            verificationFiles = ("docs/verification/canvas-net-tool/commands/montage-command.md");
+            requirementFiles = ("docs/reqstream/canvas-net-tool/commands/montage-command.yaml");
+        }
     }
 }

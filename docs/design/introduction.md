@@ -493,14 +493,19 @@ The following topics are explicitly excluded from this design documentation:
 ## Software Structure
 
 The software structure is modeled in SysML2 under `docs/sysml2/` and rendered to the
-diagram below by SysML2Tools as part of the build pipeline. AI agents should query the
-SysML2 model directly (see the `sysml2tools-query` skill) rather than parsing this
-diagram or the prose below.
+diagrams below by SysML2Tools as part of the build pipeline. AI agents should query the
+SysML2 model directly (see the `sysml2tools-query` skill) rather than parsing these
+diagrams or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-The package architecture diagram below complements the structure view: where the view shows every system, subsystem,
-and unit of the model, the diagram shows only the NuGet packages, which package references which, and how
+The software dependency view below draws the same systems with the dependencies between them, leaving out the
+dependencies on the core CanvasNet subsystems that nearly every system has.
+
+![Software Dependencies](SoftwareDependencyView.svg)
+
+The package architecture diagram below complements the structure view: where the view shows every system with its
+direct subsystems and units, the diagram shows only the NuGet packages, which package references which, and how
 applications and the `canvasnet` tool reach them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
@@ -659,8 +664,8 @@ and `ScenePositions` units (each
 subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def`
 names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
 `VegaLiteScenegraph`, and so on), the scene unit is `VegaLiteSceneModel`, and the positions unit is
-`VegaLiteScenePositions`, because the model package is shared by
-every system and `SceneModel` already names a `CanvasNetRender3D` subsystem (and `ScenePositions` a unit of
+`VegaLiteScenePositions`, because part def names stay unique across the model (the design views import every
+system's package) and `SceneModel` already names a `CanvasNetRender3D` subsystem (and `ScenePositions` a unit of
 `CanvasNetMermaid`). It depends on the `CanvasNet` system's
 `Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `Positions` subsystems through their
 public API. See
@@ -699,8 +704,9 @@ name). In the SysML2 model the subsystem `part def` names carry the prefix `Merm
 `MermaidConfiguration`, `MermaidRendering`, `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`,
 `MermaidState`, `MermaidEr`, `MermaidPie`, `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and
 `MermaidGitGraph`) and the scene units are `MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`,
-because the model package is shared by every system and `Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions`
-are already taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`,
+because part def names stay unique across the model (the design views import every system's package) and
+`Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions` are already taken. It depends on the `CanvasNet`
+system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`,
 `ImageSources`, and `Positions` subsystems through their public API, and on the `CanvasNetLayout` system (its graph
 layout and work meter) through internal friend access. See the Folder Layout section below and *CanvasNetMermaid System
 Design* (`canvas-net-mermaid.md`). A further sibling top-level system, `CanvasNetPlantUml`, likewise lives in this same
@@ -726,8 +732,9 @@ the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and u
 `PlantUmlSvekLayout`, `PlantUmlSvekGeometry`, `PlantUmlSvekRenderer`, `PlantUmlClass`, `PlantUmlClassParser`,
 `PlantUmlClassModel`, `PlantUmlClassRenderer`, `PlantUmlState`, `PlantUmlStateParser`, `PlantUmlStateModel`,
 `PlantUmlStateRenderer`, `PlantUmlDescription`, `PlantUmlDescriptionParser`, `PlantUmlDescriptionModel`, and
-`PlantUmlDescriptionRenderer`), because the model package is shared by every
-system and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+`PlantUmlDescriptionRenderer`), because part def names stay unique across the model (the design views import every
+system's package) and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`,
+`Geometry`,
 `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
 `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout section
 below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling top-level system,

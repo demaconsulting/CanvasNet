@@ -116,37 +116,6 @@ Load only the standards relevant to your specific task scope.
 The files in `.github/standards/` and `.github/skills/` are shared verbatim across repositories. This repository
 applies these accepted exceptions and additions on top of them:
 
-## Artifact-Location Comments Instead of SoftwareInfo (`software-items.md`, `sysml2tools-query`)
-
-The shared standards and the `sysml2tools-query` skill describe artifact locations recorded as
-`metadata info : SoftwareInfo { ... }` annotations and queried as `Metadata SoftwareInfo.*` lines. This repository's
-SysML2 model has not been migrated to that metadata yet (the migration is deferred). Until it is:
-
-- The model records artifact locations as comments on each element: `comment sourceRef /* Source: ... */`,
-  `comment testRef /* Test: ... */`, `comment designRef /* Design: ... */`,
-  `comment verificationRef /* Verification: ... */`, and `comment reqRef /* Requirements: ... */`, plus a few
-  custom-named comments (such as `photoTestRef`, `mermaidTestRef`, `selectionRef`, and `distributionRef`) for
-  additional test files and notes.
-- Agents read those comments (with `dotnet sysml2tools query` describe or text output, or directly in the `.sysml`
-  files under `docs/sysml2/`) instead of looking for `Metadata SoftwareInfo.*` lines, and do not add
-  `docs/sysml2/common/software-items.sysml` or `SoftwareInfo` annotations piecemeal.
-- New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
-  a whole.
-
-## One Shared Package Across the SysML2 Files (`sysml2-modeling.md`, `sysml2tools-query`)
-
-The shared standard asks each `.sysml` file to declare exactly one uniquely named package. This repository's model
-has not been migrated to that structure yet (the migration is deferred until the updated SysML2 recommendations
-arrive). Until it is:
-
-- The model keeps a single `package CanvasNet` across its files, and the `sysml2tools` tool stays pinned at
-  `0.3.0-beta.3` (later versions enforce the one-package-per-file rule and reject the current model).
-- Agents do not split or rename packages piecemeal; new elements go into the existing `package CanvasNet`, so the
-  model is migrated as a whole.
-- The pinned tool does not support the `--strict-unresolved` lint option that the shared standard and the
-  `sysml2tools-query` skill require, so agents validate the model with `dotnet sysml2tools lint
-  'docs/sysml2/**/*.sysml'`, as `lint.ps1` does. The migration adds the option to `lint.ps1` with the tool update.
-
 ## No Wall-Clock Dependence in Tests (`testing-principles.md`, `csharp-testing.md`)
 
 Tests run on shared machines that are often heavily loaded (many agents build and test at once), so a test must

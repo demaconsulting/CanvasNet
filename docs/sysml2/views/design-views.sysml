@@ -1,34 +1,77 @@
 // Views rendered into docs/design/generated/ for the Design document.
-// Reopens the CanvasNet package so each 'expose' statement can reference
-// its target part def directly. Per SysML2Tools syntax, 'expose' is only valid
+// Declares the CanvasNetDesignViews package and imports each system's facade package so each
+// 'expose' statement can reference its target part def directly, except CanvasNetViewer: its
+// facade re-exports a unit part def that is also named CanvasNetViewer, so the Viewer views
+// expose their targets by qualified name instead. Per SysML2Tools syntax, 'expose' is only valid
 // inside a named 'view' usage (not a 'view def' definition), and it - not
 // 'render' - is what scopes the rendered diagram content. Every view is typed by a
 // standard view definition (sysml2tools 0.3.0-beta.3+): an untyped view has its notation
 // inferred from its name, so a name ending in 'SequenceView' or 'StateView' (such as
 // 'MermaidSequenceView' and 'MermaidStateView') was drawn as a behavior diagram and rendered
 // empty for a structural part def.
-package CanvasNet {
+package CanvasNetDesignViews {
     private import StandardViewDefinitions::*;
+    private import CanvasNet::*;
+    private import CanvasNetCharts::*;
+    private import CanvasNetLayout::*;
+    private import CanvasNetMermaid::*;
+    private import CanvasNetPdf::*;
+    private import CanvasNetPlantUml::*;
+    private import CanvasNetPptx::*;
+    private import CanvasNetRender3D::*;
+    private import CanvasNetScad::*;
+    private import CanvasNetSvg::*;
+    private import CanvasNetTool::*;
+    private import CanvasNetVegaLite::*;
+    private import CanvasNetVsdx::*;
 
-    // Several systems, so a general view draws each system with its members. Documentation and the
-    // artifact-location comments are filtered out so the overview stays readable.
-    view SoftwareStructureView : GeneralView {
-        expose CanvasNetSystem::**;
-        expose CanvasNetSvgSystem::**;
-        expose CanvasNetPdfSystem::**;
-        expose CanvasNetPptxSystem::**;
-        expose CanvasNetChartsSystem::**;
-        expose CanvasNetVsdxSystem::**;
-        expose CanvasNetRender3DSystem::**;
-        expose CanvasNetScadSystem::**;
-        expose CanvasNetVegaLiteSystem::**;
-        expose CanvasNetViewerSystem::**;
-        expose CanvasNetLayoutSystem::**;
-        expose CanvasNetMermaidSystem::**;
-        expose CanvasNetPlantUmlSystem::**;
-        expose CanvasNetToolSystem::**;
-        filter not @SysML::Documentation;
-        filter not @SysML::Comment;
+    // Several systems, so an interconnection view draws each system part def as a frame with its
+    // direct subsystem and unit usages. Documentation is filtered out so the overview stays
+    // readable. sysml2tools lays the exposed frames side by side in one row and has no option to
+    // wrap them, so this view is wide; SoftwareDependencyView below draws the same systems compactly.
+    view SoftwareStructureView : InterconnectionView {
+        expose CanvasNet::CanvasNetSystem;
+        expose CanvasNetSvg::CanvasNetSvgSystem;
+        expose CanvasNetPdf::CanvasNetPdfSystem;
+        expose CanvasNetPptx::CanvasNetPptxSystem;
+        expose CanvasNetCharts::CanvasNetChartsSystem;
+        expose CanvasNetVsdx::CanvasNetVsdxSystem;
+        expose CanvasNetRender3D::CanvasNetRender3DSystem;
+        expose CanvasNetScad::CanvasNetScadSystem;
+        expose CanvasNetVegaLite::CanvasNetVegaLiteSystem;
+        expose CanvasNetViewer::CanvasNetViewerSystem;
+        expose CanvasNetLayout::CanvasNetLayoutSystem;
+        expose CanvasNetMermaid::CanvasNetMermaidSystem;
+        expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetTool::CanvasNetToolSystem;
+        filter not (@SysML::Documentation);
+    }
+
+    // The dependencies between the systems: a general view draws each system part def as a box
+    // and every dependency whose two ends are both exposed system part defs as a dashed arrow.
+    // Part usages are filtered out, or the general view draws each one as its own box; the
+    // system boxes still list their parts. Documentation is filtered out as in the overview.
+    view SoftwareDependencyView : GeneralView {
+        doc /* The dependencies between the CanvasNet systems. The dependencies of the systems on
+         * the subsystems of the core CanvasNet system (Canvas, Codecs, Geometry, Drawing, Fonts,
+         * Rendering, Files, ImageSources, Positions, and Packaging), which nearly every system
+         * uses, are omitted: those subsystems are not exposed, so those edges are not drawn. */
+        expose CanvasNet::CanvasNetSystem;
+        expose CanvasNetSvg::CanvasNetSvgSystem;
+        expose CanvasNetPdf::CanvasNetPdfSystem;
+        expose CanvasNetPptx::CanvasNetPptxSystem;
+        expose CanvasNetCharts::CanvasNetChartsSystem;
+        expose CanvasNetVsdx::CanvasNetVsdxSystem;
+        expose CanvasNetRender3D::CanvasNetRender3DSystem;
+        expose CanvasNetScad::CanvasNetScadSystem;
+        expose CanvasNetVegaLite::CanvasNetVegaLiteSystem;
+        expose CanvasNetViewer::CanvasNetViewerSystem;
+        expose CanvasNetLayout::CanvasNetLayoutSystem;
+        expose CanvasNetMermaid::CanvasNetMermaidSystem;
+        expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetTool::CanvasNetToolSystem;
+        filter not (@SysML::Documentation);
+        filter not (@SysML::PartUsage);
     }
 
     view CanvasNetView : InterconnectionView {
@@ -80,7 +123,7 @@ package CanvasNet {
     }
 
     view CanvasNetViewerView : InterconnectionView {
-        expose CanvasNetViewerSystem::**;
+        expose CanvasNetViewer::CanvasNetViewerSystem::**;
     }
 
     view VegaLiteSpecModelView : InterconnectionView {
@@ -248,11 +291,11 @@ package CanvasNet {
     }
 
     view ImagingView : InterconnectionView {
-        expose Imaging::**;
+        expose CanvasNetViewer::Imaging::**;
     }
 
     view HelpView : InterconnectionView {
-        expose Help::**;
+        expose CanvasNetViewer::Help::**;
     }
 
     view ScadLanguageView : InterconnectionView {
