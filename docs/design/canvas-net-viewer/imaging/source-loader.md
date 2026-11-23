@@ -489,15 +489,15 @@ linked picture), and no feature positions (the tool refuses `--theme` and `--pos
 set, the load creates one core `PositionCollector` of the selection (`CreatePositionCollector`, with the default cap of
 `PositionCollector.MaxPositions`) and passes its `Offer` as the `PositionHandler` and its `IncludesKind` as the
 `PositionKindFilter` of the `MermaidRenderOptions` (`CreateMermaidOptions`) or `VegaLiteRenderOptions`
-(`CreateVegaLiteOptions`), so the library builds only the kinds a selector can match and the selection is applied
-before the cap. After the render, in strict mode, a selector that matched nothing disposes the drawn surface and throws
-`ViewerException` with the code `positions-unmatched` naming the first such selector (`ThrowForUnmatchedPositions`,
-with the hint to list the ids with the selector `all` and to check the case of ids and values), before the loaded page
-exists; otherwise `WithPositions` adds to the loaded page the kept positions (`LoadedSource.Positions`, in the pixels
-of the loaded surface), `PositionsTruncated`, and one warning note per unmatched selector, in selection order
-(`mermaid` or `vega-lite`, `warning`, code `positions-unmatched`, "The --positions selector '<selector>' matched
-nothing."). Without the option nothing is collected and the page is unchanged. The tests are in
-`SourceLoaderPositionTests.cs`.
+(`CreateVegaLiteOptions`), so the library builds only the kinds a selector can match and the selection is applied before
+the cap. After the render, in strict mode, a selector that matched nothing disposes the drawn surface and throws
+`ViewerException` with the code `positions-unmatched` naming the first such selector (`ThrowForUnmatchedPositions`, with
+the hint to list the ids with the selector `all` and to check the case of ids and values), before the loaded page
+exists; otherwise `WithPositions` adds to the loaded page the kept positions (`LoadedSource.Positions`, in the pixels of
+the loaded surface), `PositionsTruncated`, and one warning note per unmatched selector, in selection order (`mermaid` or
+`vega-lite`, `warning`, code `positions-unmatched`, "The position selector '<selector>' matched nothing."), a message
+that names no option of the command-line tool. Without the option nothing is collected and the page is unchanged. The
+tests are in `SourceLoaderPositionTests.cs`.
 
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
 from the folder of the file that names it (the base directory is the folder of the file that was opened; no library
@@ -565,10 +565,10 @@ operation.
 height are exact; a width alone derives the height from the aspect ratio, and a height alone derives the width;
 with none, the natural size. The result is rounded to the nearest pixel (half away from zero) and is at least 1.
 A side larger than `Surface.MaxDimension` throws `size-limit`. With a width or a height option the message names the
-requested size and the hint is `Use a smaller --scale, --width, or --height.` Otherwise the size follows the natural
+requested size and the hint is `Use a smaller scale, width, or height.` Otherwise the size follows the natural
 size, and the message names that size (`'<path>' is <W>x<H> pixels, which is larger than the maximum of 8192 pixels
-per side; a scale of <fit> or less fits.`, or `The requested size of <W>x<H> pixels ...` with `--scale`) with the hint
-`Use --scale <fit> (or less), --width, or --height to choose a smaller size.`; the exception's `Data` holds `<fit>`
+per side; a scale of <fit> or less fits.`, or `The requested size of <W>x<H> pixels ...` with a scale) with the hint
+`Use a scale of <fit> or less, or a smaller width or height.`; the exception's `Data` holds `<fit>`
 under `FitScaleDataKey` (`DemaConsulting.CanvasNet.Viewer.FitScale`), so a caller with options of its own, the Pandoc
 filter, can name its own `scale` attribute.
 
@@ -587,10 +587,11 @@ reads the location and the detail code with `DescribeSourceFailure`.
 
 **DescribeSourceFailure(failure, path)**: the `Location` and `DetailCode` of a failure: for a Mermaid, PlantUML, or
 OpenSCAD exception its location (`ToMermaidLocation`, `ToPlantUmlLocation`, `ToScadLocation`) and its `Code`; for a
-Vega-Lite exception its location with the JSON pointer (`ToVegaLiteLocation`) and the leading `vl-*` identifier of its
-message (`ReadVegaLiteDetail`); for an unsupported-feature exception its location (none for the Office and raster
-libraries) and its `Feature`; for any other failure whose chain holds an `XmlException` with a line (malformed SVG
-markup) the given path with that line and column and no detail code; otherwise neither.
+Vega-Lite specification or render exception its location with the JSON pointer (`ToVegaLiteLocation`) and no detail
+code, because the library gives such a failure none; for an unsupported-feature exception its location (none for the
+Office and raster libraries) and its `Feature` (a `vl-*` id for a chart); for any other failure whose chain holds an
+`XmlException` with a line (malformed SVG markup) the given path with that line and column and no detail code; otherwise
+neither.
 
 **The EXIF orientation**: `JpegCodec.ReadExifOrientation(path)` (core; it finds the orientation without throwing for
 malformed data, see *JpegCodec Unit Design*, `codecs/jpeg-codec.md`) runs inside `Read`, so a file that cannot be
@@ -806,7 +807,7 @@ recursion and loops, bad arguments, a deep nest of parentheses, and unusual text
 extending the list, and none was found for any format. Size problems are `size-limit`; a page that does not exist is
 `page-out-of-range`. A source kind that the loader has no case for - which cannot happen while every kind of
 `SourceKind` is handled - is an `InvalidOperationException`, a defect, not a `ViewerException`. Null arguments throw
-`ArgumentNullException`. A `--positions` selector that matched nothing is the warning `positions-unmatched`, and in
+`ArgumentNullException`. A position selector that matched nothing is the warning `positions-unmatched`, and in
 strict mode the `ViewerException` `positions-unmatched` (see *Feature positions*); an exception of the libraries'
 position handler cannot occur, because the handler only offers the position to the collector.
 

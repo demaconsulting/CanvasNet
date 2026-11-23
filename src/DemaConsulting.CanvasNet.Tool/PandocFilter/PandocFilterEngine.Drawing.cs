@@ -336,8 +336,8 @@ internal sealed partial class PandocFilterEngine
     /// <returns>The exception to throw.</returns>
     /// <remarks>
     ///     A picture larger than the maximum image size whose size follows its natural size carries the scale that fits
-    ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint, which names the command-line options, is replaced by one that
-    ///     names the <c>scale</c> attribute.
+    ///     (<c>SourceLoader.FitScaleDataKey</c>); its hint is replaced by one that names the <c>scale</c>
+    ///     attribute.
     /// </remarks>
     private static ToolException ToolFailure(string prefix, Exception ex, string owner, string kind)
     {

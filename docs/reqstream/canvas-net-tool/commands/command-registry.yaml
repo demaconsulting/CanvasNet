@@ -71,6 +71,7 @@ sections:
           - CommandRegistry_Run_ViewerException_KeepsLocationAndDetailCode
           - CommandRegistry_CommandLineHint_LibraryPhrases_NameTheOptions
           - CommandRegistry_Run_RenderOfFailingModels_ReportsLibraryCodesInCommandLineWords
+          - CommandRegistry_Run_RenderOfOversizePictures_NamesTheSizeOptions
 
       - id: CanvasNetTool-Commands-CommandRegistry-Help
         title: >-

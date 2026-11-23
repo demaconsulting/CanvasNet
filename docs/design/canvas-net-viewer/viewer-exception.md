@@ -17,8 +17,9 @@ the fields of a result, and reports the code, the message, and the hint of every
 `Message`, `Hint` (a sentence that says what to do, or `null`), the inner exception (or `null`), `Location` (an
 `ImageDiagnosticLocation` of the core library with the file, the 1-based line and column, and the JSON pointer of a
 chart, each `null` when unknown; the whole location `null` for a failure that has no place in a source), and
-`DetailCode` (the code of the format library, such as `mermaid-syntax-error`, the leading `vl-*` identifier of a chart,
-or the feature of an `unsupported-feature` failure; `null` when the library gives none). The constructor is
+`DetailCode` (the code of the format library, such as `mermaid-syntax-error`, or the feature of an
+`unsupported-feature` failure, a `vl-*` id for a chart; `null` when the library gives none, as for a Vega-Lite
+specification or render error). The constructor is
 `ViewerException(code, message, hint = null, inner = null)`; `Location` and `DetailCode` are init-only properties, so
 the constructor of every caller and of the tool's `ToolException` is unchanged and the exception is immutable once
 thrown. The loader fills them for every failure of a source through its shared mapping (see *SourceLoader*), and the

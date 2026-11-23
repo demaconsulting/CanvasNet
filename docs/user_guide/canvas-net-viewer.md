@@ -311,12 +311,13 @@ surface) and carries `Format`, `Page` (the page that was drawn) and `PageCount` 
 a document), `Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared,
 with their pixels; empty for every other file), and `Embedded`. Every failure of the file is a `ViewerException` with
 the code the `canvasnet` tool reports for the same file (see *Handling render errors* below); only a mistake in the
-options (`ArgumentOutOfRangeException`, `ArgumentNullException`) and a cancellation (`OperationCanceledException`) have
-other types. Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses
-the source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin (or the
-`Background`), whereas `SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes*
-below). A document or model that the rendered file embeds chooses its own page or view, and sets its own variables or
-parameters, with the fragment of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
+options (`ArgumentOutOfRangeException`, `ArgumentNullException`), a stream that cannot be read (`ArgumentException`),
+and a cancellation (`OperationCanceledException`) have other types. Render a file that is not on disk with
+`Render(stream, fileName)`; the extension of the file name chooses the source. With both `Width` and `Height`, `Render`
+fits a raster inside the box over a transparent margin (or the `Background`), whereas `SourceOptions.Width` and `Height`
+of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file embeds
+chooses its own page or view, and sets its own variables or parameters, with the fragment of its link; it never inherits
+`Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 #### Handling render errors
 
@@ -327,18 +328,23 @@ message, or a model can fix the source it wrote, without parsing the text:
   `unsupported-format`, `input-unreadable` (not a regular file, larger than 16 MiB, or unreadable), `corrupt-input`,
   `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`, `unsupported-feature` (with
   `ThrowOnUnsupportedFeature`), `file-access-denied`, `budget-exceeded` (a limit of a format library, or
-  `MaxDecodedPixels`), `page-out-of-range`, `size-limit`, `usage-error`, and `operation-failed` for any other failure of
-  a source.
+  `MaxDecodedPixels`), `page-out-of-range`, `size-limit`, `usage-error`, `positions-unmatched` (with
+  `ThrowOnUnsupportedFeature`, a selector of `Positions` that matched nothing), `svg-binding-failed` (with
+  `ThrowOnUnsupportedFeature`, an SVG position binding that was not resolved), and `operation-failed` for any other
+  failure of a source.
 - `Location` (an `ImageDiagnosticLocation`, or null) says where an error in the source is: `File`, `Line` and `Column`
   (1-based, null when unknown) and, for a chart, the JSON `Pointer`. Malformed SVG markup has the line and column of the
   XML error.
 - `DetailCode` is the code of the format library, or null: `mermaid-syntax-error`, `plantuml-syntax-error`,
-  `scad-syntax-error`, the leading `vl-*` identifier of a chart error, or the feature of an `unsupported-feature`
-  failure.
+  `scad-syntax-error`, or the feature of an `unsupported-feature` failure (a `vl-*` id for a chart). A Vega-Lite
+  specification or render error has none: the library gives it no code.
 - `Hint` suggests a fix. Neither it nor the message names an option of the command-line tool.
 - `InnerException` is the original exception: the exception of the format library (`MermaidSyntaxException`,
   `VegaLiteRenderException`, ...), or the `ImageSourceBudgetException` with its pixel counts. A denied include or data
   file keeps the `FileReferenceException` in the chain.
+
+`Render(stream, fileName)` refuses a stream that cannot be read (`CanRead` is false) with an `ArgumentException`
+before it reads anything; a stream whose reading fails is `input-unreadable`.
 
 <!-- compile -->
 
@@ -1516,8 +1522,11 @@ image sources); the `canvasnet` tool follows them.
    `Location` (file, line, column, and JSON pointer of an error in the source, also for malformed SVG markup) and
    `DetailCode` (the code of the format library, such as `mermaid-syntax-error`), and the original exception as its
    `InnerException`. The messages and hints no longer name options of the command-line tool (`--strict` is now
-   "strict mode", `--max-triangles` is `ScadViewOptions.MaxTriangles`). Mistakes in the options still throw
+   "strict mode", `--max-triangles` is `ScadViewOptions.MaxTriangles`, and an unmatched selector of `Positions` is "The
+   position selector ... matched nothing."). Mistakes in the options still throw
    `ArgumentOutOfRangeException` and `ArgumentNullException`, and a cancellation `OperationCanceledException`.
+   `Render(stream, fileName)` refuses a stream that cannot be read with an `ArgumentException` before it reads
+   anything, and a stream whose reading fails is `input-unreadable`.
    Migration: catch `ViewerException` and branch on `Code` (see *Handling render errors*); read the pixel counts of a
    budget failure from the `ImageSourceBudgetException` in `InnerException`. A resolver from `CreateImageResolver` is
    unchanged.

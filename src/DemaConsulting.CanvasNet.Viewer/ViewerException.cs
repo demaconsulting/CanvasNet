@@ -164,9 +164,9 @@ public class ViewerException : InvalidOperationException
     /// <remarks>
     ///     <see cref="Code"/> is the stable code that is the same for every format (<c>mermaid-error</c>); this is the
     ///     finer code of the library: for example <c>mermaid-syntax-error</c>, <c>plantuml-syntax-error</c>,
-    ///     <c>scad-syntax-error</c>, the leading <c>vl-*</c> identifier of a Vega-Lite message, or the name of the feature
-    ///     of an <c>unsupported-feature</c> failure. Malformed SVG markup and the failures that do not come from a format
-    ///     library have none.
+    ///     <c>scad-syntax-error</c>, or the name of the feature of an <c>unsupported-feature</c> failure (a <c>vl-*</c>
+    ///     identifier for a chart). A Vega-Lite specification or render error, malformed SVG markup, and the failures
+    ///     that do not come from a format library have none.
     /// </remarks>
     public string? DetailCode { get; init; }
 }

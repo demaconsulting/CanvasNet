@@ -386,7 +386,7 @@ missing file is looked for.
 padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
 `mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that journey
 diagrams are not supported, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the
-code, with a hint that says the type is not supported and mentions `--strict`, and the library's
+code, with a hint that says the type is not supported and mentions strict mode, and the library's
 `MermaidUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures**: a flowchart with a style declaration outside the
@@ -410,8 +410,8 @@ text limit is `corrupt-input` naming the file.
 
 **SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption**: a chain of 120 nodes from left to right is probed with
 a natural width above 8192 pixels (the size read from the library's message, whose text this test pins), is `size-limit`
-with a hint that names `--scale` when it is loaded without a size option, and loads at a scale of 0.25 at a quarter of
-the natural width with the default node fill.
+with a hint that names the scale that fits when it is loaded without a size option, and loads at a scale of 0.25 at a
+quarter of the natural width with the default node fill.
 
 **SourceLoader_Load_MermaidTruncatedOrDamaged_IsExpectedErrorOrLoads**: every prefix of `shipping.mermaid`, the empty
 one included, either loads or is a `mermaid-error` or `corrupt-input`, never another exception, and 200 bytes of
@@ -455,7 +455,7 @@ than 200 pixels of the element fill, more than 100 dark pixels of the outlines a
 **SourceLoader_Load_PlantUmlUnsupportedType_IsOneNoteThenStrictError**: `legacy.pu` is probed with the facts
 `activity-legacy`, not supported, and zero counts, is an empty 20 by 20 picture with exactly one located one-line note
 (source `plantuml`, severity `unsupported`, code `plantuml-diagram-unsupported`), and in strict mode is
-`unsupported-feature` naming the code, with a hint that names `--strict` and the library's
+`unsupported-feature` naming the code, with a hint that names strict mode and the library's
 `PlantUmlUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_PlantUml_MapsWarningsAndUnsupportedFeatures**: a diagram with `!theme cerulean` and an ignored
@@ -573,7 +573,7 @@ draw nothing but the background.
 **SourceLoader_Load_DefineWithInvalidName_ThrowsUsageError**, and **SourceLoader_Load_Time_SetsTheSpecialVariable**: a
 number, a flag, and a text each replace the assignment in a parametric model and give four different pictures; the
 operation lists them as `name=value` in name order with text in quotes; a name with a dollar sign in the middle is
-a `usage-error` that mentions `-D`; `$t` changes the model and is listed only when given.
+a `usage-error` that mentions the model definition; `$t` changes the model and is listed only when given.
 
 **SourceLoader_Load_EchoWarningAndUnsupported_AreReturned** and
 **SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature**: a model that echoes, calls a module
@@ -581,15 +581,15 @@ that does not exist, and uses `surface` returns the echo line with its `ECHO:` p
 position, and an `unsupported` note whose code is `scad-module-surface`, and the picture is still drawn; with strict
 mode
 the same model is an `unsupported-feature` error that names the feature and the position in one line, with a hint
-that mentions `--strict`.
+that mentions strict mode.
 
 **SourceLoader_Load_TriangleLimitExceeded_ThrowsBudgetExceeded**, **SourceLoader_Load_TriangleLimitLargeEnough_Loads**,
 **SourceLoader_Load_EvaluationLimitExceeded_ThrowsBudgetExceeded**, and
 **SourceLoader_MapScadEvaluation_LimitAndOtherFailures_MapToTheirCodes**: a limit of one triangle is `budget-exceeded`
-with "Triangle limit exceeded (limit 1)", the position, and a hint that names `--max-triangles`; a limit of 100,000
-loads and is recorded in the operation; runaway recursion and a loop of a billion iterations are `budget-exceeded`
-with a hint that the limit cannot be changed; a library failure worded with a limit, or caused by the renderer's
-budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
+with "Triangle limit exceeded (limit 1)", the position, and a hint that names `ScadViewOptions.MaxTriangles`; a limit of
+100,000 loads and is recorded in the operation; runaway recursion and a loop of a billion iterations are
+`budget-exceeded` with a hint that the limit cannot be raised; a library failure worded with a limit, or caused by the
+renderer's budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
 
 **SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow**,
 **SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile**, **SourceLoader_Load_MissingInclude_ThrowsScadError**,
@@ -769,9 +769,10 @@ raise an `InvalidOperationException`, which is a defect and not an expected erro
 code of a source error for a file the command-line tool loads: a Mermaid syntax error (`mermaid-error`,
 `mermaid-syntax-error`, line 2), a PlantUML message without a target (`plantuml-error`, `plantuml-syntax-error`, line
 3), an OpenSCAD syntax error (`scad-error`, `scad-syntax-error`, line 2), and a truncated chart (`vega-lite-error`, with
-a line) each carry the location the library reports, and malformed SVG markup (`corrupt-input`) carries the path of the
-file with the line and column of the XML error, no detail code, and the codec's `InvalidDataException` inside; a
-missing file (`input-not-found`) has neither.
+a line and no detail code, because the library gives a chart error none) each carry the location the library reports,
+and malformed SVG markup (`corrupt-input`) carries the path of the file with the line and column of the XML error, no
+detail code, and the codec's `InvalidDataException` inside; a chart with a `geoshape` mark loaded in strict mode is
+`unsupported-feature` with the detail code `vl-mark-geoshape`; a missing file (`input-not-found`) has neither.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.

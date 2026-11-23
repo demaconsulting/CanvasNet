@@ -212,7 +212,8 @@ public static class CanvasNetViewer
     ///     line and column in <see cref="ViewerException.Location"/>); <c>scad-error</c>, <c>vega-lite-error</c>,
     ///     <c>mermaid-error</c> and <c>plantuml-error</c> for an error in the source of a model, chart or diagram, with
     ///     <see cref="ViewerException.Location"/> (file, line, column, and for a chart the JSON pointer) and
-    ///     <see cref="ViewerException.DetailCode"/> (the code of the library, such as <c>mermaid-syntax-error</c>);
+    ///     <see cref="ViewerException.DetailCode"/> (the code of the library, such as <c>mermaid-syntax-error</c>; none for
+    ///     a Vega-Lite specification or render error);
     ///     <c>file-access-denied</c> when <see cref="ViewerRenderOptions.FileAccess"/> denied an include or a data file
     ///     (and, with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, a picture); <c>budget-exceeded</c> when
     ///     a limit of a format library is exceeded (see <see cref="ViewerRenderOptions.VegaLiteLimits"/>,
@@ -222,7 +223,9 @@ public static class CanvasNetViewer
     ///     when <see cref="ViewerRenderOptions.Page"/> is not a page of the file (a single-image file has only page 1);
     ///     <c>size-limit</c> or <c>usage-error</c> for a size or option the source cannot use; with
     ///     <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, <c>unsupported-feature</c> for a feature that is
-    ///     not drawn or a link of an SVG file that is not drawn; and <c>operation-failed</c> for any other failure of a
+    ///     not drawn or a link of an SVG file that is not drawn, <c>positions-unmatched</c> for a selector of
+    ///     <see cref="ViewerRenderOptions.Positions"/> that matched nothing, and <c>svg-binding-failed</c> for a position
+    ///     binding of an SVG file that is not resolved; and <c>operation-failed</c> for any other failure of a
     ///     source. The original exception (the library exception, or the <see cref="ImageSourceBudgetException"/> with its
     ///     pixel counts) is the <see cref="Exception.InnerException"/>. Neither the message nor the
     ///     <see cref="ViewerException.Hint"/> names an option of the command-line tool.
@@ -242,7 +245,11 @@ public static class CanvasNetViewer
             : Path.GetFullPath(settings.Folder);
         var resolver = CreateResolver(folder, settings);
         var direct = CreateDirectOptions(settings);
-        var result = RenderDirect(() => resolver.Render(fullPath, settings.Width, settings.Height, direct), path);
+        var result = RenderDirect(
+            () => resolver.Render(fullPath, settings.Width, settings.Height, direct),
+            path,
+            resolver,
+            readsStream: false);
         return CreateImage(resolver, result, settings, direct, Path.GetFileName(fullPath));
     }
 
@@ -261,26 +268,37 @@ public static class CanvasNetViewer
     ///     <see cref="Render(string, ViewerRenderOptions?)"/>; the caller disposes it.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentException">Thrown, before anything is read, when <paramref name="content"/> cannot be read.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown, before the stream is read, for the options that <see cref="Render(string, ViewerRenderOptions?)"/>
     ///     refuses: a width or height outside 1 to <see cref="Surface.MaxDimension"/>, a page below 1, a resolution that
     ///     is not usable, or model options that are not usable.
     /// </exception>
     /// <exception cref="ViewerException">
-    ///     See <see cref="Render(string, ViewerRenderOptions?)"/>; a stream longer than 16 MiB is <c>input-unreadable</c>
-    ///     and an extension of <paramref name="fileName"/> that no source claims is <c>unsupported-format</c>.
+    ///     See <see cref="Render(string, ViewerRenderOptions?)"/>; a stream longer than 16 MiB, or whose reading fails, is
+    ///     <c>input-unreadable</c>, and an extension of <paramref name="fileName"/> that no source claims is
+    ///     <c>unsupported-format</c>.
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when <see cref="ViewerRenderOptions.CancellationToken"/> is canceled.</exception>
     public static ViewerImage Render(Stream content, string fileName, ViewerRenderOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(fileName);
+        if (!content.CanRead)
+        {
+            throw new ArgumentException("The stream cannot be read.", nameof(content));
+        }
+
         var settings = options ?? new ViewerRenderOptions();
         ValidateOptions(settings);
 
         var resolver = CreateResolver(settings.Folder, settings);
         var direct = CreateDirectOptions(settings);
-        var result = RenderDirect(() => resolver.Render(content, fileName, settings.Width, settings.Height, direct), fileName);
+        var result = RenderDirect(
+            () => resolver.Render(content, fileName, settings.Width, settings.Height, direct),
+            fileName,
+            resolver,
+            readsStream: true);
         return CreateImage(resolver, result, settings, direct, fileName);
     }
 
@@ -308,22 +326,31 @@ public static class CanvasNetViewer
     /// </summary>
     /// <param name="render">The render.</param>
     /// <param name="name">The path or file name the caller gave, for messages.</param>
+    /// <param name="resolver">The resolver of the render, which knows the extensions its sources claim.</param>
+    /// <param name="readsStream">Whether the render reads a stream the caller gave.</param>
     /// <returns>What the source returned.</returns>
     /// <exception cref="ViewerException">
     ///     Thrown for a page that does not exist (<c>page-out-of-range</c>), a file that does not exist
     ///     (<c>input-not-found</c>), an extension no source claims (<c>unsupported-format</c>), a file that is not a regular
-    ///     file, is larger than 16 MiB or cannot be read (<c>input-unreadable</c>), a picture over the pixel budget
-    ///     (<c>budget-exceeded</c>), and a failure of a source: the <see cref="ViewerException"/> of a built-in source as it
-    ///     is, the library exception of a nested picture or an extra source mapped by the shared mapping of the loader
-    ///     (<see cref="SourceLoader.MapFailure"/>), and anything else as <c>operation-failed</c>; the original exception is
-    ///     always the inner exception.
+    ///     file, is larger than 16 MiB or cannot be read, or a stream of the caller whose reading fails
+    ///     (<c>input-unreadable</c>), a picture over the pixel budget (<c>budget-exceeded</c>), and a failure of a source:
+    ///     the <see cref="ViewerException"/> of a built-in source as it is, the library exception of a nested picture or
+    ///     an extra source mapped by the shared mapping of the loader (<see cref="SourceLoader.MapFailure"/>), and
+    ///     anything else as <c>operation-failed</c>; the original exception is always the inner exception.
     /// </exception>
     /// <remarks>
     ///     The command-line tool reads its files through the same loader mapping; the resolver failures mapped here (the
-    ///     budget, an extension no source claims, the top-level file reference) are those of the resolver only the viewer
-    ///     uses. Cancellation passes through unchanged.
+    ///     budget, an extension no source claims, the top-level file reference, the read of the caller's stream) are those
+    ///     of the resolver only the viewer uses. A failure inside a source reaches here wrapped in an
+    ///     <see cref="ImageSourceException"/>, so a bare <see cref="NotSupportedException"/> is either the refusal of an
+    ///     extension no source claims or, for a stream whose extension is claimed, the stream refusing to be read.
+    ///     Cancellation passes through unchanged.
     /// </remarks>
-    private static ImageSourceResult RenderDirect(Func<ImageSourceResult> render, string name)
+    private static ImageSourceResult RenderDirect(
+        Func<ImageSourceResult> render,
+        string name,
+        FolderImageResolver resolver,
+        bool readsStream)
     {
         try
         {
@@ -358,13 +385,18 @@ public static class CanvasNetViewer
         {
             throw missing;
         }
-        catch (NotSupportedException ex)
+        catch (NotSupportedException ex) when (!readsStream || !ClaimsExtension(resolver, name))
         {
             throw new ViewerException(
                 ErrorCodes.UnsupportedFormat,
                 ex.Message,
                 "Render a file whose extension is one of CanvasNetViewer.Extensions, or add an image source that claims it.",
                 ex);
+        }
+        catch (NotSupportedException ex)
+        {
+            // The extension is claimed, so the caller's stream refused to be read
+            throw new ViewerException(ErrorCodes.InputUnreadable, $"'{name}' cannot be read: {ex.Message}", null, ex);
         }
         catch (FileReferenceException ex)
         {
@@ -375,6 +407,23 @@ public static class CanvasNetViewer
             // Only the stream of a render by stream is checked outside a source: it is longer than 16 MiB
             throw new ViewerException(ErrorCodes.InputUnreadable, ex.Message, null, ex);
         }
+        catch (IOException ex) when (SourceLoader.MapFailure(ex, name, null) is { } unreadable)
+        {
+            // The read of the caller's stream failed
+            throw unreadable;
+        }
+    }
+
+    /// <summary>
+    ///     Tells whether a source of a resolver claims the extension of a file name, by the rule the resolver uses.
+    /// </summary>
+    /// <param name="resolver">The resolver.</param>
+    /// <param name="name">A file name or a path; only the part after the last slash or backslash is looked at.</param>
+    /// <returns><see langword="true"/> when the name ends with a claimed extension (case-insensitively).</returns>
+    private static bool ClaimsExtension(FolderImageResolver resolver, string name)
+    {
+        var fileName = name[(name.AsSpan().LastIndexOfAny('/', '\\') + 1)..];
+        return resolver.Extensions.Any(extension => fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

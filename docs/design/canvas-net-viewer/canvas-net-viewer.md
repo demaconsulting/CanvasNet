@@ -209,9 +209,15 @@ source) is mapped by the shared mapping of the loader (`SourceLoader.MapFailure`
 when the mapping does not know it; an `ImageSourceBudgetException` (the picture, or the final picture of a resized
 render, does not fit in `MaxDecodedPixels`) is `budget-exceeded` with a hint that names `MaxDecodedPixels`; the
 `FileNotFoundException` of a missing file is `input-not-found` (through the shared mapping); the
-`NotSupportedException` of an extension no source claims is `unsupported-format` (the message lists the extensions);
-the `FileReferenceException` of a file that is not a regular file, is larger than 16 MiB, or cannot be read, and the
-`InvalidDataException` of a stream longer than 16 MiB are `input-unreadable`. A cancellation stays an
+`NotSupportedException` of an extension no source claims is `unsupported-format` (the message lists the extensions),
+and only that one: a failure inside a source arrives wrapped in an `ImageSourceException`, and for a render by stream
+`RenderDirect` checks with `ClaimsExtension` (the rule of `ImageSourceSet.FindByExtension`: the part after the last
+slash or backslash ends with a claimed extension, ignoring case) whether the name is claimed; the
+`FileReferenceException` of a file that is not a regular file, is larger than 16 MiB, or cannot be read, the
+`InvalidDataException` of a stream longer than 16 MiB, and a failure while reading the caller's stream (an
+`IOException` through the shared mapping, or a `NotSupportedException` of a stream whose name is claimed) are
+`input-unreadable`. `Render(stream, ...)` refuses a stream that cannot be read (`CanRead` is false) with an
+`ArgumentException` before it reads anything. A cancellation stays an
 `OperationCanceledException`. The messages and hints name no option of the command-line tool. An unsupported feature
 is a note unless `ThrowOnUnsupportedFeature` is set. A link the file-access policy denies is the warning
 `image-access-denied`, and with `ThrowOnUnsupportedFeature` a `ViewerException` with the code `file-access-denied`; a

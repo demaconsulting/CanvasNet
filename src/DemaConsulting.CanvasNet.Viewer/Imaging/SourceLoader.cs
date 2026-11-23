@@ -880,8 +880,8 @@ public static partial class SourceLoader
     /// <param name="path">The path or name of the file, the file of the location of malformed XML; or <see langword="null"/>.</param>
     /// <returns>
     ///     The location and the detail code, each <see langword="null"/> when the failure has none: the location and the
-    ///     <c>Code</c> of a Mermaid, PlantUML, or OpenSCAD failure; the location (with the JSON pointer) and the leading
-    ///     <c>vl-*</c> identifier of the message of a Vega-Lite failure; the location and the feature of an unsupported
+    ///     <c>Code</c> of a Mermaid, PlantUML, or OpenSCAD failure; the location (with the JSON pointer) of a Vega-Lite
+    ///     specification or render failure, which the library gives no code; the location and the feature of an unsupported
     ///     feature (the Office and raster libraries give no location); the line and the column of the
     ///     <see cref="XmlException"/> found in the chain of a failure of SVG markup (no detail code).
     /// </returns>
@@ -898,8 +898,8 @@ public static partial class SourceLoader
             case ScadSyntaxException ex: return (ToScadLocation(ex.Location), ex.Code);
             case ScadEvaluationException ex: return (ToScadLocation(ex.Location), ex.Code);
             case ScadUnsupportedFeatureException ex: return (ToScadLocation(ex.Location), ex.Feature);
-            case VegaLiteSpecException ex: return (ToVegaLiteLocation(ex.Location), ReadVegaLiteDetail(ex.Message));
-            case VegaLiteRenderException ex: return (ToVegaLiteLocation(ex.Location), ReadVegaLiteDetail(ex.Message));
+            case VegaLiteSpecException ex: return (ToVegaLiteLocation(ex.Location), null);
+            case VegaLiteRenderException ex: return (ToVegaLiteLocation(ex.Location), null);
             case VegaLiteUnsupportedFeatureException ex: return (ToVegaLiteLocation(ex.Location), ex.Feature);
             case UnsupportedImageFeatureException ex: return (null, ex.Feature);
             case PptxUnsupportedFeatureException ex: return (null, ex.Feature);

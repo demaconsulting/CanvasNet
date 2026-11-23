@@ -82,8 +82,9 @@ sections:
             title: >-
               The CanvasNetViewer class shall expose Render(stream, fileName), which chooses the source by the
               extension of the file name, resolves the files the document itself names only from
-              ViewerRenderOptions.Folder (none without it), and rejects null arguments, an unknown extension, and a
-              requested width or height outside 1 to Surface.MaxDimension (before reading the stream).
+              ViewerRenderOptions.Folder (none without it), and rejects null arguments, a stream that cannot be read
+              (ArgumentException), an unknown extension, and a requested width or height outside 1 to
+              Surface.MaxDimension (before reading the stream).
             justification: |
               Content that does not live in a file (an upload, a database column) must be renderable without
               writing it to disk, and without being able to reach the disk by accident.
@@ -108,7 +109,7 @@ sections:
             justification: |
               A host that renders source written by a user or a model needs one exception type with a stable code and a
               structured location to report or fix the error, without matching exception types of every format or
-              parsing message text, and a hint it can act on without a command line (issue  # 166).
+              parsing message text, and a hint it can act on without a command line (GitHub issue 166).
             tests:
               - CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
               - CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
@@ -122,6 +123,9 @@ sections:
               - CanvasNetViewer_Render_EmbeddedSourceError_KeepsCodeLocationAndDetailCode
               - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions
               - CanvasNetViewer_Render_StreamInvalidArguments_Throw
+              - CanvasNetViewer_Render_StreamReadFailures_AreInputUnreadable
+              - CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes
+              - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled
 
           - id: CanvasNetViewer-CanvasNetViewer-LoaderSources
             title: >-
@@ -262,10 +266,8 @@ sections:
               - CanvasNetViewer_Render_Background_FlattensTransparentAreas
               - CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn
               - CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail
-              - CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes
               - CanvasNetViewer_Render_MatchesTheLoaderOfTheTool
               - CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged
-              - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled
               - CanvasNetViewer_Render_UndrawnLink_IsNoteWithoutStrict
               - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
               - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds

@@ -894,7 +894,7 @@ pixels; see `canvasnet help limits`) fails with `budget-exceeded`, a text longer
 `corrupt-input`, and a diagram that lays out larger than 8192 pixels on a side is `size-limit` unless a size option
 makes it fit. The message gives the laid-out size, the limit, and the scale that fits, for example
 `'flow.mmd' is 14374x1797 pixels, which is larger than the maximum of 8192 pixels per side; a scale of 0.56 or less
-fits.`, with the hint `Use --scale 0.56 (or less), --width, or --height to choose a smaller size.`
+fits.`, with the hint `Use --scale 0.56 or less, or a smaller --width or --height.`
 
 ```bash
 canvasnet info flow.mmd --json

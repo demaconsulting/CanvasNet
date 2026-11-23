@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
+using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -704,15 +705,20 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
-    ///     Test that a stream with an unknown extension and null arguments are rejected.
+    ///     Test that a stream with an unknown extension, a stream that cannot be read, and null arguments are rejected.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_StreamInvalidArguments_Throw()
     {
-        // Arrange / Act / Assert
+        // Arrange: a stream that is closed cannot be read
+        var closed = new MemoryStream(ViewerFixtures.Png(2, 2, ViewerFixtures.Green));
+        closed.Dispose();
+
+        // Act / Assert
         Assert.Equal(ErrorCodes.UnsupportedFormat, Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(new MemoryStream(), "x.unknown")).Code);
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render((Stream)null!, "x.png"));
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render(new MemoryStream(), null!));
+        Assert.Equal("content", Assert.Throws<ArgumentException>(() => CanvasNetViewer.Render(closed, "x.png")).ParamName);
     }
 
     /// <summary>
@@ -778,8 +784,8 @@ public class CanvasNetViewerTests
 
     /// <summary>
     ///     Test that a Vega-Lite chart cut short (issue #163) is <c>vega-lite-error</c> at the end of the text, not a depth
-    ///     error, and that an invalid property is located by its line and JSON pointer, without a detail code when the
-    ///     message of the library starts with no <c>vl-*</c> identifier.
+    ///     error, and that an invalid property is located by its line and JSON pointer, both without a detail code: the
+    ///     library gives a chart error none.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation()
@@ -792,14 +798,15 @@ public class CanvasNetViewerTests
         var cut = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(truncated, "chart.vl.json"));
         var wrong = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(invalid, "chart.vl.json"));
 
-        // Assert: the truncated chart is located in its text and is not a depth error
+        // Assert: the truncated chart is located in its text, is not a depth error, and has no detail code
         Assert.Equal(ErrorCodes.VegaLiteError, cut.Code);
         Assert.IsType<VegaLiteSpecException>(cut.InnerException);
         Assert.DoesNotContain("deeper", cut.Message, StringComparison.Ordinal);
         Assert.Equal("chart.vl.json", cut.Location?.File);
         Assert.NotNull(cut.Location?.Line);
+        Assert.Null(cut.DetailCode);
 
-        // Assert: the invalid type is located by its line and pointer; the library gives this error no code
+        // Assert: the invalid type is located by its line and pointer; the library gives a chart error no detail code
         Assert.Equal(ErrorCodes.VegaLiteError, wrong.Code);
         Assert.Equal("/encoding/x/type", wrong.Location?.Pointer);
         Assert.Equal(4, wrong.Location?.Line);
@@ -897,9 +904,56 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
+    ///     Test that a caller's stream whose reading fails is <c>input-unreadable</c> with the failure inside, also when
+    ///     the stream refuses with a <see cref="NotSupportedException"/>, and that a name no source claims is
+    ///     <c>unsupported-format</c> before the stream is read.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_StreamReadFailures_AreInputUnreadable()
+    {
+        // Arrange: streams that fail when they are read
+        using var broken = new FailingReadStream(new IOException("the device is gone"));
+        using var refusing = new FailingReadStream(new NotSupportedException("the stream cannot be read now"));
+        using var unknownName = new FailingReadStream(new IOException("not expected"));
+
+        // Act
+        var io = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(broken, "a.png"));
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(refusing, "a.png"));
+        var unknown = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(unknownName, "x.unknown"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.InputUnreadable, io.Code);
+        Assert.IsType<IOException>(io.InnerException);
+        Assert.Equal(ErrorCodes.InputUnreadable, refused.Code);
+        Assert.IsType<NotSupportedException>(refused.InnerException);
+        Assert.Contains("'a.png' cannot be read", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UnsupportedFormat, unknown.Code);
+        Assert.Equal(0, unknownName.Reads);
+    }
+
+    /// <summary>
+    ///     A readable stream whose every read fails with the exception it was given, and that counts the reads.
+    /// </summary>
+    /// <param name="failure">The exception every read throws.</param>
+    private sealed class FailingReadStream(Exception failure) : MemoryStream
+    {
+        /// <summary>
+        ///     Gets the number of reads that were tried.
+        /// </summary>
+        public int Reads { get; private set; }
+
+        /// <inheritdoc />
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Reads++;
+            throw failure;
+        }
+    }
+
+    /// <summary>
     ///     Test that the messages and hints of the failures of a render name no option of the command-line tool: the
-    ///     strict failures of a model, a chart, both diagrams and an SVG link, the limits of a model, and a picture larger
-    ///     than the largest image.
+    ///     strict failures of a model, a chart, both diagrams, an SVG link and a position selector that matched nothing,
+    ///     the limits of a model, and a picture larger than the largest image.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_Failures_HaveNoCommandLineWording()
@@ -916,6 +970,7 @@ public class CanvasNetViewerTests
             ("links.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("missing.png", 0)), strict),
             ("big.scad", "cube(1);\n", new ViewerRenderOptions { Scad = new ScadViewOptions { MaxTriangles = 1 } }),
             ("wide.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" height=\"10\"/>", new ViewerRenderOptions()),
+            ("flow.mmd", "flowchart LR\n  A --> B\n", new ViewerRenderOptions { Positions = PositionSelection.Parse(["node:Zed"]), ThrowOnUnsupportedFeature = true }),
         };
 
         // Act
@@ -926,7 +981,7 @@ public class CanvasNetViewerTests
         // Assert: the expected codes, and no command-line option in any message or hint
         Assert.Equal(
             [ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature, ErrorCodes.UnsupportedFeature,
-             ErrorCodes.UnsupportedFeature, ErrorCodes.BudgetExceeded, ErrorCodes.SizeLimit],
+             ErrorCodes.UnsupportedFeature, ErrorCodes.BudgetExceeded, ErrorCodes.SizeLimit, ErrorCodes.PositionsUnmatched],
             failures.Select(f => f.Code));
         Assert.All(failures, f => Assert.NotNull(f.Hint));
         Assert.All(failures, f => Assert.DoesNotMatch(CommandLineOption, f.Message));

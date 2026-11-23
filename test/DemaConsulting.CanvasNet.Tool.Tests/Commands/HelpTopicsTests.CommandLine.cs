@@ -167,7 +167,7 @@ public partial class HelpTopicsTests
             Assert.Equal(OddSelector, argument);
             using var document = RenderPositions(directory, flow, argument);
             var warning = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-            Assert.Equal($"The --positions selector '{OddSelector}' matched nothing.", warning.GetProperty("message").GetString());
+            Assert.Equal($"The position selector '{OddSelector}' matched nothing.", warning.GetProperty("message").GetString());
         }
     }
 

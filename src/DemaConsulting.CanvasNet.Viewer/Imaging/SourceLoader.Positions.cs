@@ -87,5 +87,5 @@ public static partial class SourceLoader
     /// <param name="selector">The selector.</param>
     /// <returns>The message, which names the selector.</returns>
     private static string UnmatchedMessage(PositionSelector selector) =>
-        $"The --positions selector '{selector.Text}' matched nothing.";
+        $"The position selector '{selector.Text}' matched nothing.";
 }

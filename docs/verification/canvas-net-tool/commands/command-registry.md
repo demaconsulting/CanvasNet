@@ -83,6 +83,11 @@ feature with `--strict` as `unsupported-feature` located at line 1 with a hint t
 `--max-triangles 1` as `budget-exceeded` with a hint that names `--max-triangles`; each names the command and writes no
 output.
 
+**CommandRegistry_Run_RenderOfOversizePictures_NamesTheSizeOptions**: the `render` command of the default registry
+reports an SVG file 20000 pixels wide rendered at its natural size as `size-limit` with the hint "Use --scale 0.4 or
+less, or a smaller --width or --height.", and an SVG file 10 by 100 pixels rendered with `--width 4000` as `size-limit`
+with the hint "Use a smaller --scale, --width, or --height."; neither writes an output.
+
 **CommandRegistry_Run_HelpCommandWithName_PrintsCommandHelp** and
 **CommandRegistry_Run_HelpCommandWithoutName_PrintsTopLevelHelp**: the built-in help command prints a command's
 help, or the top-level help.

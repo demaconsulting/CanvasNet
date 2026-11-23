@@ -45,8 +45,9 @@ internal sealed partial class CommandRegistry
     /// <remarks>
     ///     The library words its hints for every caller (<c>strict mode</c>, <c>ScadViewOptions.MaxTriangles</c>, <c>a
     ///     smaller scale, width, or height</c>); the tool names the options that set the same thing. The codes come from
-    ///     the one mapping of the library and are never changed here. A test of the tool pins every phrase, so a change
-    ///     of the library's wording is caught.
+    ///     the one mapping of the library and are never changed here. Tests of the tool render through the library for
+    ///     each phrase (strict mode, the triangle limit, and both size hints), so a change of the library's wording is
+    ///     caught.
     /// </remarks>
     private static readonly (string Library, string CommandLine)[] CommandLinePhrases =
     [

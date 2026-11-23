@@ -273,8 +273,8 @@ public static partial class SourceLoader
     ///     The exception to throw: <c>file-access-denied</c> when the file-access policy denied a data file,
     ///     <c>budget-exceeded</c> when the chart exceeded a limit of the library (rows, fields, ticks, scene items, and so
     ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on); the
-    ///     location of the failure (with its JSON pointer) and its leading <c>vl-*</c> identifier are the
-    ///     <see cref="ViewerException.Location"/> and <see cref="ViewerException.DetailCode"/>.
+    ///     location of the failure (with its JSON pointer) is the <see cref="ViewerException.Location"/>, and the library
+    ///     gives such a failure no detail code.
     /// </returns>
     /// <remarks>
     ///     The library names every limit it enforces in the message, either as <c>the limit of N</c>, as

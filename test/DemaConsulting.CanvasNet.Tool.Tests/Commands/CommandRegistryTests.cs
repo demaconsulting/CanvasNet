@@ -357,6 +357,33 @@ public class CommandRegistryTests
     }
 
     /// <summary>
+    ///     Test that the render command run through the registry reports a picture larger than the largest image with the
+    ///     size hints of the library in the words of the command line: the scale that fits when the size follows the
+    ///     natural size, and a smaller <c>--scale</c>, <c>--width</c>, or <c>--height</c> when a size option was given.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_RenderOfOversizePictures_NamesTheSizeOptions()
+    {
+        // Arrange: a picture wider than the largest image, and a tall one made too tall by the width asked for
+        using var directory = new TempDirectory();
+        var wide = FixtureFactory.WriteText(directory.Path, "wide.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" height=\"10\"/>");
+        var tall = FixtureFactory.WriteText(directory.Path, "tall.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"100\"/>");
+        var output = directory.Combine("o.png");
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act
+        var natural = RunRenderFailing(registry, wide, "-o", output);
+        var sized = RunRenderFailing(registry, tall, "--width", "4000", "-o", output);
+
+        // Assert: the size limit, with the hints of the library in the words of the command line
+        Assert.Equal(ErrorCodes.SizeLimit, natural.Code);
+        Assert.Equal("Use --scale 0.4 or less, or a smaller --width or --height.", natural.Hint);
+        Assert.Equal(ErrorCodes.SizeLimit, sized.Code);
+        Assert.Equal("Use a smaller --scale, --width, or --height.", sized.Hint);
+        Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
     ///     Runs the render command through a registry and returns the error it fails with.
     /// </summary>
     /// <param name="registry">The registry.</param>

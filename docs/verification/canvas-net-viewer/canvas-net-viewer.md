@@ -131,9 +131,9 @@ warning without it.
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`
 
 Asserts that a stream is rendered by the extension of its file name, that the files the document names are resolved
-relative to the folder option, that null arguments and an unknown extension (`unsupported-format`) are rejected, and
-that a width or height outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without the stream
-being read.
+relative to the folder option, that null arguments, a closed stream (`ArgumentException` naming `content`), and an
+unknown extension (`unsupported-format`) are rejected, and that a width or height outside 1 to `Surface.MaxDimension`
+throws `ArgumentOutOfRangeException` without the stream being read.
 
 #### CanvasNetViewer-CanvasNetViewer-RenderErrors: Every Failure Of The Input Is A ViewerException
 
@@ -148,22 +148,31 @@ being read.
 `CanvasNetViewer_Render_ExtraSourceFailure_IsMappedOrOperationFailed`,
 `CanvasNetViewer_Render_EmbeddedSourceError_KeepsCodeLocationAndDetailCode`,
 `CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
-`CanvasNetViewer_Render_StreamInvalidArguments_Throw`
+`CanvasNetViewer_Render_StreamInvalidArguments_Throw`,
+`CanvasNetViewer_Render_StreamReadFailures_AreInputUnreadable` (`CanvasNetViewerTests.cs`),
+`CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
+`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled` (`CanvasNetViewerRenderOptionsTests.cs`)
 
 Asserts the rows of issue #166 through `Render(stream, fileName)` and `Render(path)`: a Mermaid syntax error is
 `mermaid-error` with the detail code `mermaid-syntax-error`, the location `diagram.mmd` line 2 column 5, and the
 `MermaidSyntaxException` inside; a PlantUML message without a target is `plantuml-error` with `plantuml-syntax-error` at
 line 3; an OpenSCAD syntax error is `scad-error` with `scad-syntax-error` at line 2 column 1; a truncated chart is
 `vega-lite-error` located in its text and not a depth error, and an invalid `type` is located at line 4 and the pointer
-`/encoding/x/type` (no detail code, because the message of the library has no `vl-*` identifier); malformed SVG markup
+`/encoding/x/type` (neither has a detail code: the library gives a chart error none); malformed SVG markup
 is `corrupt-input` with the line and column of the XML error and no detail code; under `UnderRoots(site)` a chart's
 `data.url`, a PlantUML `!include`, and a model's `include` of the parent folder are each `file-access-denied`, located
 (the pointer `/data/url`, line 2, line 1) and with the denial in the chain of inner exceptions; a missing file is
 `input-not-found`, an unknown extension `unsupported-format`, a picture over `MaxDecodedPixels` `budget-exceeded` (with
 the `ImageSourceBudgetException` inside and a hint that names `MaxDecodedPixels`), and a stream longer than 16 MiB
-`input-unreadable`, none of them located; the strict failures of a model, a chart, a Mermaid and a PlantUML diagram,
-and an SVG link, the triangle limit of a model, and an SVG larger than the largest image name no option of the
-command-line tool (no `--` option) in the message or the hint; an extra source that throws `InvalidDataException` is
+`input-unreadable`, none of them located; a caller's stream whose read throws an `IOException` or a
+`NotSupportedException` is `input-unreadable` with that exception inside, while a name no source claims is
+`unsupported-format` before the stream is read; the strict failures of a model, a chart, a Mermaid and a PlantUML
+diagram, an SVG link, and a position selector that matched nothing (`positions-unmatched`), the triangle limit of a
+model, and an SVG larger than the largest image name no option of the command-line tool (no `--` option) in the
+message or the hint; a model whose include is missing is `scad-error`, a corrupt raster `corrupt-input` with the
+codec's `InvalidDataException` inside, and a truncated chart `vega-lite-error` with the `VegaLiteSpecException`
+inside; a canceled token stops the render of a document with `OperationCanceledException`; an extra source that
+throws `InvalidDataException` is
 `corrupt-input` and one that throws any other exception `operation-failed`, each with the original inside; and a
 Mermaid diagram embedded in an SVG file with a syntax error keeps its code, location, and detail code with a message
 that names both files.
@@ -263,9 +272,8 @@ Resolving `part.scad#view=front&def.width=20` and
 `CanvasNetViewer_Render_VectorInBox_MarginIsWhiteByDefault`,
 `CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn`,
 `CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail`,
-`CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
-`CanvasNetViewer_Render_MatchesTheLoaderOfTheTool`, `CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged`,
-`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled` (`CanvasNetViewerRenderOptionsTests.cs`)
+`CanvasNetViewer_Render_MatchesTheLoaderOfTheTool`, `CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged`
+(`CanvasNetViewerRenderOptionsTests.cs`)
 
 Asserts the defaults of the new options; that `Page = 2` with `Dpi = 192` gives the size of page 2 at that resolution
 and `ViewerImage.Page` and `PageCount` report the page drawn and the number of pages; that a page beyond the last is a
@@ -277,8 +285,7 @@ draws them, while an explicit fully transparent background keeps them transparen
 raster with transparency keeps its alpha by default, also with a transparent margin in a box, while a vector page in a
 box gets a white margin; that a model and a diagram an SVG file embeds are drawn transparent, so only the rendered file
 gets the background; that a model gets its view and variables, reports its anchors, echo, and notes with `Detail` and
-`Location`; the exception shapes (a missing include is a `ViewerException` with `scad-error`, a corrupt raster a
-`ViewerException` with `corrupt-input` whose inner exception is the codec's); that the pixels, format, and notes equal
+`Location`; that the pixels, format, and notes equal
 those of `SourceLoader.Load` with the default options of both, for every kind including the diagrams, which proves the
 shared default background; and that a raster in a box is fitted and charged. The tool side of the shared default is
 verified by `CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent` (`CanvasNetTool-System-Defaults`).

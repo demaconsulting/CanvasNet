@@ -1005,8 +1005,9 @@ public class SourceLoaderTests
     /// <summary>
     ///     Test that the loader the command-line tool reads its files with fills in the location and the detail code of a
     ///     source error from the same mapping as <c>CanvasNetViewer.Render</c>: a Mermaid, a PlantUML, a model and a chart
-    ///     error, and malformed SVG markup (located by its XML line and column, without a detail code); a failure outside a
-    ///     source has neither.
+    ///     error (the chart without a detail code, which the library gives none), malformed SVG markup (located by its XML
+    ///     line and column, without a detail code), and a strict chart with an unsupported mark (its <c>vl-*</c> feature);
+    ///     a failure outside a source has neither.
     /// </summary>
     [Fact]
     public void SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode()
@@ -1018,19 +1019,23 @@ public class SourceLoaderTests
         var scad = FixtureFactory.WriteText(directory.Path, "model.scad", "cube([10, 10, 10]\nsphere(5);\n");
         var chart = FixtureFactory.WriteText(directory.Path, "chart.vl.json", "{\n  \"mark\": \"bar\",\n  \"encoding\": {\n");
         var svg = FixtureFactory.WriteText(directory.Path, "figure.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\">\n<rect></svg>\n");
+        var geo = FixtureFactory.WriteText(directory.Path, "geo.vl.json", "{\"data\": {\"values\": []}, \"mark\": \"geoshape\"}");
 
         // Act
         var failures = new[] { mermaid, plantUml, scad, chart, svg }
             .Select(path => Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions())))
             .ToList();
         var missing = Assert.Throws<ViewerException>(() => SourceLoader.Load(directory.Combine("missing.png"), new SourceOptions()));
+        var feature = Assert.Throws<ViewerException>(() => SourceLoader.Load(geo, new SourceOptions { Strict = true }));
 
         // Assert: the codes of the tool, the library's codes, and the lines of the errors
         Assert.Equal(
             [ErrorCodes.MermaidError, ErrorCodes.PlantUmlError, ErrorCodes.ScadError, ErrorCodes.VegaLiteError, ErrorCodes.CorruptInput],
             failures.Select(f => f.Code));
         Assert.Equal(["mermaid-syntax-error", "plantuml-syntax-error", "scad-syntax-error"], failures.Take(3).Select(f => f.DetailCode));
+        Assert.Null(failures[3].DetailCode);
         Assert.Null(failures[4].DetailCode);
+        Assert.Equal((ErrorCodes.UnsupportedFeature, "vl-mark-geoshape"), (feature.Code, feature.DetailCode));
         Assert.Equal([2, 3, 2], failures.Take(3).Select(f => f.Location?.Line));
         Assert.All(failures, f => Assert.NotNull(f.Location?.Line));
         Assert.Equal((svg, 2), (failures[4].Location?.File, failures[4].Location?.Line));
