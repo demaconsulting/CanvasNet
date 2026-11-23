@@ -206,6 +206,22 @@ sections:
               - CanvasNetViewer_Render_DefaultBackground_LeavesRasterUnchanged
               - CanvasNetViewer_Render_EmbeddedPictures_StayTransparent
               - CanvasNetViewer_Render_VectorInBox_MarginIsWhiteByDefault
+              - CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent
+              - CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError
+              - CanvasNetViewer_Render_Background_FlattensTransparentAreas
+              - CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn
+              - CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail
+              - CanvasNetViewer_Render_MatchesTheLoaderOfTheTool
+              - CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged
+              - CanvasNetViewer_Render_UndrawnLink_IsNoteWithoutStrict
+              - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds
+              - CanvasNetViewer_Render_UndrawnLinkInNestedSvgWithStrict_NamesTheNestedFile
+              - SourceLoader_Load_UndrawnLinkWithStrict_StillThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_FitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_Render_PdfFitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_FitIntoBox_AnchorsFollowTheScaleAndOffset
+              - CanvasNetViewer_Render_ScadWithBox_AnchorsAreInsideTheReturnedPicture
 
           - id: CanvasNetViewer-CanvasNetViewer-ResourceLimits
             title: >-
@@ -261,17 +277,6 @@ sections:
             tests:
               - CanvasNetViewer_Render_StrictDeniedLink_ThrowsFileAccessDenied
               - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
-              - CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent
-              - CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError
-              - CanvasNetViewer_Render_Background_FlattensTransparentAreas
-              - CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn
-              - CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail
-              - CanvasNetViewer_Render_MatchesTheLoaderOfTheTool
-              - CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged
-              - CanvasNetViewer_Render_UndrawnLink_IsNoteWithoutStrict
-              - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
-              - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds
-              - CanvasNetViewer_Render_UndrawnLinkInNestedSvgWithStrict_NamesTheNestedFile
 
           - id: CanvasNetViewer-CanvasNetViewer-Parameters
             title: >-
@@ -308,11 +313,7 @@ sections:
               - CanvasNetViewer_Render_VegaLiteOptions_UnknownAndInvalid_AreRefused
               - CanvasNetViewer_Render_VegaLiteOptionsOnOtherKindsAndEmbeddedCharts_AreIgnored
               - CanvasNetViewer_CreateImageResolver_SourcesDeclareTheirPrefixes
-              - SourceLoader_Load_UndrawnLinkWithStrict_StillThrowsUnsupportedFeature
-              - CanvasNetViewer_Render_FitIntoBox_MarginHasTheBackground
-              - CanvasNetViewer_Render_PdfFitIntoBox_MarginHasTheBackground
-              - CanvasNetViewer_FitIntoBox_AnchorsFollowTheScaleAndOffset
-              - CanvasNetViewer_Render_ScadWithBox_AnchorsAreInsideTheReturnedPicture
+
           - id: CanvasNetViewer-CanvasNetViewer-ExtraSources
             title: >-
               The CanvasNetViewer class shall accept extra image sources (to CreateImageResolver and in
