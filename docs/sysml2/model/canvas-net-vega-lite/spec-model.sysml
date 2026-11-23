@@ -1,11 +1,28 @@
-package CanvasNet {
+package CanvasNetVegaLite_VegaLiteSpecModelSubsystem {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNetVegaLite_SpecParser::*;
+    public import CanvasNetVegaLite_FeatureCatalog::*;
+    public import CanvasNetVegaLite_ConfigResolver::*;
+    public import CanvasNetVegaLite_SpecNormalizer::*;
+    public import CanvasNetVegaLite_ExpressionReferenceFolder::*;
+
     part def VegaLiteSpecModel {
         doc /* The internal subsystem in the DemaConsulting.CanvasNet.VegaLite.SpecModel namespace that holds everything the system knows about the specification text, with no data, pixels, file access, or network access: the SpecParser unit reads the UTF-8 JSON in one forward pass into an immutable SpecNode tree with RFC 6901 pointers and one-based line and column (explicit frame stack, so hostile nesting cannot overflow the call stack; limits on source length, nesting depth, and string length), applies the duplicate-key policy (last value wins, one warning), validates the shape of the known properties (a wrong type or value is a VegaLiteSpecException with the pointer; an unknown key is only a warning), reads the descriptive metadata of the public document properties, and (Phase 5) compiles every expression that the renderer evaluates with the Expressions subsystem when the specification is parsed and validates the variable parameters (unique and unreserved names, an acyclic dependency graph) and the shape of the supported transforms and predicates of every view, exposing the compiled expressions by the string node that holds them; the FeatureCatalog unit lists every recognized-but-unsupported construct with a stable vl- identifier and its location and is the single definition of the supported boundary (since Phase 8 it no longer reports the temporal type, the time unit, the timeUnit transform, or the time scales, and it reports the parts of the time phase that are not drawn); the SpecParser unit also validates (Phase 8) the time units, datetime objects, tick and nice intervals, and the timeUnit transform, and compiles the time predicates that PredicateSource writes; the ConfigResolver unit merges the Vega guide defaults, the Vega-Lite defaults, the specification's config, and the caller's Config (in that order of precedence) and answers the precedence chains of marks, views, titles, and styles; the SpecNormalizer unit (Phase 10, widened in Phase 11) reduces the views of a specification to a view tree (the layers of a layered view, the children of a concat, hconcat, or vconcat, the cells of a facet, and the copies of a repeat, each with the encoding, size, data, transform, and resolve that it inherits, over the original nodes), expands the composite marks boxplot, errorbar, and errorband into the primitive layers that Vega-Lite normalizes them to, and enforces the view and nesting limits for every kind of composition; the SpecParser unit also validates the resolve of a view, the facet, repeat, and composition properties, and the properties of the composite marks, and every view of the tree is drawn; the FeatureCatalog reports neither the layer composition, the concatenations, facets, and repeats, nor the composite marks, and every transform of every view is applied (it reports only the facet-field parts that are not drawn). The subsystem is internal; its entry points are called by VegaLiteDocument and its tree and configuration types are read by every later stage. Phase 12 (milestone 1) adds the ExpressionReferenceFolder unit: the SpecParser compiles the {"expr": ...} references of the static sites of the specification when it is opened (SpecExpressions.StaticReferences), and the folder replaces them, once per call after the parameters are evaluated, by the values of their expressions before the configuration, the normalizer, and every later stage read the tree; the FeatureCatalog reports an expression reference only where it is not evaluated (a site that Vega-Lite's schema does not allow, or a static site whose expression reads datum), scans the config of the root view too, no longer reports domainRaw, and words the vl-param-variable report as the variable parameters of a nested view being ignored.         as of this release, its constituent units are SpecParser, FeatureCatalog, ConfigResolver, SpecNormalizer, and ExpressionReferenceFolder. */
 
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ (the unit test classes SpecParserTests, FeatureCatalogTests, ConfigResolverTests, SpecNormalizerTests, ExpressionReferenceFolderTests, and VegaLiteDocumentSpecModelTests) */
-        comment designRef /* Design: docs/design/canvas-net-vega-lite/spec-model.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-vega-lite/spec-model.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-vega-lite/spec-model.yaml */
+        metadata info : SoftwareInfo {
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ConfigResolverTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ExpressionReferenceFolderTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/VegaLiteDocumentSpecModelTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-vega-lite/spec-model.md");
+            verificationFiles = ("docs/verification/canvas-net-vega-lite/spec-model.md");
+            requirementFiles = ("docs/reqstream/canvas-net-vega-lite/spec-model.yaml");
+        }
 
         part specParser : SpecParser;
         part featureCatalog : FeatureCatalog;

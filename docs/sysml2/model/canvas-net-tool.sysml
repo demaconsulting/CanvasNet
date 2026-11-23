@@ -1,19 +1,34 @@
-package CanvasNet {
+package CanvasNetTool {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNetTool_Program::*;
+    public import CanvasNetTool_Context::*;
+    public import CanvasNetTool_ArgumentReader::*;
+    public import CanvasNetTool_ResultWriter::*;
+    public import CanvasNetTool_Validation::*;
+    public import CanvasNetTool_PathHelpers::*;
+    public import CanvasNetTool_CommandsSubsystem::*;
+    public import CanvasNetTool_PandocFilterSubsystem::*;
+
     part def CanvasNetToolSystem {
         doc /* CanvasNetTool is the canvasnet command-line tool, shipped as the separate DemaConsulting.CanvasNet.Tool dotnet tool package (command canvasnet). It lets people, scripts, and AI agents inspect, render, transform, compare, and compose images and documents using the CanvasNet libraries, with a stable machine-readable error contract. It follows the DEMA Consulting tool template: a Program entry point with the template's error policy (expected failures become a concise message and exit code 1, unexpected exceptions are reported and re-thrown), a Context that owns the command line and the output channels, a self-validation mode, and safe path helpers; it adds a Commands subsystem that dispatches the first non-option argument to a registered command, an ArgumentReader that is the command-line grammar shared by the commands, and a ResultWriter that writes the deterministic, versioned JSON results. The tool is a thin command-line shell: the work of every command that touches an image (the loading of every format, the pipeline of transformations, the writing, the comparison, and the contact sheet) is done by the Imaging subsystem of the CanvasNetViewer system, which the commands call with request records built from the command line, and the tool prints the results. This release delivers the foundation (the template core and the command registry), the command-line grammar, the JSON result contract, and the commands formats, info, render (with its alias convert), the verbs crop, resize, rotate, flip, and pad, compare (exact error and similarity metrics, a grid of per-cell errors, difference pictures, and threshold gating that fails with exit code 1), and montage (a labeled contact sheet of images and document pages), inspect (the dominant colors and luma statistics of an image, and the value of a pixel), and flatten (a copy of an SVG drawing whose links to models, charts, diagrams, and document pages are PNG pictures, for SVG readers that cannot draw them), and pandoc-filter (the Pandoc filter: the Lua shim docs/filters/canvasnet.lua sends the whole Pandoc document to it once per Pandoc run, and the PandocFilter subsystem draws its models, charts, diagrams, drawings, and document pages into the cache folder generated/canvasnet and rewrites the document) (plus the built-in help). They read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF (pages), PowerPoint PPTX (slides), Visio VSDX (pages), OpenSCAD SCAD (rendered model views), Vega-Lite (.vl.json or .vl; rendered charts, with the local data files of a chart read under the file-access mode, no data-folder option, and no network), and Mermaid (.mmd or .mermaid; rendered diagrams in a theme chosen with --theme, with the pictures of their nodes read under the file-access mode), and PlantUML (.puml, .plantuml, or .pu; rendered sequence, activity, class, object, state, use case, component, and deployment diagrams with PlantUML's default look, with their !include files read under the file-access mode) input, apply an ordered pipeline of crop, resize, fit, rotate (by any angle), flip, pad, tone-adjustment (grayscale, invert, threshold, levels, brightness, contrast, auto-levels), deskew, trim, and grid operations, and write PNG, JPEG, BMP, or TIFF output; the inspect command (colors and pixel) reads the dominant colors, the luma statistics, and the value of a pixel of the image that the pipeline produces, without writing a file. The reading commands (render and its verbs, inspect, compare, montage, and flatten) read the files a document references under the file-access mode of --file-access and --allow-root (any by default, every regular local file as Pandoc reads them; roots, no-symlinks, or roots,no-symlinks to confine a document that is not trusted); the inputs named on the command line are never judged, a denied picture is the warning image-access-denied (file-access-denied with --strict), a denied include or data file is the error file-access-denied, and info measures under any. The render command reports, with the repeatable --positions selector option and --json, the feature positions of a Mermaid diagram or a Vega-Lite chart in the pixels of the written image (a positions array and positionsTruncated), so that a figure can place callouts on the features of a picture; the selector grammar is that of the core Positions subsystem and the help topic positions documents it. */
 
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.cs */
-        comment photoTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PhotoTools.cs */
-        comment vegaLiteTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.VegaLite.cs */
-        comment mermaidTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Mermaid.cs */
-        comment plantUmlTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PlantUml.cs */
-        comment fileAccessTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.FileAccess.cs */
-        comment positionsTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Positions.cs */
-        comment bindingsTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Bindings.cs */
-        comment pandocFilterTestRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PandocFilter.cs */
-        comment designRef /* Design: docs/design/canvas-net-tool.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-tool.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-tool.yaml */
+        metadata info : SoftwareInfo {
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PhotoTools.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.VegaLite.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Mermaid.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PlantUml.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.FileAccess.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Positions.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Bindings.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PandocFilter.cs"
+            );
+            designFiles = ("docs/design/canvas-net-tool.md");
+            verificationFiles = ("docs/verification/canvas-net-tool.md");
+            requirementFiles = ("docs/reqstream/canvas-net-tool.yaml");
+        }
+
         comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, Rendering, and Positions subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, Scad, VegaLite, Mermaid, PlantUml, and Viewer systems; the Viewer system carries the Imaging subsystem) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
 
         part program : Program;
@@ -25,20 +40,20 @@ package CanvasNet {
         part commands : Commands;
         part pandocFilter : PandocFilter;
 
-        dependency usesCanvas from CanvasNetToolSystem to Canvas;
-        dependency usesCodecs from CanvasNetToolSystem to Codecs;
-        dependency usesFonts from CanvasNetToolSystem to Fonts;
-        dependency usesRendering from CanvasNetToolSystem to Rendering;
-        dependency usesPositions from CanvasNetToolSystem to Positions;
-        dependency usesSvg from CanvasNetToolSystem to CanvasNetSvgSystem;
-        dependency usesPdf from CanvasNetToolSystem to CanvasNetPdfSystem;
-        dependency usesPptx from CanvasNetToolSystem to CanvasNetPptxSystem;
-        dependency usesVsdx from CanvasNetToolSystem to CanvasNetVsdxSystem;
-        dependency usesRender3D from CanvasNetToolSystem to CanvasNetRender3DSystem;
-        dependency usesScad from CanvasNetToolSystem to CanvasNetScadSystem;
-        dependency usesVegaLite from CanvasNetToolSystem to CanvasNetVegaLiteSystem;
-        dependency usesMermaid from CanvasNetToolSystem to CanvasNetMermaidSystem;
-        dependency usesPlantUml from CanvasNetToolSystem to CanvasNetPlantUmlSystem;
-        dependency usesViewer from CanvasNetToolSystem to CanvasNetViewerSystem;
+        dependency usesCanvas from CanvasNetToolSystem to CanvasNet_CanvasSubsystem::Canvas;
+        dependency usesCodecs from CanvasNetToolSystem to CanvasNet_CodecsSubsystem::Codecs;
+        dependency usesFonts from CanvasNetToolSystem to CanvasNet_FontsSubsystem::Fonts;
+        dependency usesRendering from CanvasNetToolSystem to CanvasNet_RenderingSubsystem::Rendering;
+        dependency usesPositions from CanvasNetToolSystem to CanvasNet_PositionsSubsystem::Positions;
+        dependency usesSvg from CanvasNetToolSystem to CanvasNetSvg::CanvasNetSvgSystem;
+        dependency usesPdf from CanvasNetToolSystem to CanvasNetPdf::CanvasNetPdfSystem;
+        dependency usesPptx from CanvasNetToolSystem to CanvasNetPptx::CanvasNetPptxSystem;
+        dependency usesVsdx from CanvasNetToolSystem to CanvasNetVsdx::CanvasNetVsdxSystem;
+        dependency usesRender3D from CanvasNetToolSystem to CanvasNetRender3D::CanvasNetRender3DSystem;
+        dependency usesScad from CanvasNetToolSystem to CanvasNetScad::CanvasNetScadSystem;
+        dependency usesVegaLite from CanvasNetToolSystem to CanvasNetVegaLite::CanvasNetVegaLiteSystem;
+        dependency usesMermaid from CanvasNetToolSystem to CanvasNetMermaid::CanvasNetMermaidSystem;
+        dependency usesPlantUml from CanvasNetToolSystem to CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        dependency usesViewer from CanvasNetToolSystem to CanvasNetViewer::CanvasNetViewerSystem;
     }
 }

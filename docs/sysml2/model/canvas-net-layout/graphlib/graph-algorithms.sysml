@@ -1,11 +1,15 @@
-package CanvasNet {
+package CanvasNetLayout_GraphAlgorithms {
+    private import SoftwareItemMetadata::*;
+
     part def GraphAlgorithms {
         doc /* The internal static GraphAlgorithms: the graphlib traversals of dagre-d3-es on a Graph. Preorder and Postorder (graphlib's dfs) visit the given roots in order and follow the successors of a directed graph or the neighbors of an undirected graph in the graph's key order, recording each node once, and throw ArgumentException for a root that is not a node. graphlib's other algorithms (components, tarjan, findCycles, and the rest) are not reached by the layout and are not ported. The traversals recurse as graphlib does and call EnsureSufficientExecutionStack on every step, so a stack that runs short raises InsufficientExecutionStackException (reported by the Dagre subsystem as the consumer's limit failure, mermaid-limit-exceeded for Mermaid) instead of ending the process. The network-simplex ranker of the Dagre subsystem uses Postorder and Preorder. Stateless; depends on the Graph unit and the .NET base class library. */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Layout/Graphlib/GraphAlgorithms.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/GraphAlgorithmsTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-layout/graphlib/graph-algorithms.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-layout/graphlib/graph-algorithms.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-layout/graphlib/graph-algorithms.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = ("src/DemaConsulting.CanvasNet.Layout/Graphlib/GraphAlgorithms.cs");
+            testFiles = ("test/DemaConsulting.CanvasNet.Layout.Tests/Graphlib/GraphAlgorithmsTests.cs");
+            designFiles = ("docs/design/canvas-net-layout/graphlib/graph-algorithms.md");
+            verificationFiles = ("docs/verification/canvas-net-layout/graphlib/graph-algorithms.md");
+            requirementFiles = ("docs/reqstream/canvas-net-layout/graphlib/graph-algorithms.yaml");
+        }
     }
 }

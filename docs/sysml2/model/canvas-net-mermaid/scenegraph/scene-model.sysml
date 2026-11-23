@@ -1,11 +1,18 @@
-package CanvasNet {
+package CanvasNetMermaid_MermaidSceneModel {
+    private import SoftwareItemMetadata::*;
+
     part def MermaidSceneModel {
         doc /* The internal immutable scene records of a laid-out Mermaid diagram, in Mermaid's SVG user units: SceneRect (with Union and Offset), SceneSegment (move, line, quadratic, cubic, elliptical arc, and close in absolute units, created through factories), SceneStroke (color with opacity folded in, width, dash pattern and offset, cap, join), SceneFont (CSS family list, size, bold, italic), SceneTextRun (with an underline flag), and the items derived from SceneItem (a role, Mermaid's element id, and the location of the construct): SceneGroup (children translated together), ScenePath (fill, fill rule, stroke, and an optional SceneShadow drop shadow of an offset, a blur, and a color), SceneText (one line of runs at a start, middle, or end anchor with its measured box, an optional stroke, and an optional SceneRotation that turns the laid-out line by an angle in degrees about a point, as SVG's rotate(angle, cx, cy) does, its box staying the one the producer gives), and SceneImage (a picture filling a box with an opacity). Scene holds the view box (the natural size of the diagram), the items in paint order, and the picture loader of its pictures; Scene.Walk enumerates the items depth first with their accumulated offsets, Scene.BoundsOf gives the bounds of items as an SVG bounding box does (curves rather than control points, strokes and shadows excluded, text and picture boxes, group translations applied, null when nothing is drawn), and Scene.ToPath converts segments to a core Path at a scale and offset (a path that does not begin with a move starts at the origin). SceneItem also carries the internal Position, a ScenePositionTag (the kind and id of the feature the item draws, its text, the ids of the ends of an edge or message, the location of its construct, the value of a pie slice, whether the pixel aims along the path, and an explicit aim point) that the renderers set for the ScenePositions unit and that never changes the pixels, and the internal Scene.BoundsOf(items, dx, dy) gives the bounds of items under an accumulated translation for it. Depends on the core Rgba32, FillRule, LineCap, LineJoin, Path, and PathBuilder and on MermaidLocation. */
 
-        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/SceneModel.cs */
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/SceneModelTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePositionsTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-mermaid/scenegraph/scene-model.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/scenegraph/scene-model.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml */
+        metadata info : SoftwareInfo {
+            sourceFiles = ("src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/SceneModel.cs");
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/SceneModelTests.cs",
+                "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePositionsTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-mermaid/scenegraph/scene-model.md");
+            verificationFiles = ("docs/verification/canvas-net-mermaid/scenegraph/scene-model.md");
+            requirementFiles = ("docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml");
+        }
     }
 }

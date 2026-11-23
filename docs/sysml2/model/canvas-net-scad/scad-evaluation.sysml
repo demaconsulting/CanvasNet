@@ -1,11 +1,29 @@
-package CanvasNet {
+package CanvasNetScad_ScadEvaluationSubsystem {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNetScad_ScadValue::*;
+    public import CanvasNetScad_ScadEvaluator::*;
+    public import CanvasNetScad_ScadBuiltinFunctions::*;
+    public import CanvasNetScad_ScadFileResolver::*;
+
     part def ScadEvaluation {
         doc /* The internal evaluation subsystem in the DemaConsulting.CanvasNet.Scad.Evaluation namespace that runs a parsed OpenSCAD-language program: the ScadFileResolver first resolves include and use directives on the calling thread (relative to the including file, the base directory and library paths, under the caller's file-access policy, or as logical paths handed to the caller's resolver), then the ScadEvaluator evaluates purely in memory over the resolved, immutable units - lazy last-assignment-wins scoping, dynamically scoped special variables, functions, closures, tail calls, modules with children, control flow, comprehensions - using the ScadValue value model and the ScadBuiltinFunctions library, and produces a geometry-agnostic instantiation tree plus buffered echo lines, warnings, and unsupported-feature reports. The recursion limit is counted deterministically and the pass restarts on a bounded, dedicated large-stack thread only when the caller's stack is too small; every resource (recursion, steps, loop iterations, list and string length, instances, output, include depth and count, diagnostics) is bounded by ScadLimits and cancellation is honored. The subsystem is internal; the public entry point is ScadDocument.Evaluate. As of this release, its constituent units are ScadValue, ScadEvaluator, ScadBuiltinFunctions, and ScadFileResolver. */
 
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorEntryPointTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorFixtureTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorIncludeUseTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDiagnosticsTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorLimitTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorProductLimitTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorStackTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorCancellationTests.cs, test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDeterminismTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-scad/scad-evaluation.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-scad/scad-evaluation.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-scad/scad-evaluation.yaml */
+        metadata info : SoftwareInfo {
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorEntryPointTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorFixtureTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorIncludeUseTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDiagnosticsTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorLimitTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorProductLimitTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorStackTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorCancellationTests.cs",
+                "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluatorDeterminismTests.cs"
+            );
+            designFiles = ("docs/design/canvas-net-scad/scad-evaluation.md");
+            verificationFiles = ("docs/verification/canvas-net-scad/scad-evaluation.md");
+            requirementFiles = ("docs/reqstream/canvas-net-scad/scad-evaluation.yaml");
+        }
 
         part scadValue : ScadValue;
         part scadEvaluator : ScadEvaluator;

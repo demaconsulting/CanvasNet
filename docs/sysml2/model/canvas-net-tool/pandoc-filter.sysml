@@ -1,12 +1,28 @@
-package CanvasNet {
+package CanvasNetTool_PandocFilterSubsystem {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNetTool_PandocAst::*;
+    public import CanvasNetTool_FilterPaths::*;
+    public import CanvasNetTool_PictureAttributes::*;
+    public import CanvasNetTool_DependencyHasher::*;
+    public import CanvasNetTool_FilterSettings::*;
+    public import CanvasNetTool_PictureCache::*;
+    public import CanvasNetTool_PandocFilterEngine::*;
+    public import CanvasNetTool_PandocFilterShim::*;
+    private import CanvasNetTool_FlattenCommand::*;
+    private import CanvasNetTool_RenderCommand::*;
+
     part def PandocFilter {
         doc /* The internal subsystem in the DemaConsulting.CanvasNet.Tool.PandocFilter namespace that draws the pictures of a Pandoc document in one process, for the Lua shim docs/filters/canvasnet.lua, which sends the whole document to the pandoc-filter command once per Pandoc run and applies what comes back. It is a literal port of the former Lua filter (version 16): the pictures of OpenSCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, and PDF, PPTX, and VSDX pages become PNG pictures in the cache folder generated/canvasnet beside the folder of the shim, an SVG drawing that links one becomes its flattened copy, a Mermaid code block becomes a figure or a paragraph, and every other element is unchanged. PandocAst reads and writes the JSON document; PictureAttributes reads the attributes of a picture; FilterPaths finds its source; DependencyHasher hashes every file it reads (64 levels, 512 files); FilterSettings holds the inputs of the run and the CANVASNET_* variables; PictureCache names the pictures by a SHA-1 key (version 17) and writes them atomically; PandocFilterEngine plans, draws up to a number of jobs at once through ToolPictureDrawer (RenderCommand.Execute and FlattenCommand.Execute in-process), and applies, always reporting the failure of the first picture; PandocFilterShim is the embedded shim and its protocol (1). A mistake in a picture is the error pandoc-filter-error. */
 
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocFilterSubsystemTests.cs */
-        comment testSupportRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/FilterTestSupport.cs */
-        comment designRef /* Design: docs/design/canvas-net-tool/pandoc-filter.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-tool/pandoc-filter.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-tool/pandoc-filter.yaml */
+        metadata info : SoftwareInfo {
+            testFiles = (
+                "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/PandocFilterSubsystemTests.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/PandocFilter/FilterTestSupport.cs"
+            );
+            designFiles = ("docs/design/canvas-net-tool/pandoc-filter.md");
+            verificationFiles = ("docs/verification/canvas-net-tool/pandoc-filter.md");
+            requirementFiles = ("docs/reqstream/canvas-net-tool/pandoc-filter.yaml");
+        }
 
         part pandocAst : PandocAst;
         part filterPaths : FilterPaths;
@@ -35,6 +51,6 @@ package CanvasNet {
         dependency shimUsesCache from pandocFilterShim to pictureCache;
         dependency engineUsesRenderCommand from pandocFilterEngine to RenderCommand;
         dependency engineUsesFlattenCommand from pandocFilterEngine to FlattenCommand;
-        dependency usesImaging from PandocFilter to Imaging;
+        dependency usesImaging from PandocFilter to CanvasNetViewer_ImagingSubsystem::Imaging;
     }
 }

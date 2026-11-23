@@ -1,11 +1,24 @@
-package CanvasNet {
+package CanvasNetTool_CommandsSubsystem {
+    private import SoftwareItemMetadata::*;
+    public import CanvasNetTool_CommandRegistry::*;
+    public import CanvasNetTool_HelpTopics::*;
+    public import CanvasNetTool_DiscoveryCommands::*;
+    public import CanvasNetTool_RenderCommand::*;
+    public import CanvasNetTool_CompareCommand::*;
+    public import CanvasNetTool_MontageCommand::*;
+    public import CanvasNetTool_InspectCommand::*;
+    public import CanvasNetTool_FlattenCommand::*;
+    public import CanvasNetTool_PandocFilterCommand::*;
+
     part def Commands {
         doc /* The subsystem in the DemaConsulting.CanvasNet.Tool.Commands namespace that turns the command named on the command line into running code. The ICommand contract (name, aliases, summary, options, usage, and Run, which reports expected failures as ToolException) and the OptionSpec option description define what a command is; the CommandRegistry unit holds the table of commands, resolves a typed name or alias, dispatches to the command, suggests the closest name for an unknown command, and renders the top-level and per-command help and the help cards (through the HelpTopics unit).         The individual command units are added to this subsystem as the commands are implemented. As of this release, its constituent units are CommandRegistry, HelpTopics (the command-line layer of the help cards: the help catalog of the Viewer library, which holds the cards about the input formats, style and composition, errors, limits, and file access, with the tool's own cards for the result documents and the Pandoc filter and its command-line sections of the library cards), DiscoveryCommands (the formats and info commands), RenderCommand (the render command and its alias convert, and the verb commands crop, resize, rotate, flip, and pad), CompareCommand (the compare command), MontageCommand (the montage command), InspectCommand (the inspect command with the subcommands colors and pixel), FlattenCommand (the flatten command), and PandocFilterCommand (the pandoc-filter command that the Lua shim of the Pandoc filter runs; it runs the PandocFilterEngine of the PandocFilter subsystem, whose ToolPictureDrawer in turn calls RenderCommand.Execute and FlattenCommand.Execute). Render (and its verbs), inspect, compare, montage, and flatten share the options --file-access and --allow-root from the render option table and build one FileAccessPolicy per invocation with RenderCommand.ReadFileAccess, which every probe and load of the command receives; info has no such option and probes under FileAccessPolicy.AllowAll. */
 
-        comment testRef /* Test: test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandsSubsystemTests.cs */
-        comment designRef /* Design: docs/design/canvas-net-tool/commands.md */
-        comment verificationRef /* Verification: docs/verification/canvas-net-tool/commands.md */
-        comment reqRef /* Requirements: docs/reqstream/canvas-net-tool/commands.yaml */
+        metadata info : SoftwareInfo {
+            testFiles = ("test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandsSubsystemTests.cs");
+            designFiles = ("docs/design/canvas-net-tool/commands.md");
+            verificationFiles = ("docs/verification/canvas-net-tool/commands.md");
+            requirementFiles = ("docs/reqstream/canvas-net-tool/commands.yaml");
+        }
 
         part commandRegistry : CommandRegistry;
         part helpTopics : HelpTopics;
@@ -18,9 +31,9 @@ package CanvasNet {
         part pandocFilterCommand : PandocFilterCommand;
 
         // The pandoc-filter command is the front end of the PandocFilter subsystem
-        dependency pandocFilterCommandUsesPandocFilter from pandocFilterCommand to PandocFilter;
+        dependency pandocFilterCommandUsesPandocFilter from pandocFilterCommand to CanvasNetTool_PandocFilterSubsystem::PandocFilter;
 
         // The help cards are the help catalog of the Viewer with the tool's layer on it
-        dependency helpTopicsUsesHelp from helpTopics to Help;
+        dependency helpTopicsUsesHelp from helpTopics to CanvasNetViewer_HelpSubsystem::Help;
     }
 }
