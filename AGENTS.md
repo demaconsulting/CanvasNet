@@ -107,6 +107,7 @@ from `.github/standards/`. Use this matrix to determine which to load:
 - **Software structure**: `sysml2-modeling.md`
 - **Any documentation**: `technical-documentation.md`
 - **Diagrams in documentation**: `diagram-documentation.md` (and the `canvasnet` skill for tooling)
+- **Reading PDF or Office documents**: the `docdown` skill
 
 Load only the standards relevant to your specific task scope.
 
@@ -132,6 +133,20 @@ SysML2 model has not been migrated to that metadata yet (the migration is deferr
 - New model elements follow the existing comment convention, so the model stays consistent until it is migrated as
   a whole.
 
+## One Shared Package Across the SysML2 Files (`sysml2-modeling.md`, `sysml2tools-query`)
+
+The shared standard asks each `.sysml` file to declare exactly one uniquely named package. This repository's model
+has not been migrated to that structure yet (the migration is deferred until the updated SysML2 recommendations
+arrive). Until it is:
+
+- The model keeps a single `package CanvasNet` across its files, and the `sysml2tools` tool stays pinned at
+  `0.3.0-beta.3` (later versions enforce the one-package-per-file rule and reject the current model).
+- Agents do not split or rename packages piecemeal; new elements go into the existing `package CanvasNet`, so the
+  model is migrated as a whole.
+- The pinned tool does not support the `--strict-unresolved` lint option that the shared standard and the
+  `sysml2tools-query` skill require, so agents validate the model with `dotnet sysml2tools lint
+  'docs/sysml2/**/*.sysml'`, as `lint.ps1` does. The migration adds the option to `lint.ps1` with the tool update.
+
 ## No Wall-Clock Dependence in Tests (`testing-principles.md`, `csharp-testing.md`)
 
 Tests run on shared machines that are often heavily loaded (many agents build and test at once), so a test must
@@ -143,7 +158,11 @@ pass or fail the same way however fast or busy the machine is:
   something happen at the right moment. Trigger it deterministically from inside the work (for example cancel when
   a known callback, echo, or step is reached), or use a pre-canceled token.
 - Prove bounds with deterministic measures instead: the specific limit error, steps or items charged, allocated
-  bytes, or the absence of further work after a cancellation point.
+  bytes, or the absence of further work after a cancellation point. Asserting these resource measures (allocated
+  bytes, step, item, or work counts, limit errors) is allowed even where the shared rules favor observable behavior.
+- Parity tests that compare checked-in documentation (the user guides) with the help cards, and byte-identity
+  checks of generated checked-in files (the Pandoc shim), are allowed: they keep documentation and code from
+  drifting apart.
 - Performance is measured by profiling and benchmarks (`tools/`), never by unit tests.
 
 # Agent Delegation Guidelines
@@ -302,7 +321,20 @@ requires it and the modification preserves the documented design intent:
 
 - `.reviewmark.yaml`, `.textlint.yaml`, `.editorconfig`
 - `.lintmark.yaml`, `.yamllint.yaml`
-- `requirements.yaml`, `fix.ps1`, `lint.ps1`
+- `requirements.yaml`
+
+# Project Scripts
+
+`build.ps1`, `lint.ps1`, and `fix.ps1` belong to the project: extend them as it grows. Add project-specific
+steps, update tool versions, and add optional parameters that focus a run (for example one library in a
+multi-library repository, or headless tests without GUI automation). Two rules keep them trustworthy:
+
+- Run with no arguments, each script still does its full job (CI and the agents rely on that); slow or
+  environment-dependent test tiers may be opt-in switches of `build.ps1`.
+- Never remove or weaken a check to make lint or tests pass.
+
+This repository's focus parameters (`-Affected`, `-Project`, `-Changed`, `-Base`, `-DryRun`) are described in
+*Scoped Validation*.
 
 # Continuous Compliance Overview
 

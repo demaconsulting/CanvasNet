@@ -1,4 +1,4 @@
-# CanvasNet
+# ![CanvasNet: Every format in, crisp pictures out][hero]
 
 <!-- IMPORTANT: All links in this file must be absolute URLs.
      This file is distributed in packages and relative links will not resolve. -->
@@ -11,8 +11,6 @@
 [![Quality Gate][badge-quality]][link-quality]
 [![Security][badge-security]][link-security]
 [![NuGet][badge-nuget]][link-nuget]
-
-![CanvasNet banner: the CanvasNet name with the tagline 'Every format in. Crisp pictures out.' and the command 'canvasnet render hero.svg'. Live renders of a Mermaid flowchart, a PlantUML sequence diagram, an OpenSCAD bearing housing, a Vega-Lite bar chart, an SVG landscape, and PDF, PowerPoint and Visio pages flow on curved arrows into the canvasnet engine and its .NET API, and arrows lead out to a composed PNG figure, an image comparison that highlights a changed bar, a montage of an exploded 3D assembly, and a Pandoc document page. The banner is itself one SVG file drawn by CanvasNet from those source files](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/hero.png)
 
 ## Overview
 
@@ -794,6 +792,9 @@ record of what was ported from where. The package is not affiliated with or endo
 
 - [Report a bug or request a feature][link-issues]
 - [Ask a question or start a discussion][link-discussions]
+
+<!-- Image References -->
+[hero]: https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/hero.png
 
 <!-- Badge References -->
 [badge-forks]: https://img.shields.io/github/forks/demaconsulting/CanvasNet?style=plastic
