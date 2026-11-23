@@ -9,7 +9,6 @@ package CanvasNetVegaLite_VegaLiteLayoutSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutCompositionTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/LegendLayoutTests.cs",

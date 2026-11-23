@@ -10,7 +10,6 @@ package CanvasNetVegaLite_TimeUnitTransform {
                 "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TemporalFields.cs"
             );
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeUnitTransformTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TemporalFieldsTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeTestPipeline.cs"

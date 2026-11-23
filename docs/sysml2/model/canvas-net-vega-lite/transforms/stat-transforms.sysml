@@ -6,7 +6,12 @@ package CanvasNetVegaLite_StatTransforms {
 
         metadata info : SoftwareInfo {
             sourceFiles = (
-                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms*.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.Regression.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.Loess.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.Density.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.Quantile.cs",
+                "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms.Extent.cs",
                 "src/DemaConsulting.CanvasNet.VegaLite/Transforms/RegressionFit.cs",
                 "src/DemaConsulting.CanvasNet.VegaLite/Transforms/CurveSampler.cs",
                 "src/DemaConsulting.CanvasNet.VegaLite/Transforms/LoessFit.cs",
@@ -14,8 +19,9 @@ package CanvasNetVegaLite_StatTransforms {
                 "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatisticsPrimitives.cs"
             );
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/",
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransforms*Tests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsRegressionTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsDensityTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsQuantileTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RegressionFitTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/CurveSamplerTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/LoessFitTests.cs",

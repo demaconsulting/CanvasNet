@@ -9,7 +9,6 @@ package CanvasNetVegaLite_VegaLiteExpressionsSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionEvaluatorTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs",

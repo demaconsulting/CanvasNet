@@ -8,7 +8,6 @@ package CanvasNetVegaLite_VegaLiteMarksSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs",

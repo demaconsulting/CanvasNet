@@ -23,7 +23,6 @@ package CanvasNetVegaLite {
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTemporalScaleTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLineAreaIntegrationTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteArcTextIntegrationTests.cs",
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteLimitAuditTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteSourceGuardTests.cs",

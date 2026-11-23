@@ -26,4 +26,5 @@ sections:
             tests:
               - SysML2Tools_RenderSvgSelfTest
               - SysML2Tools_SoftwareStructureViewSvg
+              - SysML2Tools_SoftwareDependencyViewSvg
               - SysML2Tools_CanvasNetViewSvg

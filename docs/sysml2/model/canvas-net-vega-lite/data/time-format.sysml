@@ -14,7 +14,6 @@ package CanvasNetVegaLite_TimeFormat {
                 "src/DemaConsulting.CanvasNet.VegaLite/Data/JsDateParser.Legacy.cs"
             );
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeFormatTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeFormatParseTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeFormatMultiTests.cs",

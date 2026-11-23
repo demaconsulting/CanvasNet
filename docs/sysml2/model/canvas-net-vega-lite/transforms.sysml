@@ -12,16 +12,21 @@ package CanvasNetVegaLite_VegaLiteTransformsSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTimeTests.cs",
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransforms*Tests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsJoinAggregateTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsWindowTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsStackTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsImputeTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTimeTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTimeTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeUnitTransformTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TemporalFieldsTests.cs",
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransforms*Tests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsRegressionTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsDensityTests.cs",
+                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransformsQuantileTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/SelectionModelTests.cs"
             );
             designFiles = ("docs/design/canvas-net-vega-lite/transforms.md");

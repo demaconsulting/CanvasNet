@@ -12,7 +12,6 @@ package CanvasNetVegaLite_VegaLiteScenegraphSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterPathTests.cs",

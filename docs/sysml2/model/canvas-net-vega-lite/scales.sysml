@@ -12,7 +12,6 @@ package CanvasNetVegaLite_VegaLiteScalesSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleModelTimeTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs",

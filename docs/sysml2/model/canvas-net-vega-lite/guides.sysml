@@ -13,7 +13,6 @@ package CanvasNetVegaLite_VegaLiteGuidesSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TextMeasurerTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderHeaderTests.cs",

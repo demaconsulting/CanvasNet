@@ -11,7 +11,6 @@ package CanvasNetVegaLite_VegaLiteSpecModelSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ConfigResolverTests.cs",

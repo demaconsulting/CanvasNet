@@ -12,7 +12,6 @@ package CanvasNetVegaLite_VegaLiteDataSubsystem {
 
         metadata info : SoftwareInfo {
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs",

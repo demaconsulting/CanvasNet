@@ -13,7 +13,6 @@ package CanvasNetVegaLite_TimeCalendar {
                 "src/DemaConsulting.CanvasNet.VegaLite/Data/TimeDateObject.cs"
             );
             testFiles = (
-                "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendarTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendarZoneTests.cs",
                 "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendarIntervalTests.cs",
