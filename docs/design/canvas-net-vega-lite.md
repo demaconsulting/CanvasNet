@@ -185,7 +185,8 @@ names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteData`, `VegaLit
 `VegaLiteScales`, `VegaLiteGuides`,
 `VegaLiteLayout`, `VegaLiteMarks`, and `VegaLiteScenegraph`), the `SceneModel` unit is `VegaLiteSceneModel`, and the
 `ScenePositions` unit is `VegaLiteScenePositions`,
-because the `CanvasNet` model package is shared by every system of the repository and `SceneModel` and `SceneGraph`
+because part def names stay unique across every system of the repository (the design views import every system's
+package) and `SceneModel` and `SceneGraph`
 already name items of `CanvasNetRender3D` (and `ScenePositions` names the `MermaidScenePositions` unit's source class).
 
 Dependencies inside the system are one-directional at the unit level, apart from three shared static rules.
