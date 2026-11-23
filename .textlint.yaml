@@ -1351,6 +1351,11 @@ words:
   # name of its multi-line element command (CommandCreateElementMultilines)
   - archimate
   - Multilines
+  # The SysML2 modeling standard's rationale names a modeling vendor (Sensmetry), its tool (Syside), and that
+  # tool's naming rule (global-namespace-distinguishability)
+  - Sensmetry
+  - Syside
+  - distinguishability
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
