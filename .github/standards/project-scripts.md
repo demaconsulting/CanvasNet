@@ -29,7 +29,8 @@ switches, valid `-Check` names, and examples for a repository is the output of
 
 # Running the Scripts (ALL Agents)
 
-- **Iterate scoped.** While developing, run `-Changed` (or `-Project`/`-Check`) so only the
+- **Iterate scoped.** While developing, run `-Changed` (or `-Check`, or `-Project` where the
+  repository's `build.ps1 -Help` lists it) so only the
   affected work runs. Use `-DryRun` to see the selection first.
 - **Run `-All` once before handing work back** or opening a pull request: `pwsh ./build.ps1 -All`
   (code changes) and `pwsh ./lint.ps1 -All` (via the lint-fix agent). Re-run only if files change
@@ -44,8 +45,10 @@ switches, valid `-Check` names, and examples for a repository is the output of
   fixers, steps, tool versions, and optional focus parameters at the `[PROJECT-SPECIFIC]` blocks.
 - **`scripts/ProjectScripts.psm1` is shared verbatim.** It holds the logic common to every
   repository (usage text, argument validation, changed-file discovery, project graph). It is
-  synchronized from the template: never edit it in a consuming repository. If it must change for
-  every repository, change the template instead.
+  delivered by the Agents release zip, which is extracted into the repository root and so places
+  the module at `scripts/ProjectScripts.psm1`. Never edit it in a consuming repository; update it
+  only by extracting a newer release (or syncing from the template). If it must change for every
+  repository, change it in the Agents repository (`src/scripts/ProjectScripts.psm1`) instead.
 - **Repository-specific behavior** (extra checks or fixers, runtime-read maps, input filters) goes
   in the `[PROJECT-SPECIFIC]` blocks of the scripts, never in the module.
 - **`-All` must keep doing the full job.** Adding a check or fixer means `-All` runs it; it must
@@ -53,7 +56,7 @@ switches, valid `-Check` names, and examples for a repository is the output of
 - **Never remove or weaken a check** (or a test step) to make lint or tests pass.
 - **Keep the usage text accurate and short** (about 25 lines or fewer). Update it whenever
   switches, checks, or fixers change.
-- **`-DryRun` must reflect the real selection.** Whatever `-Changed`, `-Project`, or `-Check`
+- **`-DryRun` must reflect the real selection.** Whatever `-Changed`, `-Check`, or (where it exists) `-Project`
   would run is exactly what `-DryRun` prints; add a new selection rule to both together.
 - **Keep the no-argument behavior.** Do not give a script a default scope; no arguments must still
   print the error and usage and exit 1.
