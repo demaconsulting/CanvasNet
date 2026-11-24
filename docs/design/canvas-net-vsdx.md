@@ -555,7 +555,7 @@ already correct.
    `docs/verification/canvas-net-vsdx/vsdx-document.md`'s TODO scenario sections against the
    resulting test names; update every `docs/reqstream/canvas-net-vsdx/**/*.yaml` requirement's
    `tests:` list to reference the real, passing test method names.
-9. **Local code review + documentation finalization.** Run `lint.ps1`/`build.ps1`, resolve any
+9. **Local code review + documentation finalization.** Run `lint.ps1 -All`/`build.ps1 -All`, resolve any
    SonarMark/SarifMark findings, confirm every requirement in `docs/reqstream/canvas-net-vsdx/`
    links to a passing test, confirm `sysml2tools lint`/`reviewmark --plan --enforce` both pass,
    and finalize the README/User Guide updates for the new package.
