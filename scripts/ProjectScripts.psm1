@@ -259,8 +259,7 @@ function Get-DotnetFormatScope {
     #>
     param([string[]]$Files, [int]$MaxFiles = 200)
 
-    $projectChanged = Test-AnyMatch $Files `
-        '\.(csproj|props|targets|sln|slnx)$|(^|/)(\.editorconfig|\.globalconfig|global\.json|nuget\.config)$'
+    $projectChanged = @($Files | Where-Object { Test-BuildConfigFile $_ }).Count -gt 0
     $csFiles = @($Files | Where-Object { $_ -match '\.cs$' -and (Test-Path -LiteralPath $_) })
     $include = @()
     if (-not $projectChanged -and $csFiles.Count -gt 0 -and $csFiles.Count -le $MaxFiles) { $include = $csFiles }
@@ -459,14 +458,15 @@ function Resolve-ProjectName {
     return $null
 }
 
-function Test-BuildWideFile {
+function Test-BuildConfigFile {
     <#
     .SYNOPSIS
-        Tests whether a changed file affects the whole build.
+        Tests whether a file is a solution, project, or build configuration file.
     .DESCRIPTION
-        Solution, project, props/targets, SDK pin, formatting, package, and tool-manifest files, and the
-        project scripts themselves, can change the result for every project, so any of them changing
-        forces the full build instead of a scoped one.
+        The single definition of the files that can change the build or formatting result of every
+        project: solution and project files, props/targets, Directory.Build.* and Directory.Packages.props,
+        the SDK pin, package sources, and formatting configuration. Test-BuildWideFile (full build) and
+        Get-DotnetFormatScope (whole-solution dotnet format) both use it, so they cannot drift apart.
     .PARAMETER File
         Repository-relative file path with forward slashes.
     #>
@@ -474,7 +474,23 @@ function Test-BuildWideFile {
 
     $leaf = Split-Path $File -Leaf
     return ($leaf -match '^(Directory\.Build\.(props|targets|rsp)|Directory\.Packages\.props|global\.json|nuget\.config|\.editorconfig|\.globalconfig)$') -or
-        ($File -match '\.(sln|slnx|slnf|csproj|props|targets)$') -or
+        ($File -match '\.(sln|slnx|slnf|csproj|props|targets)$')
+}
+
+function Test-BuildWideFile {
+    <#
+    .SYNOPSIS
+        Tests whether a changed file affects the whole build.
+    .DESCRIPTION
+        Build configuration files (see Test-BuildConfigFile), the tool manifest, and the project scripts
+        themselves can change the result for every project, so any of them changing forces the full
+        build instead of a scoped one.
+    .PARAMETER File
+        Repository-relative file path with forward slashes.
+    #>
+    param([string]$File)
+
+    return (Test-BuildConfigFile $File) -or
         ($File -in @('.config/dotnet-tools.json', 'build.ps1', 'scripts/ProjectScripts.psm1'))
 }
 
@@ -544,6 +560,6 @@ Export-ModuleMember -Function @(
     'Write-ScriptUsage', 'Test-ScopeArguments', 'Resolve-NameList',
     'Get-ChangedFiles', 'Test-AnyMatch', 'Convert-GlobToRegex', 'Get-ReviewMarkPattern', 'Get-DotnetFormatScope',
     'Get-VenvActivateScript', 'Initialize-PythonVenv', 'Convert-YamlLineEndings',
-    'Resolve-RepoPath', 'Get-ProjectGraph', 'Resolve-ProjectName', 'Test-BuildWideFile',
+    'Resolve-RepoPath', 'Get-ProjectGraph', 'Resolve-ProjectName', 'Test-BuildConfigFile', 'Test-BuildWideFile',
     'Add-ChangedProjects', 'Expand-ReferencingProjects'
 )

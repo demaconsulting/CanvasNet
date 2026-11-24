@@ -3,11 +3,11 @@
 # PURPOSE:
 #   Unified cross-platform build script (replaces build.bat and build.sh).
 #   Builds the solution in Release configuration and runs the unit tests, either all of them
-#   (-All, what CI runs) or only the test projects a change affects (-Changed / -Project).
+#   (-All, the full local build and test run) or only the test projects a change affects (-Changed / -Project).
 #
 # USAGE:
 #   pwsh ./build.ps1 -Help                     Print the usage text and exit 0
-#   pwsh ./build.ps1 -All                      Full build and all tests (CI)
+#   pwsh ./build.ps1 -All                      Full local build and all tests
 #   pwsh ./build.ps1 -Changed [-Base <ref>]    Only the test projects affected by the changes since <ref>
 #                                              (default origin/main, else main) plus uncommitted changes
 #   pwsh ./build.ps1 -Project Svg,Mermaid      Only the test projects affected by the named projects
@@ -29,10 +29,10 @@
 #   be edited here. Slow or environment-dependent test tiers (GUI automation, integration) may be
 #   opt-in switches.
 #   With no arguments the script prints the usage text and exits 1; -All must still build and run
-#   the standard test suite (CI relies on that). Never remove or weaken a test step to make it pass.
+#   the standard test suite (the agents rely on that). Never remove or weaken a test step to make it pass.
 
 param(
-    # Full build and all tests (what CI runs).
+    # Full local build and all tests.
     [switch]$All,
 
     # Build and test only the projects affected by the changed files.
@@ -71,7 +71,7 @@ function Show-Usage {
     Write-ScriptUsage -Script 'build.ps1' -IterateWith '-Changed (or -Project)' `
         -Purpose 'build the solution (Release) and run the unit tests.' `
         -Options ([ordered]@{
-            '-All'            = 'Full build and all tests (what CI runs); cannot be combined with another scope.'
+            '-All'            = 'Full local build and all tests; cannot be combined with another scope.'
             '-Changed'        = 'Only the test projects affected by files changed since the base, plus uncommitted files.'
             '-Base <ref>'     = 'Base reference for -Changed (default origin/main, else main).'
             '-Project <names>' = 'Only the test projects affected by these projects (full or short names, e.g. Svg,Core).'
