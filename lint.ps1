@@ -323,8 +323,23 @@ if ($run.format) {
     if (-not $skipDotnetFormat) {
         $formatArgs = @('--verify-no-changes', '--no-restore')
         if ($formatInclude.Count -gt 0) { $formatArgs += @('--include') + $formatInclude }
-        dotnet format @formatArgs
-        if ($LASTEXITCODE -ne 0) { $lintError = $true }
+
+        # [PROJECT-SPECIFIC] (candidate template improvement) `dotnet format --verify-no-changes` has a known,
+        # platform-specific exit-code bug (dotnet/sdk#41422): the exit code can stay 0 (seen on macOS) even though
+        # files need formatting. The tool still prints MSBuild-style diagnostics for each affected file (for example
+        # "File.cs(1,17): error WHITESPACE: Fix whitespace formatting."), so judge the run by the exit code AND by
+        # those diagnostics. Dry-run mode only, so the working tree is never modified.
+        function Test-DotnetFormatDiagnostics {
+            param([string[]]$Output)
+            return (($Output -join "`n") -match ': error [A-Z0-9]+:')
+        }
+
+        $formatOutput = dotnet format @formatArgs 2>&1
+        $formatOutput | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0 -or (Test-DotnetFormatDiagnostics ($formatOutput | ForEach-Object { "$_" }))) {
+            $lintError = $true
+            Write-Host "dotnet format found formatting issues; run fix.ps1 locally and commit the results."
+        }
     }
 } else {
     Write-Skipped 'format'
