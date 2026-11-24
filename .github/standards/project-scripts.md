@@ -47,7 +47,7 @@ switches, valid `-Check` names, and examples for a repository is the output of
   repository (usage text, argument validation, changed-file discovery, project graph). It is
   delivered by the Agents release zip, which is extracted into the repository root and so places
   the module at `scripts/ProjectScripts.psm1`. Never edit it in a consuming repository; update it
-  only by extracting a newer release (or syncing from the template). If it must change for every
+  only by extracting a newer release. If it must change for every
   repository, change it in the Agents repository (`src/scripts/ProjectScripts.psm1`) instead.
 - **Repository-specific behavior** (extra checks or fixers, runtime-read maps, input filters) goes
   in the `[PROJECT-SPECIFIC]` blocks of the scripts, never in the module.
@@ -67,7 +67,8 @@ switches, valid `-Check` names, and examples for a repository is the output of
 
 - [ ] No-argument run prints an error and usage and exits 1; `-Help` exits 0
 - [ ] `-All` runs every check, fixer, and test step; `-DryRun` matches what a real run selects
-- [ ] `scripts/ProjectScripts.psm1` is identical to the template copy
+- [ ] `scripts/ProjectScripts.psm1` is byte-identical to the copy in the Agents release zip (source:
+      `src/scripts/ProjectScripts.psm1` in the Agents repository)
 - [ ] Repository-specific changes sit in `[PROJECT-SPECIFIC]` blocks
 - [ ] Usage text is accurate and about 25 lines or fewer
 - [ ] Workflows and documents call the scripts with an explicit scope

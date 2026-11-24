@@ -33,8 +33,9 @@ Delegate each group to a sub-agent.
 # Project Scripts (special handling)
 
 - **`scripts/ProjectScripts.psm1`** is delivered by the Agents release zip (extracted to
-  `scripts/ProjectScripts.psm1` in the repository root) and synchronized **verbatim** from the template:
-  replace the local copy with the template copy exactly; never merge or edit it.
+  `scripts/ProjectScripts.psm1` in the repository root) and must be **byte-identical** to the copy
+  in the Agents repository (`src/scripts/ProjectScripts.psm1`, the source of truth): replace the local copy with that
+  copy exactly; never merge or edit it. It is not part of the `template` branch.
 - **`build.ps1`, `lint.ps1`, and `fix.ps1`** are project-owned: never overwrite them. Merge template
   changes into them, preserve every `[PROJECT-SPECIFIC]` block and the project's checks, fixers, and
   parameters, and keep `-All` doing the full job (see `project-scripts.md`).

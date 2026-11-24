@@ -1,12 +1,13 @@
 # ProjectScripts.psm1
 #
-# SHARED ACROSS DEMA REPOSITORIES. This module is synchronized verbatim from the template.
+# SHARED ACROSS DEMA REPOSITORIES. This module is delivered by the Agents release zip; its source of truth
+# is src/scripts/ProjectScripts.psm1 in the Agents repository, and every copy must be byte-identical to that one.
 # NEVER EDIT IT IN A CONSUMING REPOSITORY: a local edit is lost at the next sync and makes
 # the scripts of that repository differ from every other one.
 #
 # Repository-specific behavior belongs in the [PROJECT-SPECIFIC] blocks of build.ps1,
 # lint.ps1, and fix.ps1 (for example the $RuntimeReads map of build.ps1, extra checks, or
-# extra fixers). If something here has to change for every repository, change the template.
+# extra fixers). If something here has to change for every repository, change it in the Agents repository.
 #
 # PURPOSE:
 #   Holds the repository-agnostic logic the three project scripts share, so the scripts stay

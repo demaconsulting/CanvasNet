@@ -253,7 +253,8 @@ multi-library repository, or headless tests without GUI automation). Two rules k
   environment-dependent test tiers may be opt-in switches of `build.ps1`.
 - Never remove or weaken a check to make lint or tests pass.
 
-The shared scoping logic lives in `scripts/ProjectScripts.psm1`, synchronized verbatim from the template:
+The shared scoping logic lives in `scripts/ProjectScripts.psm1`, delivered by the Agents release zip
+(source of truth: `src/scripts/ProjectScripts.psm1` in the Agents repository) and byte-identical to that copy:
 never edit it in a repository. Repository-specific behavior belongs in the scripts' `[PROJECT-SPECIFIC]`
 blocks (here the `$RuntimeReads` map in `build.ps1`). See `project-scripts.md`.
 
