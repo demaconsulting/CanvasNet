@@ -8,10 +8,11 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 /// <summary>
 ///     System-level tests of the CanvasNet Tool. Most tests run the tool as a real process via
 ///     <c>dotnet</c>; the error-policy tests run it in-process with an injected command so that
-///     standard output and standard error can be examined separately.
+///     standard output and standard error can be examined separately. The tests that only read the outcome of a
+///     self-validation run share one run through <see cref="ValidateProcessFixture"/>.
 /// </summary>
 [Collection("Sequential")]
-public partial class CanvasNetToolTests
+public partial class CanvasNetToolTests : IClassFixture<ValidateProcessFixture>
 {
     /// <summary>
     ///     The path of the tool assembly in the test output directory.
@@ -19,14 +20,21 @@ public partial class CanvasNetToolTests
     private readonly string _dllPath;
 
     /// <summary>
+    ///     The shared self-validation run (<c>--validate --depth 3 --results &lt;file&gt;.trx</c>).
+    /// </summary>
+    private readonly ValidateProcessFixture _validateRun;
+
+    /// <summary>
     ///     Initialize test by locating the CanvasNet Tool DLL.
     /// </summary>
-    public CanvasNetToolTests()
+    /// <param name="validateRun">The shared self-validation run, started on first use.</param>
+    public CanvasNetToolTests(ValidateProcessFixture validateRun)
     {
         // The DLL should be in the same directory as the test assembly
         // because the test project references the tool project
         var baseDir = AppContext.BaseDirectory;
         _dllPath = PathHelpers.SafePathCombine(baseDir, "DemaConsulting.CanvasNet.Tool.dll");
+        _validateRun = validateRun;
 
         Assert.True(File.Exists(_dllPath), $"Could not find CanvasNet Tool DLL at {_dllPath}");
     }
@@ -35,6 +43,7 @@ public partial class CanvasNetToolTests
     ///     Test that version flag outputs version information.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetTool_VersionFlag_Provided_OutputsVersion()
     {
         // Arrange: (none - constructor initializes _dllPath)
@@ -53,6 +62,7 @@ public partial class CanvasNetToolTests
     ///     Test that help flag outputs usage information.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetTool_HelpFlag_Provided_OutputsUsageInformation()
     {
         // Arrange: (none - constructor initializes _dllPath)
@@ -92,10 +102,11 @@ public partial class CanvasNetToolTests
     [Fact]
     public void CanvasNetTool_ValidateFlag_Provided_RunsValidation()
     {
-        // Arrange: (none - constructor initializes _dllPath)
+        // Arrange: (none - the fixture holds the shared self-validation run)
 
-        // Act: run the tool with validate flag
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate");
+        // Act: run the tool with validate flag (the shared run, started on first use)
+        var exitCode = _validateRun.ExitCode;
+        var output = _validateRun.Output;
 
         // Assert: validation summary is present; exit code is success
         Assert.Equal(0, exitCode);
@@ -109,29 +120,19 @@ public partial class CanvasNetToolTests
     [Fact]
     public void CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile()
     {
-        // Arrange: temporary TRX results file path
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_system_test_{Guid.NewGuid()}.trx");
+        // Arrange: the temporary TRX results file path of the shared run (the fixture deletes it)
+        var resultsFile = _validateRun.ResultsFile;
 
-        try
-        {
-            // Act: run validation with TRX results output
-            var exitCode = Runner.Run(out _, "dotnet", _dllPath, "--validate", "--results", resultsFile);
+        // Act: run validation with TRX results output (the shared run, started on first use)
+        var exitCode = _validateRun.ExitCode;
 
-            // Assert: results file is created with valid TRX structure
-            Assert.Equal(0, exitCode);
-            Assert.True(File.Exists(resultsFile), "Results file was not created");
+        // Assert: results file is created with valid TRX structure
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists(resultsFile), "Results file was not created");
 
-            var trxContent = File.ReadAllText(resultsFile);
-            Assert.Contains("<TestRun", trxContent);
-            Assert.Contains("</TestRun>", trxContent);
-        }
-        finally
-        {
-            if (File.Exists(resultsFile))
-            {
-                File.Delete(resultsFile);
-            }
-        }
+        var trxContent = File.ReadAllText(resultsFile);
+        Assert.Contains("<TestRun", trxContent);
+        Assert.Contains("</TestRun>", trxContent);
     }
 
     /// <summary>
@@ -306,10 +307,11 @@ public partial class CanvasNetToolTests
     [Fact]
     public void CanvasNetTool_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel()
     {
-        // Arrange: (none - constructor initializes _dllPath)
+        // Arrange: (none - the fixture holds the shared self-validation run)
 
-        // Act: run validation with heading depth 3
-        var exitCode = Runner.Run(out var output, "dotnet", _dllPath, "--validate", "--depth", "3");
+        // Act: run validation with heading depth 3 (the shared run, started on first use)
+        var exitCode = _validateRun.ExitCode;
+        var output = _validateRun.Output;
 
         // Assert: output contains level-3 markdown headings
         Assert.Equal(0, exitCode);

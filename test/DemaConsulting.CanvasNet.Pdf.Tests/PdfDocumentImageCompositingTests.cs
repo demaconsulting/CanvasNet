@@ -61,6 +61,7 @@ public class PdfDocumentImageCompositingTests
     ///     exact expected bytes per the documented Porter-Duff "over" formula.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CompositeImageOntoSurface_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground()
     {
         using var image = new Surface(3, 1);

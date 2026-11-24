@@ -152,6 +152,7 @@ public class SceneRendererTransparencyTests
     ///     Validates that a translucent box above an opaque box blends with it and the opaque box stays exact elsewhere.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SceneRenderer_Render_TranslucentBoxOverOpaqueBox_ShowsBlend()
     {
         // Arrange: an opaque floor box and, above it, a separate translucent box (one union)

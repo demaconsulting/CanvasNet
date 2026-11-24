@@ -215,6 +215,7 @@ public class PdfImageSourceTests
     ///     fragment draw the first.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PdfImageSource_Render_PageFragment_DrawsTheChosenPage()
     {
         // Arrange

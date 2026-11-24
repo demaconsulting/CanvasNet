@@ -65,6 +65,7 @@ public class VegaLiteChartIntegrationTests
     ///     title, at pixel positions derived from the layout formulas.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels()
     {
         // Arrange: the data rectangle is 240 by 200. Left of it the y axis needs 7 px (tick and label padding) plus the widest label

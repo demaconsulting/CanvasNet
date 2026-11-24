@@ -509,6 +509,7 @@ public class GradientEvaluatorTests
     ///     equal a plain midpoint of the endpoint alphas.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void EvaluatePoint_Linear_TransparentAndOpaqueStops_InterpolatesInPremultipliedAlphaSpace()
     {
         GradientStop[] stops =

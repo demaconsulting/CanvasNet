@@ -328,6 +328,7 @@ public class ScadDocumentViewportRenderTests
     ///     that the caller chose are respected.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void ScadDocumentViewport_FlatDrawing_IsUnlitUnlessLightsAreChosen()
     {
         // Arrange

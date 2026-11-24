@@ -62,6 +62,7 @@ public class MermaidFlowchartIntegrationTests
     ///     arrowhead <c>#333333</c> and subgraph fill <c>#ffffde</c>.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors()
     {
         // Arrange
@@ -112,6 +113,7 @@ public class MermaidFlowchartIntegrationTests
     ///     Validates that <c>classDef</c>, <c>class</c> and <c>style</c> paint the nodes.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes()
     {
         // Arrange

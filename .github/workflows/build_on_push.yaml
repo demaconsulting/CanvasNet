@@ -4,10 +4,19 @@ name: Build on Push
 on:
   push:
   workflow_dispatch:
+    inputs:
+      full-test-matrix:
+        description: 'Run the full unit-test suite on every target framework'
+        required: false
+        type: boolean
+        default: true
   schedule:
     - cron: '0 17 * * 1'  # 5PM UTC every Monday
 
 jobs:
+  # Pushes run the full unit-test suite on net10.0 and the Platform subset on net8.0, net9.0, and
+  # net11.0. The weekly scheduled run (and a manual run, unless its input is cleared) runs the full suite on
+  # every framework, the safety net for what the Platform subset leaves out.
   build:
     name: Build
     permissions:
@@ -18,5 +27,8 @@ jobs:
     uses: ./.github/workflows/build.yaml
     with:
       version: 0.0.0-run.${{ github.run_number }}
+      full-test-matrix: >-
+        ${{ github.event_name == 'schedule'
+        || (github.event_name == 'workflow_dispatch' && inputs.full-test-matrix) }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

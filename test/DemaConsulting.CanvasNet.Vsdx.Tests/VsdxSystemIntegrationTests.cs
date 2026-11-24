@@ -58,6 +58,7 @@ public class VsdxSystemIntegrationTests
     ///     "the package opens and composes with its host platform/dependencies").
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetVsdx_SystemIntegration_VsdxOpen_SucceedsOnWellFormedPackage()
     {
         // Arrange / Act

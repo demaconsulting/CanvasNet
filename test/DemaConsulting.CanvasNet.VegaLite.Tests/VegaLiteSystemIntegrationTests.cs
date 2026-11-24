@@ -281,6 +281,7 @@ public class VegaLiteSystemIntegrationTests
     ///     Validates the scale, the uniform fit to an explicit size and the rejection of invalid sizes.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetVegaLite_SystemIntegration_Render_ScaleAndExplicitSizeFit()
     {
         // Arrange

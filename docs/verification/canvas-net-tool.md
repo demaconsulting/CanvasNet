@@ -49,11 +49,16 @@ SCAD (OpenSCAD), Vega-Lite, Mermaid, and PlantUML paths of the bundled libraries
 
 ## Test Environment
 
-System tests run on .NET 10.0 and .NET 11.0 on Windows, Linux, and macOS in CI; all scenarios are
+System tests run on .NET 10.0 on Windows, Linux, and macOS in every CI build, and also on .NET 11.0 in the release
+and weekly full-matrix builds (every other build runs only the Platform subset on .NET 11.0); all scenarios are
 expected to produce identical results everywhere. Out-of-process tests need the tool assembly and its
 libraries in the test output directory, which the test project's project references provide. Temporary files
 are created in the system temporary directory and removed by each test. Tests that redirect the console
-belong to the "Sequential" collection because console redirection is process-wide.
+belong to the "Sequential" collection because console redirection is process-wide. A self-validation run executes
+every self-test, so the three tests that only read the outcome of the same command line (the validate flag, the TRX
+results file, and the heading depth) share one out-of-process run of `--validate --depth 3 --results <path>.trx`
+through `ValidateProcessFixture`, which starts it the first time a test reads it and deletes its results file at the
+end; the legacy alias, the JUnit XML file, and the unsupported extension each need their own command line and run.
 
 ## Acceptance Criteria
 
@@ -133,13 +138,14 @@ version number with no banner, copyright, or error text, and the exit code is 0.
 **CanvasNetTool_NoArguments_Invoked_DisplaysBanner**: the tool is invoked with no arguments; the output
 contains the banner, the copyright notice, and the usage hint, and the exit code is 0.
 
-**CanvasNetTool_ValidateFlag_Provided_RunsValidation**: `--validate` is the sole argument; the output contains
+**CanvasNetTool_ValidateFlag_Provided_RunsValidation**: `--validate` runs the self-validation (in the shared run
+`--validate --depth 3 --results <path>.trx`, see below); the output contains
 the "Total Tests:" and "Passed:" summary and the exit code is 0; every self-test of the run builds its temporary file
 paths under a private directory with `PathHelpers.SafePathCombine`, so a pass also shows that the path rule accepts
 every path the self-tests need.
 
-**CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile**: `--validate` with `--results <path>.trx`;
-a TRX file containing a `TestRun` element is created and the exit code is 0.
+**CanvasNetTool_ValidateWithTrxResults_Requested_GeneratesTrxFile**: `--validate` with `--results <path>.trx`
+(the shared run); a TRX file containing a `TestRun` element is created and the exit code is 0.
 
 **CanvasNetTool_ValidateWithXmlResults_Requested_GeneratesJUnitFile**: `--validate` with `--results <path>.xml`;
 a JUnit XML file containing a `testsuites` element is created and the exit code is 0.
@@ -150,8 +156,8 @@ the file is created and the exit code is 0.
 **CanvasNetTool_ValidateWithBadExtension_ExtensionInvalid_ReturnsNonZero**: `--validate` with a results path
 with an unsupported extension; the exit code is non-zero and no file is created.
 
-**CanvasNetTool_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel**: `--validate --depth 3`; the report
-heading has three hashes and the exit code is 0.
+**CanvasNetTool_ValidateWithDepth_DepthThree_OutputsCorrectHeadingLevel**: `--validate --depth 3` (the shared
+run); the report heading has three hashes and the exit code is 0.
 
 **CanvasNetTool_SilentFlag_Provided_SuppressesOutput**: `--version --silent`; the output is empty and the exit
 code is 0.

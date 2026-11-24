@@ -4,7 +4,12 @@
 
 `Validation` is verified with unit tests in `ValidationTests.cs`. The self-tests run the tool in-process, so
 no mocking is needed: the tests create a `Context` with controlled arguments, call `Validation.Run`, and
-inspect the captured output, the exit code, and the results files written to temporary paths.
+inspect the captured output, the exit code, and the results files written to temporary paths. A self-validation run
+executes every self-test, so the tests that only read the outcome of a not-silent run with a `.trx` results path
+(the summary, each self-test's pass and record, the order of the self-tests, and the TRX file) share one such run
+through `ValidationRunFixture`, which starts it the first time a test reads it and deletes its results file at the
+end. The tests of the other options (silent, depth, the `.xml` and unsupported results paths, the null context) run
+with their own context.
 
 ### Test Environment
 

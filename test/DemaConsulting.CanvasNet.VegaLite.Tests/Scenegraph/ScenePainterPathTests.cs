@@ -875,6 +875,7 @@ public class ScenePainterPathTests
     ///     Validates the stroke and the opacity of an arc.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void ScenePainter_Paint_ArcStrokeAndOpacityFollowTheItem()
     {
         // Arrange: a half transparent red pie quadrant; a stroked quadrant without a fill; a quadrant with no opacity

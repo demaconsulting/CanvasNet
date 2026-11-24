@@ -56,6 +56,7 @@ public class PdfSystemIntegrationTests
     ///     by every <c>CanvasNetPdf-Platform-*</c> requirement.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPdf_SystemIntegration_PdfOpen_ReturnsExpectedPageCount()
     {
         // Arrange

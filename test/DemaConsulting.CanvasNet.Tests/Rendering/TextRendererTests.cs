@@ -593,6 +593,7 @@ public class TextRendererTests
     ///     the pre-fallback implementation (the measured widths' raw bits and every drawn pixel byte).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void TextRenderer_DrawText_LiberationOnlyText_IsBitIdenticalToPreFallbackDigest()
     {
         // Arrange: Liberation Sans and a text of kerning pairs, ligature-like pairs, accents, and the euro sign

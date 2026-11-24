@@ -133,6 +133,7 @@ public class Render3DSystemIntegrationTests
     ///     Validates the headline render: a perspective cube's silhouette matches the analytic projected area (and is the platform requirements' shared test).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetRender3D_SystemIntegration_Render_CubeSilhouetteMatchesAnalyticCoverage()
     {
         // Arrange: a 2-unit cube viewed head-on from 10 units; its front face (at distance 9) is the whole silhouette
@@ -213,6 +214,7 @@ public class Render3DSystemIntegrationTests
     ///     Validates that orthographic and perspective cameras both place the target at the image center.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetRender3D_SystemIntegration_Camera_OrthographicAndPerspectiveCenterRay()
     {
         // Arrange: a small cube at the origin; one camera of each kind looking at it
@@ -437,6 +439,7 @@ public class Render3DSystemIntegrationTests
     ///     Validates antialiasing: a pixel half covered by a surface blends the surface and background colors at the midpoint.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetRender3D_SystemIntegration_Antialiasing_HalfCoveredPixelBlendsToMidColor()
     {
         // Arrange: 16 x 16 pixels of 1 world unit; the quad's left edge x = -2.5 is the exact middle of pixel column 5

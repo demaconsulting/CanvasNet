@@ -93,6 +93,7 @@ public class PptxSystemIntegrationTests
     ///     test referenced by every <c>CanvasNetPptx-Platform-*</c> requirement.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPptx_SystemIntegration_PptxOpen_SucceedsOnWellFormedPackage()
     {
         // Arrange
