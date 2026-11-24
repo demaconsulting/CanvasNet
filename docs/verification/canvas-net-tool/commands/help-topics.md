@@ -42,7 +42,7 @@ its paths, and its options) is verified by `CommandRegistryTests.cs` and at the 
 
 N/A - standard test environment. The tests belong to the "Sequential" collection because they run the tool through
 `ToolHost`, which redirects the console. The parity tests read `docs/user_guide/canvas-net-tool.md` (`build.ps1
--Affected` selects the tool tests when it changes) and the command-line tests write only to temporary directories that
+-Changed` selects the tool tests when it changes) and the command-line tests write only to temporary directories that
 they delete.
 
 #### Acceptance Criteria

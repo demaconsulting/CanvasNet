@@ -700,7 +700,7 @@ reads, three shared building blocks (charts, 3D rendering, and graph layout), a 
 ## Building
 
 ```pwsh
-pwsh ./build.ps1
+pwsh ./build.ps1 -All
 ```
 
 ## API Documentation

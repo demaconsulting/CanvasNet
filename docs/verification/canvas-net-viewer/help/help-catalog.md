@@ -28,7 +28,7 @@ format packages.
 #### Test Environment
 
 The guide-parity tests read `docs/user_guide/canvas-net-mermaid.md` and `docs/user_guide/canvas-net-plant-uml.md`,
-found by walking up from the test output folder to the folder that holds `CanvasNet.slnx` (`build.ps1 -Affected`
+found by walking up from the test output folder to the folder that holds `CanvasNet.slnx` (`build.ps1 -Changed`
 selects the Viewer tests when either guide changes). The rendering tests write the examples and their sibling files
 to temporary folders that each test deletes.
 
