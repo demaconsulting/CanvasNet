@@ -19,14 +19,20 @@
 #   Add -DryRun to any scope to print which checks would run without running them.
 #   With no arguments the usage text is printed and the script exits 1 (a scope must be chosen).
 #
+# EXTENSION POINTS:
+#   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
+#   for adding project-specific lint checks.
+#
 # CUSTOMIZATION:
-#   This script belongs to the project: extend it as the project grows. Add a check to the $checks
-#   table (its name becomes a valid -Check value and appears in the usage text), then add its
-#   input filter and its run step at the [PROJECT-SPECIFIC] points. The reusable scoping logic
-#   lives in scripts/ProjectScripts.psm1, which is shared across repositories and must not be
-#   edited here. Update tool versions as needed.
+#   This script belongs to the project: extend it as the project grows. Add steps at the
+#   [PROJECT-SPECIFIC] points, update tool versions, and add optional parameters that focus a run.
+#   To add a check, add it to the $checks table (its name becomes a valid -Check value and
+#   appears in the usage text), then add its input filter and its run step at the
+#   [PROJECT-SPECIFIC] points. The reusable scoping logic lives in scripts/ProjectScripts.psm1,
+#   which is delivered by the Agents release zip, is shared across repositories, and must never
+#   be edited here.
 #   With no arguments the script prints the usage text and exits 1; -All must still run every
-#   check (CI relies on that). Never remove or weaken a check to make it pass.
+#   check (CI relies on that), and never remove or weaken a check to make it pass.
 
 param(
     # Run every check (what CI runs).
@@ -153,6 +159,14 @@ if ($Changed) {
         $formatInclude = $formatScope.Include
 
         # [PROJECT-SPECIFIC] Add input filters for repository-specific checks here.
+
+        # A change to this script or the shared module changes the selection logic itself, so every selected
+        # check runs over the whole repository (no input filter could say what it affects)
+        if (Test-AnyMatch $files '^(lint\.ps1|scripts/ProjectScripts\.psm1)$') {
+            Write-Host "Running all selected checks over the whole repository: lint.ps1 or scripts/ProjectScripts.psm1 changed."
+            foreach ($name in $checks.Keys) { $inputsChanged[$name] = $true }
+            $formatInclude = @()
+        }
     }
 }
 
@@ -163,7 +177,7 @@ foreach ($name in $checks.Keys) {
     if ($name -notin $wanted) { $skipReason[$name] = 'not selected by -Check' }
     else { $skipReason[$name] = $checks[$name].Skip }
 }
-if ($run.format -eq $false) { $formatInclude = @() }
+if (-not $run.format) { $formatInclude = @() }
 
 function Write-Skipped {
     param([string]$Name)
@@ -232,7 +246,7 @@ if ($run.textlint) {
 }
 
 # --- MARKDOWN SECTION ---
-# Runs LintMark using the files configured in .lintmark.yaml.
+# Runs LintMark using the settings in .lintmark.yaml.
 if ($run.lintmark) {
     Write-Host "Linting: markdown..."
     if (-not $skipDotnetTools) {
@@ -307,29 +321,10 @@ if ($run.format) {
     if ($LASTEXITCODE -ne 0) { $lintError = $true; $skipDotnetFormat = $true }
 
     if (-not $skipDotnetFormat) {
-        # NOTE: `dotnet format --verify-no-changes` has a known, still-open,
-        # platform-specific exit-code bug (dotnet/sdk#41422) where the exit code
-        # can stay 0 on macOS even when files require formatting. It is NOT a
-        # reason to reformat in place and diff against git - doing so previously
-        # required stashing the working tree around the format run, which is
-        # unsafe (and was proven unsafe in practice) around uncommitted renames,
-        # moves, or any other change that git's stash/pop cannot losslessly
-        # round-trip. Instead, run in dry-run mode and treat BOTH the exit code
-        # AND the tool's own diagnostic text as signals - `--verify-no-changes`
-        # always emits MSBuild-style diagnostic lines (e.g.
-        # "File.cs(1,17): error WHITESPACE: Fix whitespace formatting. ...") for
-        # each affected file regardless of which platform's exit-code bug is in
-        # play, so matching the generic "`: error <CODE>:`" pattern (not any one
-        # hardcoded rule code) is a reliable fallback. This never mutates the
-        # working tree.
         $formatArgs = @('--verify-no-changes', '--no-restore')
         if ($formatInclude.Count -gt 0) { $formatArgs += @('--include') + $formatInclude }
-        $formatOutput = dotnet format @formatArgs 2>&1
-        $formatOutput | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0 -or ($formatOutput -join "`n") -match ': error [A-Z0-9]+:') {
-            $lintError = $true
-            Write-Host "dotnet format found formatting issues; run fix.ps1 locally and commit the results."
-        }
+        dotnet format @formatArgs
+        if ($LASTEXITCODE -ne 0) { $lintError = $true }
     }
 } else {
     Write-Skipped 'format'

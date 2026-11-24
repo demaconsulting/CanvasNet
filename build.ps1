@@ -1,35 +1,47 @@
 # build.ps1
 #
 # PURPOSE:
-#   Unified cross-platform build script (replaces build.bat and build.sh).
 #   Builds the solution in Release configuration and runs the unit tests, either all of them
-#   (-All, the full local build and test run) or only the test projects a change affects (-Changed / -Project).
+#   (-All, the full local build and test run) or only the test projects a change affects
+#   (-Changed / -Project).
 #
 # USAGE:
 #   pwsh ./build.ps1 -Help                     Print the usage text and exit 0
 #   pwsh ./build.ps1 -All                      Full local build and all tests
 #   pwsh ./build.ps1 -Changed [-Base <ref>]    Only the test projects affected by the changes since <ref>
 #                                              (default origin/main, else main) plus uncommitted changes
-#   pwsh ./build.ps1 -Project Svg,Mermaid      Only the test projects affected by the named projects
+#   pwsh ./build.ps1 -Project Svg,Mermaid      Only the test projects affected by the named projects (full or short
+#                                              names: Svg finds DemaConsulting.CanvasNet.Svg, Core is the core
+#                                              library, aliases from $ProjectAliases also work; -Help lists this
+#                                              repository's names)
 #   Add -DryRun to any scope to print the selection without building anything.
 #   With no arguments the usage text is printed and the script exits 1 (a scope must be chosen).
 #
 #   A changed project selects every project that references it, directly or transitively, from the
-#   ProjectReference graph, and files linked into another project (Compile/None/EmbeddedResource items
-#   that point outside the project folder) select that project too. Changes that affect the whole
+#   ProjectReference graph, and files linked into another project (any item or file property that
+#   points outside the project folder) select that project too. Changes that affect the whole
 #   build (solution, project, props/targets, global.json, .editorconfig, nuget.config, tool manifest,
 #   this script, scripts/ProjectScripts.psm1) fall back to the full build; repository files tests read
 #   at run time select their test projects through $RuntimeReads; other changes the build does not
-#   read select nothing.
+#   read select nothing. This works unchanged for a solution with one project pair or many.
+#
+#   The test platform is detected from global.json: "test": { "runner": "Microsoft.Testing.Platform" } runs
+#   'dotnet test --project <path> --report-trx', anything else runs VSTest 'dotnet test <path> --logger trx';
+#   results go to artifacts/tests either way. Do not customize the arguments per repository.
+#
+# EXTENSION POINTS:
+#   Search for "[PROJECT-SPECIFIC]" comments to find the designated locations
+#   for adding project-specific build or test operations.
 #
 # CUSTOMIZATION:
 #   This script belongs to the project: extend it as the project grows. Add steps at the
 #   [PROJECT-SPECIFIC] points and add optional parameters that focus a run. The reusable scoping
-#   logic lives in scripts/ProjectScripts.psm1, which is shared across repositories and must not
-#   be edited here. Slow or environment-dependent test tiers (GUI automation, integration) may be
-#   opt-in switches.
+#   logic lives in scripts/ProjectScripts.psm1, which is delivered by the Agents release zip, is
+#   shared across repositories, and must never be edited here. Slow or environment-dependent test
+#   tiers (GUI automation, integration) may be opt-in switches.
 #   With no arguments the script prints the usage text and exits 1; -All must still build and run
-#   the standard test suite (the agents rely on that). Never remove or weaken a test step to make it pass.
+#   the standard test suite (agents rely on that), and never remove or weaken a test step to make
+#   it pass.
 
 param(
     # Full local build and all tests.
@@ -41,7 +53,7 @@ param(
     # Git reference to compare against for -Changed (default: origin/main, else main).
     [string]$Base,
 
-    # Build and test only the projects affected by these projects (full or short names, e.g. Svg, Core).
+    # Build and test only the projects affected by these projects (full or short names, e.g. Core, Svg).
     [string[]]$Project,
 
     # Print the selection and exit without building.
@@ -51,16 +63,47 @@ param(
     [switch]$Help
 )
 
-$ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'scripts/ProjectScripts.psm1') -Force
 
 # [PROJECT-SPECIFIC] Repository files that tests read at run time (through the repository root, not through a
-# project item), and the test projects that read them. Keep in step with the tests.
+# project item), mapped to the test project that reads them. Keep in step with the tests: the help-card parity tests
+# read the user guides, and the Tool tests read the checked-in Pandoc filter.
 $RuntimeReads = [ordered]@{
     '^docs/user_guide/canvas-net-tool\.md$'                = 'DemaConsulting.CanvasNet.Tool.Tests'
     '^docs/user_guide/canvas-net-(mermaid|plant-uml)\.md$' = 'DemaConsulting.CanvasNet.Viewer.Tests'
     '^docs/filters/canvasnet\.lua$'                        = 'DemaConsulting.CanvasNet.Tool.Tests'
     '^docs/user_guide/canvas-net-viewer\.md$'              = 'DemaConsulting.CanvasNet.Viewer.Tests'
+}
+
+# [PROJECT-SPECIFIC] Short -Project names that no resolution rule can derive (exact name, unique dot-segment suffix,
+# Core), as data: alias = project name. Empty by default. Example:
+#   $ProjectAliases = @{ Ots = 'OtsSoftwareTests'; App = 'DemaConsulting.Foo' }
+$ProjectAliases = @{}
+
+# [PROJECT-SPECIFIC] Folders scanned for projects. List every root once here when projects live outside src/, test/,
+# and tools/ (for example demo, samples, benchmarks); leave out folders of fixture projects that are test inputs.
+$ProjectRoots = @('src', 'test', 'tools')
+
+# Test platform: global.json selects Microsoft.Testing.Platform with "test": { "runner": "Microsoft.Testing.Platform" };
+# otherwise VSTest is used. The platform decides the 'dotnet test' arguments (see Invoke-DotnetTest).
+$UseTestingPlatform = $false
+if (Test-Path global.json) {
+    try { $UseTestingPlatform = (Get-Content -Raw global.json | ConvertFrom-Json).test.runner -eq 'Microsoft.Testing.Platform' }
+    catch { Write-Host "Warning: global.json could not be read; assuming VSTest." }
+}
+
+function Invoke-DotnetTest {
+    # Runs the tests of one project, or of the whole solution when no path is given, against the existing build
+    param([string]$Path)
+
+    # @(...) keeps a one-element list an array, so the splat passes the path whole and not character by character
+    if ($UseTestingPlatform) {
+        $target = @(if ($Path) { '--project'; $Path })
+        dotnet test @target --no-build --configuration Release --report-trx --results-directory artifacts/tests
+    } else {
+        $target = @(if ($Path) { $Path })
+        dotnet test @target --no-build --configuration Release --logger trx --results-directory artifacts/tests
+    }
 }
 
 # ==============================================================================
@@ -71,13 +114,15 @@ function Show-Usage {
     Write-ScriptUsage -Script 'build.ps1' -IterateWith '-Changed (or -Project)' `
         -Purpose 'build the solution (Release) and run the unit tests.' `
         -Options ([ordered]@{
-            '-All'            = 'Full local build and all tests; cannot be combined with another scope.'
-            '-Changed'        = 'Only the test projects affected by files changed since the base, plus uncommitted files.'
-            '-Base <ref>'     = 'Base reference for -Changed (default origin/main, else main).'
-            '-Project <names>' = 'Only the test projects affected by these projects (full or short names, e.g. Svg,Core).'
-            '-DryRun'         = 'Print what would be built, tested, and skipped, then exit 0 without running anything.'
-            '-Help'           = 'Print this text and exit 0.'
+            '-All'             = 'Full local build and all tests; cannot be combined with another scope.'
+            '-Changed'         = 'Only the test projects affected by files changed since the base, plus uncommitted files.'
+            '-Base <ref>'      = 'Base reference for -Changed (default origin/main, else main).'
+            '-Project <names>' = 'Only the test projects affected by these projects (full or short names, e.g. Core, Svg).'
+            '-DryRun'          = 'Print what would be built, tested, and skipped, then exit 0 without running anything.'
+            '-Help'            = 'Print this text and exit 0.'
         }) `
+        -ChecksLabel 'Projects and aliases (-Project names; short names such as Core or Svg also work)' `
+        -Checks @(try { Get-ProjectNameList (Get-ProjectGraph -Root $ProjectRoots) $ProjectAliases } catch { }) `
         -Examples @('-Changed', '-Project Svg,Mermaid', '-Changed -DryRun', '-All')
 }
 
@@ -95,20 +140,30 @@ if ($scopeProblems.Count -gt 0) {
     exit 1
 }
 
+$buildError = $false
+
 # ==============================================================================
 # SCOPED BUILD (-Changed / -Project)
 # Selects the affected test projects; falls back to the full build when needed.
 # ==============================================================================
 
+$scoped = $false
 if (-not $All) {
-    $graph = Get-ProjectGraph
+    $graph = Get-ProjectGraph -Root $ProjectRoots
     $selected = [System.Collections.Generic.HashSet[string]]::new()
     $fullReason = $null
 
-    foreach ($single in @($Project | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
-        $resolved = Resolve-ProjectName $graph $single
+    $names = @($Project | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $known = (Get-ProjectNameList $graph $ProjectAliases) -join ', '
+    if ($Project -and $names.Count -eq 0) {
+        Write-Host "Error: no project named in '$($Project -join ' ')'. Known projects: $known"
+        exit 1
+    }
+    foreach ($single in $names) {
+        try { $resolved = Resolve-ProjectName $graph $single $ProjectAliases }
+        catch { Write-Host "Error: $($_.Exception.Message)"; exit 1 }
         if (-not $resolved) {
-            Write-Host "Unknown project '$single'. Known projects: $($graph.Keys -join ', ')"
+            Write-Host "Unknown project '$single'. Known projects: $known"
             exit 1
         }
         [void]$selected.Add($resolved)
@@ -126,7 +181,6 @@ if (-not $All) {
 
     if ($fullReason) {
         Write-Host "Full build required: $fullReason."
-        if ($DryRun) { Write-Host "Dry run: would run the full build and all tests."; exit 0 }
     } else {
         Expand-ReferencingProjects -Graph $graph -Selected $selected
 
@@ -151,39 +205,60 @@ if (-not $All) {
             exit 0
         }
 
+        $scoped = $true
         foreach ($entry in $tests + $tools) {
             Write-Host "Building $($entry.Name)..."
             dotnet build $entry.Path --configuration Release
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if ($LASTEXITCODE -ne 0) { $buildError = $true }
         }
 
-        foreach ($entry in $tests) {
-            Write-Host "Running unit tests: $($entry.Name)..."
-            dotnet test --project $entry.Path --configuration Release --report-trx
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (-not $buildError) {
+            foreach ($entry in $tests) {
+                Write-Host "Running tests: $($entry.Name)..."
+                Invoke-DotnetTest $entry.Path
+                if ($LASTEXITCODE -ne 0) { $buildError = $true }
+            }
+        } else {
+            Write-Host "Skipping tests: the build failed."
         }
-
-        Write-Host "Scoped build and tests completed successfully!"
-        exit 0
     }
 }
 
-if ($DryRun) { Write-Host "Dry run: would run the full build and all tests."; exit 0 }
+if ($DryRun -and -not $scoped) { Write-Host "Dry run: would run the full build and all tests."; exit 0 }
 
 # ==============================================================================
 # FULL BUILD (-All, or a scoped run that needs everything)
 # ==============================================================================
 
-Write-Host "Building project..."
-dotnet build --configuration Release
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if (-not $scoped) {
+    # Each step runs only if the steps before it succeeded, so tests never run against stale binaries
+    $failedStep = $null   # the step that failed first, so the skip message names the real cause
+    Write-Host "Restoring dependencies..."
+    dotnet restore
+    if ($LASTEXITCODE -ne 0) { $buildError = $true; $failedStep = 'restore' }
 
-# [PROJECT-SPECIFIC] Add additional build steps here.
+    if (-not $buildError) {
+        Write-Host "Building..."
+        dotnet build --no-restore --configuration Release
+        if ($LASTEXITCODE -ne 0) { $buildError = $true; $failedStep = 'build' }
+    }
 
-Write-Host "Running unit tests..."
-dotnet test --configuration Release --report-trx
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if (-not $buildError) {
+        Write-Host "Running tests..."
+        Invoke-DotnetTest
+        if ($LASTEXITCODE -ne 0) { $buildError = $true }
+    } elseif ($failedStep -eq 'restore') {
+        Write-Host "Skipping build and tests: restore failed."
+    } else {
+        Write-Host "Skipping tests: the build failed."
+    }
 
-# [PROJECT-SPECIFIC] Add additional test or post-build steps here.
+    # [PROJECT-SPECIFIC] Add additional build steps here (e.g., packaging, publishing).
+    # Guard steps that depend on the build with: if (-not $buildError) { ... }
+}
 
-Write-Host "Build and tests completed successfully!"
+if (-not $buildError) {
+    Write-Host "Build and tests completed successfully!"
+}
+
+exit ($buildError ? 1 : 0)
