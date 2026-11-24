@@ -84,11 +84,11 @@ yet cover something.
 - **`pip-requirements.txt`** - Python dependencies for yamllint and yamlfix
 - **`docs/sysml2/`** - SysML2 architecture model; authoritative source for software structure
 - **`fix.ps1`** - Applies the auto-fixers (dotnet format, LintMark, YAML); a fixer run always exits 0.
-  Requires a scope; see `pwsh ./fix.ps1 -Help` and *Scoped Validation*.
-- **`build.ps1`** - Builds the solution and runs the tests. Requires a scope (`-All` is the CI build); see
-  `pwsh ./build.ps1 -Help` and *Scoped Validation*.
+  Requires a scope; see `pwsh ./fix.ps1 -Help`.
+- **`build.ps1`** - Builds the solution and runs the tests. Requires a scope (`-All` is the full build);
+  see `pwsh ./build.ps1 -Help`.
 - **`lint.ps1`** - Runs the lint checks (`-All` is the CI merge gate). Requires a scope; see
-  `pwsh ./lint.ps1 -Help` and *Scoped Validation*.
+  `pwsh ./lint.ps1 -Help`.
 - **`scripts/ProjectScripts.psm1`** - PowerShell module with the scoping logic the three scripts share.
   Shared verbatim across repositories: never edit it here (see *Project Scripts*).
 
@@ -111,6 +111,7 @@ from `.github/standards/`. Use this matrix to determine which to load:
 - **Any documentation**: `technical-documentation.md`
 - **Diagrams in documentation**: `diagram-documentation.md` (and the `canvasnet` skill for tooling)
 - **Reading PDF or Office documents**: the `docdown` skill
+- **Project scripts** (changing `build.ps1`, `lint.ps1`, `fix.ps1`, or `scripts/`): `project-scripts.md`
 
 Load only the standards relevant to your specific task scope.
 
@@ -173,13 +174,12 @@ Result semantics for orchestrator decision-making:
 
 # Formatting (After Making Changes)
 
-After making changes, run the auto-fix pass. A fixer run applies the fixers
+After making changes, run the auto-fix pass. This applies all available fixers
 silently and **always exits 0** - agents do not need to respond to its output.
-A scope is required (no arguments prints the usage text and exits 1):
 
 ```pwsh
 pwsh ./fix.ps1 -Changed   # during development: only the fixers for the changed file types
-pwsh ./fix.ps1 -All       # everything
+pwsh ./fix.ps1 -All       # everything; run before the pull request
 ```
 
 This automatically handles: `dotnet format`, Markdown formatting (LintMark), and YAML
@@ -191,35 +191,31 @@ responsibility - invoke the lint-fix agent once before submitting a pull request
 CI runs `lint.ps1 -All` which checks: lintmark, textlint, yamllint, dotnet format,
 reqstream, versionmark, reviewmark, and sysml2tools.
 
+# Efficient Validation (ALL Agents)
+
+Full `build.ps1 -All` and `lint.ps1 -All` runs can take many minutes on large repositories. Spend
+them once, not after every edit. The scripts require a scope: with no arguments they print usage
+and exit 1.
+
+- **While iterating**, use `-Changed` (or `build.ps1 -Project`, `lint.ps1`/`fix.ps1 -Check`) so only
+  the affected work runs; add `-DryRun` to see the selection without running anything
+- **Before handing back**, run the full gates your agent requires once (`build.ps1 -All`,
+  `lint.ps1 -All`); re-run them only if you change files after they pass
+- **Documentation-only changes** need no build
+- Run `pwsh ./<script> -Help` for the switches of a repository; do not guess
+- Never report a targeted check as the full gate - state which full gates ran in your report
+
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has fourteen source projects and fourteen test projects. `build.ps1`, `lint.ps1`, and `fix.ps1`
-require you to choose a scope: run with no arguments they print their usage text and **exit 1**. Read the
-usage text before using a script; it lists the switches, examples, and (for lint and fix) the valid `-Check`
-names:
+The solution has fourteen source projects and fourteen test projects, so scope matters here. `-DryRun` also
+tells you which test projects a change affects.
 
-```pwsh
-pwsh ./build.ps1 -Help
-pwsh ./lint.ps1 -Help
-pwsh ./fix.ps1 -Help
-```
-
-- **Iterate scoped.** While developing, build, test, fix, and lint only what the change affects
-  (`-Changed`, `-Project`, `-Check`). Add `-DryRun` to see the selection (what runs and what is skipped)
-  without running anything; it also tells you which test projects a change affects.
-- **Run `-All` before handing work back.** Before opening or updating a pull request, run
-  `pwsh ./build.ps1 -All` and `pwsh ./lint.ps1 -All` once (via the lint-fix agent for lint). Scoped runs are
-  for the inner development loop only and are not a substitute for the full build. CI runs `-All`.
 - **Documentation-only changes** (`docs/`, `README.md`, agent files) need no build or test run
   (`build.ps1 -Changed` reports nothing to build); run `pwsh ./fix.ps1 -Changed` and `pwsh ./lint.ps1 -Changed`,
   then `pwsh ./lint.ps1 -All` before the pull request.
 - **Changes that affect everything** (solution file, project files, `global.json`, `.editorconfig`, package
   or build configuration, `build.ps1`, `scripts/ProjectScripts.psm1`) make `build.ps1 -Changed` fall back to
   the full build.
-- **Template-owned instructions** under `.github/agents/`, `.github/standards/`, and `.github/skills/` still
-  say `pwsh ./build.ps1`, `pwsh ./lint.ps1`, or `pwsh ./fix.ps1` without a switch. Read each such command as
-  the same script with a scope: `-Changed` (or `-Project`/`-Check`) while iterating and `-All` for the final
-  run before a pull request. A command without a scope fails with exit 1.
 - **Keep `$RuntimeReads` in `build.ps1` in step.** Repository files that tests read at run time (the user
   guides the help-card parity tests compare, and the checked-in Pandoc shim) select their test projects
   through that map; update it when a test starts reading another repository file.
@@ -252,16 +248,14 @@ requires it and the modification preserves the documented design intent:
 steps, update tool versions, and add optional parameters that focus a run (for example one library in a
 multi-library repository, or headless tests without GUI automation). Two rules keep them trustworthy:
 
-- With no arguments each script prints its usage text and exits 1, so an un-updated caller fails loudly;
-  `-All` must still do the script's full job (CI and the agents rely on that). Slow or
+- Run with no arguments, each script prints an error and its usage and exits 1 (a scope must be chosen).
+  `-All` must still do the script's full job (CI and the agents rely on that); slow or
   environment-dependent test tiers may be opt-in switches of `build.ps1`.
 - Never remove or weaken a check to make lint or tests pass.
 
-The reusable scoping logic (usage text, argument validation, changed-file discovery, the project graph) lives
-in `scripts/ProjectScripts.psm1`, which is shared across DEMA repositories and synchronized verbatim from the
-template: never edit it in this repository. Repository-specific behavior belongs in the `[PROJECT-SPECIFIC]`
-blocks of the scripts (here the `$RuntimeReads` map in `build.ps1`). The switches are documented by
-`-Help` of each script (see *Scoped Validation*).
+The shared scoping logic lives in `scripts/ProjectScripts.psm1`, synchronized verbatim from the template:
+never edit it in a repository. Repository-specific behavior belongs in the scripts' `[PROJECT-SPECIFIC]`
+blocks (here the `$RuntimeReads` map in `build.ps1`). See `project-scripts.md`.
 
 # Continuous Compliance Overview
 

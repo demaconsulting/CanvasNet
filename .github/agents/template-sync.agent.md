@@ -30,6 +30,14 @@ Delegate each group to a sub-agent.
 - **One group per system subtree** in `docs/design/`, `docs/verification/`, `docs/reqstream/` -
   each subtree and all its descendants is one group
 
+# Project Scripts (special handling)
+
+- **`scripts/ProjectScripts.psm1`** is synchronized **verbatim** from the template: replace the
+  local copy with the template copy exactly; never merge or edit it.
+- **`build.ps1`, `lint.ps1`, and `fix.ps1`** are project-owned: never overwrite them. Merge template
+  changes into them, preserve every `[PROJECT-SPECIFIC]` block and the project's checks, fixers, and
+  parameters, and keep `-All` doing the full job (see `project-scripts.md`).
+
 # Orchestration
 
 For Audit mode, call an **explore** sub-agent (built-in) per group.
@@ -56,10 +64,10 @@ For each group intersecting the requested scope, call the appropriate sub-agent 
   - Based on the given mode:
     - **Audit** - fetch each template counterpart; compare headings; report missing
       sections and depth mismatches; no changes
-    - **Sync** - as Audit, then insert each missing section; run `pwsh ./fix.ps1`
+    - **Sync** - as Audit, then insert each missing section; run `pwsh ./fix.ps1 -Changed`
     - **Scaffold** - fetch `repository-map.md` from the template URL in `AGENTS.md`
       to identify files that should exist but don't; for each, fetch the template,
-      populate all sections, write the file; run `pwsh ./fix.ps1`
+      populate all sections, write the file; run `pwsh ./fix.ps1 -Changed`
     - **Recreate** - fetch the template and use it as the blueprint for a
       freshly authored document:
       - Work through the template section by section; for each section, find
@@ -82,7 +90,7 @@ For each group intersecting the requested scope, call the appropriate sub-agent 
         confirm there are no `###` headings inside that section; if it says
         "bold-name paragraph blocks", confirm each entry is `**Name**: prose`
         with no sub-heading); fix any mismatches before writing the file
-      - Write the rebuilt file; run `pwsh ./fix.ps1`
+      - Write the rebuilt file; run `pwsh ./fix.ps1 -Changed`
   - When writing any section: `TEMPLATE-DIRECTIVE` blocks are directives —
     execute them (read specified standards, apply structural guidance, substitute
     content) and **remove the block entirely** from the written file; inline
