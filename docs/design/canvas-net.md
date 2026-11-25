@@ -207,6 +207,9 @@ to `HmtxHheaReader` for top-level metrics and advance widths, `GlyfLocaReader` f
 parsing plus lazy glyph decoding, `CmapTable` for Unicode codepoint lookup, and `KernTable` for
 basic pairwise kerning. `GetGlyphOutline` returns `Geometry.Path` in raw font-design-unit space,
 so callers who want pixels scale and flip that path before rendering it through `Drawing`.
+`TrueTypeFont.Load` only captures the range of an optional `MATH` table; the internal
+`TryGetMathTable` delegates to `MathTable` (with `OpenTypeCoverage` for its per-glyph lookups) on
+first access, for the MathML package.
 `SystemFontCatalog` has no dependency on `TrueTypeFont`'s internal parsing helpers, but
 `LoadBundledFallback` constructs a `TrueTypeFont` from one of the library's bundled Liberation
 font embedded resources via `TrueTypeFont.Load`, making `TrueTypeFont` the sole unit
@@ -403,6 +406,12 @@ The system exposes the following public API to external consumers:
 - **TrueTypeFont.GetKerning(int leftGlyphIndex, int rightGlyphIndex)**: Returns the pairwise
   kerning adjustment for the glyph pair, or `0` when no pair or no usable `kern` table exists.
   Never throws.
+- **TrueTypeFont.TryGetMathTable(out MathTable table)** (internal friend interface, not public
+  API): Returns the font's parsed OpenType `MATH` table (layout constants, glyph information, and
+  size variants with glyph assemblies, in font design units), or `false` when the font has none.
+  The table is parsed on first access, so it never affects `Load`; a malformed table throws
+  `InvalidDataException` on access. Granted only to the `DemaConsulting.CanvasNet.MathMl` package
+  through `InternalsVisibleTo`.
 - **SystemFontCatalog.Fonts**: Read-only property lazily enumerating the host operating system's
   installed fonts on first access (caching the result for the process lifetime) as a list of
   `SystemFontInfo` records. Never throws.
@@ -507,6 +516,7 @@ The system exposes the following public API to external consumers:
 | `TrueTypeFont.GetGlyphOutline(int)` | Outbound | Method / `Path` | `glyphIndex` within range |
 | `TrueTypeFont.GetAdvanceWidth(int)` | Outbound | Method / `int` | `glyphIndex` within range |
 | `TrueTypeFont.GetKerning(int,int)` | Outbound | Method / `int` | Any glyph indices |
+| `TrueTypeFont.TryGetMathTable(out MathTable)` (internal) | Outbound | Friend method / `MathTable` | MathMl only |
 | `SystemFontCatalog.Fonts` | Outbound | Property / list return | None |
 | `SystemFontCatalog.FindBestMatch(...)` | Outbound | Method / `SystemFontInfo?` | None |
 | `SystemFontCatalog.FindInFamily(...)` | Outbound | Method / `SystemFontInfo?` | Non-null faces and family |

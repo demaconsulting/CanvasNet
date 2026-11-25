@@ -1128,3 +1128,114 @@ sections:
                   - TrueTypeFont_LoadType1C_NullEncoding_ThrowsArgumentNullException
                   - TrueTypeFont_LoadType1C_MalformedCff_ThrowsInvalidDataException
                   - TrueTypeFont_LoadType1C_CidKeyedCff_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableConstants
+                title: >-
+                  The TrueTypeFont unit shall read all 56 global math layout constants of a font's
+                  OpenType MATH table (MathConstants) in font design units, ignoring their
+                  device-table adjustments.
+                justification: |
+                  Math layout (fractions, scripts, radicals, limits, and stretchy operators) is driven
+                  by the constants the math font defines; every one is read so that later layout work
+                  never needs a second parser, and device tables are ignored because layout scales
+                  design units without hinting.
+                tests:
+                  - MathTable_Parse_ValidTable_ReadsEveryConstantInOrder
+                  - TrueTypeFont_TryGetMathTable_SyntheticTable_ReturnsParsedTable
+                  - TrueTypeFont_RealNotoSansMath_ReadsMathConstants
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableGlyphInfo
+                title: >-
+                  The TrueTypeFont unit shall report, per glyph, the italic correction, the top-accent
+                  attachment, whether the glyph is an extended shape, and the cut-in kern of each of
+                  its four corners from a font's OpenType MATH table, and shall report their absence
+                  for a glyph the table does not cover.
+                justification: |
+                  Scripts are placed after a glyph's italic correction and cut-in kerns, accents are
+                  centered on the attachment point, and extended shapes change how scripts attach;
+                  a glyph without the information must be distinguishable from a zero value.
+                tests:
+                  - MathTable_TryGetItalicsCorrection_CoveredGlyph_ReturnsValue
+                  - MathTable_TryGetItalicsCorrection_UncoveredGlyph_ReturnsFalse
+                  - MathTable_TryGetTopAccentAttachment_RangeCoverage_ReturnsValue
+                  - MathTable_IsExtendedShape_CoveredAndUncoveredGlyphs
+                  - MathTable_TryGetMathKern_PresentCorner_ReturnsHeightsAndValues
+                  - MathTable_TryGetMathKern_AbsentCorner_ReturnsFalse
+                  - TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableVariants
+                title: >-
+                  The TrueTypeFont unit shall report, per glyph and per stretch direction (vertical
+                  and horizontal), the size variants and the glyph assembly (its italic correction and
+                  its parts with their connector lengths, full advances, and extender flags) from a
+                  font's OpenType MATH table, together with the minimum connector overlap, for glyphs
+                  listed in either OpenType coverage format.
+                justification: |
+                  Stretchy delimiters, radicals, arrows, and large operators are drawn by choosing a
+                  larger size variant or by assembling parts; the minimum connector overlap and the
+                  connector lengths decide how far the parts may be spread, and real fonts use both
+                  coverage formats.
+                tests:
+                  - MathTable_GetVerticalConstruction_VariantsAndAssembly_ReturnsPartsWithExtenderFlags
+                  - MathTable_GetHorizontalConstruction_UncoveredGlyph_ReturnsNull
+                  - MathTable_GetVerticalConstruction_NoAssembly_ReturnsVariantsOnly
+                  - MathTable_GetVerticalConstruction_SharedSubtable_ReturnsSameConstruction
+                  - OpenTypeCoverage_IndexOf_Format1_ReturnsArrayPosition
+                  - OpenTypeCoverage_IndexOf_Format2_ReturnsRangeIndex
+                  - OpenTypeCoverage_IndexOf_AbsentGlyph_ReturnsMinusOne
+                  - TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction
+                  - TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableAbsent
+                title: >-
+                  The TrueTypeFont unit shall report, without throwing, that a font has no OpenType
+                  MATH table, and shall treat an absent MATH glyph-information or variants part as
+                  defining no per-glyph information.
+                justification: |
+                  Most fonts are text fonts without a MATH table, and a math font may omit parts of
+                  it; a caller choosing a math font must be able to tell these cases apart from a
+                  broken table without handling an exception.
+                tests:
+                  - TrueTypeFont_TryGetMathTable_NoMathTable_ReturnsFalse
+                  - TrueTypeFont_RealOpenSans_HasNoMathTable
+                  - MathTable_Parse_AbsentGlyphInfoAndVariants_ReadsEmptyInformation
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableMalformed
+                title: >-
+                  The TrueTypeFont unit shall load a font whose OpenType MATH table is malformed
+                  exactly as if the table were valid, and shall reject that table with
+                  InvalidDataException when it is accessed, including tables with an unsupported major
+                  version, offsets or counts beyond the table (without arithmetic overflow), coverage
+                  indexes beyond their records, glyph IDs beyond the font's glyph count, or subtables
+                  made to overlap so that reading them would take more work than the table size.
+                justification: |
+                  A font must stay usable for text even when its math data is broken, while math
+                  layout built from partially read data would be silently wrong; failing closed on
+                  access, with every bound checked, also keeps hostile fonts from reading out of
+                  bounds or multiplying the parsing work.
+                tests:
+                  - TrueTypeFont_Load_MalformedMathTable_LoadsAndThrowsOnAccess
+                  - MathTable_Parse_UnsupportedMajorVersion_ThrowsInvalidDataException
+                  - MathTable_Parse_TableShorterThanHeader_ThrowsInvalidDataException
+                  - MathTable_Parse_ConstantsBeyondTable_ThrowsInvalidDataException
+                  - MathTable_Parse_CoverageIndexBeyondCount_ThrowsInvalidDataException
+                  - MathTable_Parse_VariantCountBeyondTable_ThrowsInvalidDataException
+                  - MathTable_Parse_PartCountBeyondTable_ThrowsInvalidDataException
+                  - MathTable_Parse_GlyphIdBeyondGlyphCount_ThrowsInvalidDataException
+                  - MathTable_Parse_MaximalOffsets_DoNotOverflow
+                  - MathTable_Parse_KernCountBeyondTable_ThrowsInvalidDataException
+                  - MathTable_Parse_OverlappingKernSubtables_ThrowsInvalidDataException
+                  - OpenTypeCoverage_Parse_UnknownFormat_ThrowsInvalidDataException
+                  - OpenTypeCoverage_Parse_InvertedRange_ThrowsInvalidDataException
+                  - OpenTypeCoverage_Parse_CountBeyondEnd_ThrowsInvalidDataException
+
+              - id: CanvasNet-Fonts-TrueTypeFont-MathTableThreadSafe
+                title: >-
+                  The TrueTypeFont unit shall return the same OpenType MATH table data to every
+                  repeated or concurrent access of one loaded font.
+                justification: |
+                  A loaded font is shared by concurrent renders (the bundled math font is one
+                  process-wide instance), so its math data must be read once and be safe to read from
+                  any thread.
+                tests:
+                  - TrueTypeFont_TryGetMathTable_RepeatedAndParallelAccess_ReturnsSameInstance

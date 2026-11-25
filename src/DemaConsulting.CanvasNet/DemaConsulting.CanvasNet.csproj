@@ -113,6 +113,12 @@
          NodeImages.NaturalSize measures the picture of a node without the measuring load being listed in
          FolderImageResolver.Embedded (the picture is listed once, by the load that draws it). -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Mermaid" />
+    <!-- Grants DemaConsulting.CanvasNet.MathMl access to Fonts.TrueTypeFont.TryGetMathTable and the
+         internal MathTable reader (the OpenType MATH constants, glyph information, and variants that
+         MathML layout needs, parsed once by the core that owns SFNT parsing instead of a second parser
+         in the package) and to SystemFontCatalog.LoadBundledFallbackCore (the shared cached bundled
+         Noto Sans Math). -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.MathMl" />
   </ItemGroup>
 
   <ItemGroup>

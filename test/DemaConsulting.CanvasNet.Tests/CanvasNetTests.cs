@@ -1367,6 +1367,37 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the bundled math font, obtained through the public glyph-fallback chain,
+    ///     carries an OpenType <c>MATH</c> table that the library reads for math layout - its
+    ///     constants, a glyph's italic correction, and a stretchy delimiter's size variants and
+    ///     assembly - while a text font without one reports none.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadMathFontAndReadMathTable_ReturnsMathLayoutData()
+    {
+        // Arrange: the bundled Noto Sans Math and the bundled Liberation Sans
+        var mathFont = GlyphFallback.BundledFonts.Single(f => f.GetNameInfo().FamilyName == "Noto Sans Math");
+        var textFont = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+        // Act
+        var hasMath = mathFont.TryGetMathTable(out var table);
+        var textHasMath = textFont.TryGetMathTable(out _);
+
+        // Assert: layout constants, glyph information, and a stretchy delimiter are available
+        Assert.True(hasMath);
+        Assert.NotNull(table);
+        Assert.Equal(278, table.Constants.AxisHeight);
+        Assert.Equal(71, table.Constants.FractionRuleThickness);
+        Assert.True(table.TryGetItalicsCorrection(mathFont.GetGlyphIndex(0x1D453), out var italic));
+        Assert.Equal(145, italic);
+        var parenthesis = table.GetVerticalConstruction(mathFont.GetGlyphIndex('('));
+        Assert.NotNull(parenthesis);
+        Assert.Equal(13, parenthesis.Variants.Count);
+        Assert.Equal(3, parenthesis.Assembly!.Parts.Count);
+        Assert.False(textHasMath);
+    }
+
+    /// <summary>
     ///     Proves that text measured through the public <see cref="TextRenderer.MeasureText"/> API
     ///     can be word-wrapped through the public <see cref="WordWrap"/> API: every line fits the
     ///     requested width, no word is split, and joining the lines gives back the original text.

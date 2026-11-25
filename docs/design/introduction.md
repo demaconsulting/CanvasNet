@@ -66,7 +66,10 @@ software items, specifically:
   `CffStandardEncoding`/`Type1Table`/`Type1CharstringInterpreter`/`Type1CharstringDecryption`/
   `Type1PfbReader`/`Type1PfaReader`/`Type1StandardGlyphNames`/`HmtxHheaReader`/`KernTable`/
   `NameTable`/`StyleTable` helpers,
-  producing `Geometry.Path` glyph outlines plus metrics and kerning; and (added Phase 6 of the
+  producing `Geometry.Path` glyph outlines plus metrics and kerning, and the internal
+  `MathTable`/`OpenTypeCoverage` reader of a font's OpenType `MATH` table (granted to the
+  `DemaConsulting.CanvasNet.MathMl` friend assembly, with the shared bundled Noto Sans Math through
+  `SystemFontCatalog.LoadBundledFallbackCore`); and (added Phase 6 of the
   `CanvasNetPdf` roadmap) the `SystemFontCatalog` unit, providing directory-scan-only discovery
   of fonts installed on the host operating system, best-effort family-name/style matching against
   that catalog, and a bundled, always-available Liberation Sans/Serif/Mono last-resort fallback
@@ -899,6 +902,8 @@ src/DemaConsulting.CanvasNet/
 │   ├── NameTable.cs                     — Parses the name table and resolves family/subfamily/full/PostScript name
 │   │                                       strings
 │   ├── StyleTable.cs                    — Derives bold/italic/fixed-pitch style metadata from OS/2/post/head.macStyle
+│   ├── MathTable.cs                     — Internal OpenType MATH table reader (constants, glyph info, variants)
+│   ├── OpenTypeCoverage.cs              — Internal OpenType Coverage (formats 1 and 2) glyph-to-index lookup
 │   ├── SystemFontCatalog.cs             — OS font discovery, best-effort matching, cached font load, bundled fallback
 │   ├── FontDirectoryScanner.cs          — Deterministic, bounded, link-safe header-only font directory scan
 │   ├── FontScanLimits.cs                — Bounds (directories, entries, font files, faces) of a font directory scan

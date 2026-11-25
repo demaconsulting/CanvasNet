@@ -4,7 +4,8 @@ This document describes the unit-level verification strategy for the `TrueTypeFo
 supporting internal helpers `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `IGlyphOutlineSource`,
 `CffTable`, `CffCharstringInterpreter`, `CffStandardEncoding`, `Type1Table`,
 `Type1CharstringInterpreter`, `Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`,
-`Type1StandardGlyphNames`, `HmtxHheaReader`, `KernTable`, `NameTable`, and `StyleTable`.
+`Type1StandardGlyphNames`, `HmtxHheaReader`, `KernTable`, `NameTable`, `StyleTable`, `MathTable`,
+and `OpenTypeCoverage`.
 
 #### Verification Approach
 
@@ -20,7 +21,9 @@ OFL-licensed production font fixtures (`OpenSans-Regular.ttf`, `SourceSans3-Regu
 locally-assembled `OpenSans-SourceSans3.ttc`) to prove the unit genuinely composes with the
 `Drawing` pipeline on real-world glyph data - across all three outline-flavor/container
 combinations this phase adds - complementing (rather than replacing) the synthetic-fixture
-coverage above.
+coverage above. Further integration tests in the same file read the `MATH` table of the bundled
+Noto Sans Math (loaded through the cached `SystemFontCatalog.LoadBundledFallbackCore`, a
+documented dependency within the same subsystem) and assert values confirmed with `fonttools`.
 
 #### Test Environment
 
@@ -836,3 +839,100 @@ under a fixed 1000-unit em square; and asserts null `stream`/`codepointToGlyphNa
 structurally malformed CFF table, and a CID-keyed (`ROS`-declaring) CFF program are all rejected
 as documented (the last two both surfacing as `InvalidDataException`, the CID-keyed case via
 `CffTable.Parse`'s own existing `ROS` rejection, not a second, separately-implemented check).
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableConstants: All 56 MATH Constants Are Read in Order
+
+**Tests**: `MathTable_Parse_ValidTable_ReadsEveryConstantInOrder`,
+`TrueTypeFont_TryGetMathTable_SyntheticTable_ReturnsParsedTable`,
+`TrueTypeFont_RealNotoSansMath_ReadsMathConstants`
+
+Builds a synthetic `MATH` table (via `SyntheticFontBuilder.MathTableBytes`) whose 56 constants are
+all distinct, including a negative MathValueRecord, places it after junk bytes so offsets must be
+resolved from the table start, and asserts each `MathConstants` property against its OpenType
+position. The same reading is asserted through `TrueTypeFont.TryGetMathTable` on a synthetic font,
+and against the real Noto Sans Math values confirmed with `fonttools` (for example `AxisHeight`
+278, `FractionRuleThickness` 71, and `RadicalKernAfterDegree` -450).
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableGlyphInfo: Per-Glyph Italic Corrections, Accents, Shapes, and Kerns
+
+**Tests**: `MathTable_TryGetItalicsCorrection_CoveredGlyph_ReturnsValue`,
+`MathTable_TryGetItalicsCorrection_UncoveredGlyph_ReturnsFalse`,
+`MathTable_TryGetTopAccentAttachment_RangeCoverage_ReturnsValue`,
+`MathTable_IsExtendedShape_CoveredAndUncoveredGlyphs`,
+`MathTable_TryGetMathKern_PresentCorner_ReturnsHeightsAndValues`,
+`MathTable_TryGetMathKern_AbsentCorner_ReturnsFalse`,
+`TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent`
+
+Asserts covered glyphs return their italic corrections (including a negative value, listed out of
+glyph order) and top-accent attachments (through a format-2 range coverage), that extended shapes
+are recognized in both coverage formats, and that a corner's cut-in kern returns its heights and
+one-longer list of kern values. Uncovered glyphs and kern-less corners report `false` with a zero
+or `null` result. The real Noto Sans Math is checked for the italic correction of U+1D453 (145),
+the top-accent attachment of `a` (281), its extended shapes, and its absence of kerns.
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableVariants: Size Variants and Glyph Assemblies in Both Directions
+
+**Tests**: `MathTable_GetVerticalConstruction_VariantsAndAssembly_ReturnsPartsWithExtenderFlags`,
+`MathTable_GetHorizontalConstruction_UncoveredGlyph_ReturnsNull`,
+`MathTable_GetVerticalConstruction_NoAssembly_ReturnsVariantsOnly`,
+`MathTable_GetVerticalConstruction_SharedSubtable_ReturnsSameConstruction`,
+`OpenTypeCoverage_IndexOf_Format1_ReturnsArrayPosition`,
+`OpenTypeCoverage_IndexOf_Format2_ReturnsRangeIndex`,
+`OpenTypeCoverage_IndexOf_AbsentGlyph_ReturnsMinusOne`,
+`TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction`,
+`TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction`
+
+Asserts a vertical construction's variants and its assembly's italic correction and parts
+(connector lengths, full advances, extender flags) together with `MinConnectorOverlap`; that
+horizontal constructions are kept apart from vertical ones; that a construction without an
+assembly, or with a zero-part assembly, reports variants only; and that a construction shared by
+two glyphs is one instance. `OpenTypeCoverage` is tested directly for format-1 positions, format-2
+range indexes with a non-contiguous start index, and uncovered or out-of-range glyphs. Against the
+real Noto Sans Math, `(` has 13 variants (942 to 3768) and a bottom/extender/top assembly, U+221A
+has 6 variants and 3 parts, the integral's assembly has italic correction 90, U+2192 stretches
+horizontally with 2 parts, and U+2194 has no construction.
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableAbsent: Fonts and Parts Without MATH Data Report None
+
+**Tests**: `TrueTypeFont_TryGetMathTable_NoMathTable_ReturnsFalse`,
+`TrueTypeFont_RealOpenSans_HasNoMathTable`,
+`MathTable_Parse_AbsentGlyphInfoAndVariants_ReadsEmptyInformation`
+
+Asserts that a synthetic font and the real Open Sans, neither with a `MATH` table, return `false`
+with a `null` table, and that a constants-only `MATH` table answers every per-glyph query with
+"none" and a `MinConnectorOverlap` of 0, without throwing.
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableMalformed: Malformed MATH Tables Load but Fail Closed on Access
+
+**Tests**: `TrueTypeFont_Load_MalformedMathTable_LoadsAndThrowsOnAccess`,
+`MathTable_Parse_UnsupportedMajorVersion_ThrowsInvalidDataException`,
+`MathTable_Parse_TableShorterThanHeader_ThrowsInvalidDataException`,
+`MathTable_Parse_ConstantsBeyondTable_ThrowsInvalidDataException`,
+`MathTable_Parse_CoverageIndexBeyondCount_ThrowsInvalidDataException`,
+`MathTable_Parse_VariantCountBeyondTable_ThrowsInvalidDataException`,
+`MathTable_Parse_PartCountBeyondTable_ThrowsInvalidDataException`,
+`MathTable_Parse_GlyphIdBeyondGlyphCount_ThrowsInvalidDataException`,
+`MathTable_Parse_MaximalOffsets_DoNotOverflow`,
+`MathTable_Parse_KernCountBeyondTable_ThrowsInvalidDataException`,
+`MathTable_Parse_OverlappingKernSubtables_ThrowsInvalidDataException`,
+`OpenTypeCoverage_Parse_UnknownFormat_ThrowsInvalidDataException`,
+`OpenTypeCoverage_Parse_InvertedRange_ThrowsInvalidDataException`,
+`OpenTypeCoverage_Parse_CountBeyondEnd_ThrowsInvalidDataException`
+
+Loads fonts whose `MATH` table has an unsupported major version or names a glyph beyond the font,
+asserts the font loads and draws normally, and asserts every `TryGetMathTable` call throws
+`InvalidDataException`. The parser is driven directly through each boundary: a short header, a
+missing or truncated MathConstants, a coverage indexing past its records, variant, part, and kern
+height counts of `0xFFFF`, header and subtable offsets of `0xFFFF` (and a table range near
+`int.MaxValue`) that must not wrap, variant and part glyphs beyond the glyph count, and 200 kern
+offsets made to overlap so their sizes add up to more than the table (rejected by the work
+budget). Malformed Coverage tables (unknown format, inverted range, count beyond the end) are
+rejected by `OpenTypeCoverage` itself.
+
+##### CanvasNet-Fonts-TrueTypeFont-MathTableThreadSafe: One MATH Table Instance for Every Access
+
+**Tests**: `TrueTypeFont_TryGetMathTable_RepeatedAndParallelAccess_ReturnsSameInstance`
+
+Calls `TryGetMathTable` 64 times concurrently through `Parallel.For` on a freshly loaded font (so
+the first accesses race), then once more, and asserts every call returned the same instance. The
+test asserts only the outcome, never timing.

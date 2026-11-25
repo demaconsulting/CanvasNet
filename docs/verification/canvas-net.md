@@ -457,6 +457,17 @@ to the bundled Liberation Sans with the failure `no such font family was found`.
 source, family, style and glyph data of the font, confirming the resolver integrates with the
 bundled fonts end to end.
 
+### Integration: Load the Bundled Math Font and Read Its MATH Table
+
+**Test**: `CanvasNet_SystemIntegration_LoadMathFontAndReadMathTable_ReturnsMathLayoutData`
+
+Exercises end-to-end system behavior for reading a font's OpenType `MATH` table: takes the bundled
+Noto Sans Math from the public `GlyphFallback.BundledFonts` chain and reads its `MATH` table through
+the friend-visible `TrueTypeFont.TryGetMathTable`. Asserts the axis height (278) and fraction rule
+thickness (71), the italic correction of U+1D453 (145), and the 13 variants and 3-part assembly of
+`(`, and that the bundled Liberation Sans text font reports no `MATH` table. This confirms the
+system delivers the math layout data the MathML package needs without changing how fonts load.
+
 ### Integration: File References Are Read Anywhere by Default and Confined by a Roots Policy
 
 **Test**: `CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines`

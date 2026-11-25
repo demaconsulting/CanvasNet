@@ -1522,4 +1522,123 @@ public class TrueTypeFontTests
         using var ms = new MemoryStream(data);
         Assert.Throws<InvalidDataException>(() => TrueTypeFont.LoadType1C(ms, Type1CTestEncoding));
     }
+
+    /// <summary>
+    ///     Loads the well-formed two-glyph font of <see cref="BuildWellFormedFont"/> (without its
+    ///     <c>kern</c> table) with an added <c>MATH</c> table.
+    /// </summary>
+    private static TrueTypeFont LoadFontWithMathTable(byte[] math)
+    {
+        var glyph = SyntheticFontBuilder.SimpleGlyph(
+        [
+            [(0, 0, true), (10, 0, true), (10, 10, true), (0, 10, true)]
+        ]);
+
+        var data = new SyntheticFontBuilder()
+            .AddTable("head", SyntheticFontBuilder.Head(1000, 0))
+            .AddTable("maxp", SyntheticFontBuilder.Maxp(2))
+            .AddTable("hhea", SyntheticFontBuilder.Hhea(800, -200, 50, 2))
+            .AddTable("hmtx", SyntheticFontBuilder.Hmtx([0, 500]))
+            .AddTable("loca", SyntheticFontBuilder.Loca([0, glyph.Length], longFormat: false))
+            .AddTable("glyf", glyph)
+            .AddTable("cmap", SyntheticFontBuilder.CmapFormat4(3, 1, [(65, 1)]))
+            .AddTable("MATH", math)
+            .Build();
+        using var stream = new MemoryStream(data);
+        return TrueTypeFont.Load(stream);
+    }
+
+    /// <summary>
+    ///     Proves that a font without a <c>MATH</c> table reports none, without throwing.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_TryGetMathTable_NoMathTable_ReturnsFalse()
+    {
+        // Arrange: the well-formed font has no MATH table
+        using var stream = new MemoryStream(BuildWellFormedFont());
+        var font = TrueTypeFont.Load(stream);
+
+        // Act
+        var found = font.TryGetMathTable(out var table);
+
+        // Assert
+        Assert.False(found);
+        Assert.Null(table);
+    }
+
+    /// <summary>
+    ///     Proves that a font's <c>MATH</c> table is parsed through the font, with its constants,
+    ///     glyph information, and variants checked against the font's glyph count.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_TryGetMathTable_SyntheticTable_ReturnsParsedTable()
+    {
+        // Arrange: a MATH table with an axis height, an italic correction, and a construction for glyph 1
+        var constants = new int[56];
+        constants[5] = 250; // AxisHeight
+        var font = LoadFontWithMathTable(SyntheticFontBuilder.MathTableBytes(new SyntheticFontBuilder.MathTableSpec
+        {
+            Constants = constants,
+            ItalicsCorrections = [(1, 33)],
+            MinConnectorOverlap = 20,
+            Vertical = [new SyntheticFontBuilder.MathConstructionSpec(1, [(1, 900)])]
+        }));
+
+        // Act
+        var found = font.TryGetMathTable(out var table);
+
+        // Assert
+        Assert.True(found);
+        Assert.NotNull(table);
+        Assert.Equal(250, table.Constants.AxisHeight);
+        Assert.True(table.TryGetItalicsCorrection(font.GetGlyphIndex('A'), out var italic));
+        Assert.Equal(33, italic);
+        Assert.Equal(20, table.MinConnectorOverlap);
+        Assert.Equal([new MathGlyphVariant(1, 900)], table.GetVerticalConstruction(1)!.Variants);
+    }
+
+    /// <summary>
+    ///     Proves that a malformed <c>MATH</c> table does not fail loading - the font stays fully
+    ///     usable - and is reported as <see cref="InvalidDataException"/> on every access.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_Load_MalformedMathTable_LoadsAndThrowsOnAccess()
+    {
+        // Arrange: a MATH table of an unsupported major version, and one naming a glyph beyond the font's two
+        var badVersion = SyntheticFontBuilder.MathTableBytes(new SyntheticFontBuilder.MathTableSpec());
+        badVersion[1] = 2;
+        var badGlyph = SyntheticFontBuilder.MathTableBytes(new SyntheticFontBuilder.MathTableSpec
+        {
+            Vertical = [new SyntheticFontBuilder.MathConstructionSpec(1, [(5, 900)])]
+        });
+
+        // Act: loading succeeds
+        var versionFont = LoadFontWithMathTable(badVersion);
+        var glyphFont = LoadFontWithMathTable(badGlyph);
+
+        // Assert: the font is usable, and every MATH access throws
+        Assert.Equal(1, versionFont.GetGlyphIndex('A'));
+        Assert.NotEmpty(versionFont.GetGlyphOutline(1).Subpaths);
+        Assert.Throws<InvalidDataException>(() => versionFont.TryGetMathTable(out _));
+        Assert.Throws<InvalidDataException>(() => versionFont.TryGetMathTable(out _));
+        Assert.Throws<InvalidDataException>(() => glyphFont.TryGetMathTable(out _));
+    }
+
+    /// <summary>
+    ///     Proves that repeated and concurrent accesses all return the one parsed table instance.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_TryGetMathTable_RepeatedAndParallelAccess_ReturnsSameInstance()
+    {
+        // Arrange
+        var font = LoadFontWithMathTable(SyntheticFontBuilder.MathTableBytes(new SyntheticFontBuilder.MathTableSpec()));
+        var results = new MathTable?[64];
+
+        // Act: many concurrent first accesses, then one more
+        Parallel.For(0, results.Length, i => results[i] = font.TryGetMathTable(out var table) ? table : null);
+        Assert.True(font.TryGetMathTable(out var last));
+
+        // Assert: every access saw the same instance
+        Assert.All(results, result => Assert.Same(last, result));
+    }
 }
