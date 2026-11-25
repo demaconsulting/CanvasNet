@@ -1,0 +1,66 @@
+---
+# Software Unit Requirements for MathMlPainter
+#
+# These requirements describe the design-level behavior of the MathMlPainter unit (the internal painter of the root
+# namespace DemaConsulting.CanvasNet.MathMl): painting a laid-out equation onto a Surface, the order of the paint
+# items, phantoms, the glyph limit, and cancellation. See docs/verification/canvas-net-math-ml/math-ml-painter.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: MathMlPainter Requirements
+        requirements:
+          - id: CanvasNetMathMl-MathMlPainter-Glyphs
+            title: >-
+              The MathMlPainter unit shall paint every glyph of a laid-out equation in its color, at the pen position
+              and baseline of its box, scaled and moved by the placement of the call.
+            justification: |
+              The painter is the only part of the package that produces the pixels of the text of an equation.
+            tests:
+              - MathMlPainter_Paint_Glyph_InksItsBox
+
+          - id: CanvasNetMathMl-MathMlPainter-Backgrounds
+            title: >-
+              The MathMlPainter unit shall fill the whole surface with the background of the call when one is given and
+              shall paint the backgrounds of the elements before every glyph.
+            justification: |
+              A background of one element must never hide the glyphs of another.
+            tests:
+              - MathMlPainter_Paint_Background_IsUnderGlyphs
+
+          - id: CanvasNetMathMl-MathMlPainter-Borders
+            title: >-
+              The MathMlPainter unit shall paint the four sides of a border, after every glyph, and leave its inside
+              alone.
+            justification: |
+              The border of merror marks an error around its content without covering it.
+            tests:
+              - MathMlPainter_Paint_Border_PaintsFourSides
+
+          - id: CanvasNetMathMl-MathMlPainter-Phantom
+            title: >-
+              The MathMlPainter unit shall paint nothing for a phantom subtree.
+            justification: |
+              mphantom reserves the space of its content without drawing it.
+            tests:
+              - MathMlPainter_Paint_Phantom_PaintsNothing
+
+          - id: CanvasNetMathMl-MathMlPainter-Cancellation
+            title: >-
+              The MathMlPainter unit shall stop with an OperationCanceledException when the token of the call is
+              canceled, before it paints anything when the token is already canceled.
+            justification: |
+              A caller must be able to stop a long painting.
+            tests:
+              - MathMlPainter_Paint_CanceledToken_PaintsNothing
+
+          - id: CanvasNetMathMl-MathMlPainter-Limit
+            title: >-
+              The MathMlPainter unit shall fail with a mathml-limit-exceeded render exception located at the element of
+              the first glyph beyond the painted-glyph limit, before it paints anything.
+            justification: |
+              A hostile equation must not consume unbounded time painting glyphs, and a failed painting must leave no
+              partial picture.
+            tests:
+              - MathMlPainter_Paint_TooManyGlyphs_ThrowsBeforePainting

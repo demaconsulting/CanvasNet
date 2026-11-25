@@ -37,7 +37,22 @@ reference layout goldens and `mermaid/gen-*.mjs` the upstream parser, shape, cur
   or a local build), and Node.js 20 or later for the Mermaid scripts (18 or later is enough for the Vega scripts).
 
 `update-plantuml-goldens.ps1` regenerates the PlantUML reference pictures from the MIT-licensed PlantUML jar (Java
-17 or later). See [its README](visual-diff/README.md).
+17 or later). `update-mathml-goldens.ps1` (with `render-mathml.mjs`)
+regenerates the MathML reference layouts with MathML Core in the headless Chrome of the pinned mermaid-cli (Node.js 20
+or later). See [its README](visual-diff/README.md).
+
+## mathml-data
+
+**For** the data tables of the MathML package. `update-mathml-tables.ps1` downloads the pinned W3C and Unicode sources
+(the HTML+MathML entity file, the dated MathML Core Candidate Recommendation, and UnicodeData.txt of Unicode 16.0.0) and
+rewrites the generated C# data files `Syntax/CharacterReferences.Table.cs` and `Layout/MathVariants.Data.cs` of
+`src/DemaConsulting.CanvasNet.MathMl/`, which are committed. The output is deterministic: a second run changes nothing.
+
+- **When**: only when a pinned source changes (a new Unicode version or MathML Core revision); update the provenance
+  table in `src/DemaConsulting.CanvasNet.MathMl/third-party/README.md` with it, and commit the result.
+- **Prerequisites**: PowerShell 7 and network access to w3.org and unicode.org, or `-SourceDirectory` with the three
+  files already downloaded.
+- **Run**: `pwsh tools/mathml-data/update-mathml-tables.ps1`
 
 ## Adding a Tool
 

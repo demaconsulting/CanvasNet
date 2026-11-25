@@ -778,6 +778,45 @@ tests:
           - query: "//*[local-name()='text']"
             min: 1
 
+  - name: SysML2Tools_CanvasNetMathMlViewSvg
+    description: "CanvasNetMathMlView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/CanvasNetMathMlView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_MathMlSyntaxViewSvg
+    description: "MathMlSyntaxView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/MathMlSyntaxView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
+  - name: SysML2Tools_MathMlLayoutViewSvg
+    description: "MathMlLayoutView diagram was rendered by SysML2Tools"
+    tags: [design]
+    files:
+      - pattern: "docs/design/generated/MathMlLayoutView.svg"
+        count: 1
+        xml:
+          - query: "//*[local-name()='svg']"
+            count: 1
+          # A view that resolves to nothing still writes an <svg> root, so also require drawn text.
+          - query: "//*[local-name()='text']"
+            min: 1
+
   - name: SysML2Tools_CanvasNetToolViewSvg
     description: "CanvasNetToolView diagram was rendered by SysML2Tools"
     tags: [design]

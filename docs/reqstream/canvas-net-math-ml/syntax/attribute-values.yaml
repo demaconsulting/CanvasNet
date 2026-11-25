@@ -1,0 +1,70 @@
+---
+# Software Unit Requirements for AttributeValues
+#
+# These requirements describe the design-level behavior of the AttributeValues unit of the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Syntax): the parsers of lengths, booleans, unsigned integers, scriptlevel
+# values, colors, and the inline style subset. See docs/verification/canvas-net-math-ml/syntax/attribute-values.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: AttributeValues Requirements
+            requirements:
+              - id: CanvasNetMathMl-Syntax-AttributeValues-Lengths
+                title: >-
+                  The AttributeValues unit shall parse CSS lengths and percentages in every CSS unit (the absolute units
+                  converted to pixels, em and ex kept relative), the MathML 3 named spaces and their negative forms in
+                  eighteenths of an em, and a unitless zero, refuse other text, and resolve a length against a font
+                  size, an x-height, and a percentage base, clamped to a finite magnitude.
+                justification: |
+                  The sizes of mspace, mpadded, mo, and mathsize are written as lengths, and an untrusted length must
+                  keep the layout finite.
+                tests:
+                  - AttributeValues_TryParseLength_EachUnit_IsParsed
+                  - AttributeValues_TryParseLength_NamedSpaces_AreEighteenthsOfAnEm
+                  - AttributeValues_TryParseLength_InvalidInput_IsRefused
+                  - AttributeValues_MathLength_Resolve_UsesBasesAndClamps
+
+              - id: CanvasNetMathMl-Syntax-AttributeValues-Booleans
+                title: >-
+                  The AttributeValues unit shall parse the booleans true and false (ASCII case-insensitive) and unsigned
+                  integers of ASCII digits, refusing other text.
+                justification: |
+                  displaystyle and other attributes are booleans; an invalid value must be recognized.
+                tests:
+                  - AttributeValues_TryParseBooleanAndUnsignedInteger_AcceptOnlyValidValues
+
+              - id: CanvasNetMathMl-Syntax-AttributeValues-ScriptLevel
+                title: >-
+                  The AttributeValues unit shall parse the scriptlevel forms +U and -U (a change of the inherited level)
+                  and U (a level).
+                justification: |
+                  scriptlevel changes the math depth and through it the font size.
+                tests:
+                  - AttributeValues_TryParseScriptLevel_ReadsChangesAndLevels
+
+              - id: CanvasNetMathMl-Syntax-AttributeValues-Colors
+                title: >-
+                  The AttributeValues unit shall parse CSS colors (names, transparent, the hexadecimal forms, and the
+                  rgb and hsl functions with alpha), refusing other text.
+                justification: |
+                  mathcolor and mathbackground are CSS colors.
+                tests:
+                  - AttributeValues_TryParseColor_ReadsCssColors
+
+              - id: CanvasNetMathMl-Syntax-AttributeValues-Style
+                title: >-
+                  The AttributeValues unit shall read the supported declarations of an inline style attribute (color,
+                  background-color, font-size, math-style, math-depth, font-style, and display: none), with the last
+                  declaration of a property winning and !important ignored, and return every other declaration and every
+                  invalid value as an issue, in order.
+                justification: |
+                  A rendering has no style sheets, so the inline style is the only CSS an equation can carry, and what
+                  is not applied must be reported.
+                tests:
+                  - StyleDeclarations_Parse_SupportedSubset_IsRead
+                  - StyleDeclarations_Parse_MathDepthForms_AreRead
+                  - StyleDeclarations_Parse_UnsupportedDeclarations_AreIssues

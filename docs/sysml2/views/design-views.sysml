@@ -14,6 +14,7 @@ package CanvasNetDesignViews {
     private import CanvasNet::*;
     private import CanvasNetCharts::*;
     private import CanvasNetLayout::*;
+    private import CanvasNetMathMl::*;
     private import CanvasNetMermaid::*;
     private import CanvasNetPdf::*;
     private import CanvasNetPlantUml::*;
@@ -43,6 +44,7 @@ package CanvasNetDesignViews {
         expose CanvasNetLayout::CanvasNetLayoutSystem;
         expose CanvasNetMermaid::CanvasNetMermaidSystem;
         expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetMathMl::CanvasNetMathMlSystem;
         expose CanvasNetTool::CanvasNetToolSystem;
         filter not (@SysML::Documentation);
     }
@@ -69,6 +71,7 @@ package CanvasNetDesignViews {
         expose CanvasNetLayout::CanvasNetLayoutSystem;
         expose CanvasNetMermaid::CanvasNetMermaidSystem;
         expose CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        expose CanvasNetMathMl::CanvasNetMathMlSystem;
         expose CanvasNetTool::CanvasNetToolSystem;
         filter not (@SysML::Documentation);
         filter not (@SysML::PartUsage);
@@ -276,6 +279,18 @@ package CanvasNetDesignViews {
 
     view PlantUmlDescriptionView : InterconnectionView {
         expose PlantUmlDescription::**;
+    }
+
+    view CanvasNetMathMlView : InterconnectionView {
+        expose CanvasNetMathMlSystem::**;
+    }
+
+    view MathMlSyntaxView : InterconnectionView {
+        expose MathMlSyntax::**;
+    }
+
+    view MathMlLayoutView : InterconnectionView {
+        expose MathMlLayout::**;
     }
 
     view CanvasNetToolView : InterconnectionView {

@@ -1,0 +1,132 @@
+---
+# Software Unit Requirements for MathMlDocument
+#
+# These requirements describe the design-level behavior of the MathMlDocument unit (the public API of the root
+# namespace DemaConsulting.CanvasNet.MathMl): the reading entry points, the description of a document, measuring and
+# rendering, the options and limits, the records, codes, and exceptions, and the report sink. See
+# docs/verification/canvas-net-math-ml/math-ml-document.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: MathMlDocument Requirements
+        requirements:
+          - id: CanvasNetMathMl-MathMlDocument-ParseOpen
+            title: >-
+              The MathMlDocument unit shall read an equation from a string, a file path, or a readable stream as strict
+              UTF-8 without a byte-order mark, leaving the stream open and naming the source after the path unless the
+              options name it, and shall reject a null text, a null, empty, or whitespace path, a null or unreadable
+              stream, and a missing file with the documented exceptions.
+            justification: |
+              The three entry points must agree, bytes that are not UTF-8 must never be replaced silently, and invalid
+              arguments must fail closed with a predictable exception.
+            tests:
+              - MathMlDocument_Parse_NullText_ThrowsArgumentNullException
+              - MathMlDocument_Open_NullArguments_AreRejected
+              - MathMlDocument_Open_UnreadableStream_ThrowsArgumentException
+              - MathMlDocument_Open_MissingFile_ThrowsFileNotFoundException
+              - MathMlDocument_Open_StreamWithByteOrderMark_DropsIt
+              - MathMlDocument_Open_InvalidUtf8_ThrowsSyntaxException
+
+          - id: CanvasNetMathMl-MathMlDocument-Describe
+            title: >-
+              The MathMlDocument unit shall expose the display mode of the math element (inline when the attribute is
+              absent or invalid), the number of MathML elements, the text alternative (null when absent), and the
+              annotations (empty when absent).
+            justification: |
+              A host reads the description of an equation before it renders it.
+            tests:
+              - MathMlDocument_Parse_DescriptionDefaults_AreInlineAndEmpty
+
+          - id: CanvasNetMathMl-MathMlDocument-MeasureRender
+            title: >-
+              The MathMlDocument unit shall measure and render the picture of an equation as its content box united
+              with its ink and rounded out to whole pixels (at least one pixel on each side), with the baseline on a
+              whole row, shall render an empty equation as one transparent pixel, shall refuse a picture larger than a
+              surface can be with a located mathml-limit-exceeded error, and shall still fit such an equation into an
+              exact size.
+            justification: |
+              The measured size must be the rendered size, a glyph that overhangs its box must never be clipped, and an
+              oversized equation must fail predictably instead of allocating an impossible surface.
+            tests:
+              - MathMlDocument_Measure_EmptyMath_IsOnePixel
+              - MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded
+
+          - id: CanvasNetMathMl-MathMlDocument-RenderOptions
+            title: >-
+              The MathMlDocument unit shall provide render options with the browser defaults (a font size of 16 pixels,
+              scale 1, the display of the document, black text, a transparent background), refuse a font size or a scale
+              that is not finite and positive or is too large and null limits, and provide open options that refuse a
+              whitespace source name and use the default limits when none are given.
+            justification: |
+              Invalid options must fail at the point where they are set, not deep inside a rendering.
+            tests:
+              - MathMlRenderOptions_Defaults_AreBrowserDefaults
+              - MathMlRenderOptions_FontSizeAndScale_InvalidValue_Throws
+              - MathMlRenderOptions_Limits_Null_ThrowsArgumentNullException
+              - MathMlOpenOptions_SourceNameAndLimits_AreValidated
+
+          - id: CanvasNetMathMl-MathMlDocument-Limits
+            title: >-
+              The MathMlDocument unit shall provide resource limits with documented defaults (text size, elements,
+              nesting depth from 1 to 1,024, token length, layout work, painted glyphs, and reports), refuse values
+              below one, and fail a call that exceeds the layout work with a located render exception that names the
+              limit.
+            justification: |
+              The caller tunes the bounds of untrusted input, and an exceeded bound must name the setting to change.
+            tests:
+              - MathMlLimits_Default_HasDocumentedValues
+              - MathMlLimits_ValueBelowOne_Throws
+              - MathMlLimits_MaxNestingDepth_OutsideRange_Throws
+              - MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException
+
+          - id: CanvasNetMathMl-MathMlDocument-Records
+            title: >-
+              The MathMlDocument unit shall provide value records for locations, warnings, unsupported features, sizes,
+              and annotations with editor-style formatting, exceptions that carry a code, a location, and a hint (with
+              default codes for the standard constructors), and distinct mathml-* diagnostic codes.
+            justification: |
+              Callers and tools compare, print, and react to the results and failures of the library.
+            tests:
+              - MathMlLocation_ToString_FormatsEditorPosition
+              - MathMlDiagnostic_ToString_PrefixesKnownLocation
+              - MathMlSize_AndAnnotation_HaveValueEquality
+              - MathMlExceptions_LocatedConstructors_CarryCodeLocationAndHint
+              - MathMlExceptions_StandardConstructors_UseDefaultCodes
+              - MathMlDiagnosticCodes_AllCodes_AreDistinctMathMlIdentifiers
+
+          - id: CanvasNetMathMl-MathMlDocument-Reports
+            title: >-
+              The MathMlDocument unit shall deliver the warnings and unsupported features of a call once, in the order
+              they were found (the reports of reading first), on the calling thread, with identical reports recorded
+              once and the reports beyond the limit replaced by a single suppression notice, and shall propagate the
+              exception of a failing handler after a successful call but ignore it after a failed call.
+            justification: |
+              A deterministic, bounded report stream lets a host show every problem once without a hostile equation
+              growing the buffer, and a failing handler must never hide the real failure.
+            tests:
+              - MathMlReportSink_Deliver_KeepsOrderAcrossKinds
+              - MathMlReportSink_Warn_Duplicate_IsRecordedOnce
+              - MathMlReportSink_BeyondCap_AddsSingleSuppressedNotice
+              - MathMlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException
+              - MathMlPendingReport_Replay_RecordsItsKind
+              - MathMlDocument_Render_HandlerFailures_FollowTheDeliveryRules
+
+          - id: CanvasNetMathMl-MathMlDocument-StrictMode
+            title: >-
+              The MathMlDocument unit shall, in strict mode, record the first unsupported feature (even beyond the
+              report limit) and throw a MathMlUnsupportedFeatureException for it.
+            justification: |
+              Strict mode must fail on the first construct that is not drawn, and the handler must still see it.
+            tests:
+              - MathMlReportSink_Unsupported_Strict_RecordsAndThrows
+
+          - id: CanvasNetMathMl-MathMlDocument-FailClosed
+            title: >-
+              The MathMlDocument unit shall turn an unexpected exception of the layout or the painting (malformed font
+              data or a runtime defect) into a located mathml-render-failed render exception with the original
+              exception inside, and shall pass the documented failures and cancellation through unchanged.
+            justification: |
+              A defect must surface as a documented, located failure instead of an undocumented exception type.
+            tests:
+              - MathMlDocument_IsLayoutDefect_ClassifiesExceptions

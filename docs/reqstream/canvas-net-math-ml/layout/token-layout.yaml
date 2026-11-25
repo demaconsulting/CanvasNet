@@ -1,0 +1,92 @@
+---
+# Software Unit Requirements for TokenLayout
+#
+# These requirements describe the design-level behavior of the TokenLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the character transforms, the token boxes, mspace, ms, the interim
+# operator spacing, and the missing glyphs. See docs/verification/canvas-net-math-ml/layout/token-layout.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: TokenLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-TokenLayout-AutoItalic
+                title: >-
+                  The TokenLayout unit shall draw a single-character mi without mathvariant with the mathematical italic
+                  of its character (the italic table of MathML Core), an mi of several characters upright, and an mi
+                  with mathvariant="normal" upright.
+                justification: |
+                  Variables are italic and function names upright in mathematics, as MathML Core specifies.
+                tests:
+                  - TokenLayout_LayoutToken_SingleCharMi_IsItalic
+                  - TokenLayout_LayoutToken_MultiCharMi_IsUpright
+                  - TokenLayout_LayoutToken_MathvariantNormal_CancelsItalic
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-Mathvariant
+                title: >-
+                  The TokenLayout unit shall map the Latin and Greek letters, the digits, and the Arabic letters of a
+                  token to the Mathematical Alphanumeric Symbols of every mathvariant value (with the letterlike symbols
+                  filling the holes of the block), leaving a character without a styled form unchanged.
+                justification: |
+                  Documents use bold, double-struck, script, and fraktur letters through mathvariant.
+                tests:
+                  - TokenLayout_LayoutToken_EveryMathvariant_MapsLatinGreekDigits
+                  - TokenLayout_LayoutToken_LetterlikeHoles_MapToLetterlikeSymbols
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-Metrics
+                title: >-
+                  The TokenLayout unit shall give a token the sum of the advances of its glyphs as its width and the ink
+                  ascent and descent of its glyphs rounded out to whole CSS pixels (also for a text with a space), and
+                  the italic correction of a single glyph.
+                justification: |
+                  Token boxes must match the boxes a browser computes, so that equations are spaced alike.
+                tests:
+                  - TokenLayout_LayoutToken_InkAscentDescent_FollowGlyphBounds
+                  - TokenLayout_LayoutToken_TextWithSpace_UsesInkMetrics
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-InvisibleCharacters
+                title: >-
+                  The TokenLayout unit shall give the invisible operators no width and no ink, and report nothing for
+                  them.
+                justification: |
+                  Invisible times and function application carry meaning, not ink.
+                tests:
+                  - TokenLayout_LayoutToken_InvisibleOperators_HaveZeroWidthAndNoReport
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-Space
+                title: >-
+                  The TokenLayout unit shall lay out mspace as a blank box of its width, height, and depth, clamping a
+                  negative depth, ignoring a negative width with a warning, and ignoring a percentage with a report.
+                justification: |
+                  mspace is how authors adjust spacing.
+                tests:
+                  - TokenLayout_LayoutToken_Mspace_UsesLengths
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-String
+                title: >-
+                  The TokenLayout unit shall draw the text of ms as written, without quotes.
+                justification: |
+                  MathML Core and Chrome draw ms without quotes.
+                tests:
+                  - TokenLayout_LayoutToken_Ms_DrawsTextWithoutQuotes
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-InterimOperatorSpacing
+                title: >-
+                  The TokenLayout unit shall give every mo the spacing of the Default operator category (5/18 em on each
+                  side), or its lspace and rspace when they are set (a percentage of the default).
+                justification: |
+                  Operators are spaced apart from their operands until the operator dictionary arrives.
+                tests:
+                  - TokenLayout_LayoutToken_Mo_HasInterimSpacing
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-MissingGlyph
+                title: >-
+                  The TokenLayout unit shall draw a character that no bundled font has as the missing-glyph box and
+                  report it as mathml-text-missing-glyph at the text.
+                justification: |
+                  A character that cannot be drawn must be visible and reported, not silently dropped.
+                tests:
+                  - TokenLayout_LayoutToken_MissingGlyph_IsReported

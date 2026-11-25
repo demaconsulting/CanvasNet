@@ -1,0 +1,28 @@
+---
+# Software Unit Requirements for MathBox
+#
+# These requirements describe the design-level behavior of the MathBox unit of the Layout subsystem (internal namespace
+# DemaConsulting.CanvasNet.MathMl.Layout): the box and paint-item model of a laid-out equation. See
+# docs/verification/canvas-net-math-ml/layout/math-box.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: MathBox Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-MathBox-Model
+                title: >-
+                  The MathBox unit shall represent a laid-out element as a box with its width, ascent, and descent
+                  around its baseline origin, its placed children, and its paint items (glyphs, rules, backgrounds, and
+                  borders with their bounds), and shall give its content box and the union of the ink of its items and
+                  its children, a phantom and an empty box having no ink.
+                justification: |
+                  The picture of an equation is the union of its content box and its ink, and the painter draws the
+                  items of the boxes.
+                tests:
+                  - MathBox_ContentRect_SpansAscentAndDescent
+                  - MathBox_InkBounds_UnitesItemsAndChildren
+                  - MathBox_InkBounds_PhantomAndEmpty_AreNull
+                  - MathBox_PaintItems_ReportTheirBounds

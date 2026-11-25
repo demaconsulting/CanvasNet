@@ -1,0 +1,82 @@
+---
+# Software Unit Requirements for LayoutEngine
+#
+# These requirements describe the design-level behavior of the LayoutEngine unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk of the equation tree, the dispatch of each element, the
+# elements without a box, the reports of the elements and attributes this version does not draw, and the bounds. See
+# docs/verification/canvas-net-math-ml/layout/layout-engine.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: LayoutEngine Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+                title: >-
+                  The LayoutEngine unit shall lay out the token elements with the token layout and math, mrow, mstyle,
+                  mphantom, merror, and mpadded with the row layout, with the computed style of each element, and keep
+                  the element of every box.
+                justification: |
+                  Each element has its own layout, and the painter and the reports need the element of a box.
+                tests:
+                  - LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements
+                title: >-
+                  The LayoutEngine unit shall lay out an element of MathML Core that a later version draws, and an
+                  element outside MathML Core, as a row of its children and report it as mathml-element-unsupported at
+                  its location.
+                justification: |
+                  MathML Core lays an unknown element out as a row; the caller must learn that it was not drawn as
+                  written.
+                tests:
+                  - LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-HiddenElements
+                title: >-
+                  The LayoutEngine unit shall give no box to an element with display: none and to the annotations, and
+                  lay out only the first child of semantics and maction.
+                justification: |
+                  The user agent stylesheet of MathML Core hides these elements.
+                tests:
+                  - LayoutEngine_Layout_HiddenElements_GetNoBox
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-Phantom
+                title: >-
+                  The LayoutEngine unit shall mark the box of mphantom as a phantom that keeps the size of its content.
+                justification: |
+                  mphantom reserves space without drawing.
+                tests:
+                  - LayoutEngine_Layout_Mphantom_IsPhantomWithSize
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-UnsupportedAttributes
+                title: >-
+                  The LayoutEngine unit shall report the legacy and unknown attributes of an element it draws and
+                  right-to-left math as mathml-attribute-unsupported, and accept the global attributes that do not
+                  change a picture silently.
+                justification: |
+                  An attribute without effect changes the meaning the author intended; the caller must learn it, without
+                  noise for identifiers and classes.
+                tests:
+                  - LayoutEngine_Layout_UnsupportedAttributes_AreReported
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-TextInRows
+                title: >-
+                  The LayoutEngine unit shall lay out text written directly inside a row as a space-like text box, as an
+                  mtext.
+                justification: |
+                  Browsers draw such text; the reader has already reported it.
+                tests:
+                  - LayoutEngine_Layout_TextInRow_IsLaidOutLikeMtext
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-Bounds
+                title: >-
+                  The LayoutEngine unit shall refuse a nesting deeper than the limit and a layout whose elements and
+                  characters exceed the work limit with located mathml-limit-exceeded render errors, and stop when the
+                  token of the call is canceled.
+                justification: |
+                  The layout must stay bounded for every equation the reader accepts.
+                tests:
+                  - LayoutEngine_Layout_Bounds_AreEnforced

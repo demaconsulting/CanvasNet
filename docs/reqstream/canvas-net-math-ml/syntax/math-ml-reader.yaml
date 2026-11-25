@@ -1,0 +1,94 @@
+---
+# Software Unit Requirements for MathMlReader
+#
+# These requirements describe the design-level behavior of the MathMlReader unit of the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Syntax): reading the rewritten text into the equation tree, the root,
+# foreign content, whitespace, annotations, links, locations, and the reading limits. See
+# docs/verification/canvas-net-math-ml/syntax/math-ml-reader.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: MathMlReader Requirements
+            requirements:
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Root
+                title: >-
+                  The MathMlReader unit shall accept a math root element in the MathML namespace (with or without a
+                  prefix) or in no namespace, and shall refuse any other root with a located syntax error and a hint.
+                justification: |
+                  HTML writes math without a namespace and XML documents with one; any other document is not an
+                  equation.
+                tests:
+                  - MathMlReader_Read_NoNamespaceRoot_IsAccepted
+                  - MathMlReader_Read_WrongRoot_FailsLocated
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-ForeignContent
+                title: >-
+                  The MathMlReader unit shall skip an element of another namespace, and markup inside a token, with its
+                  subtree, and report it as mathml-element-unsupported at its location.
+                justification: |
+                  Embedded SVG or HTML cannot be drawn by a MathML renderer, and the caller must learn that it was
+                  skipped.
+                tests:
+                  - MathMlReader_Read_ForeignElement_IsSkippedAndReported
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Whitespace
+                title: >-
+                  The MathMlReader unit shall trim the text of a token and collapse its runs of XML whitespace to one
+                  space, and shall drop whitespace between elements.
+                justification: |
+                  MathML Core renders token text with CSS white-space normal; indentation must not change a picture.
+                tests:
+                  - MathMlReader_Read_TokenWhitespace_IsCollapsed
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-TextOutsideTokens
+                title: >-
+                  The MathMlReader unit shall keep text written directly inside a layout element and report it, and
+                  shall refuse text with an unpaired surrogate with a located syntax error.
+                justification: |
+                  Stray text is drawn as browsers draw it but belongs in a token, and a text that cannot be encoded must
+                  fail predictably.
+                tests:
+                  - MathMlReader_Read_TextOutsideTokens_IsKeptAndReported
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Annotations
+                title: >-
+                  The MathMlReader unit shall keep the content of annotation (its text) and annotation-xml (its markup)
+                  raw with its encoding, in document order, without laying it out or reporting it.
+                justification: |
+                  Annotations carry alternative forms of an equation (such as its TeX source) for the caller, not for
+                  the picture.
+                tests:
+                  - MathMlReader_Read_AnnotationXml_KeepsContentUnlaidOut
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Links
+                title: >-
+                  The MathMlReader unit shall report the href and xlink attributes as unsupported, never keep them, and
+                  ignore the other attributes of other namespaces.
+                justification: |
+                  Links must never be followed, and attributes of other vocabularies have no meaning for the layout.
+                tests:
+                  - MathMlReader_Read_Attributes_KeepLocationsAndReportLinks
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Locations
+                title: >-
+                  The MathMlReader unit shall locate every element and attribute, and every error of the XML reader, at
+                  its line and column in the original text.
+                justification: |
+                  Reports about invalid values and syntax errors must point at what the author wrote.
+                tests:
+                  - MathMlReader_Read_Attributes_KeepLocationsAndReportLinks
+                  - MathMlReader_Read_WrongRoot_FailsLocated
+
+              - id: CanvasNetMathMl-Syntax-MathMlReader-Limits
+                title: >-
+                  The MathMlReader unit shall refuse a text with more elements, a deeper nesting, or a longer token than
+                  the limits allow with a located mathml-limit-exceeded syntax error, without recursion.
+                justification: |
+                  A hostile text must fail with a clear error instead of exhausting memory or the stack.
+                tests:
+                  - MathMlReader_Read_ElementLimit_Throws
+                  - MathMlReader_Read_DepthLimit_Throws
+                  - MathMlReader_Read_TokenLengthLimit_Throws

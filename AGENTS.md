@@ -31,6 +31,7 @@
 │   ├── DemaConsulting.CanvasNet/
 │   ├── DemaConsulting.CanvasNet.Charts/
 │   ├── DemaConsulting.CanvasNet.Layout/
+│   ├── DemaConsulting.CanvasNet.MathMl/
 │   ├── DemaConsulting.CanvasNet.Mermaid/
 │   ├── DemaConsulting.CanvasNet.Pdf/
 │   ├── DemaConsulting.CanvasNet.PlantUml/
@@ -207,7 +208,7 @@ and exit 1.
 
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has fourteen source projects and fourteen test projects, so scope matters here. `-DryRun` also
+The solution has fifteen source projects and fifteen test projects, so scope matters here. `-DryRun` also
 tells you which test projects a change affects.
 
 - **Documentation-only changes** (`docs/`, `README.md`, agent files) need no build or test run

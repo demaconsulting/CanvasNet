@@ -278,6 +278,21 @@ input-files:
   - docs/verification/canvas-net-plant-uml/description/description-parser.md
   - docs/verification/canvas-net-plant-uml/description/description-model.md
   - docs/verification/canvas-net-plant-uml/description/description-renderer.md
+  - docs/verification/canvas-net-math-ml.md
+  - docs/verification/canvas-net-math-ml/math-ml-document.md
+  - docs/verification/canvas-net-math-ml/math-ml-painter.md
+  - docs/verification/canvas-net-math-ml/syntax.md
+  - docs/verification/canvas-net-math-ml/syntax/math-ml-reader.md
+  - docs/verification/canvas-net-math-ml/syntax/character-references.md
+  - docs/verification/canvas-net-math-ml/syntax/math-tree.md
+  - docs/verification/canvas-net-math-ml/syntax/attribute-values.md
+  - docs/verification/canvas-net-math-ml/layout.md
+  - docs/verification/canvas-net-math-ml/layout/layout-engine.md
+  - docs/verification/canvas-net-math-ml/layout/style-resolver.md
+  - docs/verification/canvas-net-math-ml/layout/math-font.md
+  - docs/verification/canvas-net-math-ml/layout/math-box.md
+  - docs/verification/canvas-net-math-ml/layout/token-layout.md
+  - docs/verification/canvas-net-math-ml/layout/row-layout.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

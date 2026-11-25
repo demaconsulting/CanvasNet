@@ -1,0 +1,86 @@
+---
+# Software Unit Requirements for CharacterReferences
+#
+# These requirements describe the design-level behavior of the CharacterReferences unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.MathMl.Syntax): the rewriting of the named character references into
+# numeric references before the XML reader runs, the refusals, and the location map. See
+# docs/verification/canvas-net-math-ml/syntax/character-references.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: CharacterReferences Requirements
+            requirements:
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Named
+                title: >-
+                  The CharacterReferences unit shall know the full W3C HTML+MathML set of named character references
+                  (2125 names, with their values of one or two code points) and shall rewrite each named reference in
+                  text and in attribute values into one numeric reference per code point.
+                justification: |
+                  A numeric reference, never the literal character, is safe in content and in attribute values, also for
+                  the names whose values contain markup characters.
+                tests:
+                  - CharacterReferences_Rewrite_NamedReference_BecomesNumericReference
+                  - CharacterReferences_Rewrite_TwoCodePointReference_BecomesTwoReferences
+                  - CharacterReferences_Table_HoldsTheFullW3cSet
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Numeric
+                title: >-
+                  The CharacterReferences unit shall keep numeric references and the five predefined XML names as
+                  written, for the XML reader.
+                justification: |
+                  The XML reader decodes them itself.
+                tests:
+                  - CharacterReferences_Rewrite_XmlPredefinedNames_AreKept
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Markup
+                title: >-
+                  The CharacterReferences unit shall rewrite references in text and in attribute values of either quote,
+                  and leave the content of comments, CDATA sections, and processing instructions unchanged.
+                justification: |
+                  A reference is only a reference where XML reads one.
+                tests:
+                  - CharacterReferences_Rewrite_InsideCommentCdataAndPi_IsUnchanged
+                  - CharacterReferences_Rewrite_InsideAttributeValue_IsReplaced
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Unknown
+                title: >-
+                  The CharacterReferences unit shall refuse a name that the set does not define with a located
+                  mathml-syntax-error at its ampersand and a hint that suggests a numeric reference.
+                justification: |
+                  Without a document type an unknown name cannot be decoded, and the author must learn how to fix it.
+                tests:
+                  - CharacterReferences_Rewrite_UnknownName_FailsAtAmpersand
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Doctype
+                title: >-
+                  The CharacterReferences unit shall stop rewriting at a document type declaration and record its
+                  location, so that the XML reader refuses it.
+                justification: |
+                  Document types are the vehicle of entity-expansion and external-entity attacks and are never read.
+                tests:
+                  - CharacterReferences_Rewrite_Doctype_StopsRewriting
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Encoding
+                title: >-
+                  The CharacterReferences unit shall refuse an XML declaration that names an encoding other than UTF-8
+                  or US-ASCII (in any letter case) with a located syntax error at the encoding and a hint.
+                justification: |
+                  The text has already been decoded as UTF-8, so a different declared encoding would be misread.
+                tests:
+                  - CharacterReferences_Rewrite_ForeignEncodingDeclaration_FailsAtEncoding
+
+              - id: CanvasNetMathMl-Syntax-CharacterReferences-Locations
+                title: >-
+                  The CharacterReferences unit shall map a line and column of the rewritten text back to the original
+                  text, columns inside a replacement to its ampersand, counting lines (a CR LF, a lone CR, or an LF is
+                  one line break) and columns in UTF-16 code units as the XML reader does.
+                justification: |
+                  The XML reader reports positions in the rewritten text, but every location must point into the
+                  original.
+                tests:
+                  - CharacterReferences_MapBack_AfterReplacements_ReturnsOriginalColumn
+                  - CharacterReferences_MapBack_AstralCharacterBeforeReference_CountsUtf16Units
+                  - CharacterReferences_MapBack_LoneCarriageReturn_CountsAsLineBreak

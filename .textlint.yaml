@@ -1356,6 +1356,31 @@ words:
   - Sensmetry
   - Syside
   - distinguishability
+  # MathML terms: the language and its attributes (alttext, largeop, movablelimits, the legacy lquote and rquote of ms),
+  # the named spaces of MathML 3 and their negative forms, the W3C entity file of the HTML+MathML set (htmlmathml),
+  # the OpenType tables and features that the layout does not apply (GPOS, ssty), the Letterlike Symbols block of
+  # Unicode, and the deliberately unknown element and reference names of the tests (mfoo, notaname)
+  - mathml
+  - alttext
+  - largeop
+  - movablelimits
+  - lquote
+  - rquote
+  - veryverythinmathspace
+  - verythinmathspace
+  - thinmathspace
+  - mediummathspace
+  - thickmathspace
+  - verythickmathspace
+  - veryverythickmathspace
+  - negativethickmathspace
+  - negativeveryverythickmathspace
+  - htmlmathml
+  - GPOS
+  - ssty
+  - letterlike
+  - mfoo
+  - notaname
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
@@ -1390,6 +1415,10 @@ ignorePaths:
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"
   - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"
+  # The generated data tables of the MathML package: the W3C named character references and the italic and
+  # mathvariant mappings (tools/mathml-data/update-mathml-tables.ps1). Data, not prose.
+  - "src/DemaConsulting.CanvasNet.MathMl/Syntax/CharacterReferences.Table.cs"
+  - "src/DemaConsulting.CanvasNet.MathMl/Layout/MathVariants.Data.cs"
   # The git graph vectors: the texts of Mermaid's git graph tests, with branch names that are not words, case names
   # made from the test names, and Mermaid's entity-encoding markers. Data, not prose.
   - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"

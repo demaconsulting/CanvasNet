@@ -281,6 +281,21 @@ input-files:
   - docs/design/canvas-net-plant-uml/description/description-parser.md
   - docs/design/canvas-net-plant-uml/description/description-model.md
   - docs/design/canvas-net-plant-uml/description/description-renderer.md
+  - docs/design/canvas-net-math-ml.md
+  - docs/design/canvas-net-math-ml/math-ml-document.md
+  - docs/design/canvas-net-math-ml/math-ml-painter.md
+  - docs/design/canvas-net-math-ml/syntax.md
+  - docs/design/canvas-net-math-ml/syntax/math-ml-reader.md
+  - docs/design/canvas-net-math-ml/syntax/character-references.md
+  - docs/design/canvas-net-math-ml/syntax/math-tree.md
+  - docs/design/canvas-net-math-ml/syntax/attribute-values.md
+  - docs/design/canvas-net-math-ml/layout.md
+  - docs/design/canvas-net-math-ml/layout/layout-engine.md
+  - docs/design/canvas-net-math-ml/layout/style-resolver.md
+  - docs/design/canvas-net-math-ml/layout/math-font.md
+  - docs/design/canvas-net-math-ml/layout/math-box.md
+  - docs/design/canvas-net-math-ml/layout/token-layout.md
+  - docs/design/canvas-net-math-ml/layout/row-layout.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

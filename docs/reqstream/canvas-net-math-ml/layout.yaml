@@ -1,0 +1,112 @@
+---
+# Software Subsystem Requirements for Layout
+#
+# These requirements decompose the CanvasNetMathMl system's layout responsibility into the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk and dispatch of the equation tree (LayoutEngine), the
+# computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), and the layouts of tokens
+# (TokenLayout) and rows (RowLayout). Each requirement here links down to the unit requirements that implement it.
+# See docs/verification/canvas-net-math-ml/layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        requirements:
+          - id: CanvasNetMathMl-Layout-Tokens
+            title: >-
+              The Layout subsystem shall lay out the token elements as MathML Core does: the transformed characters
+              drawn with the glyphs of the math font placed by their advances, a box as wide as the advances with the
+              ink ascent and descent, and the spacing of an operator.
+            justification: |
+              Tokens are the leaves of every equation; their boxes decide the size and the spacing of everything else.
+            children:
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-TokenLayout-AutoItalic
+              - CanvasNetMathMl-Layout-TokenLayout-Mathvariant
+              - CanvasNetMathMl-Layout-TokenLayout-Metrics
+              - CanvasNetMathMl-Layout-TokenLayout-InvisibleCharacters
+              - CanvasNetMathMl-Layout-TokenLayout-Space
+              - CanvasNetMathMl-Layout-TokenLayout-String
+              - CanvasNetMathMl-Layout-TokenLayout-InterimOperatorSpacing
+              - CanvasNetMathMl-Layout-MathBox-Model
+            tests:
+              - Layout_TokenRow_MatchesFontMetricsAndSpacing
+
+          - id: CanvasNetMathMl-Layout-Rows
+            title: >-
+              The Layout subsystem shall lay out rows and the grouping elements as MathML Core does: the children on a
+              shared baseline with the spacing of their operators, mpadded with its requested size and offsets, merror
+              with its border, mphantom with its size but no ink, semantics and maction with their first child, and the
+              text written directly inside a row like an mtext.
+            justification: |
+              Rows place every token of an equation, and the grouping elements change the space or the look of their
+              content.
+            children:
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-HiddenElements
+              - CanvasNetMathMl-Layout-LayoutEngine-Phantom
+              - CanvasNetMathMl-Layout-LayoutEngine-TextInRows
+              - CanvasNetMathMl-Layout-RowLayout-Row
+              - CanvasNetMathMl-Layout-RowLayout-Grouping
+              - CanvasNetMathMl-Layout-RowLayout-Padded
+              - CanvasNetMathMl-Layout-RowLayout-Error
+            tests:
+              - Layout_TokenRow_MatchesFontMetricsAndSpacing
+
+          - id: CanvasNetMathMl-Layout-Style
+            title: >-
+              The Layout subsystem shall compute the style of every element from its parent's as MathML Core does: the
+              math style and math depth, the font size scaled by the script level with the MATH constants, the color
+              and background, the mathvariant, and the inline style subset, reporting invalid values.
+            justification: |
+              Styles decide the size, the color, and the letters of every token.
+            children:
+              - CanvasNetMathMl-Layout-StyleResolver-MathStyle
+              - CanvasNetMathMl-Layout-StyleResolver-MathDepth
+              - CanvasNetMathMl-Layout-StyleResolver-FontSize
+              - CanvasNetMathMl-Layout-StyleResolver-Colors
+              - CanvasNetMathMl-Layout-StyleResolver-Variant
+              - CanvasNetMathMl-Layout-StyleResolver-InlineStyle
+            tests:
+              - Layout_ScriptLevel_ScalesTokensWithMathConstants
+
+          - id: CanvasNetMathMl-Layout-MathFont
+            title: >-
+              The Layout subsystem shall lay equations out with the bundled Noto Sans Math, its MATH constants, and the
+              metrics of its glyphs, with the deterministic bundled fallback for the characters it lacks, and shall
+              report a character no bundled font has.
+            justification: |
+              The math font with its MATH table gives the metrics of a browser's math layout, and bundled fonts only
+              make the layout identical on every machine.
+            children:
+              - CanvasNetMathMl-Layout-MathFont-Constants
+              - CanvasNetMathMl-Layout-MathFont-Fallback
+              - CanvasNetMathMl-Layout-MathFont-Metrics
+              - CanvasNetMathMl-Layout-TokenLayout-MissingGlyph
+            tests:
+              - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_ScriptLevel_ScalesTokensWithMathConstants
+
+          - id: CanvasNetMathMl-Layout-UnsupportedFeatures
+            title: >-
+              The Layout subsystem shall lay out every element this version does not draw as a row of its children and
+              report it, and shall report the attributes without effect on the elements it draws.
+            justification: |
+              An equation with a construct that is not drawn must still produce a picture, and the caller must learn
+              what was not drawn.
+            children:
+              - CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements
+              - CanvasNetMathMl-Layout-LayoutEngine-UnsupportedAttributes
+            tests:
+              - Layout_UnsupportedElementsAndAttributes_AreRowsWithReports
+
+          - id: CanvasNetMathMl-Layout-Bounds
+            title: >-
+              The Layout subsystem shall bound the nesting depth and the work of a layout with located
+              mathml-limit-exceeded errors and stop when the call is canceled.
+            justification: |
+              A hostile equation must not exhaust the stack or time while it is laid out.
+            children:
+              - CanvasNetMathMl-Layout-LayoutEngine-Bounds
+            tests:
+              - Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout
