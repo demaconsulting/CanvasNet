@@ -5,8 +5,8 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 /// </summary>
 /// <remarks>
 ///     The tests that only read the outcome of a not-silent run with a TRX results file share one run through
-///     <see cref="ValidationRunFixture"/>; the tests of the other options (silent, depth, other results formats) run
-///     the self-validation with their own context.
+///     <see cref="ValidationRunFixture"/>; the tests of the other options (silent, depth, silent output with a TRX
+///     results file, other results formats) run the self-validation with their own context.
 /// </remarks>
 [Collection("Sequential")]
 public class ValidationTests : IClassFixture<ValidationRunFixture>
@@ -280,20 +280,29 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
     [Fact]
     public void Validation_Run_WithTrxResultsFile_WritesTrxFile()
     {
-        // Arrange: the TRX path of the shared run (the fixture deletes the file)
-        var resultsFile = _run.ResultsFile;
+        // Arrange: a temporary TRX path
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
 
-        // Act: run the self-validation (the shared run, started on first use)
-        var exitCode = _run.ExitCode;
+        try
+        {
+            using var context = Context.Create(["--silent", "--results", resultsFile]);
 
-        // Assert: the TRX file exists, is a TRX document, and records both contractual self-test names
-        Assert.Equal(0, exitCode);
-        Assert.True(File.Exists(resultsFile));
-        var content = File.ReadAllText(resultsFile);
-        Assert.Contains("<TestRun", content);
-        Assert.Contains("CanvasNetTool_VersionDisplay", content);
-        Assert.Contains("CanvasNetTool_HelpDisplay", content);
-        Assert.Contains("CanvasNetTool_Formats", content);
+            // Act: run the self-validation
+            Validation.Run(context);
+
+            // Assert: the TRX file exists, is a TRX document, and records both contractual self-test names
+            Assert.Equal(0, context.ExitCode);
+            Assert.True(File.Exists(resultsFile));
+            var content = File.ReadAllText(resultsFile);
+            Assert.Contains("<TestRun", content);
+            Assert.Contains("CanvasNetTool_VersionDisplay", content);
+            Assert.Contains("CanvasNetTool_HelpDisplay", content);
+            Assert.Contains("CanvasNetTool_Formats", content);
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
     }
 
     /// <summary>

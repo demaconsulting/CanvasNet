@@ -5,9 +5,10 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 /// </summary>
 /// <remarks>
 ///     A self-validation run executes every self-test of the tool, which makes it the slowest thing the unit tests of
-///     <see cref="Validation"/> do. The tests of the summary, of each self-test's result and record, of the order of the
-///     self-tests, and of the TRX results file only read the outcome of a run with a TRX results file and normal
-///     (not silent) output, so they share this one run instead of starting one each. The run starts the first time a
+///     <see cref="Validation"/> do. The tests of the summary, of each self-test's result and record, and of the order of
+///     the self-tests only read the outcome of a run with a TRX results file and normal (not silent) output, so they
+///     share this one run instead of starting one each. The test of the TRX results file keeps its own silent run,
+///     because it covers writing the results file while console output is suppressed. The run starts the first time a
 ///     test reads it, so a filtered test run that selects none of those tests never pays for it. Standard output is
 ///     captured while it runs, which is safe because every user of this fixture is in the "Sequential" collection.
 ///     The results file is deleted when the fixture is disposed.

@@ -6,10 +6,10 @@
 no mocking is needed: the tests create a `Context` with controlled arguments, call `Validation.Run`, and
 inspect the captured output, the exit code, and the results files written to temporary paths. A self-validation run
 executes every self-test, so the tests that only read the outcome of a not-silent run with a `.trx` results path
-(the summary, each self-test's pass and record, the order of the self-tests, and the TRX file) share one such run
+(the summary, each self-test's pass and record, and the order of the self-tests) share one such run
 through `ValidationRunFixture`, which starts it the first time a test reads it and deletes its results file at the
-end. The tests of the other options (silent, depth, the `.xml` and unsupported results paths, the null context) run
-with their own context.
+end. The tests of the other options (silent, depth, the silent run with a `.trx` results path, the `.xml` and
+unsupported results paths, the null context) run with their own context.
 
 ### Test Environment
 
@@ -80,8 +80,8 @@ prints exactly the embedded source, and checks that `help topics --json` lists e
 
 **Validation_Run_WithDepth_UsesHeadingDepth**: with `--depth 3` the report heading has three hashes.
 
-**Validation_Run_WithTrxResultsFile_WritesTrxFile**: a `.trx` results path produces a TRX document that names
-the contractual self-tests.
+**Validation_Run_WithTrxResultsFile_WritesTrxFile**: a silent run with a `.trx` results path produces a TRX document
+that names the contractual self-tests, so suppressed console output does not suppress the results file.
 
 **Validation_Run_WithXmlResultsFile_WritesXmlFile**: an `.xml` results path produces a JUnit document.
 
