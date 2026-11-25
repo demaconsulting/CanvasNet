@@ -583,6 +583,7 @@ public class ScanlineRasterizerTests
     ///     once-per-fill build must still produce the exact same pixel colors.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void ScanlineRasterizer_Fill_Gradient_TallMultiRowFill_MatchesPerPixelEvaluatePoint()
     {
         // Arrange: a fully covered 6-pixel-wide, 50-pixel-tall rectangle - tall enough that a

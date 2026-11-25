@@ -411,6 +411,15 @@ internal sealed partial class FlowchartParser
     /// <summary>The last <c>direction</c> word of the cached line for each direction, or -1.</summary>
     private readonly Dictionary<string, int> _directionCache = new(StringComparer.Ordinal);
 
+    /// <summary>The position the cached run of white space of the link rules was computed from, or -1.</summary>
+    private int _spaceRunStart = -1;
+
+    /// <summary>The end of the cached run of white space of the link rules, or -1.</summary>
+    private int _spaceRunEnd = -1;
+
+    /// <summary>The steps of the scans of white space of the link rules: one per scan and one per character it passes.</summary>
+    private long _spaceSteps;
+
     /// <summary>
     ///     Builds a rule list of a start condition: the shared rules merged with the condition's own, in index order (the
     ///     order jison tries them).
@@ -425,6 +434,35 @@ internal sealed partial class FlowchartParser
     /// <param name="text">The text, mapped to the original.</param>
     /// <returns>The scanner.</returns>
     private SourceScanner CreateScanner(MappedText text) => new(text, CreateRules(), Conditions);
+
+    /// <summary>
+    ///     Lexes a whole text without parsing it: the tokens the parser reads, up to and including the end of the token
+    ///     stream, and the steps of the scans of white space of the link rules (a deterministic measure of their work).
+    /// </summary>
+    /// <remarks>
+    ///     It exists so that the tokens of a text and the work of the lexer can be checked without the grammar. It uses a
+    ///     parser and model of its own with the default limits, so it has no side effects and is safe for concurrent use.
+    /// </remarks>
+    /// <param name="text">The text, mapped to the original; not null.</param>
+    /// <returns>The tokens, the last being the end of the token stream, and the steps.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> is null.</exception>
+    /// <exception cref="MermaidSyntaxException">Thrown when no rule matches the text at a position.</exception>
+    internal static (IReadOnlyList<ScanToken> Tokens, long SpaceSteps) Tokenize(MappedText text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var parser = new FlowchartParser(new FlowchartModel(MermaidLimits.Default, text.Locate(0)), MermaidLimits.Default);
+        var scanner = parser.CreateScanner(text);
+        var tokens = new List<ScanToken>();
+        ScanToken token;
+        do
+        {
+            token = scanner.Next();
+            tokens.Add(token);
+        }
+        while (token.Kind != SourceScanner.EndOfInput);
+
+        return (tokens, parser._spaceSteps);
+    }
 
     /// <summary>
     ///     Creates the 122 rules of the lexer, in jison order.
@@ -808,9 +846,9 @@ internal sealed partial class FlowchartParser
     /// <param name="p">The position.</param>
     /// <param name="stroke">The stroke character: <c>-</c> or <c>=</c>.</param>
     /// <returns>The length, or -1.</returns>
-    private static int MatchArrow(string s, int p, char stroke)
+    private int MatchArrow(string s, int p, char stroke)
     {
-        var i = SkipSpaces(s, p);
+        var i = SpaceRunEnd(s, p);
         if (i < s.Length && s[i] is 'x' or 'o' or '<')
         {
             i++;
@@ -838,7 +876,7 @@ internal sealed partial class FlowchartParser
             return -1;
         }
 
-        return SkipSpaces(s, end) - p;
+        return SpaceRunEnd(s, end) - p;
     }
 
     /// <summary>
@@ -848,15 +886,15 @@ internal sealed partial class FlowchartParser
     /// <param name="p">The position.</param>
     /// <param name="start">The two characters of the start.</param>
     /// <returns>The length, or -1.</returns>
-    private static int MatchStartLink(string s, int p, string start)
+    private int MatchStartLink(string s, int p, string start)
     {
-        var i = SkipSpaces(s, p);
+        var i = SpaceRunEnd(s, p);
         if (Starts(s, i, start))
         {
-            return SkipSpaces(s, i + 2) - p;
+            return SpaceRunEnd(s, i + 2) - p;
         }
 
-        return i < s.Length && s[i] is 'x' or 'o' or '<' && Starts(s, i + 1, start) ? SkipSpaces(s, i + 3) - p : -1;
+        return i < s.Length && s[i] is 'x' or 'o' or '<' && Starts(s, i + 1, start) ? SpaceRunEnd(s, i + 3) - p : -1;
     }
 
     /// <summary>
@@ -865,10 +903,10 @@ internal sealed partial class FlowchartParser
     /// <param name="s">The input.</param>
     /// <param name="p">The position.</param>
     /// <returns>The length, or -1.</returns>
-    private static int MatchDottedArrow(string s, int p)
+    private int MatchDottedArrow(string s, int p)
     {
         // The optional head is taken when it is there; giving it back cannot help, since the strokes start with '-' or '.'
-        var i = SkipSpaces(s, p);
+        var i = SpaceRunEnd(s, p);
         if (i < s.Length && s[i] is 'x' or 'o' or '<')
         {
             i++;
@@ -896,7 +934,7 @@ internal sealed partial class FlowchartParser
             end++;
         }
 
-        return SkipSpaces(s, end) - p;
+        return SpaceRunEnd(s, end) - p;
     }
 
     /// <summary>
@@ -905,16 +943,42 @@ internal sealed partial class FlowchartParser
     /// <param name="s">The input.</param>
     /// <param name="p">The position.</param>
     /// <returns>The length, or -1.</returns>
-    private static int MatchInvisibleLink(string s, int p)
+    private int MatchInvisibleLink(string s, int p)
     {
-        var i = SkipSpaces(s, p);
+        var i = SpaceRunEnd(s, p);
         var tildes = i;
         while (tildes < s.Length && s[tildes] == '~')
         {
             tildes++;
         }
 
-        return tildes - i >= 3 ? SkipSpaces(s, tildes) - p : -1;
+        return tildes - i >= 3 ? SpaceRunEnd(s, tildes) - p : -1;
+    }
+
+    /// <summary>
+    ///     Gets the end of the run of JavaScript white space that starts at a position (<c>\s*</c>) for the link rules,
+    ///     cached so that lexing a long run token by token stays linear.
+    /// </summary>
+    /// <remarks>
+    ///     The link rules start with <c>\s*</c> and are tried at every character of a run of white space that the lexer
+    ///     consumes one character at a time (as <c>SPACE</c>, <c>EDGE_TEXT</c> or <c>TEXT</c> tokens); scanning the rest of
+    ///     the run each time would take time quadratic in its length. Every position inside a run shares its end, so the
+    ///     run is scanned once. The parser lexes one text, so the cache needs no key but the positions.
+    /// </remarks>
+    /// <param name="s">The input.</param>
+    /// <param name="p">The position.</param>
+    /// <returns>The position after the run.</returns>
+    private int SpaceRunEnd(string s, int p)
+    {
+        // Every position from the cached start up to the cached end has that end: the characters between are white space
+        if (p < _spaceRunStart || p > _spaceRunEnd)
+        {
+            _spaceRunStart = p;
+            _spaceRunEnd = SkipSpaces(s, p);
+            _spaceSteps += _spaceRunEnd - p + 1;
+        }
+
+        return _spaceRunEnd;
     }
 
     /// <summary>

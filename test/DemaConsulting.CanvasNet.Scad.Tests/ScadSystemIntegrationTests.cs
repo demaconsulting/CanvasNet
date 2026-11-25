@@ -87,6 +87,7 @@ public class ScadSystemIntegrationTests
     ///     Validates that every authored valid fixture parses; this is also the anchor of the platform requirements.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetScad_SystemIntegration_Syntax_AllAuthoredFixturesParse()
     {
         // Arrange
@@ -571,6 +572,7 @@ public class ScadSystemIntegrationTests
     ///     the default fitted camera and with an explicit camera, and the images agree on what the model contains.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetScad_SystemIntegration_Render_FixtureRendersWithDefaultAndExplicitCameras()
     {
         // Arrange

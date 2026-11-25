@@ -150,6 +150,7 @@ public class RenderCommandScadTests
     ///     filling the picture, and that the isometric view of the same model is shaded and so differs.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void RenderCommand_Run_FlatModelWithoutView_IsDrawnFlatFromTheTop()
     {
         // Arrange: a square 20 by 20 centered at the origin

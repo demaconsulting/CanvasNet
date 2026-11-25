@@ -372,6 +372,7 @@ public class RenderCommandMermaidTests
     ///     colors, as the library does, with no diagnostic.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void RenderCommand_Run_MermaidGitGraph_DrawsTheCommitsInTheTheme()
     {
         // Arrange

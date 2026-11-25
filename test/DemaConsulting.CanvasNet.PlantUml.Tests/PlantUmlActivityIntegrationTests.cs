@@ -18,6 +18,7 @@ public class PlantUmlActivityIntegrationTests
     ///     grey actions, and a dark start node.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_Activity_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange

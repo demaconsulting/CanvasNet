@@ -51,6 +51,7 @@ public class DagreLayoutTests
     ///     Validates two connected nodes on consecutive ranks, and that an edge without a label gets no label position.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void DagreLayout_Run_TwoConnectedNodes_StackedByRankSep()
     {
         // Arrange
@@ -73,6 +74,7 @@ public class DagreLayoutTests
     ///     Validates that a labeled edge gets its own rank for the label.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void DagreLayout_Run_LabeledEdge_LabelBetweenNodes()
     {
         // Arrange

@@ -137,6 +137,7 @@ public class ImageInspectorTests
     ///     Test that a translucent background is reported as the opaque color it looks like over white.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void ImageInspector_Execute_TranslucentBackground_IsReportedFlattenedOverWhite()
     {
         // Arrange

@@ -37,8 +37,11 @@ prints them.
 - the token cursor over a `SourceScanner` built from the lexer rules (one token of lookahead);
 - the set of **expected token kinds** recorded since the last token was consumed (cleared when a token is consumed);
 - the current subgraph nesting depth;
-- the per-line **lexer caches**: the run of non-space characters and its last usable `@` (for the `LINK_ID` rule), and
-  the line and the last `direction` word of each direction (for the rules that find `direction XX` anywhere on a line).
+- the **lexer caches**: the run of non-space characters and its last usable `@` (for the `LINK_ID` rule), the line
+  and the last `direction` word of each direction (for the rules that find `direction XX` anywhere on a line), and the
+  run of white space at the position (for the link rules, which start with `\s*` and are tried at every character of a
+  run that the lexer reads one character at a time), with the steps of its scans (one per scan and one per character
+  it passes) counted as a deterministic measure of their work.
 
 **Lexer tables.** The 122 rules of the generated lexer are ported one to one, in jison's order, each with a
 hand-written matcher in place of its regular expression and the action of the rule (a token kind, a change of start
@@ -62,6 +65,13 @@ a statement list, for the members and the direction of a subgraph).
   the source, whose characters stay mapped to the original text.
 - **`TrimSpaceAfterBraces(MappedText)`** applies the clean-up of `flowParser.ts` (`src.replace(/}\s*\n/g, '}\n')`)
   on the mapped text, so that every remaining character keeps its location.
+- **`Tokenize(MappedText)`** runs the lexer alone over a text, without the grammar, and returns every token up to the
+  end of the token stream with the steps of the white-space scans of the link rules, so that the tokens of a text and
+  the work of those scans can be checked without parsing.
+- **`SpaceRunEnd`** gives the end of the run of white space at a position for the link rules (`\s*[xo<]?--`, the
+  thick, dotted, and invisible links, and the starts of links with text); every position inside a run shares its end,
+  so a run that the lexer reads one character at a time (`SPACE`, `EDGE_TEXT`, or `TEXT` tokens) is scanned once
+  instead of once per character, which would cost time quadratic in its length.
 - **`ParseHeader`** reads leading white space and line breaks, the `graph` or `flowchart` keyword, and either a header
   without a direction (`TB`) or a direction and the first separator, and sets the direction on the model.
 - **`ParseDocument`** reads statements up to the end of the text or to the `end` of a subgraph, keeping the value of
@@ -118,14 +128,14 @@ a statement list, for the members and the direction of a subgraph).
 
 - The document pipeline of the system (`MermaidDocument.Pipeline.cs`) calls `Parse` for a text whose detected type is
   a flowchart.
-- The unit tests call `Parse` and `TrimSpaceAfterBraces` directly.
+- The unit tests call `Parse`, `TrimSpaceAfterBraces`, and `Tokenize` directly.
 
 #### Known Differences From Mermaid
 
 - **No regular expressions.** The lexer is a set of hand-written scanners with the same matches as Mermaid's regular
   expressions; the rules that backtrack or look far ahead in Mermaid (link ids, `direction` on a line, the arrows, the
-  header without a direction) are matched with per-run and per-line caches, so a long line costs linear time instead
-  of the backtracking of the expressions.
+  header without a direction) are matched with per-run and per-line caches, so a long line or a long run of white
+  space costs linear time instead of the backtracking of the expressions.
 - **Recursive descent instead of LALR(1) tables.** The parser accepts the same language with one token of lookahead
   and emulates the expected-token lists of jison's tables, including the effects of its merged states; the 26 grammar
   errors of the upstream vectors give the identical lists in jison's order.

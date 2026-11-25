@@ -24,6 +24,7 @@ public class CanvasNetTests
     ///     API, and that the pixel is observable through subsequent reads.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_CanvasConstructAndSetPixel_ReturnsExpectedPixel()
     {
         // Arrange: construct a surface through the public API
@@ -107,6 +108,7 @@ public class CanvasNetTests
     ///     transparent pixels leave no color fringe.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_ResizeAlphaEdge_HasNoColorFringe()
     {
         // Arrange: opaque red on the left, transparent black on the right
@@ -251,6 +253,7 @@ public class CanvasNetTests
     ///     API, preserving pixel values end to end.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_BmpSaveThenLoad_ReturnsExpectedPixel()
     {
         // Arrange: construct a surface through the public API and set a distinct pixel
@@ -272,6 +275,7 @@ public class CanvasNetTests
     ///     API, preserving pixel values end to end.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_PngSaveThenLoad_ReturnsExpectedPixel()
     {
         // Arrange: construct a surface through the public API and set a distinct pixel
@@ -293,6 +297,7 @@ public class CanvasNetTests
     ///     API, preserving pixel values end to end.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_TiffSaveThenLoad_ReturnsExpectedPixel()
     {
         // Arrange: construct a surface through the public API and set a distinct pixel
@@ -347,6 +352,7 @@ public class CanvasNetTests
     ///     <c>JpegCodecTests</c>/<c>JpegFixtureTests</c>.
     /// </remarks>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_JpegSaveThenLoad_ReturnsExpectedPixel()
     {
         // Arrange: construct a surface through the public API and set a distinct pixel
@@ -436,6 +442,7 @@ public class CanvasNetTests
     ///     <c>Jpeg2000Fixtures\README.md</c> for provenance).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_Jpeg2000Load_ReturnsExpectedPixel()
     {
         // Arrange: the fixture directory copied to the test output directory
@@ -465,6 +472,7 @@ public class CanvasNetTests
     ///     rather than round-tripped through a save step, since GifCodec has no encoder.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_GifLoad_ReturnsExpectedPixel()
     {
         // Arrange: a minimal, hand-built 1x1 GIF89a stream - Global Color Table with a black
@@ -798,6 +806,7 @@ public class CanvasNetTests
     ///     one edge pixel is antialiased to a fractional coverage).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNet_SystemIntegration_LoadFontAndFillGlyphOutline_ReturnsExpectedPixels()
     {
         // Arrange: load a synthetic font, look up 'A', and extract its glyph outline in raw font

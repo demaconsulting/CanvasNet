@@ -168,6 +168,7 @@ public class ScadDocumentRenderExtrusionTests
     ///     from the untwisted one (the twist is visible).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void ScadDocument_Render_ColoredAndTwistedExtrusions_AreVisible()
     {
         // Arrange

@@ -35,6 +35,7 @@ public partial class CanvasNetToolTests
     ///     Test that version flag outputs version information.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetTool_VersionFlag_Provided_OutputsVersion()
     {
         // Arrange: (none - constructor initializes _dllPath)
@@ -53,6 +54,7 @@ public partial class CanvasNetToolTests
     ///     Test that help flag outputs usage information.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetTool_HelpFlag_Provided_OutputsUsageInformation()
     {
         // Arrange: (none - constructor initializes _dllPath)

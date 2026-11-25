@@ -5,6 +5,13 @@ on:
       version:
         required: true
         type: string
+      full-test-matrix:
+        description: >-
+          Run the full unit-test suite on every target framework (net8.0, net9.0, net10.0, net11.0). When false,
+          the full suite runs on net10.0 and only the Platform subset runs on the other frameworks.
+        required: false
+        type: boolean
+        default: false
     secrets:
       SONAR_TOKEN:
         required: true
@@ -87,6 +94,15 @@ jobs:
   # Builds and unit-tests the project on supported operating systems to ensure
   # unit-tests operate on all platforms and to run SonarScanner for generating
   # the code quality report.
+  #
+  # Every operating system runs the full unit-test suite on net10.0 (the current LTS) and the
+  # Platform subset (tests tagged [Trait("Category", "Platform")]: every test the framework-filtered
+  # platform requirements cite and exact-pixel render tests of each package) on net8.0, net9.0, and
+  # net11.0. The full-test-matrix input runs the full suite on every framework instead; the release
+  # workflow and the weekly scheduled build turn it on. Coverage and the SonarScanner analysis run on
+  # the windows-latest net10.0 leg only (matrix.coverage): coverage slows the tests several times over,
+  # windows-latest is the fastest runner for the instrumented tests (about half the ubuntu time), and
+  # SonarCloud keeps a single analysis per build anyway.
   build:
     name: Build ${{ matrix.os }}
     needs: quality-checks
@@ -97,6 +113,9 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            coverage: true
 
     runs-on: ${{ matrix.os }}
 
@@ -160,7 +179,9 @@ jobs:
         run: >
           dotnet restore
 
+      # The analysis runs on the coverage leg only, the one leg that collects coverage for it.
       - name: Start Sonar Scanner
+        if: matrix.coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
@@ -180,19 +201,46 @@ jobs:
           --configuration Release
           --property:Version=${{ inputs.version }}
 
-      - name: Test
+      # The TRX file names ({os}_{assembly}_{framework}_{arch}.trx) carry the operating system and the
+      # framework that the ReqStream source filters (windows@, ubuntu@, macos@, net8.0@, ...) match, so
+      # keep that pattern in every test step.
+      - name: Test net10.0 (full suite${{ matrix.coverage && ', coverage' || '' }})
         run: >
           dotnet test
           --no-build
           --configuration Release
+          --framework net10.0
           --property:Version=${{ inputs.version }}
-          --coverlet
-          --coverlet-output-format opencover
+          ${{ matrix.coverage && '--coverlet --coverlet-output-format opencover' || '' }}
           --report-trx
           --report-trx-filename "${{ matrix.os }}_{asm}_{tfm}_{arch}.trx"
           --results-directory artifacts
 
+      # The other frameworks run the test modules of their build output (--test-modules), because a
+      # solution-wide 'dotnet test --framework net8.0' fails on the tool tests, which target net10.0 and
+      # net11.0 only. A test module that runs no test fails the step (exit code 8), so a test project
+      # that loses its last Platform test is noticed.
+      - name: Test net8.0, net9.0, and net11.0 (${{ inputs.full-test-matrix && 'full suite' || 'Platform subset' }})
+        shell: bash
+        env:
+          FULL_TEST_MATRIX: ${{ inputs.full-test-matrix }}
+        run: |
+          filter=(--filter-trait "Category=Platform")
+          if [ "$FULL_TEST_MATRIX" = "true" ]; then filter=(); fi
+          status=0
+          for framework in net8.0 net9.0 net11.0; do
+            echo "=== Testing $framework ==="
+            dotnet test \
+              --test-modules "test/*/bin/Release/$framework/*.Tests.dll" \
+              "${filter[@]}" \
+              --report-trx \
+              --report-trx-filename "${{ matrix.os }}_{asm}_{tfm}_{arch}.trx" \
+              --results-directory artifacts || status=1
+          done
+          exit $status
+
       - name: End Sonar Scanner
+        if: matrix.coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
@@ -322,8 +370,7 @@ jobs:
   # packages built by the build job, exactly as a user would install it.
   #
   # The .NET runtime matrix covers .NET 10 and .NET 11 because the tool is packaged for
-  # net10.0 and net11.0 only; the libraries keep their multi-framework matrix in the build
-  # job above.
+  # net10.0 and net11.0 only; the libraries' frameworks are tested in the build job above.
   integration-test:
     name: Integration Test ${{ matrix.os }} .NET ${{ matrix.dotnet-version }}
     runs-on: ${{ matrix.os }}

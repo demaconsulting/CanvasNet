@@ -165,6 +165,23 @@ dotnet test --filter "FullyQualifiedName~YourTestName"
 dotnet test --collect "XPlat Code Coverage"
 ```
 
+#### Platform Subset
+
+The CI build runs the full suite on .NET 10 on Windows, Linux, and macOS, and only the Platform subset on .NET 8,
+9, and 11: the tests tagged `[Trait("Category", "Platform")]`. The subset holds every test that a
+framework-filtered platform requirement cites (`net8.0@TestName` in a `platform-requirements.yaml`) and a few fast
+exact-pixel render tests of each package, which catch floating-point differences between the runtimes. The
+release build and the weekly scheduled build run the full suite on every framework. To run the subset of one
+framework after a Release build:
+
+```bash
+dotnet test --test-modules "test/*/bin/Release/net8.0/*.Tests.dll" --filter-trait "Category=Platform"
+```
+
+When a platform requirement cites a new test with a framework filter, tag the test `Platform`. Keep limit and
+budget tests out of the subset. Each test project needs at least one `Platform` test, because a test module that
+runs no test fails the CI step.
+
 ## Documentation
 
 ### Markdown Guidelines

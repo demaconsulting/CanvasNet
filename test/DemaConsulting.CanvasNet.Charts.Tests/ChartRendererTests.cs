@@ -196,6 +196,7 @@ public class ChartRendererTests
 
     /// <summary>Proves a Line chart strokes a visible segment between two category points of differing value.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Render_Line_StrokesVisibleSegmentBetweenPoints()
     {
         // Arrange
@@ -273,6 +274,7 @@ public class ChartRendererTests
 
     /// <summary>Proves a two-category Pie splits into a right wedge and a left wedge, in category order.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Render_Pie_TwoEqualCategories_SplitsIntoRightAndLeftWedges()
     {
         // Arrange
@@ -363,6 +365,7 @@ public class ChartRendererTests
 
     /// <summary>Proves a chart-level color palette overrides <see cref="ChartColorPalette.Default"/>.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Render_ChartColorPaletteOverride_TakesPriorityOverDefaultPalette()
     {
         // Arrange
@@ -381,6 +384,7 @@ public class ChartRendererTests
 
     /// <summary>Proves an options-level color palette is used when the chart itself supplies none.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Render_OptionsColorPaletteOverride_UsedWhenChartSuppliesNone()
     {
         // Arrange

@@ -1105,6 +1105,7 @@ public class SourceLoaderTests
     ///     box, and a document page fitted inside it and centered on the background.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SourceLoader_Load_VectorWithBox_RendersNativelyAtBox()
     {
         // Arrange: an SVG, and a presentation whose 480x360 slide does not fill a square box

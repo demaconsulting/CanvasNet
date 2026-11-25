@@ -135,6 +135,7 @@ public class VegaLiteDeterminismTests
     ///     Validates the exact tier: the SHA-256 of the pixels of every chart equals the committed pin, which is the same on every .NET version and every operating system.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetVegaLite_SystemIntegration_Determinism_ExactPixelPinsAreCurrent()
     {
         // Arrange

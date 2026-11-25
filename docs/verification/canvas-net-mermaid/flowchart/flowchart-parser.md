@@ -1,9 +1,9 @@
 ### FlowchartParser Unit Verification Design
 
 This document describes the unit-level verification strategy for the `FlowchartParser` unit in the
-`DemaConsulting.CanvasNet.Mermaid.Flowchart` namespace: the internal sealed `FlowchartParser` (`Parse` and
-`TrimSpaceAfterBraces`, in four partial files) and the token names of `FlowchartTokens`. The unit reads the
-preprocessed text of a flowchart into a `FlowchartModel` as Mermaid's generated flowchart parser reads it.
+`DemaConsulting.CanvasNet.Mermaid.Flowchart` namespace: the internal sealed `FlowchartParser` (`Parse`,
+`TrimSpaceAfterBraces`, and `Tokenize`, in four partial files) and the token names of `FlowchartTokens`. The unit reads
+the preprocessed text of a flowchart into a `FlowchartModel` as Mermaid's generated flowchart parser reads it.
 
 #### Verification Approach
 
@@ -17,11 +17,12 @@ identical expected-token list in jison's order for the grammar errors. The cases
 form, every bracket shape, every shape name and alias, every link form, node chains with shape data, subgraphs,
 styling statements, every `click` form, shape data with YAML, accessibility, labels, line endings, and the quirks of
 the lexer. **Focused unit tests**: `FlowchartParserTests` parses hand-written texts and asserts the model, or the code,
-location, message, expected tokens, and hint of the exception, at exact values.
+location, message, expected tokens, and hint of the exception, at exact values, or lexes hand-written texts with
+`Tokenize` and asserts the tokens and the steps of the white-space scans of the link rules.
 
 The tests call `Parse` after the real preprocessor and detector of the `Syntax` subsystem, so locations are checked in
-the original text; no mocking or stubbing is used. The internal types are reached through the test assembly's
-`InternalsVisibleTo` access.
+the original text, and `Tokenize` on a text mapped to itself; no mocking or stubbing is used. The internal types are
+reached through the test assembly's `InternalsVisibleTo` access.
 
 Unit tests reside in `FlowchartParserTests.cs` and `FlowchartVectorTests.cs` (with the helper `FlowchartFacts.cs`)
 within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the `Flowchart` folder.
@@ -68,11 +69,16 @@ and that the lexer quirks of the vectors give Mermaid's facts.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartParser-LinearTime: Long Lines Are Read
 
-**Tests**: `FlowchartParserTests.FlowchartParser_Parse_LongLines_Parse`
+**Tests**: `FlowchartParserTests.FlowchartParser_Parse_LongLines_Parse`,
+`FlowchartParserTests.FlowchartParser_Tokenize_LongSpaceRun_ScansTheRunOnce`
 
 Asserts that a chain of 400 nodes gives 399 edges and, with a line of 400 `direction` words joined by `&`, 401
 vertices, and that a line of 400 words with an at sign fails with a message that names `LINK_ID`, as Mermaid's lexer
-reads such a line; the caches of the lexer keep such lines linear.
+reads such a line; the caches of the lexer keep such lines linear. Asserts that a run of 20,000 spaces between
+statements, in the text of a `--`, `==`, and `-.` link, and in an ellipse label is lexed, as Mermaid's lexer lexes it,
+into one `SPACE`, `EDGE_TEXT`, or `TEXT` token per space at its position, and that the white-space scans of the link
+rules, which are tried at every space, take between 20,000 steps and twice the length of the text (one step per scan
+and one per character it passes), where scanning the rest of the run at every space would take hundreds of millions.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartParser-SyntaxErrors: Located Errors With Mermaid's Expected Tokens
 

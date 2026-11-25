@@ -25,6 +25,7 @@ public class PlantUmlClassIntegrationTests
     ///     classes, the green spot of a class, and the purple spot of an interface.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_Class_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange

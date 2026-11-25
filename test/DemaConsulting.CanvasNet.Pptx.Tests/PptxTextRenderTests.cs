@@ -69,6 +69,7 @@ public class PptxTextRenderTests
 
     /// <summary>Proves a glyph paints its resolved color at its expected, identity-transformed pixel location, and leaves pixels outside its outline untouched.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor()
     {
         // Arrange: SizeEmu 100 -> scale 100/1000 = 0.1. Font-unit square [100,900]x[100,900]
@@ -195,6 +196,7 @@ public class PptxTextRenderTests
     ///     strongly-colored <c>&lt;a:ln&gt;</c> stroke) that originally surfaced this gap.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintTextLayout_GlyphWithOutline_PaintsOutlineStrokeAroundInterior()
     {
         // Same geometry as PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor:

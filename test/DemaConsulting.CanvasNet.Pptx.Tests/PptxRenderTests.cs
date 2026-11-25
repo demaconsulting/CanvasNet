@@ -1240,6 +1240,7 @@ public class PptxRenderTests
     ///     resolves.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Render_PictureEllipseGeometry_ClipsImageToEllipticalRegion()
     {
         var pngBytes = BuildPngBytes(new Rgba32(10, 20, 30, 255));

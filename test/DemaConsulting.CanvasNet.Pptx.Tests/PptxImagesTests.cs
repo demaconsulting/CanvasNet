@@ -435,6 +435,7 @@ public class PptxImagesTests
     ///     documented formula).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintPicture_SourceImageWithAlphaChannel_AlphaBlendsOntoExistingBackground()
     {
         using var image = new Surface(3, 1);

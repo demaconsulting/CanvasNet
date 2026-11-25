@@ -3244,6 +3244,7 @@ public class SvgCodecTests
     ///     while leaving the element's own fill fully opaque and unaffected at its center.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SvgCodec_Load_FeFloodFeGaussianBlurFeCompositeFilter_RendersBlurredHaloBehindContent()
     {
         // Arrange
@@ -3467,6 +3468,7 @@ public class SvgCodecTests
     ///     alpha <c>0.5*1*1 + 0.25*1 + 0.25*1 + 0 = 1.0</c> (byte 255, both inputs fully opaque).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SvgCodec_Load_FeCompositeOperatorArithmetic_MatchesHandComputedFormula()
     {
         // Arrange
@@ -9225,6 +9227,7 @@ public class SvgCodecTests
     ///     an alpha of 5 at <c>fill-opacity</c> 0.5 is 2.5, which is 3, not 2.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SvgCodec_Load_FillOpacityHalfwayAlpha_RoundsHalfAwayFromZero()
     {
         // Arrange: an alpha of exactly 2.5 after the opacity
@@ -12309,6 +12312,7 @@ public class SvgCodecTests
     ///     channel's value, proving alpha is not merely copied from red or forced to <c>255</c>.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void SvgCodec_Load_FeSpecularLightingOutputAlpha_EqualsMaxOfRgbNotOne()
     {
         // Arrange: same flat-plane/90-degree-elevation setup, but with a lighting-color whose
