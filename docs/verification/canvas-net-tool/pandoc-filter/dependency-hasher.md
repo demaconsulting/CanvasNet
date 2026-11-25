@@ -68,6 +68,10 @@ again`, and one that names 513 existing data files fails with `'many.vl.json' na
 `b c.iuml` (quotes removed, after a tab), and `C:/d.iuml`, and skips a directive that is not at the start of a line,
 `!includeurl`, and `<std>`.
 
+**DependencyHasher_Hash_MathMlPicture_HashesItsContentOnly**: an equation whose text names `other.mml` and `p.png`,
+which exist beside it, gives the one part `eq.mml` holding its label and bytes (no name in its text is followed); a
+drawing that links the equation is composite and gives `page.svg` and `eq.mml`, nothing else.
+
 **DependencyHasher_ForSvg_Scanner_FindsOnlyRealImageLinks**: in a drawing with an XML declaration, a DOCTYPE whose
 internal subset holds an image, an image in a comment, in CDATA, and in a processing instruction, a `>` inside a quoted
 attribute, an `l:href` bound to the XLink namespace, an `x:href` bound to another namespace, an entity-encoded href with

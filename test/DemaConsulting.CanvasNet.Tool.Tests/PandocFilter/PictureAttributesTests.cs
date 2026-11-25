@@ -52,8 +52,8 @@ public class PictureAttributesTests
     public void PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws()
     {
         // Assert: the lists
-        Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu"], PictureAttributes.PictureSuffixes);
-        Assert.Equal(["mermaid", "plantuml"], PictureAttributes.BlockClasses);
+        Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu", ".mml"], PictureAttributes.PictureSuffixes);
+        Assert.Equal(["mermaid", "plantuml", "mathml"], PictureAttributes.BlockClasses);
 
         // Assert: every suffix is a picture the engine handles, in either letter case
         Assert.All(PictureAttributes.PictureSuffixes, suffix =>
@@ -66,6 +66,8 @@ public class PictureAttributesTests
         Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["mermaid"]));
         Assert.Equal("mermaid", PictureAttributes.BlockKindOf(["numberLines", "mermaid"]));
         Assert.Equal("plantuml", PictureAttributes.BlockKindOf(["plantuml"]));
+        Assert.Equal("mathml", PictureAttributes.BlockKindOf(["mathml"]));
+        Assert.Null(PictureAttributes.BlockKindOf(["mml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["Mermaid"]));
         Assert.Null(PictureAttributes.BlockKindOf(["puml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["bash"]));
@@ -182,6 +184,68 @@ public class PictureAttributesTests
     }
 
     /// <summary>
+    ///     Test that a <c>.mml</c> picture is a MathML equation in any letter case, and that a name that only looks like
+    ///     one is not.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_KindOf_Mml_IsMathMl()
+    {
+        Assert.Equal("mathml", PictureAttributes.KindOf("eq.mml"));
+        Assert.Equal("mathml", PictureAttributes.KindOf("docs/Quadratic.MML"));
+        Assert.Null(PictureAttributes.KindOf("eq.mathml"));
+        Assert.Null(PictureAttributes.KindOf("eq.mml#display=inline"));
+        Assert.Null(PictureAttributes.KindOf("https://example.com/eq.mml"));
+    }
+
+    /// <summary>
+    ///     Test that an equation is drawn at scale 2 unless a size or a scale is given, that its own scale, size, and
+    ///     background are kept as options, and that the natural display width is wanted only when no size, width, or
+    ///     height is given.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo()
+    {
+        // Act
+        var plain = PictureAttributes.Build("eq.mml", "mathml", [new("id", "eq")]);
+        var scaled = PictureAttributes.Build("eq.mml", "mathml", [new("scale", "3"), new("background", "transparent")]);
+        var sized = PictureAttributes.Build("eq.mml", "mathml", [new("size", "400x100")]);
+        var wide = PictureAttributes.Build("eq.mml", "mathml", [new("width", "50%")]);
+
+        // Assert: the default scale, and the author's options as written
+        Assert.Equal(["--scale=2"], plain.Options);
+        Assert.Equal([new KeyValuePair<string, string>("id", "eq")], plain.Keep);
+        Assert.Equal(["--background=transparent", "--scale=3"], scaled.Options);
+        Assert.Equal(["--size=400x100"], sized.Options);
+        Assert.Equal(["--scale=2"], wide.Options);
+        Assert.Equal([new KeyValuePair<string, string>("width", "50%")], wide.Keep);
+
+        // Assert: the natural width only for an equation without a size, width, or height
+        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("id", "eq")]));
+        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("scale", "3")]));
+        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("size", "400x100")]));
+        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("width", "50%")]));
+        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("height", "2em")]));
+        Assert.False(PictureAttributes.NaturalWidthNeeded("mermaid", []));
+    }
+
+    /// <summary>
+    ///     Test that the attributes of other kinds are refused on an equation with the Lua filter's messages: a theme is
+    ///     for Mermaid diagrams only, and a page for documents only.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_Build_MathMlTheme_IsRefused()
+    {
+        // Act
+        var theme = Assert.Throws<ToolException>(() => PictureAttributes.Build("eq.mml", "mathml", [new("theme", "dark")]));
+        var page = Assert.Throws<ToolException>(() => PictureAttributes.Build("mathml block #eq", "mathml", [new("page", "2")]));
+
+        // Assert
+        Assert.Equal(ErrorCodes.PandocFilterError, theme.Code);
+        Assert.Equal("'eq.mml' has theme=dark, but theme applies to Mermaid diagrams only", theme.Message);
+        Assert.Equal("'mathml block #eq' has page=2, but page applies to .vsdx, .pptx and .pdf files only", page.Message);
+    }
+
+    /// <summary>
     ///     Test <c>%.15g</c>: fifteen significant digits, trailing zeros removed, and the exponent form below 1e-4 and from
     ///     1e15, unlike <c>G15</c>.
     /// </summary>
@@ -229,6 +293,7 @@ public class PictureAttributesTests
         Assert.Equal("mermaid block (" + new string('é', 40) + "...)", PictureAttributes.BlockName("", new string('é', 41)));
         Assert.Equal("plantuml block #seq", PictureAttributes.BlockName("seq", "@startuml", PictureAttributes.PlantUml));
         Assert.Equal("plantuml block (@startuml)", PictureAttributes.BlockName("", "@startuml\nA -> B", PictureAttributes.PlantUml));
+        Assert.Equal("mathml block (<math display=\"block\">)", PictureAttributes.BlockName("", "<math display=\"block\">\n<mi>x</mi>", PictureAttributes.MathMl));
 
         // Act / Assert: the last caption is the caption, the other attributes stay
         var (caption, rest) = PictureAttributes.SplitCaption([new("caption", "A"), new("theme", "dark"), new("caption", "B *c*")]);

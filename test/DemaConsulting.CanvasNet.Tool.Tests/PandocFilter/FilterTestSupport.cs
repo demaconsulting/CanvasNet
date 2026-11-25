@@ -241,6 +241,11 @@ internal sealed class StubDrawer : IPictureDrawer
     private readonly ConcurrentQueue<string> _calls = new();
 
     /// <summary>
+    ///     The arguments of the calls, in the order the calls were made.
+    /// </summary>
+    private readonly ConcurrentQueue<IReadOnlyList<string>> _arguments = new();
+
+    /// <summary>
     ///     Gets the failure of a source by its file name, or <see langword="null"/> to draw it.
     /// </summary>
     public Func<string, Exception?> Failure { get; init; } = _ => null;
@@ -254,6 +259,11 @@ internal sealed class StubDrawer : IPictureDrawer
     ///     Gets the calls so far.
     /// </summary>
     public IReadOnlyList<string> Calls => [.. _calls];
+
+    /// <summary>
+    ///     Gets the arguments of the calls so far: the source, the options, the file-access arguments, and the output.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<string>> Arguments => [.. _arguments];
 
     /// <inheritdoc />
     public PictureDrawing Render(IReadOnlyList<string> args)
@@ -277,6 +287,7 @@ internal sealed class StubDrawer : IPictureDrawer
     {
         var name = Path.GetFileName(args[0]);
         _calls.Enqueue($"{verb} {name}");
+        _arguments.Enqueue([.. args]);
         if (Failure(name) is { } failure)
         {
             throw failure;

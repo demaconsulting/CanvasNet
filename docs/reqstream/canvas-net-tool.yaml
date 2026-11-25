@@ -92,6 +92,7 @@ sections:
           - CanvasNetTool-Validation-VegaLiteSelfTest
           - CanvasNetTool-Validation-MermaidSelfTest
           - CanvasNetTool-Validation-PlantUmlSelfTest
+          - CanvasNetTool-Validation-MathMlSelfTest
           - CanvasNetTool-Validation-PandocFilterSelfTest
           - CanvasNetTool-Validation-HelpExamplesSelfTest
         tests:
@@ -361,12 +362,13 @@ sections:
 
       - id: CanvasNetTool-System-Info
         title: >-
-          The tool shall describe an image, drawing, document, model, chart, or diagram file (its format, pixel size,
-          channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
+          The tool shall describe an image, drawing, document, model, chart, diagram, or equation file (its format,
+          pixel size, channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
           the number and size of the pages of a PDF, PPTX, or VSDX document, the modules,
           functions, and include and use directives of an OpenSCAD model, the marks, data
           references, parameters, title, and schema version of a Vega-Lite chart, and the type, direction,
-          titles, and numbers of nodes, edges, and subgraphs of a Mermaid or PlantUML diagram) without rendering it
+          titles, and numbers of nodes, edges, and subgraphs of a Mermaid or PlantUML diagram, and the display, number
+          of elements, baseline, text alternative, and annotation encodings of a MathML equation) without rendering it
           when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
@@ -381,6 +383,7 @@ sections:
           - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_MathMl_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -661,9 +664,9 @@ sections:
         title: >-
           The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
           OpenSCAD (SCAD), Vega-Lite (.vl.json, .vl, or a .json file with a Vega-Lite schema), and
-          Mermaid (.mmd or .mermaid), and PlantUML (.puml, .plantuml, or .pu) files, recognizing the format from the
-          content before the file name
-          extension (a model, a chart, or a diagram by its file name, or a chart also by its schema).
+          Mermaid (.mmd or .mermaid), PlantUML (.puml, .plantuml, or .pu), and MathML (.mml) files, recognizing the
+          format from the content before the file name
+          extension (a model, a chart, a diagram, or an equation by its file name, or a chart also by its schema).
         tags: [system]
         justification: |
           Agents work with whatever files they are given; reading the common raster formats, SVG
@@ -678,6 +681,7 @@ sections:
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_MathMl_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Documents
         title: >-
@@ -870,17 +874,55 @@ sections:
           - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_RenderPlantUml
 
+      - id: CanvasNetTool-System-MathMl
+        title: >-
+          The tool shall render a MathML Core equation (a `.mml` file) at the size the size options ask for (its
+          natural size at a 16 pixel font size by default, laid out again at the scale so that it stays sharp), over
+          white unless `--background` says otherwise, in the display its `math` element declares or the one the
+          `display=` fragment of the input names, with only the math font bundled with the tool and nothing read from
+          another file or the network, giving the same picture every time; shall describe an equation with the `info`
+          command (its natural size and an `equation` object with its display, number of elements, baseline, text
+          alternative, and annotation encodings), list the `mathml` format of the kind `equation` with the `formats`
+          command, and explain it in the help topic `mathml` (aliases `mml` and `equation`) with its command-line
+          overlays; shall report an element, attribute, or style that it does not draw as a diagnostic (an
+          unsupported-feature error with `--strict`) and a warning of the library as mathml-warning with the specific
+          code; shall report invalid text with the error code mathml-error and its location, an equation that exceeds
+          a limit of the library with budget-exceeded, and `--theme` or `--positions` on an equation with usage-error,
+          as expected failures; and shall draw `.mml` pictures and `mathml` code blocks of a Pandoc document at their
+          natural display width. The self-validation includes the MathML self-test (see the validate requirement).
+        tags: [system]
+        justification: |
+          Engineering documents hold equations; drawing MathML, the W3C standard that browsers draw, the same on every
+          machine and without a browser or a TeX installation, lets agents check what they wrote and lets documents and
+          figures show the result at one consistent text size, while every gap of the renderer is reported rather than
+          silently skipped.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlRender
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlErrors
+          - CanvasNetTool-Commands-DiscoveryCommands-MathMl
+          - CanvasNetTool-Commands-RenderCommand-MathMl
+          - CanvasNetViewer-Help-HelpCatalog-MathMl
+          - CanvasNetTool-PandocFilter-PictureAttributes-MathMl
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
+        tests:
+          - CanvasNetTool_MathMl_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_MathMl_SyntaxError_IsMathMlErrorWithLocation
+          - CanvasNetTool_RenderMathMl
+
       - id: CanvasNetTool-System-SvgEmbed
         title: >-
           The tool shall let an SVG file embed, with an image element whose href is a relative path, a raster,
-          another SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX
+          another SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, or a
+          page of a PDF, PPTX, or VSDX
           document (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by
           the file name extension; the tool wires in the image resolver of the Viewer
           package and has no plug-in mechanism),
           reading the embedded files relative to the folder of the file that links them under the file-access mode
           of `--file-access` (any by default: every regular local file, also through dot-dot, an absolute path, and
-          a symbolic link, as Pandoc reads them; never from the network or a UNC path), drawing a model, chart, or
-          diagram at the size of its placement,
+          a symbolic link, as Pandoc reads them; never from the network or a UNC path), drawing a model, chart,
+          diagram, or equation at the size of its placement,
           reporting an href that it does not draw as the warning svg-image-unresolved, an href the mode denies as
           the warning image-access-denied (the error file-access-denied with `--strict`), a picture too large for the
           pixel budget as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid,
@@ -904,11 +946,13 @@ sections:
           - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsAnOutsidePictureUnderTheDefaultPolicy
           - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
+          - RenderCommand_Run_SvgLinkingAnEquation_DrawsAndFlattensIt
 
       - id: CanvasNetTool-System-Flatten
         title: >-
           The tool shall write, with the flatten command, a copy of an SVG file in which every image link to an OpenSCAD
-          model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document (and to a nested SVG
+          model, a Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, or a page of a PDF, PPTX, or VSDX
+          document (and to a nested SVG
           file that links one) is a PNG picture of its placement size, keeping every other byte, following the links
           with the file-access mode of `--file-access` (any by default) and the limits of render, writing nothing and
           exiting with code 0 when there is nothing to flatten, and reporting its failures as expected errors.
@@ -923,14 +967,16 @@ sections:
           - CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy
           - CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput
           - CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors
+          - RenderCommand_Run_SvgLinkingAnEquation_DrawsAndFlattensIt
 
       - id: CanvasNetTool-System-PandocFilter
         title: >-
           The tool shall draw, with the pandoc-filter command run once per Pandoc run by the Lua shim
           docs/filters/canvasnet.lua, every picture of a Pandoc JSON document read from standard input that is an
           OpenSCAD model, a Vega-Lite chart, a Mermaid diagram (also a Mermaid code block), a PlantUML diagram (also a
-          PlantUML code block), a page of a PDF, PPTX, or VSDX document, or an SVG drawing that links one, into a cache
-          folder beside the folder of the shim that is
+          PlantUML code block), a MathML equation (also a MathML code block, both shown at their natural width unless
+          the author sizes them), a page of a PDF, PPTX, or VSDX document, or an SVG drawing that links one, into a
+          cache folder beside the folder of the shim that is
           reused while the source and every file it reads are unchanged, shall write the transformed document to
           standard output as UTF-8, shall write the shim with --write-shim, shall refuse a shim of a protocol it does
           not speak with a hint that names the command that fixes it, and shall report a mistake in a picture as the

@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         The command parses the command line, checks the options against the kind of the input, and prints the
 ///         result; the work - one pass of load, transform, and write - is <see cref="ImageRenderer"/> of the Viewer
 ///         library. Loading is <see cref="SourceLoader"/>: a vector
-///         source (SVG, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
+///         source (SVG, a Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
 ///         white unless a background is given; a raster source is decoded, turned upright by its EXIF orientation
 ///         (unless <c>--no-auto-orient</c>), and resized when a size is requested. Writing is
 ///         <see cref="ImageWriter"/>: the format comes from the extension or <c>--format</c>, JPEG is flattened over
@@ -73,7 +73,7 @@ internal sealed partial class RenderCommand : ICommand
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
         + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite (.vl.json, .vl), Mermaid" + Environment.NewLine
-        + "(.mmd, .mermaid), or PlantUML (.puml, .plantuml, .pu) and writes the format of the output" + Environment.NewLine
+        + "(.mmd, .mermaid), PlantUML (.puml, .plantuml, .pu), or MathML (.mml) and writes the format of the output" + Environment.NewLine
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
@@ -97,7 +97,10 @@ internal sealed partial class RenderCommand : ICommand
         + "with its default look and the bundled fonts; its !include files are read relative to the file that names them. Another" + Environment.NewLine
         + "diagram type (timing, a mindmap, and so on) is an empty picture with the note plantuml-diagram-unsupported; --theme and --positions do" + Environment.NewLine
         + "not apply; run 'canvasnet help plantuml' for what is supported." + Environment.NewLine
-        + "An SVG drawing can embed a picture, model, chart, Mermaid or PlantUML diagram, SVG file, or document page that sits" + Environment.NewLine
+        + "A MathML equation (.mml, MathML Core) is drawn at its natural size at a 16 px font size (--scale, --width, and" + Environment.NewLine
+        + "--height draw it sharply at another size) over white, with the bundled math font; eq.mml#display=inline lays it" + Environment.NewLine
+        + "out inline instead of in its own display. --theme and --positions do not apply; run 'canvasnet help mathml'." + Environment.NewLine
+        + "An SVG drawing can embed a picture, model, chart, Mermaid or PlantUML diagram, MathML equation, SVG file, or document page that sits" + Environment.NewLine
         + "beside it with <image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20" + Environment.NewLine
         + "and chart.vl.json#param.cutoff=50 set a variable or a parameter); run 'canvasnet help svg' for the file" + Environment.NewLine
         + "types, the link rule, the fragment, and an example." + Environment.NewLine
@@ -128,6 +131,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render flow.mmd --theme dark --scale 2 -o flow.png" + Environment.NewLine
         + "  canvasnet render flow.mmd --positions node:send --positions edge -o flow.png --json" + Environment.NewLine
         + "  canvasnet render seq.puml --scale 2 -o seq.png" + Environment.NewLine
+        + "  canvasnet render quadratic.mml --scale 3 -o quadratic.png" + Environment.NewLine
         + "  canvasnet render diagram.svg --file-access roots,no-symlinks -o diagram.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
@@ -222,7 +226,7 @@ internal sealed partial class RenderCommand : ICommand
                 "Remove it, or render a .vl.json file.");
         }
 
-        // A PlantUML diagram is a diagram too, but it has no theme and reports no positions
+        // A PlantUML diagram is a diagram too, and a MathML equation a vector source, but neither has a theme or reports positions
         if (settings.Source.Mermaid != null && info.Format != SourceKind.Mermaid)
         {
             throw new ToolException(

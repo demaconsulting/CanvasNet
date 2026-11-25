@@ -202,7 +202,12 @@ the overlay's `## Command line` section maps it to the tool:
   standard error, the `--json` failure document, the codes only the tool reports (`operation-failed`,
   `threshold-failed`, and `pandoc-filter-error`), and the meaning of `usage-error` on the command line;
 - `files`: the `--file-access` and `--allow-root` options and the Pandoc filter's variables;
-- `limits`: the flags that set or reach the limits and the `formats` listing.
+- `limits`: the flags that set or reach the limits and the `formats` listing;
+- the MathML cards `mathml`, `mathml/options`, `mathml/composition`, and `mathml/diagnostics`: the `render` and
+  `info` commands of an equation, the `display=` fragment, the refused `--theme` and `--positions`, how a warning
+  and an error print, and the Pandoc filter's natural display width of an equation (`width="137px"` for the quadratic
+  formula of the `mathml/fractions` card, a width a test measures), with `json/results` (the `equation` object of
+  `info`), `json/diagnostics` (the `mathml` source), and the `pandoc` card (the `mathml` class and `.mml`).
 
 The CLI user therefore reads one card per topic, the library text first and the command line after it. The parity of
 the `svg/flatten` and `files` cards with the user guide compares the merged bullets (the library's, then the

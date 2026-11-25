@@ -3,7 +3,8 @@
 #### Verification Approach
 
 `PictureAttributes` is verified with xUnit unit tests in `PictureAttributesTests.cs`. The tests call the internal static
-methods directly (`KindOf`, `IsSvg`, `Build`, `BuildSvg`, `SplitCaption`, `BlockName`, and `FormatNumber`) with
+methods directly (`KindOf`, `IsSvg`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `SplitCaption`, `BlockName`, and
+`FormatNumber`) with
 attribute lists written in the test; nothing is stubbed, no file is read, and no tool is run. Refusals are asserted as
 the `ToolException` the method throws, with its code and its exact message.
 
@@ -18,6 +19,8 @@ N/A - standard test environment. The unit is pure computation and needs no files
 - Every refused attribute fails with `pandoc-filter-error`, no hint, and the exact message of the Lua filter.
 - The defaults, the normalized values, the byte order of the options, and the kept attributes match the Lua filter.
 - Numbers are written exactly as C's `%.15g`.
+- An equation (`.mml` or a `mathml` block) is drawn at scale 2 unless a size or scale is given, refuses the attributes
+  of the other kinds, and wants its natural display width only without a size, width, or height.
 
 #### Test Scenarios
 
@@ -29,10 +32,10 @@ give none.
 **PictureAttributes_IsSvg_LocalSvgOnly**: `a/Drawing.SVG` is a drawing; a URL ending in `.svg` and `a.svgz` are not.
 
 **PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws**: `PictureSuffixes` is `.svg`, `.vl.json`,
-`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu` and `BlockClasses` is
-`mermaid`, `plantuml`; every suffix, in lower and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`);
-`BlockKindOf` gives `mermaid` for `mermaid` alone or after another class and `plantuml` for `plantuml`, and nothing for
-`Mermaid`, `puml`, `bash`, or no class.
+`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml` and `BlockClasses` is
+`mermaid`, `plantuml`, `mathml`; every suffix, in lower and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`);
+`BlockKindOf` gives `mermaid` for `mermaid` alone or after another class, `plantuml` for `plantuml`, and `mathml` for
+`mathml`, and nothing for `Mermaid`, `puml`, `mml`, `bash`, or no class.
 
 **PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage**: each invalid value (`size` 0x10 and 8193x10, `scale`
 0 and `1e3`, `background` `#12`, `page` 0, `dpi` 1.5 for `.vsdx` and 0 for `.pdf`, an unknown `view`, `azimuth`
@@ -61,4 +64,18 @@ presentation gets `--page=7` from `007`, `--dpi=1e-05`, and `--background=transp
 **PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter**: a block with an identifier is `mermaid block #flow`; one
 without is named by its first non-blank line trimmed (`mermaid block (flowchart LR)`) and cut to 40 characters with
 `...` (a non-ASCII character counts as one); a PlantUML block is `plantuml block #seq` or
-`plantuml block (@startuml)`; the last of two captions is the caption and the other attribute stays.
+`plantuml block (@startuml)`, and a MathML block `mathml block (<math display="block">)`; the last of two captions is
+the caption and the other attribute stays.
+
+**PictureAttributes_KindOf_Mml_IsMathMl**: `eq.mml` and `docs/Quadratic.MML` are equations; `eq.mathml`,
+`eq.mml#display=inline` (a fragment is not cut), and `https://example.com/eq.mml` are not.
+
+**PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo**: an equation with only `id` gets `--scale=2` and keeps
+`id`; with `scale=3` and `background=transparent` it gets `--background=transparent` and `--scale=3`; with
+`size=400x100` only `--size=400x100`; with `width=50%` it gets `--scale=2` and keeps the width.
+`NaturalWidthNeeded` is true for an equation with only `id` or `scale`, and false with `size`, `width`, or `height`,
+and for a Mermaid diagram.
+
+**PictureAttributes_Build_MathMlTheme_IsRefused**: `theme=dark` on `eq.mml` fails with `pandoc-filter-error` and
+`'eq.mml' has theme=dark, but theme applies to Mermaid diagrams only`, and `page=2` on `mathml block #eq` with
+`'mathml block #eq' has page=2, but page applies to .vsdx, .pptx and .pdf files only`.

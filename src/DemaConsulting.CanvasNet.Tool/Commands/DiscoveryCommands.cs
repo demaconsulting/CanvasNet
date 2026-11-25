@@ -123,7 +123,10 @@ internal static class DiscoveryCommands
             + "('canvasnet help mermaid' says what each diagram type counts). A PlantUML diagram (.puml, .plantuml, or .pu)" + Environment.NewLine
             + "is parsed with its !include files and measured (not drawn) and reports the same object: its type (sequence," + Environment.NewLine
             + "activity, class, object, state, usecase, component, deployment, or a type that is not drawn), title, and numbers" + Environment.NewLine
-            + "of nodes, edges, and subgraphs ('canvasnet help plantuml options' says what they count). The input may end in a" + Environment.NewLine
+            + "of nodes, edges, and subgraphs ('canvasnet help plantuml options' says what they count). A MathML equation (.mml)" + Environment.NewLine
+            + "is parsed and measured (not drawn) and reports its natural size at the 16 px font size, its display (block or" + Environment.NewLine
+            + "inline, or the one eq.mml#display=inline names), its number of elements, the row of its baseline, its alttext," + Environment.NewLine
+            + "and the encodings of its annotations ('canvasnet help mathml options'). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here: the other parameters are checked" + Environment.NewLine
             + "(a value that cannot be used is an error) and otherwise ignored, and an unknown or repeated parameter is a" + Environment.NewLine
             + "warning on standard error." + Environment.NewLine
@@ -134,6 +137,7 @@ internal static class DiscoveryCommands
             + "  canvasnet info part.scad --json" + Environment.NewLine
             + "  canvasnet info chart.vl.json --json" + Environment.NewLine
             + "  canvasnet info flow.mmd --json" + Environment.NewLine
+            + "  canvasnet info quadratic.mml --json" + Environment.NewLine
             + "  canvasnet info drawing.svg --json";
 
         /// <inheritdoc />
@@ -226,6 +230,45 @@ internal static class DiscoveryCommands
             {
                 WriteDiagram(writer, diagram);
             }
+
+            if (info.Equation is { } equation)
+            {
+                WriteEquation(writer, equation);
+            }
+        }
+
+        /// <summary>
+        ///     Writes the <c>equation</c> object of a MathML file.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="equation">What the equation declares.</param>
+        /// <remarks>
+        ///     The object has the <c>display</c> the equation is laid out in (<c>block</c> or <c>inline</c>: the one the
+        ///     fragment of the input names, or else its own), the number of MathML <c>elements</c> (the <c>math</c> element
+        ///     included), the <c>baseline</c> (the row of the alphabetic baseline in the natural picture, in pixels from the
+        ///     top), the text alternative <c>altText</c> when the <c>math</c> element has one, and the <c>annotations</c>
+        ///     (the <c>encoding</c> of each annotation in document order, an empty string for one without). The equation is
+        ///     parsed and measured but not drawn.
+        /// </remarks>
+        private static void WriteEquation(Utf8JsonWriter writer, EquationFacts equation)
+        {
+            writer.WriteStartObject("equation");
+            writer.WriteString("display", equation.Display);
+            writer.WriteNumber("elements", equation.ElementCount);
+            writer.WriteNumber("baseline", equation.Baseline);
+            if (equation.AltText != null)
+            {
+                writer.WriteString("altText", equation.AltText);
+            }
+
+            writer.WriteStartArray("annotations");
+            foreach (var encoding in equation.AnnotationEncodings)
+            {
+                writer.WriteStringValue(encoding);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
         }
 
         /// <summary>
@@ -499,6 +542,21 @@ internal static class DiscoveryCommands
                 builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, sequence ? "box" : "subgraph")}");
                 builder.Append(diagram.Title is { } title ? string.Create(CultureInfo.InvariantCulture, $", title \"{title.ReplaceLineEndings(" ")}\"") : string.Empty);
                 builder.Append(diagram.AccTitle is { } accTitle ? string.Create(CultureInfo.InvariantCulture, $", accTitle \"{accTitle.ReplaceLineEndings(" ")}\"") : string.Empty);
+                builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");
+                return builder.ToString();
+            }
+
+            if (info.Equation is { } equation)
+            {
+                builder.Append(" (laid out)");
+                builder.Append(CultureInfo.InvariantCulture, $", equation, {equation.Display}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(equation.ElementCount, "element")}");
+                builder.Append(CultureInfo.InvariantCulture, $", baseline {equation.Baseline}");
+                builder.Append(equation.AltText is { } altText ? string.Create(CultureInfo.InvariantCulture, $", alttext \"{altText.ReplaceLineEndings(" ")}\"") : string.Empty);
+                builder.Append(
+                    equation.AnnotationEncodings.Count == 0
+                        ? string.Empty
+                        : string.Create(CultureInfo.InvariantCulture, $", {Count(equation.AnnotationEncodings.Count, "annotation")} ({string.Join(", ", equation.AnnotationEncodings.Select(e => e.Length == 0 ? "no encoding" : e))})"));
                 builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");
                 return builder.ToString();
             }

@@ -2,7 +2,8 @@
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet libraries
 on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings, document
-pages, OpenSCAD models, Vega-Lite charts, and Mermaid and PlantUML diagrams, cleans up photographs of sketches
+pages, OpenSCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, and MathML equations, cleans up photographs of
+sketches
 (contrast, tilt, borders, and a coordinate grid), and measures their colors and pixels. It is built to be driven by
 programs as well as by people: a command's standard output holds only its own result, every result can be written as one
 JSON document, a failure is reported with a stable error code, and the exit code is always 0 or 1. This chapter
@@ -227,9 +228,9 @@ parse standard output alone in both cases; the text report on standard error is 
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them takes
 every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
-Vega-Lite chart, a Mermaid or PlantUML diagram, and so on, not only rasters). The photo operations (`--grayscale`,
-`--deskew`, `--trim`, `--grid`, and so on; see *Photos and Sketches*) are options of `render`, so they are available to
-all of these commands too, and `inspect` accepts them as well.
+Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, and so on, not only rasters). The photo operations
+(`--grayscale`, `--deskew`, `--trim`, `--grid`, and so on; see *Photos and Sketches*) are options of `render`, so they
+are available to all of these commands too, and `inspect` accepts them as well.
 
 ### Formats Read and Written
 
@@ -359,6 +360,12 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   classes, objects, and maps, relationships, and packages for a class or object diagram; states and pseudo-states,
   transitions, and composite states for a state diagram; elements, links, and containers for a use case, component, or
   deployment diagram). Its `!include` files are read to lay it out (see *PlantUML Diagrams* below).
+- A **MathML equation** reports its natural size (laid out at the 16 pixel font size of a browser and scale 1), 4
+  channels with transparency, and what the markup declares: the display it is laid out in (`block` or `inline`: the
+  one `eq.mml#display=inline` names, or else the `display` attribute of its `math` element), the number of MathML
+  elements, the baseline (the row of the alphabetic baseline in the natural picture, for placing it in a line of text),
+  the text alternative (`alttext`), and the encodings of its annotations. No other file is read (see *MathML Equations*
+  below).
 
 ```text
 $ canvasnet info shapes.svg
@@ -391,6 +398,8 @@ $ canvasnet info checkout.puml
 checkout.puml: plantuml, 254x354 px (laid out), sequence, 3 participants, 4 messages, 0 boxes, title "Checkout", 200 bytes
 $ canvasnet info ticket.puml
 ticket.puml: plantuml, 272x419 px (laid out), activity, 8 nodes, 9 edges, 0 subgraphs, title "Handling a ticket", 233 bytes
+$ canvasnet info quadratic.mml
+quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, 590 bytes
 ```
 
 ### render and convert
@@ -980,14 +989,66 @@ canvasnet help plantuml --example sequence > sequence.puml
 canvasnet help plantuml --example activity > activity.puml
 ```
 
+#### MathML Equations
+
+A MathML equation (`.mml`, one `<math>` element of MathML Core in the namespace `http://www.w3.org/1998/Math/MathML`,
+saved as UTF-8) is drawn as one still picture, laid out as a browser lays it out with the Noto Sans Math font that the
+core library bundles: fractions, roots, scripts, sums and integrals with their limits, stretchy fences, matrices,
+aligned derivations, accents, and colors (`canvasnet help mathml` lists a card for each authoring task, with worked
+examples). The library `DemaConsulting.CanvasNet.MathMl` that the tool bundles reads and draws MathML Core in .NET, with
+no browser, no TeX, and nothing read from the network or from another file.
+
+**Size.** Without a size option the equation is drawn at its **natural size**, the size a browser shows it at with its
+default font size of 16 pixels (`info` reports it, and the baseline). `--scale` lays the equation out again at that
+multiple, so a larger scale gives a sharper picture with the same proportions, not a magnified one (`--scale 3` suits
+print); `--width`, `--height`, and `--size` draw it into that box, scaled uniformly and centered. To give every equation
+of a document the same text size, size each one by the same factor of its natural size.
+
+**Display.** An equation is laid out in the display of its `math` element (`display="block"` for a stand-alone
+equation, with the limits of a sum below and above it, or inline, the default, more compact). The fragment
+`eq.mml#display=inline` or `#display=block` of the input path (or of an `<image href>` link) chooses the display
+instead; any other value is `image-fragment-invalid`.
+
+**Look.** The background is white (`--background transparent` gives a transparent PNG; an equation an SVG drawing links
+is transparent, so the drawing shows through). The colors are those of the markup (`mathcolor`, `mathbackground`), black
+by default. An equation has no theme and no feature positions: `--theme` and `--positions` on a `.mml` input are a
+`usage-error`.
+
+**Diagnostics and errors.** An element, attribute, or style that MathML Core does not define or this version does not
+draw (`mfenced`, `menclose`, a `linebreak` attribute, a `border` style, ...) is reported in `diagnostics` with its
+stable code (`mathml-element-unsupported`, `mathml-attribute-unsupported`, or `mathml-css-unsupported`) and its line and
+column, and the element is drawn as a row of its children; `--strict` makes the first one an `unsupported-feature`
+failure. A warning (an attribute value its attribute cannot use, an element without the children it needs, a character
+no bundled font has, an operator that cannot stretch) has the code `mathml-warning`, with the specific `mathml-*` code
+in `detail` and the line and column in `location`. Text that is not a valid equation (not well-formed XML, a document
+type, an unknown named reference, a root that is not `math`) is the error `mathml-error`, which names the file, line,
+and column and gives a hint:
+
+```text
+Error: mathml-error: MathML syntax error: eq.mml:3:10: mathml-syntax-error: the text is not well-formed XML: The 'mo'
+start tag on line 3 position 4 does not match the end tag of 'mi'.
+Hint: check that every element is closed and that a literal '&' or '<' in text is written as &amp; or &lt;
+```
+
+An equation that exceeds a limit of the library (elements, nesting, table cells, layout work, painted glyphs; see
+`canvasnet help limits`) fails with `budget-exceeded`, a text longer than 1,048,576 characters is `corrupt-input`, and
+a target size larger than 8192 pixels on a side is `size-limit`.
+
+```bash
+canvasnet info quadratic.mml --json
+canvasnet render quadratic.mml --scale 3 -o quadratic.png
+canvasnet render "sum.mml#display=inline" --strict -o sum.png --json
+canvasnet help mathml fractions --example quadratic > quadratic.mml
+```
+
 #### Feature Positions
 
 A Mermaid diagram or a Vega-Lite chart reports where its features land (the nodes, edges, and notes of a diagram, the
 views, axes, legends, and marks of a chart), for callouts and leader lines drawn over the picture, as the anchors of a
-model do; a PlantUML diagram reports none. `--positions <selector>` asks for the features a selector matches; repeat it
-to ask for more. It needs `--json`, because the positions are a field of the JSON result, and a diagram or a chart as
-the input: without `--json`, or with another kind of input, it is a `usage-error` (a model reports anchors instead).
-`render`, `convert`, and the verbs take the option; `inspect` does not.
+model do; a PlantUML diagram and a MathML equation report none. `--positions <selector>` asks for the features a
+selector matches; repeat it to ask for more. It needs `--json`, because the positions are a field of the JSON result,
+and a diagram or a chart as the input: without `--json`, or with another kind of input, it is a `usage-error` (a model
+reports anchors instead). `render`, `convert`, and the verbs take the option; `inspect` does not.
 
 ```bash
 canvasnet render flowchart.mmd --size 430x280 --positions node:send --positions edge -o slot.png --json
@@ -1239,20 +1300,20 @@ An SVG file that has no such reference renders exactly as before.
 
 #### Diagnostics and --strict
 
-PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, and SVG files that embed
-other files report every picture, shape, or feature the library recognizes but cannot draw. By default the page is drawn
-without it and the report is returned in `diagnostics` in the JSON result and, without `--json`, written to standard
-error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see *Output, Errors, and Exit Codes*),
-so a feature that was left out is never silent. `--strict` turns the report into a failure (`unsupported-feature`) and
-writes no output. PDF and raster images have no such report: whatever the library cannot draw is simply not drawn, and
-`--strict` has no effect on them. An SVG file reports only its `image` references that were not drawn
-(`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel budget, `image-fragment-invalid` for a
-fragment that cannot be used, or `image-page-out-of-range` for a page that does not exist, which `--strict` fails on;
-the fragment warnings do not; and `image-access-denied` for a link the file-access mode denies, which `--strict` turns
-into the error `file-access-denied`), a hand-drawn arrowhead (`svg-arrowhead-shape`, a warning `--strict` never fails
-on), text it does not draw or draws without a feature (`svg-text-not-drawn` and `svg-text-unsupported`, which
-`--strict` fails on), and the notes of the files it embeds; what else the SVG library cannot draw in the file itself
-(animation, an unknown filter primitive) is simply not drawn.
+PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, MathML equations, and SVG
+files that embed other files report every picture, shape, or feature the library recognizes but cannot draw. By default
+the page is drawn without it and the report is returned in `diagnostics` in the JSON result and, without `--json`,
+written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see *Output,
+Errors, and Exit Codes*), so a feature that was left out is never silent. `--strict` turns the report into a failure
+(`unsupported-feature`) and writes no output. PDF and raster images have no such report: whatever the library cannot
+draw is simply not drawn, and `--strict` has no effect on them. An SVG file reports only its `image` references that
+were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel budget,
+`image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does not
+exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
+mode denies, which `--strict` turns into the error `file-access-denied`), a hand-drawn arrowhead (`svg-arrowhead-shape`,
+a warning `--strict` never fails on), text it does not draw or draws without a feature (`svg-text-not-drawn` and
+`svg-text-unsupported`, which `--strict` fails on), and the notes of the files it embeds; what else the SVG library
+cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
 (`unsupported-feature`), with or without `--strict`; `--strict` additionally upgrades the skipped EMF and WMF
@@ -1756,12 +1817,12 @@ canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict]
                   [--file-access <mode>] [--allow-root <folder>] [--no-clobber]
 ```
 
-An SVG drawing that links a Mermaid or PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF,
-PowerPoint, or Visio file with `<image href>` (see *Embedding Images, Charts, and Models in an SVG*) is drawn completely
-only by CanvasNet: a browser or another SVG reader, such as WeasyPrint, shows nothing where those pictures belong.
-`flatten` writes a copy of the drawing in which each of those links is a PNG picture, embedded as a `data:` URI, so that
-any SVG reader shows the drawing as `canvasnet render` draws it. Everything else stays: the shapes and the text remain
-vectors, and raster pictures and SVG files that link only rasters keep their links.
+An SVG drawing that links a Mermaid or PlantUML diagram, a MathML equation, an OpenSCAD model, a Vega-Lite chart, or a
+page of a PDF, PowerPoint, or Visio file with `<image href>` (see *Embedding Images, Charts, and Models in an SVG*) is
+drawn completely only by CanvasNet: a browser or another SVG reader, such as WeasyPrint, shows nothing where those
+pictures belong. `flatten` writes a copy of the drawing in which each of those links is a PNG picture, embedded as a
+`data:` URI, so that any SVG reader shows the drawing as `canvasnet render` draws it. Everything else stays: the shapes
+and the text remain vectors, and raster pictures and SVG files that link only rasters keep their links.
 
 ```bash
 canvasnet flatten dashboard.svg -o dashboard-flat.svg
@@ -2049,10 +2110,10 @@ most 4,000.
 
 The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that
 apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original
-program. Each drawing format (`scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg`) also has a `style` card (how to
-make the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures), linked to
-the `style` and `composition` topics. The cards are embedded in the tool, so they work offline and always describe the
-version that is installed.
+program. Each drawing format (`scad`, `vega-lite`, `mermaid`, `plantuml`, `mathml`, and `svg`) also has a `style` card
+(how to make the picture look good) and a `composition` card (how to place it in, or combine it with, other pictures),
+linked to the `style` and `composition` topics. The cards are embedded in the tool, so they work offline and always
+describe the version that is installed.
 
 The cards about the formats come from the CanvasNet Viewer library, which gives programs that use the library (for
 example agent toolkits) the same help as data (see *Help for agents* in the CanvasNet Viewer guide). The library card
@@ -2060,14 +2121,13 @@ describes a subject in library terms, such as strict mode or the requested width
 `## Command line` section with the options, commands, and command examples of the subject, so a card reads first what
 holds for every host and then how to do it with `canvasnet`. The `json` and `pandoc` topics are the tool's own. Every
 card also has **tags** from a closed vocabulary, which the JSON documents carry: the format it is about (`svg`,
-`mermaid`, `plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, or `raster`; none for a general card) and at least
-one scope (`authoring`, `design`, `composition`, `diagnostics`, `limits`, `hosting`, or `file-access`). This guide stays
-the narrative; the cards are the quick reference, and they are tested
-against the code (the options, the error codes, the diagnostic identifiers, the limits, and every example) and, for the
-style advice, against the renderer.
+`mermaid`, `plantuml`, `mathml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, or `raster`; none for a general card) and
+at least one scope (`authoring`, `design`, `composition`, `diagnostics`, `limits`, `hosting`, or `file-access`). This
+guide stays the narrative; the cards are the quick reference, and they are tested against the code (the options, the
+error codes, the diagnostic identifiers, the limits, and every example) and, for the style advice, against the renderer.
 
-The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, `plantuml`, and `svg` are files
-that render with `--strict` without a diagnostic, including a styled Mermaid flowchart
+The cards ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, `plantuml`, `mathml`, and `svg` are
+files that render with `--strict` without a diagnostic, including a styled Mermaid flowchart
 (`help mermaid style --example styled`), a styled Vega-Lite chart (`help vega-lite style --example styled`), an SVG
 figure that embeds both (`help svg composition --example report`), and a framed figure of a model with a title band and
 callout arrows that end on its anchors (`help svg framed-figure --example framed`), and two connectors whose arrowheads
@@ -2081,10 +2141,10 @@ canvasnet help scad --example plate > plate.scad
 canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 ```
 
-- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, `.puml`, or `.svg`
-  file) or, for a card whose example is a command, the command line. It finds the example on the card or on any card
-  below it, so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing else is
-  written to standard output.
+- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, `.puml`, `.mml`, or
+  `.svg` file) or, for a card whose example is a command, the command line. It finds the example on the card or on any
+  card below it, so `help scad --example plate` and `help scad language --example plate` print the same file. Nothing
+  else is written to standard output.
 - `--examples` prints every example of the card in full: its name, kind (`source`, `command`, or `snippet`), file
   name, description, and content in a code block. It then lists the cards below it that have examples, each with its
   `--examples` command, so `help mermaid --examples` points at the cards of the diagram types. A `snippet` is not
@@ -2171,6 +2231,15 @@ swimlanes and partitions, its packages, its composite states, or its containers:
 {"schemaVersion":2,"ok":true,"command":"info","input":{"path":"checkout.puml","format":"plantuml","bytes":200},"image":{"width":254,"height":354,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"sequence","supported":true,"title":"Checkout","nodes":3,"edges":4,"subgraphs":0}}
 ```
 
+For a MathML equation `info` adds the `equation` object after `image` (which gives the natural size): `display` (`block`
+or `inline`), `elements` (the number of MathML elements, the `math` element included), `baseline` (the row of the
+alphabetic baseline in the natural picture, in pixels from the top), `altText` only when the `math` element has one,
+and `annotations` (the `encoding` of each annotation in order, an empty string for one without; always present):
+
+```json
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"quadratic.mml","format":"mathml","bytes":590},"image":{"width":137,"height":44,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"equation":{"display":"block","elements":22,"baseline":32,"annotations":[]}}
+```
+
 `render`, `convert`, and the transformation commands add:
 
 ```json
@@ -2185,22 +2254,22 @@ swimlanes and partitions, its packages, its composite states, or its containers:
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a document,
   and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`, `pptx`,
-  `vsdx`, `vega-lite`, `mermaid`, `plantuml`, or `svg`; `code` is the library's stable feature token, such as
-  `scad-module-surface`, `vl-mark-geoshape`, `mermaid-icon-unsupported`, or `plantuml-theme-unsupported`,
-  `vega-lite-warning` for a warning of the chart library, `vega-lite-info` (severity `info`, detail
-  `vl-type-inferred`, never a failure with `--strict`) for a chart field without a `type`, which is drawn with the type
-  Vega-Lite infers, `mermaid-warning` or `plantuml-warning` for a warning of a
-  diagram library, or `svg-image-unresolved`, `svg-image-too-large`,
+  `vsdx`, `vega-lite`, `mermaid`, `plantuml`, `mathml`, or `svg`; `code` is the library's stable feature token, such as
+  `scad-module-surface`, `vl-mark-geoshape`, `mermaid-icon-unsupported`, `plantuml-theme-unsupported`, or
+  `mathml-element-unsupported`, `vega-lite-warning` for a warning of the chart library, `vega-lite-info` (severity
+  `info`, detail `vl-type-inferred`, never a failure with `--strict`) for a chart field without a `type`, which is drawn
+  with the type Vega-Lite infers, `mermaid-warning` or `plantuml-warning` for a warning of a diagram library,
+  `mathml-warning` for a warning of the equation library, or `svg-image-unresolved`, `svg-image-too-large`,
   `image-fragment-invalid`, `image-page-out-of-range`, `image-fragment-unknown-parameter`, or
   `image-fragment-duplicate-parameter` for an SVG `image` link, `svg-arrowhead-shape` for an arrowhead drawn by hand
   instead of with a marker, or `svg-text-not-drawn` and `svg-text-unsupported` for SVG text that is not drawn or drawn
-  without a feature). `detail` is the finer identifier when `code` is a
-  generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`,
-  `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds
-  `"pointer"`, and a member that is not known is left out) where the file gave a position; `origin` lists the files,
-  outermost first, that lead to an embedded file's note (a link of the SVG file you named has none). The `code`s and the
-  other members are unchanged; a note without the extras has exactly the shape it always had. The same members are in
-  the `diagnostics` of `inspect`, `compare`, and `montage`.
+  without a feature). `detail` is the finer identifier when `code` is a generic one (`scad-anchor-invalid` for a
+  `scad-warning`, `vl-unknown-property` for a `vega-lite-warning`, `mermaid-config-unknown-key` for a
+  `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds `"pointer"`, and a member that is not known
+  is left out) where the file gave a position; `origin` lists the files, outermost first, that lead to an embedded
+  file's note (a link of the SVG file you named has none). The `code`s and the other members are unchanged; a note
+  without the extras has exactly the shape it always had. The same members are in the `diagnostics` of `inspect`,
+  `compare`, and `montage`.
 - `echo`: the text a SCAD model printed with `echo`.
 - `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
   echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see *Anchors* under *OpenSCAD Models*).
@@ -2354,6 +2423,9 @@ Each code, its cause, and what to do:
 - **`plantuml-error`**: A PlantUML diagram is not valid (a statement the diagram type does not accept, an unknown
   `@start` tag, an `!include` file that is missing or cannot be read) or cannot be laid out. What to do: The message has
   the file, line, column, and `plantuml-*` code; the hint suggests the fix.
+- **`mathml-error`**: A MathML equation is not valid (not well-formed XML, a document type, an unknown named reference,
+  a root that is not `math`; an empty file is line 1, column 1) or cannot be laid out. What to do: The message has the
+  file, line, column, and `mathml-*` code; the hint suggests the fix.
 - **`budget-exceeded`**: A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a
   limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes,
   edges, nesting, layout work, pictures, painted pixels). What to do: Raise the limit (a model) or simplify the model or
@@ -2395,6 +2467,10 @@ Each default, and how to change it:
   options.
 - **Look of a PlantUML diagram**: PlantUML's default look on white. To change it: `skinparam` in the diagram,
   `--background`.
+- **Size of a MathML equation**: Its natural size, at the 16 pixel font size of a browser. To change it: The size
+  options (`--scale` lays it out again, so it stays sharp).
+- **Look of a MathML equation**: Black on white with the bundled Noto Sans Math, in the display of its `math` element.
+  To change it: `mathcolor` and `mathbackground` in the markup, `--background`, `#display=`.
 - **Fonts of a diagram**: The bundled fonts only. To change it: Not adjustable.
 - **Time zone and fonts of a chart**: UTC, the bundled fonts only. To change it: Not adjustable.
 - **Referenced files (pictures, includes, data files)**: Every regular local file, relative to the file that names it;
@@ -2438,8 +2514,8 @@ crops the 800-pixel drawing, not the natural-size one.
 
 ## Using the Tool in Pandoc Documents
 
-The Pandoc filter draws models, charts, diagrams, and document pages with the tool when a document is built, so a
-Markdown file can refer to the source of a picture instead of a rendered copy. It has two parts: a short Lua shim,
+The Pandoc filter draws models, charts, diagrams, equations, and document pages with the tool when a document is built,
+so a Markdown file can refer to the source of a picture instead of a rendered copy. It has two parts: a short Lua shim,
 `docs/filters/canvasnet.lua`, which each documentation repository keeps, and the `pandoc-filter` command of the tool,
 which does all the work. Pin the tool, let it write the shim, and add the shim to the Pandoc defaults file of each
 document (it needs Pandoc 3 and no other library):
@@ -2457,9 +2533,9 @@ filters:
 
 For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input,
 and Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The
-tool is not started at all for a document without a code block of class `mermaid` or `plantuml` and without a local
-picture whose name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`,
-`.plantuml`, or `.pu` (in any letter case;
+tool is not started at all for a document without a code block of class `mermaid`, `plantuml`, or `mathml` and
+without a local picture whose name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`,
+`.mermaid`, `.puml`, `.plantuml`, `.pu`, or `.mml` (in any letter case;
 a name followed by a `#` fragment or a `?` query does not count, as the filter leaves such a picture alone). Code
 blocks of other languages (`bash`, `yaml`, `csharp`, and so on), raster pictures (PNG, JPEG, BMP, TIFF, ICO, AVIF, and
 so on), and remote pictures therefore never need the tool, and a code-only document builds without it. A fix of the
@@ -2468,8 +2544,8 @@ writes them from the tool's own tables), so write the shim again after each upda
 working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. The
 tool also says when the protocol of the shim changes (see *Shim protocol* below).
 
-A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.vsdx`,
-`.pptx`, or `.pdf` is then
+A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml`,
+`.vsdx`, `.pptx`, or `.pdf` is then
 drawn as a PNG, and the attributes written after it choose how. An SVG picture whose `<image>` elements link one of
 those files (directly or through a nested `.svg` file) is flattened, see below. Any other picture (a PNG, a JPEG, an SVG
 that links none of those files, an address on the internet) is left alone.
@@ -2479,12 +2555,13 @@ that links none of those files, an address on the internet) is left alone.
 ![Sales by region](sales.vl.json){scale=2}
 ![Order flow](order-flow.mmd){theme=forest}
 ![The wiring](wiring.vsdx){page=2 dpi=150}
+![The roots of a quadratic](quadratic.mml)
 ```
 
 | Attribute | Applies to | Meaning |
 | --- | --- | --- |
 | `size` | all but `.svg` | The picture in pixels, `WIDTHxHEIGHT` (a model is 1600x1200 unless `scale` is given) |
-| `scale` | all | Multiplies the natural size, 0.001 to 8192 (not with `size`); for `.svg`, the replaced pictures |
+| `scale` | all | Multiplies the natural size, 0.001 to 8192 (not with `size`; an equation is drawn at 2 unless given) |
 | `background` | all but `.svg` | `#RRGGBB`, `#RRGGBBAA`, a color name, or `transparent` (a model is drawn over white) |
 | `page` | `.vsdx`, `.pptx`, `.pdf` | The page or slide, counted from 1 (default 1) |
 | `dpi` | `.vsdx`, `.pptx`, `.pdf` | The resolution in dots per inch, above 0 up to 2400 (whole number for `.vsdx`) |
@@ -2529,6 +2606,29 @@ and so on) is left as written, with a warning, exactly as a Mermaid one.
 ```{.plantuml caption="Order flow" width=60%}
 Alice -> Shop : order
 Shop --> Alice : receipt
+```
+````
+
+A MathML equation is written in the document the same way, as a fenced code block of class `mathml` holding one
+`<math>` element, or as a `.mml` picture. It reads the attributes of a `.mml` picture (`size`, `scale`, and
+`background`; an equation has no `theme`, so `theme` is an error), and `caption` and the other attributes work as for a
+`mermaid` block. An equation is drawn at **scale 2** unless `size` or `scale` is given, so it stays sharp in print, and
+it is shown at its **natural width**: when the picture has no `size`, `width`, or `height` attribute, the filter adds
+`width="Npx"`, where N is the width of the equation at its natural size (the 16 pixel font size of a browser, as
+`canvasnet info` reports it). Every equation of a document therefore shows at the same text size, whatever scale it was
+drawn at; an author's own `size`, `width`, `height`, or `scale` is kept as written (a `scale` without a width still
+shows the natural width). The added width is not part of the hash, so it never draws a picture again.
+
+````markdown
+```{.mathml caption="The quadratic formula"}
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>x</mi><mo>=</mo>
+  <mfrac>
+    <mrow><mo>&minus;</mo><mi>b</mi><mo>&PlusMinus;</mo>
+      <msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&minus;</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow>
+    <mrow><mn>2</mn><mi>a</mi></mrow>
+  </mfrac>
+</math>
 ```
 ````
 
@@ -2636,7 +2736,7 @@ pixels per side; a scale of 0.56 or less fits. (Set the block's scale attribute 
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
 local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine.
 `canvasnet help pandoc` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid,
-PlantUML, VSDX, PPTX, and PDF packages are drawn this way.
+PlantUML, MathML, VSDX, PPTX, and PDF packages are drawn this way.
 
 ### Migrating from the Full Lua Filter (Filter Version 16 and Earlier)
 
@@ -2658,12 +2758,13 @@ cache folder stay the same.
 ## Using the Tool from an AI Agent
 
 The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a PDF
-page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart, a Mermaid or PlantUML diagram) into a
-PNG the agent can inspect, and writes the agent's own drawings (an SVG, a SCAD model, or a Mermaid or PlantUML diagram)
+page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML
+equation) into a PNG the agent can inspect, and writes the agent's own drawings (an SVG, a SCAD model, a Mermaid or
+PlantUML diagram, or a MathML equation)
 as pictures it can compare with a reference. A few conventions make this reliable:
 
 - Start with `canvasnet help topics`, then `canvasnet help <format>` for the index of a format (`scad`, `vega-lite`,
-  `mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`), the card below it that answers the question
+  `mermaid`, `plantuml`, `mathml`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`), the card below it that answers the question
   (`canvasnet help mermaid gantt`), and `canvasnet help <format> --example <name>` for a tiny example that is known
   to render. Follow the *See also* commands at the end of a card; `canvasnet help style` and
   `canvasnet help composition` explain how to make a picture look good and how to combine pictures. Add `--json` to
@@ -2871,7 +2972,7 @@ pictures side by side.
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
   checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts and
-  Mermaid and PlantUML diagrams use only the
+  Mermaid and PlantUML diagrams and MathML equations use only the
   bundled fonts (and charts UTC dates), so they are the same on every machine. SVG text is always drawn: a
   family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
   is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
@@ -2884,9 +2985,9 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, Mermaid, and PlantUML: `diagnostics`; SVG: the `image`
-  references it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG file)
-  cannot draw is simply absent from the picture.
+  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, Mermaid, PlantUML, and MathML: `diagnostics`; SVG: the
+  `image` references it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG
+  file) cannot draw is simply absent from the picture.
 - **SVG embedding.** Local references are followed relative to the folder of the SVG file, under the file-access mode
   (never the network), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
   default view; the `feImage` filter primitive reads only a `data:` URI.
@@ -2912,6 +3013,9 @@ pictures side by side.
   case, component, or deployment diagram is laid out with the dagre layered layout instead of Graphviz, its includes
   are local files only, and the other PlantUML types are drawn as an empty picture with the diagnostic
   `plantuml-diagram-unsupported`.
+- **Equations.** A static picture of one MathML Core equation: no line breaking (write a long equation as the rows of
+  an `mtable`), no Content MathML, no LaTeX input, no links or actions, and the elements, attributes, and styles
+  outside MathML Core (`mfenced`, `menclose`, ...) are reported and drawn as a row of their children.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
@@ -2964,6 +3068,7 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_RenderVegaLite - Passed
 ✓ CanvasNetTool_RenderMermaid - Passed
 ✓ CanvasNetTool_RenderPlantUml - Passed
+✓ CanvasNetTool_RenderMathMl - Passed
 ✓ CanvasNetTool_PandocFilter - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
@@ -2972,8 +3077,8 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_Adjustments - Passed
 ✓ CanvasNetTool_HelpExamples - Passed
 
-Total Tests: 19
-Passed: 19
+Total Tests: 20
+Passed: 20
 Failed: 0
 ```
 
@@ -2991,6 +3096,7 @@ Failed: 0
 | `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
 | `CanvasNetTool_RenderMermaid` | A Mermaid flowchart is described by `info` and drawn at that size, nodes in place |
 | `CanvasNetTool_RenderPlantUml` | A PlantUML sequence diagram is described by `info` and drawn at that size |
+| `CanvasNetTool_RenderMathMl` | A MathML equation is described by `info` and drawn at that size, its bar in place |
 | `CanvasNetTool_PandocFilter` | `pandoc-filter` draws a Mermaid block of a Pandoc document as a figure |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |

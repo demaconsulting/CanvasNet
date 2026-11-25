@@ -83,6 +83,25 @@ sections:
           - PandocFilterEngine_Run_PlantUmlBlocks_BecomeFigureOrAreLeftAsWritten
           - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
 
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
+        title: >-
+          The PandocFilterEngine unit shall draw a .mml picture and replace a code block of class mathml with its drawn
+          picture as it replaces a Mermaid block (a figure with the caption and the identifier, or a paragraph), writing
+          its text to the cache folder as a .mml file and dropping only the class mathml; and shall give an equation
+          whose attributes set no size, width, or height the kept attribute width="Npx", N being the natural width of
+          the equation (its width at scale 1 and the 16 pixel font size, read by a probe that does not draw it), on
+          every run whether the picture is drawn or found in the cache, keeping an author's width, height, or size
+          without adding one, and leaving the attributes as written when the equation cannot be measured (the draw then
+          reports the failure).
+        justification: |
+          An equation drawn at twice its natural size for print would show at twice the font size of the text if the
+          document showed it at its pixel size; showing it at its natural width keeps every equation of a document at
+          the same text size, and the key of the cache does not depend on it, so a picture is never drawn again for it.
+        tests:
+          - PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth
+          - PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth
+          - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
+
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
         title: >-
           The PandocFilterEngine unit shall return the warnings of a run, each the picture's name and a message, in the

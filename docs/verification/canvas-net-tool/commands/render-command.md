@@ -5,7 +5,10 @@
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
 resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
 model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), `RenderCommandMermaidTests.cs` (the Mermaid diagrams,
-the `--theme` option, and the theme of `inspect`), `RenderCommandPositionTests.cs` (the `--positions` option, the
+the `--theme` option, and the theme of `inspect`), `RenderCommandPlantUmlTests.cs` (the PlantUML diagrams),
+`RenderCommandMathMlTests.cs` (the MathML equations: the natural size, the scale, the background, the display
+fragment, the refused options, strict mode, and an equation an SVG drawing links), `RenderCommandPositionTests.cs`
+(the `--positions` option, the
 `positions` array of the JSON result, and its refusal by `inspect`), and `RenderCommandPipelineTests.cs` (the image
 pipeline options and the verb commands). The command is run
  in-process: the tests
@@ -49,6 +52,12 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
+- An equation is rendered at its natural size (a 16 pixel font size) over white, laid out again at `--scale`, drawn
+  into the box `--width` asks for, transparent with `--background transparent`, and in inline display with the
+  `display=inline` fragment; the operation, the natural size, the fragment, and the diagnostics are in the result; an
+  element outside MathML Core is a located note or, in strict mode, an error that leaves no output; `--theme` and
+  `--positions` are usage errors; an SVG drawing draws a linked equation at its placement and `flatten` replaces the
+  link with a PNG of the placement size.
 - A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie
   chart, a gantt chart, a mindmap, a packet diagram, or a git graph) is
   rendered at the size Mermaid lays it out at over
@@ -595,6 +604,39 @@ diagram renders an empty 20 by 20 PNG with one located diagnostic (`plantuml`, `
 an ignored skin parameter has the one diagnostic `plantuml-warning` with the `detail` `plantuml-skinparam-ignored` at
 line 2; a diagram with a statement no parser accepts returns exit code 1 with `Error: plantuml-error: PlantUML syntax
 error:` naming `broken.puml:3:`, a failure document with the code `plantuml-error`, and no output.
+
+**RenderCommand_Run_MathMlEquation_DrawsAtTheNaturalSizeOverWhite** (`RenderCommandMathMlTests.cs`): the quadratic
+formula rendered with `--strict` names the `mathml` format and the natural size of a probe, writes a PNG of that size
+with a white corner and more than 100 dark pixels, and has one `render` operation without `theme` or `display` and no
+diagnostic; the usage text names `MathML (.mml)`, the `eq.mml#display=inline` fragment, and the example
+`canvasnet render quadratic.mml --scale 3 -o quadratic.png`.
+
+**RenderCommand_Run_MathMlScaleAndBackground_FollowTheOptions** (`RenderCommandMathMlTests.cs`): `--scale 3` writes a
+picture three times the natural size, rounded out at that scale (at most 3 pixels smaller), with more than 900 dark
+pixels; `--width 400` writes a picture 400 pixels wide whose height keeps the aspect ratio (within 2 pixels); and
+`--background transparent` gives a transparent corner and the operation background `#00000000`.
+
+**RenderCommand_Run_MathMlDisplayFragment_ChangesTheSize** (`RenderCommandMathMlTests.cs`): a block sum with limits
+rendered through `sum.mml#display=inline` is lower than the block picture, its natural width is the width written, the
+`input` object holds the `fragment` `display=inline`, and the `render` operation the display `inline`; the block render
+has no `fragment`.
+
+**RenderCommand_Run_MathMlThemeOrPositions_IsUsageError** (`RenderCommandMathMlTests.cs`): `--theme dark` on the
+equation is a `usage-error` that says the option only applies to a Mermaid diagram and names the `mathml` kind;
+`--positions all --json` is a `usage-error` that says the option only applies to a Mermaid diagram or a Vega-Lite chart;
+neither writes a file; and `inspect colors --theme dark` is the same `usage-error`.
+
+**RenderCommand_Run_MathMlStrictUnsupportedElement_IsUnsupportedFeature** (`RenderCommandMathMlTests.cs`): an
+equation with an `mfenced` on line 2 and an `mspace` whose width has no unit on line 3 renders with the diagnostic
+(`mathml`, `unsupported`, `mathml-element-unsupported`) at line 2 and the warning `mathml-warning` with the `detail`
+`mathml-attribute-invalid` at line 3, and writes its PNG; with `--strict` it fails with `unsupported-feature` and writes
+nothing.
+
+**RenderCommand_Run_SvgLinkingAnEquation_DrawsAndFlattensIt** (`RenderCommandMathMlTests.cs`): a light gray SVG
+drawing that places the quadratic formula at twice its natural size renders with `--strict` with an `embed` operation
+and no diagnostic, the gray of the drawing showing inside the equation's box (an embedded equation is transparent) and
+more than 300 dark pixels; `flatten --json` replaces the one link `quadratic.mml` (format `mathml`) with a PNG of the
+placement size, and the flattened copy no longer names the file.
 
 **InspectCommand_Run_MermaidTheme_ReportsTheThemedColors**: `inspect pixel` of a point a few pixels inside the first
 node (14 and half the height) reports the forest node fill `#CDE498` with `--theme forest` and the default fill

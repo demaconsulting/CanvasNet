@@ -16,11 +16,12 @@ sections:
       - id: CanvasNetTool-PandocFilter-Pictures
         title: >-
           The PandocFilter subsystem shall return a Pandoc JSON document in which every picture of an OpenSCAD model, a
-          Vega-Lite chart, a Mermaid or PlantUML diagram, or a page of a PDF, PPTX, or VSDX document is a PNG picture
-          drawn into the
-          cache folder with the options its attributes ask for, every SVG drawing that links one is its flattened copy,
-          and every Mermaid or PlantUML code block is a figure (with a caption) or a paragraph that shows its picture,
-          while every
+          Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, or a page of a PDF, PPTX, or VSDX document
+          is a PNG picture drawn into the
+          cache folder with the options its attributes ask for (an equation the author does not size shown at its
+          natural width), every SVG drawing that links one is its flattened copy,
+          and every Mermaid, PlantUML, or MathML code block is a figure (with a caption) or a paragraph that shows its
+          picture, while every
           other element, attribute, and text of the document is unchanged, and shall return the notes the tool reports
           for a picture as warnings, leaving out a note for information only (such as vega-lite-info).
         justification: |
@@ -42,6 +43,7 @@ sections:
           - CanvasNetTool-PandocFilter-PictureAttributes-Keep
           - CanvasNetTool-PandocFilter-PictureAttributes-Svg
           - CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
+          - CanvasNetTool-PandocFilter-PictureAttributes-MathMl
           - CanvasNetTool-PandocFilter-FilterPaths-Collapse
           - CanvasNetTool-PandocFilter-FilterPaths-PandocPath
           - CanvasNetTool-PandocFilter-FilterPaths-LocateSource
@@ -50,6 +52,7 @@ sections:
           - CanvasNetTool-PandocFilter-PandocFilterEngine-SvgDrawings
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
           - CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OtherPictures
@@ -57,6 +60,7 @@ sections:
           - PandocFilter_Run_RealPictures_DrawnTheSameWithOneOrFourJobs
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
           - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
+          - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
           - PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning
 
       - id: CanvasNetTool-PandocFilter-Cache

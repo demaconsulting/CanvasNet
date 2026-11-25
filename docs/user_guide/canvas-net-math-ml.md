@@ -607,3 +607,33 @@ Each of the three is drawn by `CanvasNetViewer.Render` (or `canvasnet render`) i
 lists the equation once among its embedded images. The equation stays transparent, so the page color shows around it.
 Flattening (`SvgFlattener`, `canvasnet flatten`) replaces the linked `.mml` with a PNG picture for SVG readers that
 cannot draw MathML.
+
+### Example 81: Drawing an Equation in a Pandoc Document
+
+A document built with Pandoc and the CanvasNet filter (see *Using the Tool in Pandoc Documents* in the tool guide) draws
+an equation written in a fenced code block of class `mathml`, or linked as a `.mml` picture such as
+`![The roots of a quadratic](quadratic.mml)`. The equation is drawn at twice its natural size, so it stays sharp in
+print, and shown at its natural width (the filter adds `width="Npx"` when the author gives no `size`, `width`, or
+`height`), so every equation of the document shows at the same 16 pixel font size. With a `caption` it becomes a
+figure, like the one below, which this guide draws as it is built:
+
+````markdown
+```{.mathml caption="Ohm's law and the power it dissipates"}
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>P</mi><mo>=</mo><mi>V</mi><mo>&InvisibleTimes;</mo><mi>I</mi>
+  <mo>=</mo><msup><mi>I</mi><mn>2</mn></msup><mo>&InvisibleTimes;</mo><mi>R</mi>
+  <mo>=</mo><mfrac><msup><mi>V</mi><mn>2</mn></msup><mi>R</mi></mfrac>
+</math>
+```
+````
+
+```{.mathml caption="Ohm's law and the power it dissipates"}
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>P</mi><mo>=</mo><mi>V</mi><mo>&InvisibleTimes;</mo><mi>I</mi>
+  <mo>=</mo><msup><mi>I</mi><mn>2</mn></msup><mo>&InvisibleTimes;</mo><mi>R</mi>
+  <mo>=</mo><mfrac><msup><mi>V</mi><mn>2</mn></msup><mi>R</mi></mfrac>
+</math>
+```
+
+A `theme` attribute is refused (an equation has none), and `size`, `scale`, `width`, and `height` work as for any other
+picture of the filter.

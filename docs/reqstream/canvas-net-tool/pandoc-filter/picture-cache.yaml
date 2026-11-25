@@ -27,8 +27,9 @@ sections:
           The PictureCache unit shall name the files of the cache folder as the Lua filter did: a picture
           <stem>-<key>.png, a flattened copy <stem>-<key>.svg, the markers <key>.unsupported and <key>.plain, and the
           source of a Mermaid code block the SHA-1 of a fixed prefix and its text with .mmd (unchanged, so an earlier
-          cache keeps its keys) and of a PlantUML code block the SHA-1 of the prefix that names plantuml and its text
-          with .puml, where the stem is the
+          cache keeps its keys), of a PlantUML code block the SHA-1 of the prefix that names plantuml and its text
+          with .puml, and of a MathML code block the SHA-1 of the prefix that names mathml and its text with .mml,
+          where the stem is the
           source's file name without its extension (and .vl) with every UTF-8 byte that is not an ASCII letter, digit,
           underscore, or dash made a dash.
         justification: |
@@ -36,6 +37,7 @@ sections:
           the Lua filter let a cache folder of an earlier build keep its code block sources.
         tests:
           - PictureCache_Names_FollowTheLuaFilter
+          - PictureCache_BlockSourceFile_MathMlBlock_HasMmlExtension
 
       - id: CanvasNetTool-PandocFilter-PictureCache-PartialFiles
         title: >-
@@ -46,6 +48,7 @@ sections:
           builds drawing the same picture from writing into one file.
         tests:
           - PictureCache_Names_FollowTheLuaFilter
+          - PictureCache_BlockSourceFile_MathMlBlock_HasMmlExtension
 
       - id: CanvasNetTool-PandocFilter-PictureCache-AtomicWrite
         title: >-

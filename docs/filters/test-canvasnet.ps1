@@ -5,7 +5,7 @@
 .DESCRIPTION
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
     over it, and checks what the filter promises. The filter is a thin Lua shim: it starts "canvasnet pandoc-filter"
-    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid, plantuml) or a
+    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid, plantuml, mathml) or a
     local picture whose name ends in a suffix the tool draws (lists the shim takes from the tool's own tables when it
     is written),
     and the tool does all the work. Code blocks of other classes, rasters such as BMP, TIFF, ICO, and AVIF, names
@@ -29,7 +29,9 @@
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself,
     PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
-    changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written, a diagram
+    changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written,
+    MathML equations are drawn from code blocks and from .mml pictures at twice their natural size and shown at their natural
+    width (an author's width is kept), a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left
     unchanged (the tool decides); one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -636,6 +638,47 @@ Bob --> Alice : Hi
     Write-Result ($pumlChanged.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $pumlBefore + 5) `
         'a changed !include file draws the PlantUML pictures that include it again' $pumlChanged.Log
 
+    # --- MathML equations: code blocks and .mml pictures, drawn sharp and shown at their natural width ------------
+    # A mathml code block becomes the picture (a figure with a caption); a .mml picture is drawn too. Both are drawn at
+    # scale 2 and keep the width of their natural size (width="...px"), so they show at the 16 px font size; an author's
+    # width is kept as written.
+    Set-Content (Join-Path $guide 'ohm.mml') -Value (
+        '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">' +
+        '<mi>V</mi><mo>=</mo><mi>I</mi><mo>&InvisibleTimes;</mo><mi>R</mi></math>')
+    $mathMl = @'
+```{.mathml #quadratic caption="The quadratic formula"}
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>x</mi><mo>=</mo>
+  <mfrac>
+    <mrow><mo>&minus;</mo><mi>b</mi><mo>&PlusMinus;</mo><msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&minus;</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow>
+    <mrow><mn>2</mn><mi>a</mi></mrow>
+  </mfrac>
+</math>
+```
+
+![Ohm's law](ohm.mml)
+
+![Ohm's law, wide](ohm.mml){width=50%}
+'@
+    $mmlBefore = @(Get-Pictures).Count
+    $mml = Invoke-Filter 'mathml' $mathMl
+    $ohmWidth = [regex]::Match($mml.Html, '<img\s+src="[^"]*generated/canvasnet/ohm-[^"]*"[^>]*width="(\d+)"')
+    Write-Result ($mml.ExitCode -eq 0 -and $mml.Html -match '<figure[^>]*id="quadratic"' -and
+        $mml.Html -match 'generated/canvasnet/mathml-' -and $mml.Html -match 'generated/canvasnet/ohm-' -and
+        $mml.Html -notmatch 'src="ohm\.mml"' -and @(Get-Pictures).Count -eq $mmlBefore + 2) `
+        'a mathml block and a .mml picture are drawn (the same picture twice is drawn once)' "$($mml.Log)`n$($mml.Html)"
+    Write-Result ($ohmWidth.Success -and [int]$ohmWidth.Groups[1].Value -gt 0 -and $mml.Html -match 'style="width:50(\.0)?%"' -and
+        ([regex]::Matches($mml.Html, '<img\s[^>]*width="\d+"')).Count -eq 2 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.mml').Count -ge 1) `
+        'equations show at their natural width, an author''s width is kept, and the block text is in the cache folder' $mml.Html
+    $mmlStamp = Get-Stamp
+    $mmlAgain = Invoke-Filter 'mathml' $mathMl
+    Write-Result ($mmlAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $mmlStamp -and $mmlAgain.Html -eq $mml.Html) `
+        'a second run draws no equation again and gives the same document' $mmlAgain.Log
+    $mmlTheme = Invoke-Filter 'mathml-theme' '![e](ohm.mml){theme=dark}'
+    Write-Result ($mmlTheme.ExitCode -ne 0 -and $mmlTheme.Log -match 'theme applies to Mermaid diagrams only') `
+        'theme on an equation is an error' $mmlTheme.Log
+
     # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: with
     # "--defaults ... --lua-filter later.lua", canvasnet.lua sees the mermaid blocks first, and the later filter sees
     # only the blocks left as written. A small Lua filter that marks every code block it sees is the later filter here.
@@ -832,7 +875,7 @@ Bob --> Alice : Hi
         'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
 
     # --- Only what the tool draws starts it ---------------------------------------------------------------
-    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid, plantuml), or a
+    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid, plantuml, mathml), or a
     # local picture whose name ends in one of the suffixes it draws; --write-shim writes both lists from the tool's tables.
     # With a tool that cannot start, a document that does not need it builds, and one that does is a clear error.
     # (Pandoc lowercases the language of a bare fence, so the class Mermaid is written as an attribute, {.Mermaid}.)
@@ -856,12 +899,15 @@ Bob --> Alice : Hi
         $pumlBlock = Invoke-Filter 'missing-tool-plantuml-block' "``````plantuml`nAlice -> Bob`n``````"
         Write-Result ($pumlBlock.ExitCode -ne 0 -and $pumlBlock.Log -match 'cannot run the canvasnet tool') `
             'one plantuml block starts the tool' $pumlBlock.Log
+        $mmlBlock = Invoke-Filter 'missing-tool-mathml-block' "``````mathml`n<math><mi>x</mi></math>`n``````"
+        Write-Result ($mmlBlock.ExitCode -ne 0 -and $mmlBlock.Log -match 'cannot run the canvasnet tool') `
+            'one mathml block starts the tool' $mmlBlock.Log
 
         # Every suffix the shim lists starts the tool, in any letter case; the list is the one the engine draws
         $shimSource = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))
         $suffixLine = [regex]::Match($shimSource, 'local SUFFIXES = \{([^}]*)\}')
         $suffixes = @([regex]::Matches($suffixLine.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
-        Write-Result (($suffixes -join ' ') -ceq '.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu') `
+        Write-Result (($suffixes -join ' ') -ceq '.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu .mml') `
             'the shim lists the picture suffixes the tool draws' ($suffixes -join ' ')
         $notStarted = @()
         foreach ($suffix in $suffixes) {

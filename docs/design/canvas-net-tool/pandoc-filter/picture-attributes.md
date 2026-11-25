@@ -4,7 +4,8 @@
 
 #### Purpose
 
-`PictureAttributes` reads the attributes of a picture or a Mermaid or PlantUML code block for the Pandoc filter: which
+`PictureAttributes` reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the Pandoc
+filter: which
 kind of
 input a picture names, the checks of every drawing attribute with the messages of the Lua filter, the defaults of each
 kind, the sorted tool options, and the attributes that stay on the picture. It is a literal port of `kind_of`,
@@ -18,14 +19,15 @@ internal static class `PictureAttributes` in `PictureAttributes.cs`, which also 
 their bytes) and `Keep` (`IReadOnlyList<KeyValuePair<string, string>>`, the attributes that stay, in their original
 order).
 
-**Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, `mermaid`, and `plantuml`.
+**Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, `mermaid`, `plantuml`, and `mathml`.
 
 **Suffixes**: the name ends checked in order: `.vl.json` and `.vl` (`vegalite`), `.scad`, `.vsdx`, `.pptx`, `.pdf`,
-`.mmd` and `.mermaid` (`mermaid`), and `.puml`, `.plantuml`, and `.pu` (`plantuml`; an `.iuml` include fragment is not
-a picture). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
+`.mmd` and `.mermaid` (`mermaid`), `.puml`, `.plantuml`, and `.pu` (`plantuml`; an `.iuml` include fragment is not
+a picture), and `.mml` (`mathml`). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
 
 **BlockClassKinds** (private): the classes of the code blocks the filter draws, each with its kind: `mermaid`
-(`mermaid`) and `plantuml` (`plantuml`); the class is the name of the kind, and the first of the two a block has wins.
+(`mermaid`), `plantuml` (`plantuml`), and `mathml` (`mathml`); the class is the name of the kind, and the first of
+them a block has wins.
 
 **PictureSuffixes**: `SvgSuffix` followed by the `Suffixes`, in order, the lowercase name ends of every local picture
 the filter may change. **BlockClasses**: the classes of `BlockClassKinds`. These two lists are the filter's own
@@ -33,7 +35,7 @@ registry of what it handles: `PandocFilterShim.Generate` writes them into the sh
 the tool for exactly the pictures and code blocks the engine does not leave alone.
 
 **Limits and defaults**: `ScadDefaultSize` = `1600x1200`, `DefaultBackground` = `white` (models only),
-`MaxTriangles` = `2000000`, and `MaxPixels` = 8192.
+`MaxTriangles` = `2000000`, `MathMlDefaultScale` = `2` (equations only), and `MaxPixels` = 8192.
 
 **Word lists**: views `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`; projections `ortho`, `orthographic`,
 `perspective`; themes `default`, `base`, `dark`, `forest`, `neutral`.
@@ -59,7 +61,9 @@ empty and without `=`) adds `--param=NAME=value`; `define-NAME` (`.scad` only, `
 repeated option keeps its last value; every other attribute goes to the keep list. Each value must be plain text (not
 empty, no character 0 to 31 or 127). Then it refuses `size` with `scale`, adds the model defaults (`size` unless `size`
 or `scale` is given, `background` unless given, and `max-triangles` always), adds `page=1` to a paged kind without
-`page`, and sorts all options by their bytes. The value checks are:
+`page`, adds `scale=2` to an equation without `size` or `scale` (sharp in print; an equation takes `size`, `scale`,
+and `background` only, so `theme` and the options of the other kinds are refused), and sorts all options by their
+bytes. The value checks are:
 
 - `size`: `WIDTHxHEIGHT`, each 1 to 8192, written without leading zeros.
 - `scale`: 0.001 to 8192; `azimuth`: -360000 to 360000; `elevation`: -90 to 90; `dpi`: above 0 up to 2400, a whole
@@ -68,13 +72,18 @@ or `scale` is given, `background` unless given, and `max-triangles` always), add
 - `page`: a whole number from 1, written without leading zeros.
 - `view`, `projection`, `theme`: one of the word lists, ignoring ASCII case, written in lowercase.
 
+**NaturalWidthNeeded(kind, attributes)**: `true` for a `mathml` picture whose attributes have none of `size`,
+`width`, and `height`: the engine then shows it at its natural width (see *PandocFilterEngine*), so every equation of a
+document shows at the 16 pixel font size whatever scale it is drawn at; an author's own `size`, `width`, or `height` is
+kept as written and no width is added.
+
 **BuildSvg(name, attributes)**: reads only `scale` (checked as above), one `--scale=` option per `scale` attribute in
 order, and keeps every other attribute.
 
 **SplitCaption(attributes)**: returns the last `caption` value (or `null`) and the other attributes as a keep list.
 
 **BlockName(identifier, text, kind)**: `<kind> block #<identifier>`, or `<kind> block (<first line>)` (`kind` is
-`mermaid` unless the block is a `plantuml` block) where the first line
+`mermaid` unless the block is a `plantuml` or `mathml` block) where the first line
 follows any leading white space, has its trailing white space removed, and is cut to 40 characters (runes) followed by
 `...`.
 
@@ -109,6 +118,7 @@ message of the Lua filter, for example:
 #### Callers
 
 - **PandocFilterShim** - `BlockClasses` and `PictureSuffixes`, written into the shim's fast path.
-- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockKindOf`, `Build`, `BuildSvg`, `BlockName`, and `SplitCaption` while
+- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockKindOf`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `BlockName`, and
+  `SplitCaption` while
   it plans the pictures of a document.
 - **DependencyHasher** - the kind constants and `KindOf` to find the composite links of an SVG drawing.

@@ -270,6 +270,34 @@ sections:
           - RenderCommand_Run_PlantUmlWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 
+      - id: CanvasNetTool-Commands-RenderCommand-MathMl
+        title: >-
+          The render command shall render a MathML equation (a .mml file) at its natural size (a 16 pixel font size)
+          by default, laid out again at the scale --scale asks for so that it stays sharp, or drawn into the box
+          --width, --height, or --size asks for, over white or the background color given (transparent included), in
+          the display its math element declares or the one the display= fragment of the input names; shall describe
+          what it drew (the drawn size, the display when the fragment names one, and the background when one is
+          given) in the render operation and the natural size, the fragment, and the mathml format in the input of the
+          result; shall report the warnings of the equation (mathml-warning with the specific code in detail and the
+          line and column in location) and the elements, attributes, and styles it does not draw (each its own
+          mathml-*-unsupported diagnostic with its location) in the diagnostics of the result and, with the strict
+          switch, fail with unsupported-feature and write no output; shall draw an equation an SVG drawing links at its
+          placement, and flatten such a link into a PNG picture; shall refuse the --theme and --positions options with a
+          usage error before anything is drawn, for render and inspect alike; and shall name MathML equations, the
+          display fragment, and an example in its usage text.
+        justification: |
+          An equation is rendered like any other vector source, but sharply at every scale so that a print-quality
+          picture shows the same text; the result must say what was drawn, every construct that is left out must be
+          reported, and an option that would be silently ignored must be loud.
+        tests:
+          - RenderCommand_Run_MathMlEquation_DrawsAtTheNaturalSizeOverWhite
+          - RenderCommand_Run_MathMlScaleAndBackground_FollowTheOptions
+          - RenderCommand_Run_MathMlDisplayFragment_ChangesTheSize
+          - RenderCommand_Run_MathMlThemeOrPositions_IsUsageError
+          - RenderCommand_Run_MathMlStrictUnsupportedElement_IsUnsupportedFeature
+          - RenderCommand_Run_SvgLinkingAnEquation_DrawsAndFlattensIt
+          - RenderCommand_Metadata_DescribesCommandAndOptions
+
       - id: CanvasNetTool-Commands-RenderCommand-Theme
         title: >-
           The render command, its verb commands and the inspect command shall accept the --theme name option for a

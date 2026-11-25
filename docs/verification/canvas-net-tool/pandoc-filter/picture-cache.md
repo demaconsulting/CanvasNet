@@ -37,6 +37,10 @@ of a journey code block is `cec4b774cf6e92d591d5001e3909f9dc6ca2cdcc.mmd`, the n
 block (also when the kind `mermaid` is named), while a PlantUML block is
 `eccade7d2733145c0211b90c5308527baf6876f0.puml`, the SHA-1 of the prefix that names `plantuml` and its text.
 
+**PictureCache_BlockSourceFile_MathMlBlock_HasMmlExtension**: the source of a MathML block in a cache folder is the
+SHA-1 of `canvasnet.lua mathml block\n` and its text with `.mml`, and differs from the name of a Mermaid block of the
+same text.
+
 **PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce**: a new file holds the UTF-8 bytes of `é\n` without a byte
 order mark, an existing file keeps its text `kept` instead of `replaced`, and the folder holds only the two files, with
 no partial file left.

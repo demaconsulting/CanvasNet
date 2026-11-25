@@ -8,7 +8,8 @@
 that a change to any of them draws the picture again. It is a literal port of the dependency walks of the Lua filter
 (version 16): the includes of an OpenSCAD model, the data files and pictures of a Vega-Lite chart, the pictures of a
 Mermaid diagram, the include files of a PlantUML diagram, and the image links of an SVG drawing, for which it also
-decides whether the drawing must be flattened.
+decides whether the drawing must be flattened (a link to a `.mml` equation makes it composite). An equation is hashed
+as its own file only.
 The unit is the internal sealed partial class `DependencyHasher`, split over `DependencyHasher.cs` (entry points, model
 walk, shared picture walk, file-access reads), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`,
 `DependencyHasher.PlantUml.cs`, and `DependencyHasher.Svg.cs`.
@@ -46,7 +47,8 @@ One instance walks one picture and is not thread-safe; the static entry points a
 **ForPicture(kind, source, name, policy)**: creates an instance and walks the picture by kind from the folder of
 `source`: `scad` with `AddScad`, `vegalite` with `AddChart`, `mermaid` with `AddMermaid`, `plantuml` with `AddPlantUml`;
 any other kind (a `pdf`,
-`pptx`, or `vsdx` document) is the single part labeled with the file name of `source`. Returns the parts.
+`pptx`, or `vsdx` document, and a `mathml` equation, which references no other file, so no name in its text is
+followed) is the single part labeled with the file name of `source`. Returns the parts.
 
 **ForSvg(source, policy)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
 composite.
@@ -89,7 +91,7 @@ every other kind of picture are unchanged.
 **AddImageFiles(files, root, depth)** (`add_image_files`): for each file not yet seen, by its name end in ASCII lower
 case: `.scad` adds a model (`AddScad`, depth 0), `.vl.json` or `.vl` a nested chart labeled from its own folder,
 `.mmd` or `.mermaid` a nested diagram, `.puml`, `.plantuml`, or `.pu` a nested PlantUML diagram (`AddPlantUml`), `.svg`
-a nested drawing, and any other file is added as it is.
+a nested drawing, and any other file (a `.mml` equation included, a leaf) is added as it is.
 
 **AddSvg(path, root, depth)** (`add_svg_sources`): marks the drawing `Taken`, adds it (an unreadable drawing is
 `Plain`), and resolves each link `CollectSvgLinks` finds: the fragment and query are cut; a `file:` URI is decoded as it

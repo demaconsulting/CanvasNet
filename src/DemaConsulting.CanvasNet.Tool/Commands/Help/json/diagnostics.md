@@ -10,7 +10,8 @@ see-also:
 ---
 
 - `source`: Where the report comes from: scad, vega-lite, mermaid, plantuml,
-  pptx, vsdx, or svg. PDF and raster images have no diagnostics channel.
+  mathml, pptx, vsdx, or svg. PDF and raster images have no diagnostics
+  channel.
 - `severity`: unsupported for a feature that was left out, warning for a
   questionable construct that still rendered, or info for a note for information
   only (vega-lite-info: a chart field without a type, detail vl-type-inferred),
@@ -19,18 +20,20 @@ see-also:
   scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or
   image-page-out-of-range. A warning of a SCAD model always has the code
   scad-warning, a warning of a Vega-Lite chart the code vega-lite-warning, and a
-  warning of a Mermaid diagram the code mermaid-warning, and a warning of a
-  PlantUML diagram the code plantuml-warning, and an info note of a chart the
-  code vega-lite-info; the finer identifier is in detail.
-- `message`: A description; for a model, chart, or diagram it gives file, line,
-  and column.
+  warning of a Mermaid diagram the code mermaid-warning, a warning of a PlantUML
+  diagram the code plantuml-warning, a warning of a MathML equation the code
+  mathml-warning, and an info note of a chart the code vega-lite-info; the finer
+  identifier is in detail.
+- `message`: A description; for a model, chart, diagram, or equation it gives
+  file, line, and column.
 - `detail`: Only when the code is generic: the finer identifier of the library,
   for example scad-anchor-invalid for a scad-warning, vl-unknown-property for a
   vega-lite-warning, or mermaid-config-unknown-key for a mermaid-warning. Branch
   on code and detail, never on the message.
 - `location`: Only when the file gave a position: {file, line, column} for a
-  model or a diagram, or {file, pointer, line, column} for a chart (the JSON
-  pointer of the offending property); a member that is not known is left out.
+  model, a diagram, or an equation, or {file, pointer, line, column} for a chart
+  (the JSON pointer of the offending property); a member that is not known is
+  left out.
 - `origin`: Only for a report about an embedded file (an SVG that links other
   files): the files, outermost first, that lead to it, as folder-relative names
   (a link that was not drawn names the SVG file that contains it). The message

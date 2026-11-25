@@ -1,6 +1,8 @@
 using System.Runtime.ExceptionServices;
 using System.Text.Json.Nodes;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 
@@ -192,8 +194,8 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c> or <c>plantuml</c> is written to the cache folder and
-    ///     drawn like a <c>.mmd</c> or <c>.puml</c> picture; any other block is left alone.
+    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c>, <c>plantuml</c>, or <c>mathml</c> is written to the cache
+    ///     folder and drawn like a <c>.mmd</c>, <c>.puml</c>, or <c>.mml</c> picture; any other block is left alone.
     /// </summary>
     /// <param name="index">The element's position.</param>
     /// <param name="node">The element.</param>
@@ -217,8 +219,9 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Plans a picture of a kind the tool draws (<c>draw</c>, up to the render): options, identity, file access,
-    ///     dependencies, key, then the cache, the marker of a diagram left as written, or a job.
+    ///     Plans a picture of a kind the tool draws (<c>draw</c>, up to the render): options, identity, file access, the
+    ///     natural width of an equation the author did not size, dependencies, key, then the cache, the marker of a diagram
+    ///     left as written, or a job.
     /// </summary>
     /// <param name="item">The picture.</param>
     /// <param name="source">The source file.</param>
@@ -234,7 +237,15 @@ internal sealed partial class PandocFilterEngine
         item.Keep = options.Keep;
         var identity = _settings.ToolIdentity;
         var access = _settings.FileAccessOf(source);
-        var parts = DependencyHasher.ForPicture(kind, source, item.Name, _settings.PolicyOf(access, source));
+        var policy = _settings.PolicyOf(access, source);
+
+        // An equation the author did not size is shown at its natural width, whatever scale it is drawn at
+        if (PictureAttributes.NaturalWidthNeeded(kind, attributes) && NaturalWidth(source, policy) is { } natural)
+        {
+            item.Keep = [.. options.Keep, new KeyValuePair<string, string>("width", $"{natural}px")];
+        }
+
+        var parts = DependencyHasher.ForPicture(kind, source, item.Name, policy);
         var key = PictureCache.ComputeKey(kind, identity, access.Key, options.Options, null, parts);
 
         // A picture drawn before is used; a diagram the tool does not draw is left as written, with its warning
@@ -255,6 +266,29 @@ internal sealed partial class PandocFilterEngine
 
         Attach(item, jobs, new DrawJob(item.Index, item.Name, false, kind, source, options.Options, access, cache, key, file, marker, item.Block != null));
         return item;
+    }
+
+    /// <summary>
+    ///     Gets the natural width of an equation: its width in pixels at scale 1 and the 16-pixel font size, read by a probe
+    ///     (the equation is parsed and measured, not drawn).
+    /// </summary>
+    /// <param name="source">The equation's source file.</param>
+    /// <param name="policy">The policy the tool draws the picture under, or <see langword="null"/> for the default mode.</param>
+    /// <returns>
+    ///     The width, or <see langword="null"/> when the equation cannot be measured: the picture then keeps its attributes as
+    ///     written, and the draw reports the failure with the tool's message.
+    /// </returns>
+    private static int? NaturalWidth(string source, FileAccessPolicy? policy)
+    {
+        try
+        {
+            var fileAccess = policy ?? FileAccessPolicy.AllowAll;
+            return SourceLoader.Probe(source, fileAccess).Width;
+        }
+        catch (ViewerException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

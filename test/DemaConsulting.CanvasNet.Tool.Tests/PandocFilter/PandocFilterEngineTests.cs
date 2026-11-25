@@ -221,6 +221,92 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that a <c>.mml</c> picture and a code block of class <c>mathml</c> are drawn at scale 2 and shown at their
+    ///     natural width (the width of a probe at scale 1, as <c>width="Npx"</c>), the block as a figure from a
+    ///     <c>.mml</c> file in the cache, and that a second run adds the same width from the cache without drawing.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth()
+    {
+        // Arrange: Ohm's law as a picture, the quadratic formula as a captioned block, and their natural widths
+        using var tree = new FilterTree();
+        var ohm = tree.Write("ohm.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>V</mi><mo>=</mo><mi>I</mi><mi>R</mi></math>");
+        var quadratic = File.ReadAllText(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml"))).ReplaceLineEndings("\n").TrimEnd('\n');
+        var ohmWidth = SourceLoader.Probe(ohm).Width;
+        var quadraticWidth = SourceLoader.Probe(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml"))).Width;
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Image("ohm.mml", ("id", "ohm"))),
+            PandocDoc.CodeBlock("eq-q", ["mathml"], quadratic, ("caption", "The roots")));
+        var drawer = new StubDrawer();
+        var again = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+        var second = tree.Run(again, document);
+
+        // Assert: both drawn at scale 2 (the default when no size or scale is given)
+        Assert.Equal(2, drawer.Calls.Count);
+        Assert.All(drawer.Arguments, args => Assert.Contains("--scale=2", args));
+        Assert.Single(tree.CacheFiles(), name => name.EndsWith(".mml", StringComparison.Ordinal));
+
+        // Assert: the picture keeps its id and gets its natural width; the block is a figure whose picture does too
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        var picture = blocks[0].GetProperty("c")[0].GetProperty("c")[0];
+        Assert.Equal($$"""["",[],[["id","ohm"],["width","{{ohmWidth}}px"]]]""", picture.GetRawText());
+        Assert.Equal("Figure", blocks[1].GetProperty("t").GetString());
+        var figureImage = blocks[1].GetProperty("c")[2][0].GetProperty("c")[0];
+        Assert.Equal($$"""["",[],[["width","{{quadraticWidth}}px"]]]""", figureImage.GetProperty("c")[0].GetRawText());
+        Assert.True(quadraticWidth > ohmWidth);
+
+        // Assert: a second run draws nothing and gives the same document
+        Assert.Empty(again.Calls);
+        Assert.Equal(output, second);
+    }
+
+    /// <summary>
+    ///     Test that an author's <c>width</c>, <c>height</c>, or <c>size</c> on an equation is kept without a natural width,
+    ///     that an author's <c>scale</c> replaces the default but still shows the natural width, and that an equation that
+    ///     cannot be measured keeps its attributes as written (the draw reports it).
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth()
+    {
+        // Arrange: one equation shown five ways, and a text that is not an equation
+        using var tree = new FilterTree();
+        var path = tree.Write("eq.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>=</mo><mn>1</mn></math>");
+        tree.Write("broken.mml", "<math><mi>x</mo></math>");
+        var natural = SourceLoader.Probe(path).Width;
+        var document = PandocDoc.Document(PandocDoc.Para(
+            PandocDoc.Image("eq.mml", ("width", "50%")),
+            PandocDoc.Image("eq.mml", ("height", "2em")),
+            PandocDoc.Image("eq.mml", ("size", "400x100")),
+            PandocDoc.Image("eq.mml", ("scale", "3")),
+            PandocDoc.Image("broken.mml")));
+        var drawer = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+
+        // Assert: the attributes each picture keeps
+        using var json = JsonDocument.Parse(output);
+        var images = json.RootElement.GetProperty("blocks")[0].GetProperty("c").EnumerateArray().Select(i => i.GetProperty("c")[0].GetRawText()).ToList();
+        Assert.Equal(
+            [
+                """["",[],[["width","50%"]]]""",
+                """["",[],[["height","2em"]]]""",
+                """["",[],[]]""",
+                $$"""["",[],[["width","{{natural}}px"]]]""",
+                """["",[],[]]"""
+            ],
+            images);
+
+        // Assert: the options each draw was given (the width and height pictures share one draw at scale 2)
+        var options = drawer.Arguments.Select(args => string.Join(' ', args.Where(a => a.StartsWith("--s", StringComparison.Ordinal)))).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(["--scale=2", "--scale=2", "--scale=3", "--size=400x100"], options);
+    }
+
+    /// <summary>
     ///     Test that one job and four jobs give the same document, warnings, and cache files.
     /// </summary>
     [Fact]

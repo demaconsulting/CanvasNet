@@ -53,6 +53,7 @@ sections:
           - HelpTopics_OverlayCards_BodyIsTheLibraryBodyThenTheOverlayBody
           - HelpTopics_Tree_ResourcesAreExactlyTheToolCardsAndOverlays
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - HelpTopics_MathMlOverlays_DocumentTheCommandLineAndThePandocDisplayWidth
 
       - id: CanvasNetTool-Commands-HelpTopics-CommandLineLinks
         title: >-

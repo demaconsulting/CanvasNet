@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 internal sealed record PictureOptions(IReadOnlyList<string> Options, IReadOnlyList<KeyValuePair<string, string>> Keep);
 
 /// <summary>
-///     Reads the attributes of a picture or a Mermaid or PlantUML code block: which kind of input a picture is, the checks of every
+///     Reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block: which kind of input a picture is, the checks of every
 ///     drawing attribute with the Lua filter's messages, the defaults, the sorted options, and the attributes that stay.
 /// </summary>
 /// <remarks>
@@ -48,6 +48,12 @@ internal static class PictureAttributes
     /// <summary>The kind of a PlantUML diagram (<c>.puml</c>, <c>.plantuml</c>, <c>.pu</c>, or a code block of class plantuml).</summary>
     internal const string PlantUml = "plantuml";
 
+    /// <summary>The kind of a MathML equation (<c>.mml</c>, or a code block of class mathml).</summary>
+    internal const string MathMl = "mathml";
+
+    /// <summary>The scale an equation is drawn at unless <c>size</c> or <c>scale</c> is given: sharp in print.</summary>
+    internal const string MathMlDefaultScale = "2";
+
     /// <summary>The size a model is drawn at unless <c>size</c> or <c>scale</c> is given.</summary>
     internal const string ScadDefaultSize = "1600x1200";
 
@@ -69,14 +75,15 @@ internal static class PictureAttributes
     private static readonly (string Suffix, string Kind)[] Suffixes =
     [
         (".vl.json", VegaLite), (".vl", VegaLite), (".scad", Scad), (".vsdx", Vsdx), (".pptx", Pptx), (".pdf", Pdf),
-        (".mmd", Mermaid), (".mermaid", Mermaid), (".puml", PlantUml), (".plantuml", PlantUml), (".pu", PlantUml)
+        (".mmd", Mermaid), (".mermaid", Mermaid), (".puml", PlantUml), (".plantuml", PlantUml), (".pu", PlantUml),
+        (".mml", MathMl)
     ];
 
     /// <summary>
     ///     The classes of the code blocks the filter draws, each with the kind it draws them as (the class is the name of the
     ///     kind).
     /// </summary>
-    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid), (PlantUml, PlantUml)];
+    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid), (PlantUml, PlantUml), (MathMl, MathMl)];
 
     /// <summary>
     ///     Gets the lowercase file name ends of every local picture the filter may change: <see cref="SvgSuffix"/> and the
@@ -273,10 +280,34 @@ internal static class PictureAttributes
             values.TryAdd("page", "1");
         }
 
+        // An equation is drawn at twice its natural size unless a size or a scale is given, so it stays sharp in print
+        // (the engine shows it at its natural width; see NaturalWidthNeeded)
+        if (kind == MathMl && !values.ContainsKey("size") && !values.ContainsKey("scale"))
+        {
+            values["scale"] = MathMlDefaultScale;
+        }
+
         // Sorted, so the same attributes in another order give the same picture name
         var options = values.Select(v => $"--{v.Key}={v.Value}").Concat(extra).ToList();
         FilterPaths.SortBytes(options);
         return new PictureOptions(options, keep.Items);
+    }
+
+    /// <summary>
+    ///     Determines whether the engine gives a picture its natural display width: an equation whose attributes set no
+    ///     <c>size</c>, <c>width</c>, or <c>height</c>.
+    /// </summary>
+    /// <param name="kind">The kind of the picture (one of the kind constants).</param>
+    /// <param name="attributes">The picture's attributes, in their order.</param>
+    /// <returns>
+    ///     <see langword="true"/> for a <see cref="MathMl"/> picture without those attributes: it is drawn at
+    ///     <see cref="MathMlDefaultScale"/> (or its own <c>scale</c>) and shown at the width of its natural size, so every
+    ///     equation of a document shows at the same 16-pixel font size whatever its pixel scale; an author's own
+    ///     <c>size</c>, <c>width</c>, or <c>height</c> is kept as written.
+    /// </returns>
+    internal static bool NaturalWidthNeeded(string kind, IEnumerable<KeyValuePair<string, string>> attributes)
+    {
+        return kind == MathMl && !attributes.Any(a => a.Key is "size" or "width" or "height");
     }
 
     /// <summary>
@@ -307,7 +338,7 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Splits the <c>caption</c> attribute off the attributes of a Mermaid or PlantUML code block.
+    ///     Splits the <c>caption</c> attribute off the attributes of a Mermaid, PlantUML, or MathML code block.
     /// </summary>
     /// <param name="attributes">The block's attributes, in their order.</param>
     /// <returns>
@@ -338,10 +369,11 @@ internal static class PictureAttributes
     /// </summary>
     /// <param name="identifier">The block's identifier; empty when it has none.</param>
     /// <param name="text">The block's text.</param>
-    /// <param name="kind">The kind the block is drawn as (<see cref="Mermaid"/> or <see cref="PlantUml"/>), which is its class.</param>
+    /// <param name="kind">The kind the block is drawn as (<see cref="Mermaid"/>, <see cref="PlantUml"/>, or <see cref="MathMl"/>), which is its class.</param>
     /// <returns>
     ///     <c>mermaid block #id</c>, or <c>mermaid block (first line)</c> with the first non-blank line trimmed and cut to 40
-    ///     characters followed by <c>...</c> (<c>plantuml block ...</c> for a PlantUML block).
+    ///     characters followed by <c>...</c> (<c>plantuml block ...</c> for a PlantUML block, <c>mathml block ...</c> for a
+    ///     MathML block).
     /// </returns>
     internal static string BlockName(string identifier, string text, string kind = Mermaid)
     {

@@ -10,7 +10,7 @@ sections:
     requirements:
       - id: CanvasNetTool-Validation-Qualification
         title: >-
-          The Validation class shall run the nineteen self-validation tests in their documented order (the help
+          The Validation class shall run the twenty self-validation tests in their documented order (the help
           examples self-test last), name them as the platform evidence tests, and print a summary.
         justification: |
           Provides a built-in mechanism to verify the tool is functioning correctly in the
@@ -21,7 +21,7 @@ sections:
           - Validation_Run_NotSilent_PrintsSummary
           - Validation_Run_WithSilentContext_ExitCodeIsZero
           - Validation_Run_NullContext_ThrowsArgumentNullException
-          - Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder
+          - Validation_Run_TwentySelfTests_RunInTheDocumentedOrder
 
       - id: CanvasNetTool-Validation-Header
         title: >-
@@ -151,7 +151,7 @@ sections:
           subsystem tests, and the self-validation suite is kept small.
         tests:
           - Validation_Run_MermaidSelfTest_PassesAndIsRecorded
-          - Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder
+          - Validation_Run_TwentySelfTests_RunInTheDocumentedOrder
           - CanvasNetTool_RenderMermaid
 
       - id: CanvasNetTool-Validation-PlantUmlSelfTest
@@ -168,12 +168,30 @@ sections:
           unit and subsystem tests.
         tests:
           - Validation_Run_PlantUmlSelfTest_PassesAndIsRecorded
-          - Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder
+          - Validation_Run_TwentySelfTests_RunInTheDocumentedOrder
           - CanvasNetTool_RenderPlantUml
+
+      - id: CanvasNetTool-Validation-MathMlSelfTest
+        title: >-
+          The Validation class shall run the MathML self-test, right after the PlantUML self-test, which writes the
+          quadratic formula as a MathML equation to a temporary folder, runs the info command on it (checking the
+          mathml format, the block display, more than ten elements, and a baseline inside the picture) and the render
+          command with the strict switch to a PNG in-process, and checks that the decoded size is the size info
+          reported, that the corner is white, and that a row of dark ink across at least half the picture (the
+          fraction bar) lies just above the baseline.
+        justification: |
+          The MathML self-test proves, in the deployment environment, that the MathML library bundled with the tool,
+          its math font, the source loader, and the commands work together on an original equation; its name is a
+          contract with the qualification evidence. It is a smoke test of one equation: the detailed coverage is in the
+          unit and subsystem tests.
+        tests:
+          - Validation_Run_MathMlSelfTest_PassesAndIsRecorded
+          - Validation_Run_TwentySelfTests_RunInTheDocumentedOrder
+          - CanvasNetTool_RenderMathMl
 
       - id: CanvasNetTool-Validation-PandocFilterSelfTest
         title: >-
-          The Validation class shall run the Pandoc filter self-test, right after the PlantUML self-test, which runs the
+          The Validation class shall run the Pandoc filter self-test, right after the MathML self-test, which runs the
           pandoc-filter command in-process on a Pandoc JSON document with a captioned Mermaid code block in a temporary
           folder, and checks that the block became a figure whose picture is the one PNG drawn into the cache folder
           generated/canvasnet and that the picture is wider than it is tall.
@@ -183,7 +201,7 @@ sections:
           cache; its name is a contract with the qualification evidence. It is a smoke test of one block: the detailed
           coverage is in the unit and subsystem tests.
         tests:
-          - Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder
+          - Validation_Run_TwentySelfTests_RunInTheDocumentedOrder
           - CanvasNetTool_PandocFilter
 
       - id: CanvasNetTool-Validation-HelpExamplesSelfTest
@@ -194,9 +212,9 @@ sections:
           every help card in order.
         justification: |
           The help examples self-test proves, in the deployment environment, that the help content shipped inside the
-          tool is present and that its examples render through the SVG, OpenSCAD, Vega-Lite, Mermaid, and PlantUML
-          renderers bundled with the tool; its name is a contract with the qualification evidence. It is a smoke test:
-          the detailed coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
+          tool is present and that its examples render through the SVG, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and
+          MathML renderers bundled with the tool; its name is a contract with the qualification evidence. It is a smoke
+          test: the detailed coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
         tests:
           - Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded
           - CanvasNetTool_HelpExamples

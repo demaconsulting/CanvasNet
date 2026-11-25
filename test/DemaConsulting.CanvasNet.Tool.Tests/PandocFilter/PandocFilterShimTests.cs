@@ -41,9 +41,9 @@ public class PandocFilterShimTests
         var text = Encoding.UTF8.GetString(PandocFilterShim.Bytes);
 
         // Assert
-        Assert.Contains("local CLASSES = { \"mermaid\", \"plantuml\" }\n", text, StringComparison.Ordinal);
+        Assert.Contains("local CLASSES = { \"mermaid\", \"plantuml\", \"mathml\" }\n", text, StringComparison.Ordinal);
         Assert.Contains(
-            "local SUFFIXES = { \".svg\", \".vl.json\", \".vl\", \".scad\", \".vsdx\", \".pptx\", \".pdf\", \".mmd\", \".mermaid\", \".puml\", \".plantuml\", \".pu\" }\n",
+            "local SUFFIXES = { \".svg\", \".vl.json\", \".vl\", \".scad\", \".vsdx\", \".pptx\", \".pdf\", \".mmd\", \".mermaid\", \".puml\", \".plantuml\", \".pu\", \".mml\" }\n",
             text,
             StringComparison.Ordinal);
         Assert.DoesNotContain(PandocFilterShim.ClassesPlaceholder, text, StringComparison.Ordinal);
@@ -63,7 +63,7 @@ public class PandocFilterShimTests
         var twice = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("@CLASSES@ @CLASSES@ @SUFFIXES@"));
 
         // Assert
-        Assert.StartsWith("c = { \"mermaid\", \"plantuml\" }\ns = { \".svg\", ", filled, StringComparison.Ordinal);
+        Assert.StartsWith("c = { \"mermaid\", \"plantuml\", \"mathml\" }\ns = { \".svg\", ", filled, StringComparison.Ordinal);
         Assert.Contains("@SUFFIXES@", missing.Message, StringComparison.Ordinal);
         Assert.Contains("@CLASSES@", twice.Message, StringComparison.Ordinal);
     }

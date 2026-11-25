@@ -238,6 +238,34 @@ public class DependencyHasherTests
     }
 
     /// <summary>
+    ///     Test that an equation is hashed by its content only (MathML Core references no other file, so a name in its
+    ///     text is never followed), and that a drawing that links an equation hashes it as a leaf and must be flattened.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_Hash_MathMlPicture_HashesItsContentOnly()
+    {
+        // Arrange: an equation whose text names files, which exist beside it, and a drawing that links the equation
+        using var directory = new TempDirectory();
+        const string text = "<math><mtext>see other.mml and p.png</mtext><mglyph src=\"p.png\"/></math>";
+        var equation = Write(directory, "eq.mml", text);
+        Write(directory, "other.mml", "<math><mi>y</mi></math>");
+        Write(directory, "p.png", "not a picture");
+        var drawing = Write(directory, "page.svg", "<svg xmlns='http://www.w3.org/2000/svg'><image href='eq.mml' width='9' height='9'/></svg>");
+
+        // Act
+        var parts = DependencyHasher.ForPicture("mathml", Collapse(equation), "eq.mml", null);
+        var embedded = DependencyHasher.ForSvg(Collapse(drawing), null);
+
+        // Assert: one part, the label and the bytes of the equation
+        Assert.Equal(["eq.mml"], Labels(parts));
+        Assert.Equal("eq.mml\n" + text, Encoding.UTF8.GetString(parts[0]));
+
+        // Assert: the drawing hashes itself and the equation, nothing the equation names, and is composite
+        Assert.True(embedded.Composite);
+        Assert.Equal(["page.svg", "eq.mml"], Labels(embedded.Parts));
+    }
+
+    /// <summary>
     ///     Test the drawing scanner: comments, character data, processing instructions, and a DOCTYPE hold no links; a
     ///     quoted <c>&gt;</c> does not end a tag; a prefixed href counts only in the XLink namespace; entities are decoded;
     ///     a missing diagram is a missing entry; and the drawing is composite.

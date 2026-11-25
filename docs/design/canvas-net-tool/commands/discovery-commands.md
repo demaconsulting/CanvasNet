@@ -100,6 +100,12 @@ joined with spaces). For a Mermaid diagram, one line:
 a title of several lines is joined with spaces). A PlantUML diagram is described by the same line with the format
 `plantuml` and no direction or accessible title (for example
 `seq.puml: plantuml, 378x517 px (laid out), sequence, 3 participants, 6 messages, 0 boxes, title "Checkout", 512 bytes`).
+For a MathML equation, one line:
+`{path}: mathml, {w}x{h} px (laid out), equation, {display}, {n} element[s], baseline {b}[, alttext "{alttext}"]`,
+then `[, {n} annotation[s] ({encoding}, ...)], {bytes} bytes` (an annotation without an encoding is listed as
+`no encoding`; for example
+`quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, 590 bytes`;
+an alttext of several lines is joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -131,6 +137,14 @@ a title of several lines is joined with spaces). A PlantUML diagram is described
   pseudo-states, the transitions, and the composite states of a state diagram, or the elements (actors, use cases,
   components, interfaces, and the other symbols that hold nothing), the links, and the containers of a use case,
   component, or deployment diagram.
+- **`equation`**: for a MathML equation, after `image` (which gives the natural `width` and `height` at the 16 pixel
+  font size and scale 1, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by
+  `WriteEquation` from the `EquationFacts` of the probe: object: `display` (`block` or `inline`: the display the
+  `display=` fragment of the input names, or else the `display` attribute of the `math` element), `elements` (the
+  number of MathML elements, the `math` element included and the content of annotations excluded), `baseline` (the
+  row of the alphabetic baseline in the natural picture, in pixels from the top), `altText` only when the `math`
+  element has one, and `annotations` (an array of the `encoding` of each annotation in document order, an empty
+  string for one without; always present).
 - **`model`**: for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined
   at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or
   `use`), `path` as written, and `line`).
@@ -142,6 +156,11 @@ A chart is parsed and measured, not drawn: `info` reads no data file and contact
 references are the text of the specification), but the library lays the chart out to say how large it is, which reads
 the data the chart names inline. The `chart` object keeps the style of the `model` object: arrays are always present
 (empty when the chart declares nothing) and the optional scalars are omitted when absent.
+
+An equation is parsed and measured, not drawn: `info` lays it out once at scale 1 in the display it reports (a
+`display=` fragment of the input lays it out again in that display) and reads no other file, since MathML Core has no
+external references. The `equation` object keeps the same style: `annotations` is always present and `altText` is
+omitted when absent.
 
 A diagram is parsed and measured, not drawn: the library lays it out with the default theme and without the pictures of
 its nodes (no other file is read), so the `supported` member tells an agent before it renders that a type would give an
