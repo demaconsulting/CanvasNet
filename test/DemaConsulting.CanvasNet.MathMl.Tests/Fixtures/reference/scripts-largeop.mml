@@ -1,0 +1,20 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <msubsup>
+    <mo>&#x222B;</mo>
+    <mi>a</mi>
+    <mi>b</mi>
+  </msubsup>
+  <mi>x</mi>
+  <mstyle displaystyle="true">
+    <msubsup>
+      <mo>&#x222B;</mo>
+      <mi>a</mi>
+      <mi>b</mi>
+    </msubsup>
+    <mi>y</mi>
+    <msub>
+      <mo>&#x222E;</mo>
+      <mi>C</mi>
+    </msub>
+  </mstyle>
+</math>

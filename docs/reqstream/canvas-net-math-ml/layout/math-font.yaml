@@ -22,6 +22,7 @@ sections:
                 tests:
                   - MathFont_Default_HasMathConstants
                   - MathFont_RawConstant_FractionAndRadicalConstants_MatchTheFont
+                  - MathFont_RawConstant_ScriptAndLimitConstants_MatchTheFont
                   - MathFont_Constructor_FontWithoutMathTable_ThrowsInvalidDataException
 
               - id: CanvasNetMathMl-Layout-MathFont-Fallback

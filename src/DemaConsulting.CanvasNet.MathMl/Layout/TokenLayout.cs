@@ -132,18 +132,23 @@ internal sealed class TokenLayout
         var plain = LayoutText(text, style, autoItalic: false, location);
         var op = ResolveOperator(element, style, context.Form, plain.Ascent + plain.Descent);
 
-        // Only an operator of one character stretches or grows (MathML Core 3.2.4.3)
+        // Only an operator of one character stretches or grows (MathML Core 3.2.4.3); an operator drawn with its normal
+        // glyph has no italic correction for its scripts, as Chrome takes it only from a size variant or an assembly
         var codePoints = Transform(text, style.Variant, autoItalic: false);
-        MathBox box = plain;
+        var box = new MathBox(plain.Width, plain.Ascent, plain.Descent, plain.Children, plain.Items) { TopAccentAttachment = plain.TopAccentAttachment };
         if (codePoints.Count == 1)
         {
             if (op.Stretchy && op.Axis == StretchAxis.Block && context.Stretch is { } constraint)
             {
                 box = StretchBlock(codePoints[0], style, op, constraint, element.Location);
             }
+            else if (op.Stretchy && op.Axis == StretchAxis.Inline && context.InlineStretch is { } width)
+            {
+                box = StretchInline(codePoints[0], style, op, width, element, box);
+            }
             else if (op.LargeOp && style.DisplayStyle)
             {
-                box = LargeOperator(codePoints[0], style, plain);
+                box = LargeOperator(codePoints[0], style, box);
             }
         }
 
@@ -365,6 +370,44 @@ internal sealed class TokenLayout
         var width = Math.Max(result.Width, StretchyGlyphs.PreferredInlineSize(_font, codePoint, style.FontSize));
         var shift = ((result.Ascent - result.Descent) - (ascent - descent)) / 2;
         return Place(result, width, (width - result.Width) / 2, shift, style);
+    }
+
+    /// <summary>
+    ///     Stretches an operator along the inline axis to the constraint of its under- or overscript element (MathML Core
+    ///     3.2.4.3 and 3.4.2.2): the glyph is stretched by <see cref="StretchyGlyphs"/> to the target width and centered,
+    ///     on its baseline, in a box as wide as the unstretched glyph, as Chrome lays it out.
+    /// </summary>
+    /// <param name="codePoint">The character, transformed by the <c>mathvariant</c> in effect.</param>
+    /// <param name="style">The computed style of the operator.</param>
+    /// <param name="op">The properties of the operator.</param>
+    /// <param name="target">The inline stretch size constraint in CSS pixels.</param>
+    /// <param name="element">The <c>mo</c> element (its explicit <c>stretchy</c> decides the report).</param>
+    /// <param name="plain">The unstretched box of the operator.</param>
+    /// <returns>The box of the stretched operator; the unstretched box when the glyph already covers the target or nothing stretches it.</returns>
+    private MathBox StretchInline(int codePoint, MathStyle style, EmbellishedOperator op, double target, MathElement element, MathBox plain)
+    {
+        var result = StretchyGlyphs.Stretch(_font, codePoint, StretchAxis.Inline, target, style.FontSize, _limits.MaxAssemblyParts, element.Location);
+        if (result is null)
+        {
+            // Nothing stretches the character (Noto Sans Math has no horizontal construction for ^ or ~): it keeps its
+            // glyph, which is reported only when the author asked for stretching explicitly and the glyph is too narrow
+            if (element.Attributes.TryGetValue("stretchy", out var stretchy)
+                && AttributeValues.TryParseBoolean(stretchy.Value, out var value)
+                && value
+                && target > plain.Width + RoundingTolerance)
+            {
+                _sink.Warn(
+                    MathMlDiagnosticCodes.StretchUnavailable,
+                    $"the operator '{op.CoreText}' cannot stretch to the width of its under- or overscript element: neither the bundled math font nor the fallbacks of MathML Core can stretch it horizontally; it is drawn at its normal size",
+                    element.Location,
+                    "use a character that Noto Sans Math stretches horizontally, such as an arrow, a brace, a bracket or a combining accent, or remove stretchy=\"true\"");
+            }
+
+            return plain;
+        }
+
+        // The glyph keeps its size when it is wide enough; a stretched glyph is centered in the unstretched box (Chrome)
+        return result.Kind == StretchKind.Base ? plain : Place(result, plain.Width, (plain.Width - result.Width) / 2, 0, style);
     }
 
     /// <summary>

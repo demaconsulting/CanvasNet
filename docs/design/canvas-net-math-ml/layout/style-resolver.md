@@ -11,7 +11,8 @@ defines the internal sealed record `MathStyle`, the internal enum `MathDepthRule
 `StyleResolver` computes the style of each element from its parent's, as MathML Core expresses it with CSS properties
 (Appendix A, the user agent stylesheet, and the presentational hints of 2.1): the math style, the math depth, the font
 size, the colors, the `mathvariant`, the math shift, and the supported subset of the inline `style` attribute, with the
-user agent rules that a fraction or a root applies to its children by position. It also resolves the length attributes
+user agent rules that a fraction, a root, or a scripted element applies to its children by position. It also resolves
+the length attributes
 of the layouts. The unit's behavior is specified by the `CanvasNetMathMl-Layout-StyleResolver-*`
 requirements in `docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml`.
 
@@ -20,13 +21,14 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml`.
 - `MathStyle(FontSize, DisplayStyle, MathDepth, Color, Variant)` - inherited: the font size in CSS pixels, the math
   style (true for normal, false for compact), the math depth, the text color, and the `mathvariant` (null for none);
   not inherited: `Background` (null for none) and `DisplayNone`; inherited and set with an initializer so that the
-  positional constructor stays: `MathShiftCompact` (true for `math-shift: compact`, which the superscripts of a later
-  version read for their cramped shift). The record is immutable.
+  positional constructor stays: `MathShiftCompact` (true for `math-shift: compact`, which the superscripts read for
+  their cramped shift). The record is immutable.
 - `MathDepthRule` - `None`, `AutoAdd` (one more level only under a compact parent), and `Add` (a number of levels).
 - `ChildStyleRule(Compact, Depth, DepthAdd, MathShiftCompact, FontSizeInherit)` - a user agent rule of MathML Core
   Appendix A for a child position: `math-style: compact`, the `math-depth` rule, the `math-shift` (null to inherit), and
-  `font-size: inherit` (for the accents of a later version); with the presets `FractionNumerator` (`auto-add`,
-  compact), `FractionDenominator` (the same with `math-shift: compact`), and `RootIndex` (`add(2)`, compact).
+  `font-size: inherit` (for the accents); with the presets `FractionNumerator` (`auto-add`, compact),
+  `FractionDenominator` (the same with `math-shift: compact`), `RootIndex` (`add(2)`, compact), `Script` (`add(1)`,
+  compact), and `AccentBase` (`math-shift: compact` only).
 - `MaxMathDepth` - 64, the largest magnitude of the math depth; `ScaleFactorPerLevel` - 0.71 (MathML Core 4.5); the
   light yellow background of `merror` (255, 255, 224).
 - Per call: the math font (for the scale-down constants and the x-height) and the report sink.
@@ -34,6 +36,14 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml`.
 #### Key Methods
 
 - `TryParseDisplay(value, out display)` - `block` or `inline` (ASCII case-insensitive).
+- `ScriptRule(element, index)` - the user agent rule of the child of a scripted element at an index among the element
+  children (MathML Core 3.4.4 and Appendix A): none for the base, except `AccentBase` for the base of an `mover` or
+  `munderover` with an accent; `Script` for every other child, with `math-shift: compact` for the subscript of `msub`
+  and `msubsup` and for the children of `mmultiscripts` at even positions (counting from 1) before `mprescripts` and at
+  odd positions after it (the others inherit), and with `font-size: inherit` for an accent script (the second child of
+  an `munder` or `munderover` with `accentunder`, the second of an `mover` and the third of an `munderover` with
+  `accent`). `IsTrue(element, name)` tells whether an attribute is an ASCII case-insensitive match to `true`, as the
+  attribute selectors `[accent="true" i]` match.
 - `ResolveRoot(math, fontSize, color, displayOverride)` - the style of the `math` element: the font size and color of
   the options, the math style from the override or the `display` attribute (normal for block, compact for inline; an
   invalid `display` is a warning), a math depth reset to zero, and `math-shift: normal`; then the attributes and the

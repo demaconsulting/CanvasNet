@@ -4,8 +4,7 @@ using DemaConsulting.CanvasNet.Fonts;
 namespace DemaConsulting.CanvasNet.MathMl.Layout;
 
 /// <summary>
-///     The constants of the OpenType MATH table that the layout reads (a subset of the 56 of the table; the layouts of
-///     scripts add theirs).
+///     The constants of the OpenType MATH table that the layout reads (a subset of the 56 of the table).
 /// </summary>
 internal enum MathConstant
 {
@@ -92,6 +91,75 @@ internal enum MathConstant
 
     /// <summary>The height of the bottom of the index of a root, as a percentage of the height of the radical (a percentage, not a length).</summary>
     RadicalDegreeBottomRaisePercent,
+
+    /// <summary>The standard shift down of a subscript.</summary>
+    SubscriptShiftDown,
+
+    /// <summary>The maximum height of the top of a subscript above the baseline.</summary>
+    SubscriptTopMax,
+
+    /// <summary>The minimum drop of the baseline of a subscript below the bottom of its base.</summary>
+    SubscriptBaselineDropMin,
+
+    /// <summary>The standard shift up of a superscript.</summary>
+    SuperscriptShiftUp,
+
+    /// <summary>The standard shift up of a superscript in a cramped (<c>math-shift: compact</c>) style.</summary>
+    SuperscriptShiftUpCramped,
+
+    /// <summary>The minimum height of the bottom of a superscript above the baseline.</summary>
+    SuperscriptBottomMin,
+
+    /// <summary>The maximum drop of the baseline of a superscript below the top of its base.</summary>
+    SuperscriptBaselineDropMax,
+
+    /// <summary>The minimum gap between a subscript and the superscript above it.</summary>
+    SubSuperscriptGapMin,
+
+    /// <summary>The maximum height of the bottom of a superscript above the baseline when the gap above a subscript is enforced.</summary>
+    SuperscriptBottomMaxWithSubscript,
+
+    /// <summary>The extra space after a subscript or a superscript.</summary>
+    SpaceAfterScript,
+
+    /// <summary>The minimum gap between the top of a large operator and the bottom of its upper limit.</summary>
+    UpperLimitGapMin,
+
+    /// <summary>The minimum rise of the baseline of an upper limit above the top of its large operator.</summary>
+    UpperLimitBaselineRiseMin,
+
+    /// <summary>The minimum gap between the bottom of a large operator and the top of its lower limit.</summary>
+    LowerLimitGapMin,
+
+    /// <summary>The minimum drop of the baseline of a lower limit below the bottom of its large operator.</summary>
+    LowerLimitBaselineDropMin,
+
+    /// <summary>The standard shift up of the baseline of an overscript of a horizontally stretched operator.</summary>
+    StretchStackTopShiftUp,
+
+    /// <summary>The standard shift down of the baseline of an underscript of a horizontally stretched operator.</summary>
+    StretchStackBottomShiftDown,
+
+    /// <summary>The minimum gap between a horizontally stretched operator and its underscript.</summary>
+    StretchStackGapAboveMin,
+
+    /// <summary>The minimum gap between the overscript and a horizontally stretched operator below it.</summary>
+    StretchStackGapBelowMin,
+
+    /// <summary>The gap between an overscript that is not an accent and its base.</summary>
+    OverbarVerticalGap,
+
+    /// <summary>The extra white space reserved above an overscript.</summary>
+    OverbarExtraAscender,
+
+    /// <summary>The gap between an underscript that is not an accent and its base.</summary>
+    UnderbarVerticalGap,
+
+    /// <summary>The extra white space reserved below an underscript.</summary>
+    UnderbarExtraDescender,
+
+    /// <summary>The height up to which an accent is not raised: the bottom of an accent is at least this high above the baseline.</summary>
+    AccentBaseHeight,
 }
 
 /// <summary>
@@ -231,6 +299,29 @@ internal sealed class MathFont
             MathConstant.RadicalKernBeforeDegree => constants.RadicalKernBeforeDegree,
             MathConstant.RadicalKernAfterDegree => constants.RadicalKernAfterDegree,
             MathConstant.RadicalDegreeBottomRaisePercent => constants.RadicalDegreeBottomRaisePercent,
+            MathConstant.SubscriptShiftDown => constants.SubscriptShiftDown,
+            MathConstant.SubscriptTopMax => constants.SubscriptTopMax,
+            MathConstant.SubscriptBaselineDropMin => constants.SubscriptBaselineDropMin,
+            MathConstant.SuperscriptShiftUp => constants.SuperscriptShiftUp,
+            MathConstant.SuperscriptShiftUpCramped => constants.SuperscriptShiftUpCramped,
+            MathConstant.SuperscriptBottomMin => constants.SuperscriptBottomMin,
+            MathConstant.SuperscriptBaselineDropMax => constants.SuperscriptBaselineDropMax,
+            MathConstant.SubSuperscriptGapMin => constants.SubSuperscriptGapMin,
+            MathConstant.SuperscriptBottomMaxWithSubscript => constants.SuperscriptBottomMaxWithSubscript,
+            MathConstant.SpaceAfterScript => constants.SpaceAfterScript,
+            MathConstant.UpperLimitGapMin => constants.UpperLimitGapMin,
+            MathConstant.UpperLimitBaselineRiseMin => constants.UpperLimitBaselineRiseMin,
+            MathConstant.LowerLimitGapMin => constants.LowerLimitGapMin,
+            MathConstant.LowerLimitBaselineDropMin => constants.LowerLimitBaselineDropMin,
+            MathConstant.StretchStackTopShiftUp => constants.StretchStackTopShiftUp,
+            MathConstant.StretchStackBottomShiftDown => constants.StretchStackBottomShiftDown,
+            MathConstant.StretchStackGapAboveMin => constants.StretchStackGapAboveMin,
+            MathConstant.StretchStackGapBelowMin => constants.StretchStackGapBelowMin,
+            MathConstant.OverbarVerticalGap => constants.OverbarVerticalGap,
+            MathConstant.OverbarExtraAscender => constants.OverbarExtraAscender,
+            MathConstant.UnderbarVerticalGap => constants.UnderbarVerticalGap,
+            MathConstant.UnderbarExtraDescender => constants.UnderbarExtraDescender,
+            MathConstant.AccentBaseHeight => constants.AccentBaseHeight,
             _ => throw new ArgumentOutOfRangeException(nameof(constant), constant, "Unknown math constant."),
         };
     }

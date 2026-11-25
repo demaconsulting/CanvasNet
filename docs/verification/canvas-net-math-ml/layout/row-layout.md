@@ -28,11 +28,13 @@ that differs from the expected value constitutes a failure.
 ##### CanvasNetMathMl-Layout-RowLayout-Row: Children, Operators, And Italic Correction
 
 **Tests**: `RowLayoutTests.RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents`,
+`RowLayoutTests.RowLayout_LayoutRow_NegativeExtents_ClampToZero`,
 `RowLayoutTests.RowLayout_LayoutRow_Operator_GetsItsSpacing`,
 `RowLayoutTests.RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator`,
 `RowLayoutTests.RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild`
 
-Asserts the left-to-right placement on a shared baseline with the maximum ascent and descent, the leading and trailing
+Asserts the left-to-right placement on a shared baseline with the maximum ascent and descent (zero for a negative
+descent of a minus sign or a negative ascent of ink below the baseline), the leading and trailing
 space around an operator child (also from the operator data of a stretched operator), and that italic corrections are
 not added between children while the row takes the italic correction of its last child.
 

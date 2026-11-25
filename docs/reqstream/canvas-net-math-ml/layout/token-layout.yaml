@@ -101,15 +101,33 @@ sections:
                   - TokenLayout_LayoutOperator_MinMaxSize_ClampTarget
                   - TokenLayout_LayoutOperator_NoConstruction_KeepsGlyphAndReports
 
+              - id: CanvasNetMathMl-Layout-TokenLayout-InlineStretch
+                title: >-
+                  The TokenLayout unit shall stretch a stretchy mo of one character with an inline stretch axis to the
+                  inline stretch size constraint of its under- or overscript element, centered on its baseline in a box
+                  as wide as its unstretched glyph, and shall keep the glyph of a character that cannot stretch
+                  horizontally, reported as mathml-stretch-unavailable only when the author wrote stretchy="true" and
+                  the glyph is narrower than the target.
+                justification: |
+                  Braces, arrows and wide accents stretch to the width of what they annotate (MathML Core 3.2.4.3 and
+                  3.4.2.2) and Chrome keeps the box of the unstretched glyph; the bundled font cannot stretch the caret
+                  and the tilde, which Chrome draws at their size, so reporting every accent would be noise.
+                tests:
+                  - TokenLayout_LayoutOperator_InlineConstraint_StretchesHorizontally
+                  - TokenLayout_LayoutOperator_InlineNoConstruction_KeepsGlyph_ReportsOnlyExplicitStretchy
+
               - id: CanvasNetMathMl-Layout-TokenLayout-LargeOp
                 title: >-
                   The TokenLayout unit shall draw a largeop mo in display style with its large variant centered on the
-                  math axis, and keep the base glyph outside display style or without the largeop property.
+                  math axis, with the italic correction of the variant, and keep the base glyph outside display style or
+                  without the largeop property, an operator drawn with its base glyph having no italic correction.
                 justification: |
-                  Sums and integrals are drawn larger in displayed equations.
+                  Sums and integrals are drawn larger in displayed equations; Chrome, the reference of the layout tests,
+                  places scripts by the italic correction of a size variant or an assembly only.
                 tests:
                   - TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight
                   - TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph
+                  - TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection
 
               - id: CanvasNetMathMl-Layout-TokenLayout-MissingGlyph
                 title: >-

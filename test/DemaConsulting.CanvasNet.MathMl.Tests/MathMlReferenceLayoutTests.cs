@@ -35,6 +35,13 @@ public class MathMlReferenceLayoutTests
         // descender) but draws and advances the italic glyph, which descends; CanvasNet measures what it draws
         ["tokens-mi-italic 1 <mi> height"] = "Chrome measures the ink of the untransformed character",
         ["operators-spacing 10 <mi> height"] = "Chrome measures the ink of the untransformed character",
+
+        // Chrome's hinted bounds of the arrow and of the under brace are a pixel shorter than their outlines rounded out,
+        // and Chrome floors the MATH constants to its layout unit (1/64 pixel); together just beyond the tolerance
+        ["arrow-over math height"] = "Chrome's hinted arrow bounds and its 1/64 pixel MATH constants",
+        ["arrow-over 1 <munderover> height"] = "Chrome's hinted arrow bounds and its 1/64 pixel MATH constants",
+        ["arrow-over 1/1 <mi> y"] = "Chrome's hinted arrow bounds and its 1/64 pixel MATH constants",
+        ["overbrace-underbrace math height"] = "Chrome's hinted under brace bounds and its 1/64 pixel MATH constants",
     };
 
     /// <summary>
@@ -69,7 +76,7 @@ public class MathMlReferenceLayoutTests
         // Assert
         Assert.Empty(missing);
         Assert.Empty(orphans);
-        Assert.True(fixtures.Count >= 27);
+        Assert.True(fixtures.Count >= 38);
     }
 
     /// <summary>

@@ -29,29 +29,54 @@ exception that differs from the expected one constitutes a failure.
 ##### CanvasNetMathMl-Layout-LayoutEngine-Dispatch: Tokens And Rows
 
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows`,
-`LayoutEngineTests.LayoutEngine_Layout_FractionsAndRadicals_AreDispatched`
+`LayoutEngineTests.LayoutEngine_Layout_FractionsAndRadicals_AreDispatched`,
+`LayoutEngineTests.LayoutEngine_Layout_ScriptsAndUnderOver_AreDispatched`,
+`LayoutEngineTests.LayoutEngine_Layout_NoneAndPrescripts_AreNotReported`
 
 Asserts that tokens paint glyphs, that rows place their children, and that every box keeps its element; that a
 fraction, a square root, and a root are drawn without reports: the numerator above and the denominator below the
 baseline with a bar, the radical symbol and the overbar around the row of the children of `msqrt`, and the index of
-`mroot` first at the 50 px of its two added script levels.
+`mroot` first at the 50 px of its two added script levels; that the seven scripted elements are drawn without reports,
+their subscripts and underscripts below and their superscripts and overscripts above the baseline, every script at the
+60 px of its added script level; and that `none` and `mprescripts`, inside and outside `mmultiscripts`, are empty boxes
+without reports.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-ChildCount: Invalid Fractions And Roots
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_WrongChildCount_IsRowWithChildCountWarning`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_WrongChildCount_IsRowWithChildCountWarning`,
+`LayoutEngineTests.LayoutEngine_Layout_InvalidMultiscripts_IsRowWithChildCountWarning`
 
 Asserts that an `mfrac` with one child and an `mroot` with three are rows of their children (every child on the
 baseline) with `mathml-child-count` warnings naming the counts and no unsupported report, that the child of the invalid
 fraction still gets the script size of the user agent rule (60 px), and that a fraction whose third child is hidden by
-`display: none` has two in-flow children and is drawn with its bar.
+`display: none` has two in-flow children and is drawn with its bar; and that an `msub` with one child, an `munderover`
+with two, and `mmultiscripts` with an odd number of postscripts, an `mprescripts` base, two `mprescripts`, an odd
+number of prescripts, and no children are rows with seven `mathml-child-count` warnings naming each problem.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Embellishment: Embellished Fractions And Radicals
 
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_EmbellishedFraction_CarriesItsOperator`,
-`LayoutEngineTests.LayoutEngine_Layout_SqrtChildren_InferForms`
+`LayoutEngineTests.LayoutEngine_Layout_SqrtChildren_InferForms`,
+`LayoutEngineTests.LayoutEngine_Layout_EmbellishedScripted_StretchesInRow`
 
 Asserts that a fraction whose numerator is `=` carries the infix operator `=` and is spaced by its row with the leading
-and trailing space of the operator, and that the row of a square root and the square root itself carry no operator.
+and trailing space of the operator, that the row of a square root and the square root itself carry no operator, and
+that an `msup` whose base is a parenthesis carries the prefix operator of its position.
+
+##### CanvasNetMathMl-Layout-LayoutEngine-ScriptForms: Scripts Are Postfix
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_Scripts_ArePostfixOperators`
+
+Asserts that an operator superscript, an operator wrapped in an `mrow` as an overscript, and an operator underscript are
+postfix; that `accent="maybe"` is one `mathml-attribute-invalid` warning naming the attribute and makes the overscript
+a script at 60 px; and that `accent` on `munder` is reported as `mathml-attribute-unsupported`.
+
+##### CanvasNetMathMl-Layout-LayoutEngine-MovableLimits: Limits Become Scripts Inline
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_MovableLimits_InlineBecomeScripts`
+
+Asserts that the limits of an inline summation start at its right edge, as scripts, while in display style and with
+`movablelimits="false"` they are centered within its width, and that the scripted element carries the operator.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements: Later And Unknown Elements
 
@@ -98,11 +123,13 @@ prefix and postfix, and a lone operator is infix and keeps its leading space.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Stretching: Embellished Operators Stretch
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_EmbellishedInMrow_StretchesCoreOperator`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_EmbellishedInMrow_StretchesCoreOperator`,
+`LayoutEngineTests.LayoutEngine_Layout_EmbellishedScripted_StretchesInRow`
 
 Asserts that a bracket wrapped in an `mrow` and one wrapped in an `mstyle` take the prefix and postfix forms of their
 wrappers and stretch through them to cover an `mspace` of 2 em by 1 em, with the same extents, and that the wrapper has
-the extents of its operator.
+the extents of its operator; that the parenthesis at the base of an `msup` stretches through it to cover the same
+`mspace`; and that an over brace is stretched at least as wide as the row under it.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Bounds: Depth, Work, And Cancellation
 

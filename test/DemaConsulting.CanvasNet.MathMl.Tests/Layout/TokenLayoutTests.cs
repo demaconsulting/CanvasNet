@@ -374,6 +374,89 @@ public class TokenLayoutTests
     }
 
     /// <summary>
+    ///     Validates the stretching of an operator by an inline stretch size constraint: the arrow is assembled, the over
+    ///     brace takes a size variant or an assembly, the macron (which the math font has no glyph for) is a rule, each
+    ///     centered in a box as wide as the unstretched glyph, as Chrome lays it out.
+    /// </summary>
+    [Fact]
+    public void TokenLayout_LayoutOperator_InlineConstraint_StretchesHorizontally()
+    {
+        // Arrange
+        OperatorContext Context(double width) => new(OperatorForm.Postfix, null, width);
+        var (_, braceGlyph) = MathFont.Default.Resolve(0x23DE);
+
+        // Act
+        var plainArrow = Tokens().LayoutToken(Token("mo", "\u2192"), Style);
+        var arrow = Tokens().LayoutToken(Token("mo", "\u2192"), Style, Context(600));
+        var variant = Tokens().LayoutToken(Token("mo", "\u23DE"), Style, Context(120));
+        var assembly = Tokens().LayoutToken(Token("mo", "\u23DE"), Style, Context(1000));
+        var macron = Tokens().LayoutToken(Token("mo", "\u00AF", ("stretchy", "true")), Style, Context(300));
+
+        // Assert: the arrow
+        Assert.Equal(plainArrow.Width, arrow.Width, 9);
+        Assert.True(arrow.Items.OfType<GlyphItem>().Count() >= 2);
+        var ink = arrow.InkBounds()!.Value;
+        Assert.True(ink.Width >= 590);
+        Assert.InRange(ink.X + (ink.Width / 2), (arrow.Width / 2) - 10, (arrow.Width / 2) + 10);
+        Assert.Equal(StretchAxis.Inline, arrow.Operator!.Axis);
+
+        // Assert: the brace, the macron
+        var variantGlyph = Assert.IsType<GlyphItem>(Assert.Single(variant.Items));
+        Assert.NotEqual(braceGlyph, variantGlyph.Glyph);
+        Assert.True(assembly.Items.Count >= 3);
+        Assert.True(assembly.InkBounds()!.Value.Width >= 1000 - 1e-6);
+        var rule = Assert.IsType<RuleItem>(Assert.Single(macron.Items));
+        Assert.Equal(300, rule.Rect.Width, 9);
+        Assert.Equal(macron.Width / 2, rule.Rect.X + 150, 9);
+    }
+
+    /// <summary>
+    ///     Validates that an operator that nothing can stretch horizontally (Noto Sans Math has no horizontal construction
+    ///     for <c>^</c> or <c>~</c>) keeps its glyph, and is reported only when the author wrote <c>stretchy="true"</c> and
+    ///     the glyph is narrower than the target.
+    /// </summary>
+    [Fact]
+    public void TokenLayout_LayoutOperator_InlineNoConstruction_KeepsGlyph_ReportsOnlyExplicitStretchy()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(10, false);
+        var warnings = new List<MathMlDiagnostic>();
+        OperatorContext Context(double width) => new(OperatorForm.Postfix, null, width);
+
+        // Act
+        var plain = Tokens(sink).LayoutToken(Token("mo", "^"), Style);
+        var explicitWide = Tokens(sink).LayoutToken(Token("mo", "^", ("stretchy", "true")), Style, Context(300));
+        var explicitNarrow = Tokens(sink).LayoutToken(Token("mo", "^", ("stretchy", "true")), Style, Context(10));
+        var implicitWide = Tokens(sink).LayoutToken(Token("mo", "~"), Style, Context(300));
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        Assert.Equal((plain.Width, plain.Ascent, plain.Descent), (explicitWide.Width, explicitWide.Ascent, explicitWide.Descent));
+        Assert.Single(explicitNarrow.Items);
+        Assert.Single(implicitWide.Items);
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.StretchUnavailable, warning.Code);
+        Assert.Contains("'^'", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an operator drawn with its normal glyph has no italic correction (the scripts take it only from a
+    ///     size variant or an assembly, as Chrome), while the display variant of an integral has the italic correction of
+    ///     its glyph (500 units).
+    /// </summary>
+    [Fact]
+    public void TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection()
+    {
+        // Act
+        var inline = Tokens().LayoutToken(Token("mo", "\u222B"), Style);
+        var display = Tokens().LayoutToken(Token("mo", "\u222B"), Style with { DisplayStyle = true });
+
+        // Assert
+        Assert.Equal(0, inline.ItalicCorrection);
+        Assert.Equal(50, display.ItalicCorrection, 9);
+    }
+
+    /// <summary>
     ///     Validates <c>minsize</c> and <c>maxsize</c>: the target grows to the minimum or shrinks to the maximum about the
     ///     math axis, a percentage is of the unstretched height, and an empty constraint gives the minimum size centered on
     ///     the axis.

@@ -10,10 +10,12 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///         (<see cref="MathMlDocument.Display"/>, <see cref="MathMlDocument.ElementCount"/>,
 ///         <see cref="MathMlDocument.AltText"/>, <see cref="MathMlDocument.Annotations"/>), measures it with its baseline
 ///         and renders it. The token elements, <c>mrow</c> and the grouping elements, stretchy and large operators,
-///         fractions (<c>mfrac</c>) and radicals (<c>msqrt</c>, <c>mroot</c>) are drawn, with the automatic italic of a
-///         single-character <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not drawn
-///         is reported with a stable <c>mathml-*</c> code and a location (<see cref="MathMlUnsupportedFeature"/>), and
-///         strict mode (<see cref="MathMlRenderOptions.ThrowOnUnsupportedFeature"/>) turns the first one into an
+///         fractions (<c>mfrac</c>), radicals (<c>msqrt</c>, <c>mroot</c>), scripts (<c>msub</c>, <c>msup</c>,
+///         <c>msubsup</c>, <c>mmultiscripts</c>) and under- and overscripts (<c>munder</c>, <c>mover</c>,
+///         <c>munderover</c>, with accents, limits and horizontally stretched operators) are drawn, with the automatic
+///         italic of a single-character <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not
+///         drawn is reported with a stable <c>mathml-*</c> code and a location (<see cref="MathMlUnsupportedFeature"/>),
+///         and strict mode (<see cref="MathMlRenderOptions.ThrowOnUnsupportedFeature"/>) turns the first one into an
 ///         exception. Untrusted text is bounded by <see cref="MathMlLimits"/>.
 ///     </para>
 ///     <para>

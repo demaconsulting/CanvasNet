@@ -424,9 +424,9 @@ software items, specifically:
   the internal report sink) and `MathMlPainter` (the painter of the laid-out boxes), and the internal subsystems
   `Syntax` (`MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues`) and `Layout` (`LayoutEngine`,
   `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`,
-  `OperatorDictionary`, and `StretchyGlyphs`). The token elements, the rows, the operator dictionary, stretchy and large
-  operators, fractions, and radicals are drawn; every other element is laid out as a row of its children and reported
-  as unsupported — see *CanvasNetMathMl System
+  `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`, and `StretchyGlyphs`). The token elements, the rows, the
+  operator dictionary, stretchy and large operators, fractions, radicals, scripts, and under- and overscripts are drawn;
+  every other element is laid out as a row of its children and reported as unsupported — see *CanvasNetMathMl System
   Design* (`canvas-net-math-ml.md`) for the known differences from browsers and its Phase Plan. `CanvasNetMathMl`
   depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems through
   their public API and, for the `MATH` table reader and the cached bundled font, through internal friend access
@@ -760,13 +760,15 @@ offline renderer of MathML Core equations: its direct unit `MathMlDocument` (nam
 `DemaConsulting.CanvasNet.MathMl`) is the public API, its direct unit `MathMlPainter` paints the laid-out boxes, its
 internal `Syntax` subsystem holds the `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues` units,
 and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`,
-`RowLayout`, `FractionLayout`, `RadicalLayout`, `OperatorDictionary`, and `StretchyGlyphs` units (each in the
+`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`, and
+`StretchyGlyphs` units (each in the
 sub-namespace and the sub-folder of its
 name). In the SysML2 model the system is
 `CanvasNetMathMlSystem` and its subsystem and unit `part def` names carry the prefix `MathMl` (`MathMlSyntax`,
 `MathMlReader`, `MathMlCharacterReferences`, `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`,
 `MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`,
-`MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units
+`MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`,
+`MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units
 are `MathMlDocument` and `MathMlPainter`),
 because part def names stay unique across
 the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems,
@@ -1946,7 +1948,7 @@ src/DemaConsulting.CanvasNet.MathMl/
 │   └── StyleDeclarations.cs       — AttributeValues: the supported subset of the inline style attribute
 └── Layout/                        — Layout subsystem
     ├── LayoutEngine.cs            — LayoutEngine: the walk, the dispatch, the reports, and the bounds
-    ├── LayoutEngine.Elements.cs   — LayoutEngine: fractions, radicals, in-flow children, and the child-count rule
+    ├── LayoutEngine.Elements.cs   — LayoutEngine: fractions, radicals, scripts, in-flow children, and child counts
     ├── StyleResolver.cs           — StyleResolver: the computed styles
     ├── MathFont.cs                — MathFont: the bundled Noto Sans Math and its MATH data
     ├── MathBox.cs                 — MathBox: the boxes and the paint items
@@ -1956,6 +1958,8 @@ src/DemaConsulting.CanvasNet.MathMl/
     ├── RowLayout.cs               — RowLayout: rows, stretching, grouping, mpadded, and merror
     ├── FractionLayout.cs          — FractionLayout: mfrac with a bar or as a stack, and linethickness
     ├── RadicalLayout.cs           — RadicalLayout: msqrt and mroot
+    ├── ScriptLayout.cs            — ScriptLayout: msub, msup, msubsup, mmultiscripts, and movable limits
+    ├── UnderOverLayout.cs         — UnderOverLayout: munder, mover, munderover, and inline stretching
     ├── OperatorDictionary.cs      — OperatorDictionary: categories, forms, and the stretch axis
     ├── OperatorDictionary.Data.cs — OperatorDictionary: the generated MathML Core B.1 tables (data)
     ├── StretchyGlyphs.cs          — StretchyGlyphs: size variants, glyph assemblies, and the rule fallback

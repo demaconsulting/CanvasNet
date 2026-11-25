@@ -1359,10 +1359,11 @@ words:
   # MathML terms: the language and its attributes (alttext, largeop, movablelimits, the legacy lquote and rquote of ms),
   # the named spaces of MathML 3 and their negative forms, the W3C entity file of the HTML+MathML set (htmlmathml),
   # the OpenType tables and features that the layout does not apply (GPOS, ssty), the Letterlike Symbols block of
-  # Unicode, and the deliberately unknown element and reference names of the tests (mfoo, notaname); the stretchy
+  # Unicode, and the deliberately unknown reference name of the tests (notaname); the stretchy
   # operators of MathML Core: an operator laid out again with a stretch constraint (relayout), its size before it
-  # stretches (unstretched), and the scripts above a base (overscripts); the legacy bevelled attribute of mfrac
-  # (MathML 3 spelling), which is reported as unsupported
+  # stretches (unstretched), and the scripts above and below a base (overscript, underscript); the legacy bevelled
+  # attribute of mfrac (MathML 3 spelling), which is reported as unsupported; the element of tensor indices and
+  # prescripts (mmultiscripts)
   - mathml
   - bevelled
   - alttext
@@ -1371,6 +1372,10 @@ words:
   - relayout
   - unstretched
   - overscripts
+  - overscript
+  - underscript
+  - underscripts
+  - multiscripts
   - lquote
   - rquote
   - veryverythinmathspace
@@ -1386,7 +1391,6 @@ words:
   - GPOS
   - ssty
   - letterlike
-  - mfoo
   - notaname
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words

@@ -4,29 +4,32 @@
 
 The `LayoutEngine` unit is a software unit of the `Layout` subsystem. Its source files are `LayoutEngine.cs` and
 `LayoutEngine.Elements.cs`, which define the internal sealed partial class `LayoutEngine` (the second file holds the
-walk of the fractions and radicals, their in-flow children, and the child-count rule).
+walk of the fractions, radicals, scripted elements, and under- and overscript elements, their in-flow children, and the
+child-count rules).
 
 #### Purpose
 
 `LayoutEngine` lays an equation tree out into a tree of boxes: it walks the elements, computes their styles, dispatches
-each to its layout, applies the child-count rule of MathML Core, decides what this version does not draw and reports
-it, and keeps the layout bounded. The unit's
+each to its layout, applies the child-count rules of MathML Core, moves the limits of a movable operator to the script
+positions outside display style, decides what this version does not draw and reports it, and keeps the layout bounded.
+The unit's
 behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirements in
 `docs/reqstream/canvas-net-math-ml/layout/layout-engine.yaml`.
 
 #### Data Model
 
 - The element sets: the tokens (`mi`, `mn`, `mo`, `mtext`, `ms`, `mspace`); the rows (`math`, `mrow`, `mstyle`,
-  `mphantom`, `merror`, `mpadded`); the MathML Core elements a later version draws (`msub`, `msup`, `msubsup`,
-  `munder`, `mover`, `munderover`, `mmultiscripts`, `mprescripts`, `none`, `mtable`, `mtr`, `mtd`);
+  `mphantom`, `merror`, `mpadded`, and the empty `mprescripts` and `none`); the scripted elements (`msub`, `msup`,
+  `msubsup`, `munder`, `mover`, `munderover`, `mmultiscripts`); the MathML Core elements a later version draws
+  (`mtable`, `mtr`, `mtd`);
   the global attributes of MathML Core 2.1.3 (`id`, `class`, `style`, `dir`, the style attributes, `nonce`, `tabindex`,
   `autofocus`, `intent`, `arg`, with `data-*` and the event handlers); and the attributes of each drawn element beyond
   them (`display` and `alttext` of `math`; `linethickness` of `mfrac`, so that its legacy `bevelled`, `numalign`, and
-  `denomalign` are reported; the operator attributes of `mo`; the lengths of `mspace` and `mpadded`; the attributes of
-  `maction` and `semantics`).
+  `denomalign` are reported; `accentunder` of `munder`, `accent` of `mover`, and both of `munderover`; the operator
+  attributes of `mo`; the lengths of `mspace` and `mpadded`; the attributes of `maction` and `semantics`).
 - Per call: the limits, the report sink, the cancellation token, the `StyleResolver`, `TokenLayout`, `RowLayout`,
-  `FractionLayout`, and `RadicalLayout` of the call, the work charged so far (`Work`), and the cached predictions of
-  which elements are space-like and which are embellished operators.
+  `FractionLayout`, `RadicalLayout`, `ScriptLayout`, and `UnderOverLayout` of the call, the work charged so far
+  (`Work`), and the cached predictions of which elements are space-like and which are embellished operators.
 
 #### Key Methods
 
@@ -35,11 +38,12 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
 - `LayoutElement(element, style, depth, context)` - checks the token and the depth against `MaxNestingDepth`, charges
   one unit of work, and dispatches: a token is laid out by `TokenLayout.LayoutToken` with the operator context (its
   characters charged too); `semantics` and `maction` are laid out as rows of their first child only, as the user agent
-  stylesheet of MathML Core hides the others; `mfrac` goes to `LayoutFraction`, `msqrt` and `mroot` to `LayoutRadical`;
-  every other element is laid out as a row of its children (`LayoutRowLike`), and an element that is neither a row, a
-  token, a fraction, nor a radical is reported first as `mathml-element-unsupported`. The attributes of a drawn element
-  are checked, and the box is decorated with its element, its background (a background item over its content box, behind
-  everything it paints), and the phantom flag of `mphantom`.
+  stylesheet of MathML Core hides the others; `mfrac` goes to `LayoutFraction`, `msqrt` and `mroot` to `LayoutRadical`,
+  `msub`, `msup`, and `msubsup` to `LayoutScripted`, `munder`, `mover`, and `munderover` to `LayoutUnderOver`, and
+  `mmultiscripts` to `LayoutMultiscripts`; every other element is laid out as a row of its children (`LayoutRowLike`),
+  and an element that none of these lays out is reported first as `mathml-element-unsupported`. The attributes of a
+  drawn element are checked, and the box is decorated with its element, its background (a background item over its
+  content box, behind everything it paints), and the phantom flag of `mphantom`.
 - `FlowChildren(element, style, depth, rules)` - resolves the style of each child element (with the user agent rule of
   its index among the element children, as the selectors of MathML Core count them, when the parent gives rules) and
   skips those with `display: none` and the annotations (still charged and depth-checked); text written directly inside
@@ -53,23 +57,39 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
   operators infer their forms, and its row is never an embellished operator) and `RadicalLayout.LayoutSquareRoot`;
   `mroot`: the base and the index under `mroot > :not(:first-child) { math-depth: add(2); math-style: compact }`, or a
   row with the `mathml-child-count` warning without exactly two in-flow children, then `RadicalLayout.LayoutRoot`.
+- `LayoutScripted(element, style, depth, context)` - the in-flow children under `StyleResolver.ScriptRule`; without
+  two (three for `msubsup`), a row with the `mathml-child-count` warning; otherwise the base (with the context of the
+  parent when the element is an embellished operator) and the scripts (with the postfix form, MathML Core 3.2.4.2) are
+  laid out and `ScriptLayout.Layout` builds the box, carrying the operator of an embellished element.
+- `LayoutUnderOver(element, style, depth, context)` - the in-flow children under `StyleResolver.ScriptRule`; without
+  two (three for `munderover`), a row with the `mathml-child-count` warning. The `accent` and `accentunder` attributes
+  (the ones the element defines) are accents when they are an ASCII case-insensitive match to `true`; another value
+  than `true` or `false` is a `mathml-attribute-invalid` warning and false. The base and the postfix scripts are laid
+  out; when the math style of the element is compact and its base is an embellished operator with `movablelimits`, the
+  scripts are laid out by `ScriptLayout.Layout` (MathML Core 3.4.2.1); otherwise `UnderOverLayout.StretchInline` lays
+  the children stretchy along the inline axis out again with an inline stretch size constraint (a base laid out with
+  the constraint of the parent does not take part) and `UnderOverLayout.Layout` builds the box.
+- `LayoutMultiscripts(element, style, depth, context)` - the in-flow children under `StyleResolver.ScriptRule`;
+  without a base that is not `mprescripts`, with more than one `mprescripts`, or with an odd number of postscripts or
+  prescripts, a row with a `mathml-child-count` warning naming the problem; otherwise the base, the postfix scripts in
+  pairs, and the `mprescripts` box are laid out and `ScriptLayout.LayoutMultiscripts` builds the box.
 - `LayoutRowLike(element, style, depth, context)` - lays out the in-flow children (`FlowChildren`); infers the form of
   each child that is not
   space-like from its position among those children (`OperatorDictionary.InferForm`); lays the children out
   (`LayoutChild`: text written directly inside the element is laid out with `TokenLayout.LayoutText` as an `mtext`,
   space-like); then lays out the row (`RowLayout.LayoutRow`) with a relayout function that lays a child out again with
   a block stretch size constraint, and around it the box of `mpadded` (`LayoutPadded`) or the border of `merror`
-  (`LayoutError`). An element that is itself an embellished operator and gets a form or a constraint from its parent
-  passes them on to its embellished child; with a constraint, it gives the row no relayout function (MathML Core
-  3.3.1.1). The rows of `math` and `msqrt` are never embellished operators: they always space their operators.
+  (`LayoutError`). An element that is itself an embellished operator and gets a form or a constraint (block or inline)
+  from its parent passes them on to its embellished child; with a constraint, it gives the row no relayout function
+  (MathML Core 3.3.1.1). The rows of `math` and `msqrt` are never embellished operators: they always space their
+  operators.
 - `IsSpaceLike` and `IsEmbellishedOperator` - predict from the tree, before the children are laid out, which children
-  are space-like (`mtext`, `mspace`, and row-like elements of space-like children, MathML Core 3.2.5.1; never a fraction
-  or a radical with valid children) and which are embellished operators (`mo`, an `mfrac` with two in-flow children
-  whose first is one, and row-like elements of one embellished operator and space-like children, 3.2.4.1; never
-  `msqrt`, nor an `mroot` with valid children); an `mfrac` or `mroot` with an invalid number of children is predicted
-  as the row it becomes;
-  cached per element, so the predictions cost linear work. An element hidden by a `display: none` declaration below the
-  child is not seen; the boxes, built bottom-up, decide the spacing.
+  are space-like (`mtext`, `mspace`, and row-like elements of space-like children, MathML Core 3.2.5.1; never a
+  fraction, a radical, or a scripted element with valid children) and which are embellished operators (`mo`, an `mfrac`
+  or a scripted element with valid children whose first is one, and row-like elements of one embellished operator and
+  space-like children, 3.2.4.1; never `msqrt`, nor an `mroot` with valid children); an element with invalid children is
+  predicted as the row it becomes; cached per element, so the predictions cost linear work. An element hidden by a
+  `display: none` declaration below the child is not seen; the boxes, built bottom-up, decide the spacing.
 - `CheckAttributes` - reports, as `mathml-attribute-unsupported` at the attribute, an attribute that is neither global
   nor defined for the element, and `dir="rtl"` (the equation is laid out left to right).
 
@@ -78,15 +98,16 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
 A nesting deeper than `MaxNestingDepth` or work beyond `MaxLayoutWork` throws a `MathMlRenderException` with the code
 `mathml-limit-exceeded`, located at the element and naming the property; a canceled token throws
 `OperationCanceledException`. An operator laid out again to stretch is charged again, so the work of the stretch passes
-is bounded by the same limit. Elements and attributes this version does not use are reported, never errors; a fraction
-or a root without two in-flow children is a `mathml-child-count` warning (invalid markup, laid out as MathML Core lays
-it out; strict mode does not throw for it). The walk is
+is bounded by the same limit. Elements and attributes this version does not use are reported, never errors; a fraction,
+a root, or a scripted element without the in-flow children MathML Core requires is a `mathml-child-count` warning
+(invalid markup, laid out as MathML Core lays it out; strict mode does not throw for it), and an invalid `accent` or
+`accentunder` a `mathml-attribute-invalid` warning. The walk is
 recursive, and its depth is bounded by the nesting limit (at most 1,024), which the reader already enforced.
 
 #### Dependencies
 
-The `StyleResolver`, `TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `MathBox`, `MathFont`, and
-`OperatorDictionary` units, the `MathTree`
+The `StyleResolver`, `TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`,
+`MathBox`, `MathFont`, and `OperatorDictionary` units, the `MathTree`
 unit of the Syntax subsystem, and the root namespace's `MathMlLimits`, `MathMlReportSink`, `MathMlRenderException`, and
 `MathMlDiagnosticCodes`.
 

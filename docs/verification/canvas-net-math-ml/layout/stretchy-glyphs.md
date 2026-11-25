@@ -42,12 +42,14 @@ of at least 150 px, and that the large variant of a summation is another glyph, 
 `StretchyGlyphsTests.StretchyGlyphs_Stretch_Assembly_OverlapWithinConnectorBounds` (a theory over ten targets from
 377 px to 9000 px), `StretchyGlyphsTests.StretchyGlyphs_Stretch_Assembly_SizeCoversTargetExactlyWhenPossible`,
 `StretchyGlyphsTests.StretchyGlyphs_Stretch_HorizontalArrow_Assembles`,
+`StretchyGlyphsTests.StretchyGlyphs_Stretch_HorizontalAssembly_HasInkExtents`,
 `StretchyGlyphsTests.StretchyGlyphs_PreferredInlineSize_IsMaximumOverConstructions`
 
 Asserts that 744.4 px is a bottom, six extenders, and a top of exactly 744.4 px standing on the baseline with each part
 above the previous; the overlap bounds and the minimal repetitions over the theory; exact sizes for four targets; that
 an assembly without an extender or whose extenders do not grow it is invalid; that the right arrow assembles left to
-right to at least 600 px (its extenders join without overlap); and the preferred inline size as the widest of the base,
+right to at least 600 px (its extenders join without overlap); that an over brace assembled to 1000 px has whole-pixel
+ink extents above the baseline (a negative descent); and the preferred inline size as the widest of the base,
 the variants, and the parts (the advance of the letter x for a character without a construction).
 
 ##### CanvasNetMathMl-Layout-StretchyGlyphs-UnicodeFallback: Unicode-Based Assemblies

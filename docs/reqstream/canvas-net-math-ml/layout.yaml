@@ -4,8 +4,9 @@
 # These requirements decompose the CanvasNetMathMl system's layout responsibility into the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk and dispatch of the equation tree (LayoutEngine), the
 # computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), the layouts of tokens
-# (TokenLayout), rows (RowLayout), fractions (FractionLayout), and radicals (RadicalLayout), the operator dictionary
-# (OperatorDictionary), and the stretching of glyphs (StretchyGlyphs). Each requirement here links down to the unit
+# (TokenLayout), rows (RowLayout), fractions (FractionLayout), radicals (RadicalLayout), scripts (ScriptLayout), and
+# under- and overscripts (UnderOverLayout), the operator dictionary (OperatorDictionary), and the stretching of glyphs
+# (StretchyGlyphs). Each requirement here links down to the unit
 # requirements that implement it.
 # See docs/verification/canvas-net-math-ml/layout.md for the test-evidence mapping.
 
@@ -36,8 +37,8 @@ sections:
           - id: CanvasNetMathMl-Layout-Operators
             title: >-
               The Layout subsystem shall space every operator by the operator dictionary of MathML Core for its text and
-              its form, the form being inferred from the position of the embellished operator in its row unless the form
-              attribute sets it, and the attributes of the mo overriding the dictionary.
+              its form, the form being inferred from the position of the embellished operator in its row (postfix for a
+              script) unless the form attribute sets it, and the attributes of the mo overriding the dictionary.
             justification: |
               Operator spacing is what makes an equation read as mathematics; it must match a browser that implements
               MathML Core.
@@ -48,6 +49,7 @@ sections:
               - CanvasNetMathMl-Layout-OperatorDictionary-Axis
               - CanvasNetMathMl-Layout-TokenLayout-OperatorProperties
               - CanvasNetMathMl-Layout-LayoutEngine-OperatorForms
+              - CanvasNetMathMl-Layout-LayoutEngine-ScriptForms
               - CanvasNetMathMl-Layout-RowLayout-Row
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
@@ -55,12 +57,14 @@ sections:
           - id: CanvasNetMathMl-Layout-Stretching
             title: >-
               The Layout subsystem shall stretch the stretchy embellished operators of a row along the block axis to the
-              height of the other children (symmetric about the math axis when asked, within minsize and maxsize) with
+              height of the other children (symmetric about the math axis when asked, within minsize and maxsize), and
+              those of an under- or overscript element along the inline axis to the width of the other children, with
               the size variants and assemblies of the math font, the Unicode-based assemblies, or a rule, shall draw
-              large operators larger in display style, and shall report an operator that cannot stretch.
+              large operators larger in display style, and shall report an operator that cannot stretch (horizontally,
+              only when the author asked for stretching).
             justification: |
-              Fences, bars, and vertical arrows must enclose their content, and sums and integrals must be drawn large
-              in displayed equations, as in a browser.
+              Fences, bars, and vertical arrows must enclose their content, braces, arrows and wide accents must span
+              what they annotate, and sums and integrals must be drawn large in displayed equations, as in a browser.
             children:
               - CanvasNetMathMl-Layout-StretchyGlyphs-Variants
               - CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
@@ -69,8 +73,10 @@ sections:
               - CanvasNetMathMl-Layout-StretchyGlyphs-Limit
               - CanvasNetMathMl-Layout-StretchyGlyphs-Failure
               - CanvasNetMathMl-Layout-TokenLayout-Stretch
+              - CanvasNetMathMl-Layout-TokenLayout-InlineStretch
               - CanvasNetMathMl-Layout-TokenLayout-LargeOp
               - CanvasNetMathMl-Layout-RowLayout-Stretch
+              - CanvasNetMathMl-Layout-UnderOverLayout-InlineStretch
               - CanvasNetMathMl-Layout-LayoutEngine-Stretching
               - CanvasNetMathMl-Layout-MathFont-Constructions
               - CanvasNetMathMl-Layout-MathBox-Model
@@ -142,9 +148,60 @@ sections:
             tests:
               - Layout_FractionsAndRadicals_MatchConstants
 
+          - id: CanvasNetMathMl-Layout-Scripts
+            title: >-
+              The Layout subsystem shall lay out msub, msup, msubsup and mmultiscripts as MathML Core 3.4.1 and 3.4.3
+              do: the scripts shifted by the script constants of the MATH table (the cramped superscript shift in a
+              compact math shift), kept apart by the minimum gap, after the base with the italic correction of a
+              stretched or large operator and followed by the space after a script; the prescripts of mmultiscripts
+              before the base; the scripts one script level smaller as postfix operators; and an embellished scripted
+              element spaced and stretched like its operator.
+            justification: |
+              Indices, exponents and tensor notation are the most common constructs of mathematics after rows; their
+              layout must match a browser that implements MathML Core.
+            children:
+              - CanvasNetMathMl-Layout-ScriptLayout-Subscript
+              - CanvasNetMathMl-Layout-ScriptLayout-Superscript
+              - CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript
+              - CanvasNetMathMl-Layout-ScriptLayout-Multiscripts
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-Embellishment
+              - CanvasNetMathMl-Layout-LayoutEngine-ScriptForms
+              - CanvasNetMathMl-Layout-StyleResolver-ScriptRules
+              - CanvasNetMathMl-Layout-StyleResolver-MathShift
+              - CanvasNetMathMl-Layout-MathFont-Constants
+            tests:
+              - Layout_ScriptsAndLimits_MatchConstants
+
+          - id: CanvasNetMathMl-Layout-UnderOver
+            title: >-
+              The Layout subsystem shall lay out munder, mover and munderover as MathML Core 3.4.2 does: the scripts
+              centered on the base as limits of a large operator, as the stack of an operator stretchy along the inline
+              axis, as accents (at the font size of the base, an overscript raised to the accent base height), or at the
+              overbar and underbar gaps; its operators stretched along the inline axis; and, in a compact math style,
+              the limits of an operator with movablelimits laid out as scripts.
+            justification: |
+              Limits of sums and integrals, accents, braces and labeled arrows are drawn with these elements, and must
+              match a browser that implements MathML Core.
+            children:
+              - CanvasNetMathMl-Layout-UnderOverLayout-Limits
+              - CanvasNetMathMl-Layout-UnderOverLayout-Accents
+              - CanvasNetMathMl-Layout-UnderOverLayout-StretchyBase
+              - CanvasNetMathMl-Layout-UnderOverLayout-InlineStretch
+              - CanvasNetMathMl-Layout-UnderOverLayout-Placement
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-MovableLimits
+              - CanvasNetMathMl-Layout-LayoutEngine-ScriptForms
+              - CanvasNetMathMl-Layout-StyleResolver-ScriptRules
+              - CanvasNetMathMl-Layout-TokenLayout-InlineStretch
+              - CanvasNetMathMl-Layout-MathFont-Constants
+            tests:
+              - Layout_ScriptsAndLimits_MatchConstants
+
           - id: CanvasNetMathMl-Layout-ChildCount
             title: >-
-              The Layout subsystem shall lay out an mfrac or an mroot without exactly two in-flow children as a row of
+              The Layout subsystem shall lay out an mfrac, mroot, msub, msup, munder or mover without exactly two
+              in-flow children, an msubsup or munderover without exactly three, and an invalid mmultiscripts as a row of
               its children and report a located mathml-child-count warning.
             justification: |
               MathML Core lays invalid markup out as an mrow, and the author must learn which element is invalid.
@@ -158,7 +215,7 @@ sections:
               The Layout subsystem shall compute the style of every element from its parent's as MathML Core does: the
               math style and math depth, the font size scaled by the script level with the MATH constants, the color
               and background, the mathvariant, the inline style subset, the user agent rules of the children of
-              fractions and radicals, and the math shift, reporting invalid values.
+              fractions, radicals and scripted elements, and the math shift, reporting invalid values.
             justification: |
               Styles decide the size, the color, and the letters of every token.
             children:
@@ -170,9 +227,11 @@ sections:
               - CanvasNetMathMl-Layout-StyleResolver-InlineStyle
               - CanvasNetMathMl-Layout-StyleResolver-ChildRules
               - CanvasNetMathMl-Layout-StyleResolver-MathShift
+              - CanvasNetMathMl-Layout-StyleResolver-ScriptRules
             tests:
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
               - Layout_FractionsAndRadicals_MatchConstants
+              - Layout_ScriptsAndLimits_MatchConstants
 
           - id: CanvasNetMathMl-Layout-MathFont
             title: >-

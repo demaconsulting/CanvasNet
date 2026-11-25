@@ -35,6 +35,26 @@ public class RowLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the ascent and the descent of a row are at least zero, as Chrome lays rows out: a row of a minus
+    ///     sign (ink above the baseline) reaches down to its baseline.
+    /// </summary>
+    [Fact]
+    public void RowLayout_LayoutRow_NegativeExtents_ClampToZero()
+    {
+        // Arrange: ink above the baseline, and ink below it
+        var minus = new MathBox(10, 32, -24);
+        var low = new MathBox(10, -5, 20);
+
+        // Act
+        var above = Rows().LayoutRow([minus], isMath: false);
+        var below = Rows().LayoutRow([low], isMath: false);
+
+        // Assert
+        Assert.Equal((32.0, 0.0), (above.Ascent, above.Descent));
+        Assert.Equal((0.0, 20.0), (below.Ascent, below.Descent));
+    }
+
+    /// <summary>
     ///     Validates that an operator child gets its leading and trailing spaces.
     /// </summary>
     [Fact]

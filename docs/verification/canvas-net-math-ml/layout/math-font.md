@@ -28,12 +28,15 @@ metric that differs from the expected value constitutes a failure.
 
 **Tests**: `MathFontTests.MathFont_Default_HasMathConstants`,
 `MathFontTests.MathFont_RawConstant_FractionAndRadicalConstants_MatchTheFont`,
+`MathFontTests.MathFont_RawConstant_ScriptAndLimitConstants_MatchTheFont`,
 `MathFontTests.MathFont_Constructor_FontWithoutMathTable_ThrowsInvalidDataException`
 
 Asserts the raw constants of the font (for example AxisHeight 278 and ScriptPercentScaleDown 60) and their scaled
 values; for each of the 21 fraction, stack, and radical constants its value in Noto Sans Math (for example
 FractionNumeratorShiftUp 529, StackGapMin 178, RadicalKernAfterDegree -450, and RadicalDegreeBottomRaisePercent 56);
-and that a font without a `MATH` table throws `InvalidDataException`.
+for each of the 23 script, limit, stretch stack, overbar, underbar, and accent constants its value and its scaling to
+100 px (for example SubscriptShiftDown 210, SpaceAfterScript 40, LowerLimitBaselineDropMin 630, and AccentBaseHeight
+556); and that a font without a `MATH` table throws `InvalidDataException`.
 
 ##### CanvasNetMathMl-Layout-MathFont-Fallback: Deterministic Fallback
 

@@ -348,8 +348,8 @@ internal static partial class StretchyGlyphs
         var glyphs = new List<StretchGlyph>();
         var position = 0.0;
         var width = 0.0;
-        var ascent = 0.0;
-        var descent = 0.0;
+        var ascent = double.NegativeInfinity;
+        var descent = double.NegativeInfinity;
         foreach (var part in parts)
         {
             var ink = font.InkBounds(part.Font, part.Glyph, fontSize);
@@ -372,10 +372,18 @@ internal static partial class StretchyGlyphs
             }
         }
 
+        // Horizontally, the ascent and the descent are the ink of the parts, rounded out as the ink of a glyph
         return axis == StretchAxis.Block
             ? new StretchResult(kind, width, size, 0, italicCorrection, glyphs, null)
-            : new StretchResult(kind, size, ascent, descent, italicCorrection, glyphs, null);
+            : new StretchResult(kind, size, RoundOut(ascent), RoundOut(descent), italicCorrection, glyphs, null);
     }
+
+    /// <summary>
+    ///     Rounds an ink extent out to whole CSS pixels (zero when there is no ink).
+    /// </summary>
+    /// <param name="extent">The extent.</param>
+    /// <returns>The rounded extent.</returns>
+    private static double RoundOut(double extent) => double.IsNegativeInfinity(extent) ? 0 : Math.Ceiling(extent - RoundingTolerance);
 
     /// <summary>
     ///     Builds the rule of a line character.

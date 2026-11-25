@@ -2,8 +2,8 @@
 
 This document describes the subsystem-level verification strategy for the `Layout` subsystem of CanvasNetMathMl
 (namespace `DemaConsulting.CanvasNet.MathMl.Layout`): the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`,
-`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `OperatorDictionary`, and `StretchyGlyphs` units working
-together as the document uses them.
+`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`,
+and `StretchyGlyphs` units working together as the document uses them.
 
 ### Verification Approach
 
@@ -58,6 +58,16 @@ Lays out `x/2` and the square root of 2 inline at 100 px and asserts that the nu
 60 px, shifted up by the larger of FractionNumeratorShiftUp and the gap rule of FractionNumeratorGapMin above the bar,
 that the bar has the FractionRuleThickness of the font and is centered on its AxisHeight, and that the square root rises
 above its base by RadicalVerticalGap, RadicalRuleThickness, and RadicalExtraAscender.
+
+#### CanvasNetMathMl-Layout-Scripts, UnderOver, And Style: Scripts, Limits, And Accents
+
+**Tests**: `LayoutTests.Layout_ScriptsAndLimits_MatchConstants`
+
+Lays out `x_i`, a summation with an upper limit in display style, and an accent hat over `x` at 100 px and asserts that
+the subscript is drawn at the script size of 60 px, shifted down by the largest of SubscriptShiftDown, its ascent −
+SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base, with the width of the base, the subscript, and
+SpaceAfterScript; that the bottom of the upper limit is the larger of UpperLimitGapMin and UpperLimitBaselineRiseMin −
+its descent above the summation; and that the hat keeps the font size of its base (100 px).
 
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 

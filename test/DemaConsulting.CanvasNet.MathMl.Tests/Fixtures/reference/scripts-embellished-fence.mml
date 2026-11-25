@@ -1,0 +1,26 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>a</mi>
+  <msup>
+    <mrow>
+      <mo>(</mo>
+      <mfrac>
+        <mi>a</mi>
+        <mi>b</mi>
+      </mfrac>
+      <mo>)</mo>
+    </mrow>
+    <mi>n</mi>
+  </msup>
+  <msub>
+    <mo>=</mo>
+    <mi>k</mi>
+  </msub>
+  <mrow>
+    <mi>c</mi>
+    <msup>
+      <mo stretchy="false">)</mo>
+      <mi>n</mi>
+    </msup>
+  </mrow>
+  <mi>c</mi>
+</math>

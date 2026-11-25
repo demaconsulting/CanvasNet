@@ -94,13 +94,27 @@ of its preferred inline size, that `symmetric="false"` centers it on the constra
 height centered on the axis, and that a stretchy `x` keeps its glyph centered on the target with one
 `mathml-stretch-unavailable` warning, none when the target is shorter than the glyph.
 
+##### CanvasNetMathMl-Layout-TokenLayout-InlineStretch: Horizontally Stretched Operators
+
+**Tests**: `TokenLayoutTests.TokenLayout_LayoutOperator_InlineConstraint_StretchesHorizontally`,
+`TokenLayoutTests.TokenLayout_LayoutOperator_InlineNoConstruction_KeepsGlyph_ReportsOnlyExplicitStretchy`
+
+Asserts that a right arrow with an inline constraint of 600 px is assembled from several glyphs whose ink is at least
+590 px wide and centered (within 10 px) in a box as wide as the unstretched arrow, with the inline stretch axis; that
+an over brace takes a size variant other than its base glyph for 120 px and an assembly at least 1000 px wide for
+1000 px; that a macron with `stretchy="true"` is a 300 px rule centered on its box; and that a caret keeps its glyph and
+its box, reported once as `mathml-stretch-unavailable` only with `stretchy="true"` and a target wider than the glyph,
+while a tilde without the attribute is silent.
+
 ##### CanvasNetMathMl-Layout-TokenLayout-LargeOp: Large Operators
 
 **Tests**: `TokenLayoutTests.TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight`,
-`TokenLayoutTests.TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph`
+`TokenLayoutTests.TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph`,
+`TokenLayoutTests.TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection`
 
 Asserts that a summation in display style draws its large variant, taller than inline and centered on the math axis,
-and that it keeps its base glyph inline and with `largeop="false"`.
+and that it keeps its base glyph inline and with `largeop="false"`; and that an integral drawn with its base glyph has
+no italic correction while its display variant has the italic correction of its glyph (50 px at 100 px).
 
 ##### CanvasNetMathMl-Layout-TokenLayout-MissingGlyph: A Character No Font Has
 

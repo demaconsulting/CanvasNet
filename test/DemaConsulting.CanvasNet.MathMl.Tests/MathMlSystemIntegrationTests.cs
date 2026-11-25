@@ -659,6 +659,105 @@ public class MathMlSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates scripts and limits end to end: the superscript of <c>x²</c> is drawn above and right of its base and the
+    ///     subscript of <c>a₁</c> below and right of it (their ink compared on the rendered picture), the limits of a
+    ///     summation in display style are centered above and below it, and nothing is reported.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math(
+            "<msup><mi>x</mi><mn>2</mn></msup><msub><mi>a</mi><mn>1</mn></msub><munderover><mo>&#x2211;</mo><mi>i</mi><mi>n</mi></munderover>",
+            "display=\"block\""));
+        var (options, warnings, unsupported) = MathMlTestHelpers.Collecting(fontSize: 40);
+
+        // Act
+        using var picture = document.Render(options, TestContext.Current.CancellationToken);
+        var root = document.LayoutBox(new MathMlRenderOptions { FontSize = 40 }, TestContext.Current.CancellationToken);
+        var boxes = MathMlTestHelpers.Flatten(root);
+        MathRect Ink(string name, int index) => boxes.Where(entry => entry.Box.Element?.Name == name).Select(entry => entry.Box.InkBounds()!.Value.Offset(entry.X, entry.Y)).ElementAt(index);
+
+        // Assert: superscript above-right, subscript below-right
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0);
+        var (x, two) = (Ink("mi", 0), Ink("mn", 0));
+        Assert.True(two.X >= x.Right - 1 && two.Y < x.Y);
+        var (a, one) = (Ink("mi", 1), Ink("mn", 1));
+        Assert.True(one.X >= a.Right - 1 && one.Bottom > a.Bottom);
+
+        // The limits centered under and over the summation
+        var sum = Ink("mo", 0);
+        var (upper, lower) = (Ink("mi", 2), Ink("mi", 3));
+        Assert.True(upper.Bottom < sum.Y && lower.Y > sum.Bottom);
+        Assert.InRange(upper.X + (upper.Width / 2), sum.X + (sum.Width / 2) - 3, sum.X + (sum.Width / 2) + 3);
+    }
+
+    /// <summary>
+    ///     Validates the horizontal stretching end to end: an over brace is drawn as wide as the expression under it (its
+    ///     glyphs cover the width on the picture), and a caret that nothing stretches horizontally is reported only when
+    ///     the author asked for <c>stretchy="true"</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_Overbrace_StretchesHorizontally()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("<math>\n<mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi><mo>+</mo><mi>c</mi></mrow><mo>&#x23DE;</mo></mover>\n<mover accent=\"true\"><mrow><mi>x</mi><mi>y</mi></mrow><mo>^</mo></mover>\n<mover accent=\"true\"><mrow><mi>x</mi><mi>y</mi></mrow><mo stretchy=\"true\">^</mo></mover></math>");
+        var (options, warnings, _) = MathMlTestHelpers.Collecting(fontSize: 40);
+
+        // Act
+        using var picture = document.Render(options, TestContext.Current.CancellationToken);
+        var root = document.LayoutBox(new MathMlRenderOptions { FontSize = 40 }, TestContext.Current.CancellationToken);
+
+        // Assert: the brace covers its base
+        var (mover, moverX, moverY) = MathMlTestHelpers.Flatten(root).First(entry => entry.Box.Element?.Name == "mover");
+        var @base = mover.Children[0];
+        var brace = mover.Children[1];
+        var braceInk = brace.Box.InkBounds()!.Value;
+        Assert.True(braceInk.Width >= @base.Box.Width - 1e-6);
+        Assert.True(brace.X + braceInk.X <= @base.X + 1 && brace.X + braceInk.Right >= @base.X + @base.Box.Width - 1);
+        var extent = MathMlDocument.PictureExtent(root);
+        var row = (int)(-Math.Floor(extent.Y + 1e-6) + moverY + brace.Y + braceInk.Y + (braceInk.Height / 2));
+        var left = (int)(-Math.Floor(extent.X + 1e-6) + moverX + brace.X + braceInk.X);
+        var rows = Enumerable.Range(Math.Max(0, row - 6), 12).Where(y => y < picture.Height).ToList();
+        var inkedColumns = Enumerable.Range(left, (int)braceInk.Width).Count(column => rows.Any(y => picture[column, y].A != 0));
+        Assert.True(inkedColumns > braceInk.Width * 0.9);
+
+        // Only the explicit stretchy caret is reported, at its location
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MathMlDiagnosticCodes.StretchUnavailable, new MathMlLocation(null, 4, 56)), (warning.Code, warning.Location));
+    }
+
+    /// <summary>
+    ///     Validates that <c>movablelimits</c> follows the display style end to end: the limits of a summation are scripts
+    ///     in an inline equation and limits in a block equation, so the block equation is taller and narrower.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_MovableLimits_FollowDisplayStyle()
+    {
+        // Arrange
+        const string Content = "<munderover><mo>&#x2211;</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>";
+        var inline = MathMlDocument.Parse(MathMlTestHelpers.Math(Content));
+        var block = MathMlDocument.Parse(MathMlTestHelpers.Math(Content, "display=\"block\""));
+        var options = new MathMlRenderOptions { FontSize = 40 };
+
+        // Act
+        var inlineRoot = inline.LayoutBox(options, TestContext.Current.CancellationToken);
+        var blockRoot = block.LayoutBox(options, TestContext.Current.CancellationToken);
+        using var inlinePicture = inline.Render(options, TestContext.Current.CancellationToken);
+        using var blockPicture = block.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert: inline the scripts follow the operator; in a block they are centered on it
+        var inlineScripts = MathMlTestHelpers.Flatten(inlineRoot).Single(entry => entry.Box.Element?.Name == "munderover").Box;
+        Assert.All(inlineScripts.Children.Skip(1), script => Assert.Equal(inlineScripts.Children[0].Box.Width, script.X, 9));
+        var blockLimits = MathMlTestHelpers.Flatten(blockRoot).Single(entry => entry.Box.Element?.Name == "munderover").Box;
+        Assert.All(blockLimits.Children.Skip(1), limit => Assert.True(limit.X < blockLimits.Children[0].Box.Width));
+        Assert.True(blockPicture.Height > inlinePicture.Height);
+        Assert.True(blockPicture.Width < inlinePicture.Width);
+    }
+
+    /// <summary>
     ///     Validates that the legacy attributes of <c>mfrac</c> that MathML Core dropped (<c>bevelled</c>,
     ///     <c>numalign</c>, <c>denomalign</c>) are reported as unsupported attributes, and that the fraction is still drawn
     ///     as MathML Core draws it (the same as without them).

@@ -5,9 +5,9 @@ using static DemaConsulting.CanvasNet.MathMl.Tests.MathMlTestHelpers;
 namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
-///     Subsystem tests for the <c>Layout</c> subsystem: rows of tokens, stretchy fences, fractions and radicals laid out
-///     through the engine with the real math font, checked against the metrics and constants of the font and the
-///     operator spacing, with the reports and bounds of the layout.
+///     Subsystem tests for the <c>Layout</c> subsystem: rows of tokens, stretchy fences, fractions, radicals, scripts and
+///     limits laid out through the engine with the real math font, checked against the metrics and constants of the font
+///     and the operator spacing, with the reports and bounds of the layout.
 /// </summary>
 public class LayoutTests
 {
@@ -116,6 +116,44 @@ public class LayoutTests
         var radicand = Assert.Single(sqrt.Children).Box;
         var rise = font.Constant(MathConstant.RadicalVerticalGap, 100) + font.Constant(MathConstant.RadicalRuleThickness, 100) + font.Constant(MathConstant.RadicalExtraAscender, 100);
         Assert.Equal(radicand.Ascent + rise, sqrt.Ascent, 9);
+    }
+
+    /// <summary>
+    ///     Validates scripts and limits through the subsystem with the real font: the subscript of <c>x_i</c> sits
+    ///     SubscriptShiftDown below the baseline unless its ascent or the base pushes it further, after SpaceAfterScript
+    ///     the box ends; the upper limit of a summation in display style keeps UpperLimitGapMin above it with its baseline at
+    ///     least UpperLimitBaselineRiseMin above the operator; and the hat of an accent keeps the font size of its base.
+    /// </summary>
+    [Fact]
+    public void Layout_ScriptsAndLimits_MatchConstants()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        double Constant(MathConstant constant) => font.Constant(constant, 100);
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math(
+            "<msub><mi>x</mi><mi>i</mi></msub><mstyle displaystyle=\"true\"><mover><mo>&#x2211;</mo><mi>n</mi></mover></mstyle>"
+            + "<mover accent=\"true\"><mi>x</mi><mo>&#x302;</mo></mover>"));
+
+        // Assert: the subscript
+        var msub = box.Children[0].Box;
+        var (@base, sub) = (msub.Children[0].Box, msub.Children[1]);
+        var subShift = System.Math.Max(System.Math.Max(Constant(MathConstant.SubscriptShiftDown), sub.Box.Ascent - Constant(MathConstant.SubscriptTopMax)), Constant(MathConstant.SubscriptBaselineDropMin) + @base.Descent);
+        Assert.Equal(subShift, sub.Y, 9);
+        Assert.Equal(@base.Width + sub.Box.Width + Constant(MathConstant.SpaceAfterScript), msub.Width, 9);
+        Assert.Equal(60, sub.Box.Items.OfType<GlyphItem>().Single().Size, 9);
+
+        // The upper limit
+        var mover = Assert.Single(box.Children[1].Box.Children).Box;
+        var (sum, limit) = (mover.Children[0].Box, mover.Children[1]);
+        var limitBottom = -limit.Y - limit.Box.Descent;
+        var gap = System.Math.Max(Constant(MathConstant.UpperLimitGapMin), Constant(MathConstant.UpperLimitBaselineRiseMin) - limit.Box.Descent);
+        Assert.Equal(sum.Ascent + gap, limitBottom, 9);
+
+        // The accent
+        var accent = box.Children[2].Box;
+        Assert.Equal(100, accent.Children[1].Box.Items.OfType<GlyphItem>().Single().Size, 9);
     }
 
     /// <summary>

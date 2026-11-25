@@ -25,8 +25,13 @@ is specified by the `CanvasNetMathMl-Layout-MathFont-*` requirements in
   (`StackTopShiftUp`, `StackTopDisplayStyleShiftUp`, `StackBottomShiftDown`, `StackBottomDisplayStyleShiftDown`,
   `StackGapMin`, `StackDisplayStyleGapMin`); and the radical constants (`RadicalVerticalGap`,
   `RadicalDisplayStyleVerticalGap`, `RadicalRuleThickness`, `RadicalExtraAscender`, `RadicalKernBeforeDegree`,
-  `RadicalKernAfterDegree`, and the percentage `RadicalDegreeBottomRaisePercent`); the script layouts of a later
-  version add theirs.
+  `RadicalKernAfterDegree`, and the percentage `RadicalDegreeBottomRaisePercent`); the script constants
+  (`SubscriptShiftDown`, `SubscriptTopMax`, `SubscriptBaselineDropMin`, `SuperscriptShiftUp`,
+  `SuperscriptShiftUpCramped`, `SuperscriptBottomMin`, `SuperscriptBaselineDropMax`, `SubSuperscriptGapMin`,
+  `SuperscriptBottomMaxWithSubscript`, `SpaceAfterScript`); and the under- and overscript constants
+  (`UpperLimitGapMin`, `UpperLimitBaselineRiseMin`, `LowerLimitGapMin`, `LowerLimitBaselineDropMin`,
+  `StretchStackTopShiftUp`, `StretchStackBottomShiftDown`, `StretchStackGapAboveMin`, `StretchStackGapBelowMin`,
+  `OverbarVerticalGap`, `OverbarExtraAscender`, `UnderbarVerticalGap`, `UnderbarExtraDescender`, `AccentBaseHeight`).
 - `StretchVariant(Glyph, Advance)`, `StretchPart(Font, Glyph, StartConnector, EndConnector, FullAdvance, IsExtender)`,
   and `StretchConstruction(Variants, Parts, AssemblyItalicCorrection)` - a construction of the `MathVariants` table in
   CSS pixels at a font size (the part records also serve the Unicode-based assemblies of `StretchyGlyphs`, whose parts

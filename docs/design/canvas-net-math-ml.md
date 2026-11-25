@@ -21,10 +21,11 @@ The goal is **fidelity to MathML Core as browsers implement it**: an equation mu
 for it with the same font. The layout is therefore implemented from the MathML Core specification and checked against
 reference layouts that headless Chrome computes for original fixtures (see *Known Differences* for where CanvasNet
 follows Chrome rather than a literal reading of the specification). This version draws the token elements, the rows,
-the operator dictionary with its spacing, stretchy and large operators, fractions, and radicals; every other element is
-laid out as a row of its children, as MathML Core lays out an unknown element, and is **reported with a stable
-`mathml-*` code and the exact location, never skipped silently** (see *Phase Plan*). A fraction or a root without the
-two children MathML Core requires is laid out as a row too, and reported as the `mathml-child-count` warning.
+the operator dictionary with its spacing, stretchy and large operators, fractions, radicals, scripts, and under- and
+overscripts; every other element is laid out as a row of its children, as MathML Core lays out an unknown element, and
+is **reported with a stable `mathml-*` code and the exact location, never skipped silently** (see *Phase Plan*). A
+fraction, a root, or a scripted element without the children MathML Core requires is laid out as a row too, and
+reported as the `mathml-child-count` warning.
 
 The system is decomposed into two direct units and two internal subsystems:
 
@@ -40,14 +41,17 @@ The system is decomposed into two direct units and two internal subsystems:
   styles), the `MathFont` unit (the bundled math font and its `MATH` data), the `MathBox` unit (the box model), the
   `TokenLayout` unit (the token elements, the properties of operators, and the `mathvariant` tables), the `RowLayout`
   unit (rows, their stretchy operators, and grouping elements), the `FractionLayout` unit (`mfrac`), the
-  `RadicalLayout` unit (`msqrt` and `mroot`), the `OperatorDictionary` unit (the operator dictionary of MathML Core),
-  and the `StretchyGlyphs` unit (size variants, glyph assemblies, and their fallbacks); see *Layout Subsystem Design*.
+  `RadicalLayout` unit (`msqrt` and `mroot`), the `ScriptLayout` unit (`msub`, `msup`, `msubsup`, and
+  `mmultiscripts`), the `UnderOverLayout` unit (`munder`, `mover`, and `munderover`), the `OperatorDictionary` unit
+  (the operator dictionary of MathML Core), and the `StretchyGlyphs` unit (size variants, glyph assemblies, and their
+  fallbacks); see *Layout Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetMathMlSystem` and prefixes the names of its subsystems and units with
 `MathMl` (`MathMlDocument`, `MathMlPainter`, `MathMlSyntax`, `MathMlReader`, `MathMlCharacterReferences`,
 `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`, `MathMlLayoutEngine`, `MathMlStyleResolver`,
 `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`, `MathMlFractionLayout`,
-`MathMlRadicalLayout`, `MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`), because part def names stay unique
+`MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlOperatorDictionary`, and
+`MathMlStretchyGlyphs`), because part def names stay unique
 across the model and the other systems already use
 `Syntax`, `Layout`, and similar short names.
 
@@ -135,7 +139,12 @@ the operator the spacing and properties of the operator dictionary (overridden b
 its stretchy operators out again to the height of their neighbors, stretched by the size variants and glyph assemblies
 of the `MATH` table or their fallbacks. The children of a fraction and of a root get the user agent rules of their
 positions (script level and math style) before their own attributes; the fraction layout places the numerator and the
-denominator around a bar on the math axis, and the radical layout stretches the radical symbol over its base.
+denominator around a bar on the math axis, and the radical layout stretches the radical symbol over its base. The
+scripts of a scripted element are postfix operators one script level smaller (an accent keeps the size of its base);
+the script layout shifts subscripts and superscripts by the script constants, and the under- and overscript layout
+places limits, accents, and other scripts around their base after the operators stretchy along the inline axis are laid
+out again to the width of the widest other child; outside display style, the limits of an operator with
+`movablelimits` are laid out as scripts.
 The picture is the content box of the `math` element united with the ink of every painted item, rounded out to whole
 pixels at the scale, with the baseline on a whole row; `Measure` returns its size and `Render` has the painter draw the
 boxes onto a new surface. The reports are delivered once, on the calling thread, after the work.
@@ -185,8 +194,9 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   its text has a space, as Chrome lays tokens out; MathML Core lays a text with a soft wrap opportunity out as a line of
   text.
 - **Italic correction in rows** - the italic correction of a slanted child is not added before the next child, as
-  Chrome lays rows out; MathML Core 3.3.1.2 adds it. A row keeps the italic correction of its last child for the
-  scripts of a later version.
+  Chrome lays rows out; MathML Core 3.3.1.2 adds it. A row keeps the italic correction of its last child.
+- **Row extents** - the ascent and the descent of a row, a scripted element, and an under- and overscript element are
+  at least zero, as Chrome lays them out (a row of a minus sign reaches down to its baseline).
 - **`ms`** - drawn without quotes, as MathML Core and Chrome draw it; the legacy `lquote` and `rquote` are reported as
   unsupported attributes.
 - **`mathvariant`** - every MathML 3 value is drawn by mapping the characters to the Mathematical Alphanumeric
@@ -226,10 +236,35 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   to whole pixels (Chrome measures the ink of an assembly and its glyph bounds are pixel-snapped, which may differ by a
   pixel); the bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical
   symbol taken at Chrome's 1/64 precision, and the descent of a root uses Chrome's formula.
-- **Rounding** - Chrome rounds to its layout unit (1/64 pixel) and glyph bounds to whole pixels; the reference tests
-  allow 1 CSS pixel plus one layout unit. Chrome's glyph bounds also follow the hinting of the font at small sizes (the
-  digits are a pixel shorter at 50 px than their outlines rounded out), so the reference fixtures use letters where
-  that would add up beyond the tolerance.
+- **Scripts** - as Chrome lays them out, only the italic correction of an operator drawn with a size variant or an
+  assembly moves a script (the italic correction of a token glyph such as an italic *f*, which MathML Core 3.2.1.1
+  defines, does not), and the width of a scripted element is that of its base and its wider script with
+  SpaceAfterScript, without the italic corrections MathML Core adds. A scripted element whose base is a stretchy
+  operator is an embellished operator that its row stretches (MathML Core 3.2.4.1 and 3.3.1.1); Chrome stretches only
+  operators that are not scripted, so this case is verified by the unit tests and not compared with Chrome. The form of
+  the operator at the base of a scripted element is the form of the scripted element in its row (MathML Core 3.2.4.2);
+  Chrome infers it from the position of the operator inside the scripted element, so the reference fixtures use
+  operators without a prefix form there. Chrome computes the width of an `mmultiscripts` with both prescripts and
+  postscripts from its postscript pairs only (its box is wider than its content), so the reference fixture uses script
+  pairs of one width.
+- **Under- and overscripts** - as Chrome lays them out, an overscript is centered on its base (MathML Core places it
+  by its top accent attachment) and the gaps of an accent and of a script that is neither a limit nor on a stretchy
+  base are measured between the boxes (MathML Core measures them from the baseline of the script). Accents come from
+  the `accent` and `accentunder` attributes of the under- and overscript element only, as MathML Core and Chrome
+  define them (the MathML 3 `accent` property of `mo`, which Firefox uses, is accepted silently and has no effect), and
+  the combining equivalents of MathML Core B.3 are not applied, as in Chrome.
+- **Horizontal stretching** - as Chrome lays them out, an operator stretched along the inline axis keeps the inline
+  size of its unstretched glyph, its stretched glyph centered on it; the glyph is chosen as MathML Core 5.3.2 chooses it
+  (the first size variant at least as wide as the target), which may be one variant wider than Chrome's. Chrome does not
+  stretch the right and left arrows of Noto Sans Math (their assembly connectors are shorter than
+  `MinConnectorOverlap`), which CanvasNet stretches as it does vertically. The bundled font has no horizontal
+  construction for `^` and `~`; they keep their glyphs, as in Chrome, and are reported as `mathml-stretch-unavailable`
+  only when the author wrote `stretchy="true"` (reporting every accent would be noise).
+- **Rounding** - Chrome rounds to its layout unit (1/64 pixel; it floors the `MATH` constants to it) and glyph bounds
+  to whole pixels; the reference tests allow 1 CSS pixel plus one layout unit. Chrome's glyph bounds also follow the
+  hinting of the font (the digits are a pixel shorter at 50 px than their outlines rounded out, some letters at 60 px,
+  the arrows and the under brace at 100 px), so the reference fixtures use letters or `mspace` where that would add up
+  beyond the tolerance, and the four values where it cannot be avoided are documented exceptions of the test.
 
 ## Phase Plan
 
@@ -239,11 +274,11 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   (form inference, spacing, and properties with their attribute overrides), and stretchy operators (vertical stretching
   in rows with the `MATH` variants and glyph assemblies, the B.4 and rule fallbacks, `symmetric`, `minsize`, `maxsize`,
   and large operators in display style, with the `mathml-stretch-unavailable` report and the `MaxAssemblyParts`
-  limit). The horizontal stretching of `StretchyGlyphs` is in place for the under and over scripts of stage B.
+  limit).
 - **Stage B, in progress** - done in this version: fractions (`mfrac` with `linethickness`), radicals (`msqrt`,
-  `mroot`), the user agent rules of their children, and the `mathml-child-count` report. Next: scripts (`msub`, `msup`,
-  `msubsup`, `mmultiscripts`), under and over scripts (`munder`, `mover`, `munderover`, with the horizontal stretching
-  of their operators and `movablelimits`), and tables (`mtable`, `mtr`, `mtd`, with the `MaxTableCells` limit), the
-  image source of `.mml` files for the other formats, and a hardening fuzzer. Until then these elements are laid out as
-  rows and reported as `mathml-element-unsupported`.
+  `mroot`), scripts (`msub`, `msup`, `msubsup`, `mmultiscripts` with `mprescripts` and `none`), under and over scripts
+  (`munder`, `mover`, `munderover` with accents, limits, `movablelimits`, and the horizontal stretching of their
+  operators), the user agent rules of their children, and the `mathml-child-count` report. Next: tables (`mtable`,
+  `mtr`, `mtd`, with the `MaxTableCells` limit), the image source of `.mml` files for the other formats, and a
+  hardening fuzzer. Until then the table elements are laid out as rows and reported as `mathml-element-unsupported`.
 - **Stage C** - the Viewer, the `canvasnet` tool, the Pandoc filter, and the user guide open `.mml` files.

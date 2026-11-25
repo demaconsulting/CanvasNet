@@ -99,3 +99,18 @@ sections:
                   it to the scripts.
                 tests:
                   - StyleResolver_ResolveChild_MathShift_CompactAndInherited
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-ScriptRules
+                title: >-
+                  The StyleResolver unit shall give every child of a scripted element but the first math-depth: add(1)
+                  and math-style: compact, keep the font size of the parent for an accent script (accent or accentunder
+                  an ASCII case-insensitive match to true), and give math-shift: compact to the subscript of msub and
+                  msubsup, to the subscripts of mmultiscripts by their positions around mprescripts, and to the base of
+                  an accent mover or munderover.
+                justification: |
+                  The user agent stylesheet of MathML Core (3.4.4) draws scripts one level smaller, accents at the size
+                  of their base, and subscripts and accented bases in a cramped style.
+                tests:
+                  - StyleResolver_ResolveChild_Scripts_AddOneAndCompact
+                  - StyleResolver_ResolveChild_AccentScript_KeepsFontSize
+                  - StyleResolver_ResolveChild_Multiscripts_MathShiftByPosition

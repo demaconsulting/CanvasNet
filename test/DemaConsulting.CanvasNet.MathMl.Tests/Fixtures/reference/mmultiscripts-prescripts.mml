@@ -1,0 +1,18 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mmultiscripts>
+    <mi mathvariant="normal">C</mi>
+    <mprescripts/>
+    <mn>6</mn>
+    <mn>14</mn>
+  </mmultiscripts>
+  <mmultiscripts>
+    <mi>X</mi>
+    <mi>a</mi>
+    <mi>b</mi>
+    <mprescripts/>
+    <mi>b</mi>
+    <none/>
+    <none/>
+    <mi>b</mi>
+  </mmultiscripts>
+</math>

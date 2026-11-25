@@ -5,9 +5,10 @@ using static DemaConsulting.CanvasNet.MathMl.Tests.MathMlTestHelpers;
 namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
-///     Unit tests for <see cref="LayoutEngine"/>: the dispatch (fractions and radicals included), the fallback of the
-///     elements this version does not draw, the child-count rule, hidden elements, the first-child rule, attribute
-///     reports, the forms and stretching of embellished operators (embellished fractions included), and the depth, work
+///     Unit tests for <see cref="LayoutEngine"/>: the dispatch (fractions, radicals, scripts and under- and overscripts
+///     included), the fallback of the elements this version does not draw, the child-count rules, hidden elements, the
+///     first-child rule, attribute reports, the forms and stretching of embellished operators (embellished fractions and
+///     scripted elements, scripts as postfix operators, horizontal stretching), <c>movablelimits</c>, and the depth, work
 ///     and cancellation bounds.
 /// </summary>
 public class LayoutEngineTests
@@ -278,6 +279,140 @@ public class LayoutEngineTests
         Assert.Equal(plus.Box.Operator.LeadingSpace, plus.X, 9);
         Assert.Null(lone.Operator);
         Assert.Null(box.Children[1].Box.Operator);
+    }
+
+    /// <summary>
+    ///     Validates the dispatch of the scripted elements: none is reported, subscripts and underscripts are below the
+    ///     baseline, superscripts and overscripts above it, and the scripts are one script level smaller.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_ScriptsAndUnderOver_AreDispatched()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run(
+            "<msub><mi>a</mi><mi>i</mi></msub><msup><mi>a</mi><mi>n</mi></msup><msubsup><mi>a</mi><mi>i</mi><mi>n</mi></msubsup>"
+            + "<munder><mi>a</mi><mi>i</mi></munder><mover><mi>a</mi><mi>n</mi></mover><munderover><mi>a</mi><mi>i</mi><mi>n</mi></munderover>"
+            + "<mmultiscripts><mi>a</mi><mi>i</mi><mi>n</mi></mmultiscripts>");
+
+        // Assert: the scripts by element, in order: sub, sup, sub sup, under, over, over under (placed in that order)
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(["msub", "msup", "msubsup", "munder", "mover", "munderover", "mmultiscripts"], box.Children.Select(child => child.Box.Element!.Name));
+        var scripts = box.Children.Select(child => child.Box.Children.Skip(1).Select(script => script.Y).ToList()).ToList();
+        Assert.True(scripts[0][0] > 0 && scripts[1][0] < 0 && scripts[2][0] > 0 && scripts[2][1] < 0);
+        Assert.True(scripts[3][0] > 0 && scripts[4][0] < 0 && scripts[5][0] < 0 && scripts[5][1] > 0);
+        Assert.True(scripts[6][0] > 0 && scripts[6][1] < 0);
+        Assert.All(box.Children, child => Assert.Equal(60, child.Box.Children[1].Box.Items.OfType<GlyphItem>().Single().Size, 9));
+    }
+
+    /// <summary>
+    ///     Validates that a script is a postfix operator (MathML Core 3.2.4.2), through an embellished row too, and that an
+    ///     <c>accent</c> value other than <c>true</c> or <c>false</c> is reported and an attribute an element does not
+    ///     define (<c>accent</c> on <c>munder</c>) is unsupported.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_Scripts_ArePostfixOperators()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<msup><mi>x</mi><mo>+</mo></msup><mover accent=\"maybe\"><mi>x</mi><mrow><mo>^</mo></mrow></mover><munder accent=\"true\"><mi>x</mi><mo>-</mo></munder>");
+
+        // Assert
+        var forms = Flatten(box).Where(entry => entry.Box.Element?.Name == "mo").Select(entry => entry.Box.Operator!.Form);
+        Assert.Equal([OperatorForm.Postfix, OperatorForm.Postfix, OperatorForm.Postfix], forms);
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, warning.Code);
+        Assert.Contains("'accent'", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("'accent' of <munder>", Assert.Single(unsupported).Message, StringComparison.Ordinal);
+        Assert.Equal(60, box.Children[1].Box.Children[1].Box.Children[0].Box.Items.OfType<GlyphItem>().Single().Size, 9);
+    }
+
+    /// <summary>
+    ///     Validates <c>movablelimits</c>: outside display style, the limits of a summation are laid out as scripts after
+    ///     it; in display style, and with <c>movablelimits="false"</c>, they are centered under and over it.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_MovableLimits_InlineBecomeScripts()
+    {
+        // Act
+        var (inline, _, _) = Run("<munderover><mo>&#x2211;</mo><mi>i</mi><mi>n</mi></munderover>");
+        var (display, _, _) = Run("<mstyle displaystyle=\"true\"><munderover><mo>&#x2211;</mo><mi>i</mi><mi>n</mi></munderover></mstyle>");
+        var (fixedLimits, _, _) = Run("<munderover><mo movablelimits=\"false\">&#x2211;</mo><mi>i</mi><mi>n</mi></munderover>");
+
+        // Assert
+        var scripts = Assert.Single(inline.Children).Box;
+        Assert.All(scripts.Children.Skip(1), script => Assert.Equal(scripts.Children[0].Box.Width, script.X, 9));
+        var limits = Assert.Single(Assert.Single(display.Children).Box.Children).Box;
+        Assert.All(limits.Children.Skip(1), limit => Assert.True(limit.X > 0 && limit.X + limit.Box.Width < limits.Width));
+        var centered = Assert.Single(fixedLimits.Children).Box;
+        Assert.All(centered.Children.Skip(1), limit => Assert.True(limit.X + limit.Box.Width < centered.Width));
+        Assert.NotNull(scripts.Operator);
+    }
+
+    /// <summary>
+    ///     Validates that a scripted element whose base is a stretchy operator is an embellished operator that its row
+    ///     stretches through it (MathML Core 3.2.4.1 and 3.3.1.1; Chrome does not stretch it), and that an over brace is
+    ///     stretched to the width of its base.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_EmbellishedScripted_StretchesInRow()
+    {
+        // Act
+        var (box, _, _) = Run("<msup><mo>(</mo><mi>n</mi></msup><mspace width=\"1em\" height=\"2em\" depth=\"1em\"/><mover><mrow><mi>a</mi><mi>b</mi><mi>c</mi><mi>d</mi></mrow><mo>&#x23DE;</mo></mover>");
+
+        // Assert
+        var scripted = box.Children[0].Box;
+        Assert.Equal(("(", OperatorForm.Prefix), (scripted.Operator!.CoreText, scripted.Operator.Form));
+        var paren = scripted.Children[0].Box;
+        Assert.True(paren.Ascent >= 200 && paren.Descent >= 100);
+        var mover = box.Children[2].Box;
+        var brace = mover.Children[1];
+        Assert.True(brace.Box.InkBounds()!.Value.Width >= mover.Children[0].Box.Width - 1e-6);
+    }
+
+    /// <summary>
+    ///     Validates that scripted elements without the in-flow children MathML Core requires, and invalid
+    ///     <c>mmultiscripts</c>, are rows of their children with located <see cref="MathMlDiagnosticCodes.ChildCount"/>
+    ///     warnings.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_InvalidMultiscripts_IsRowWithChildCountWarning()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run(
+            "<msub><mi>a</mi></msub><munderover><mi>a</mi><mi>b</mi></munderover>"
+            + "<mmultiscripts><mi>a</mi><mi>b</mi></mmultiscripts><mmultiscripts><mprescripts/><mi>a</mi><mi>b</mi></mmultiscripts>"
+            + "<mmultiscripts><mi>a</mi><mprescripts/><mprescripts/></mmultiscripts><mmultiscripts><mi>a</mi><mprescripts/><mi>b</mi></mmultiscripts><mmultiscripts/>");
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Equal(7, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal(MathMlDiagnosticCodes.ChildCount, warning.Code));
+        Assert.Contains("<msub> has 1 in-flow children instead of two", warnings[0].Message, StringComparison.Ordinal);
+        Assert.Contains("instead of three", warnings[1].Message, StringComparison.Ordinal);
+        Assert.Contains("odd number of postscripts", warnings[2].Message, StringComparison.Ordinal);
+        Assert.Contains("base is <mprescripts>", warnings[3].Message, StringComparison.Ordinal);
+        Assert.Contains("more than one <mprescripts>", warnings[4].Message, StringComparison.Ordinal);
+        Assert.Contains("odd number of prescripts", warnings[5].Message, StringComparison.Ordinal);
+        Assert.Contains("no base", warnings[6].Message, StringComparison.Ordinal);
+        Assert.All(box.Children.Take(3), child => Assert.All(child.Box.Children, grandChild => Assert.Equal(0, grandChild.Y)));
+    }
+
+    /// <summary>
+    ///     Validates that <c>none</c> and <c>mprescripts</c> are laid out as empty rows without a report, inside and
+    ///     outside <c>mmultiscripts</c>.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_NoneAndPrescripts_AreNotReported()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mmultiscripts><mi>a</mi><none/><mi>b</mi><mprescripts/><mi>c</mi><none/></mmultiscripts><none/><mprescripts/>");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var empties = Flatten(box).Where(entry => entry.Box.Element?.Name is "none" or "mprescripts").ToList();
+        Assert.Equal(5, empties.Count);
+        Assert.All(empties, entry => Assert.Equal((0.0, 0.0, 0.0), (entry.Box.Width, entry.Box.Ascent, entry.Box.Descent)));
     }
 
     /// <summary>

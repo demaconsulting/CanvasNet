@@ -6380,6 +6380,38 @@ reviews:
       - "src/DemaConsulting.CanvasNet.MathMl/Layout/RadicalLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/RadicalLayoutTests.cs"  # unit tests
 
+  # CanvasNetMathMl-Layout-ScriptLayout Review (one per unit)
+  - id: CanvasNetMathMl-Layout-ScriptLayout
+    title: Review that CanvasNetMathMl Layout ScriptLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/script-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/script-layout.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/script-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/script-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/ScriptLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/ScriptLayoutTests.cs"  # unit tests
+
+  # CanvasNetMathMl-Layout-UnderOverLayout Review (one per unit)
+  - id: CanvasNetMathMl-Layout-UnderOverLayout
+    title: Review that CanvasNetMathMl Layout UnderOverLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/under-over-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/under-over-layout.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/under-over-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/under-over-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/UnderOverLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/UnderOverLayoutTests.cs"  # unit tests
+
   # CanvasNetMathMl-Layout-OperatorDictionary Review (one per unit)
   - id: CanvasNetMathMl-Layout-OperatorDictionary
     title: Review that CanvasNetMathMl Layout OperatorDictionary Implementation is Correct

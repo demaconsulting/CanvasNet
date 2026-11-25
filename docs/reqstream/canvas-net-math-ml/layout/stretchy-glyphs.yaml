@@ -31,8 +31,9 @@ sections:
                 title: >-
                   The StretchyGlyphs unit shall build the glyph assembly of a target beyond the largest variant with the
                   fewest repetitions of every extender that reach it and one overlap between MinConnectorOverlap and the
-                  shortest connector that joins two glyphs, along the block or the inline axis, and shall give the
-                  preferred inline size as the widest of the base glyph, the variants, and the parts.
+                  shortest connector that joins two glyphs, along the block or the inline axis (an inline assembly
+                  taking the ink of its parts, rounded out, as its ascent and descent), and shall give the preferred
+                  inline size as the widest of the base glyph, the variants, and the parts.
                 justification: |
                   Assemblies draw delimiters of any size without gaps, as MathML Core 5.3.1 specifies.
                 tests:
@@ -40,6 +41,7 @@ sections:
                   - StretchyGlyphs_Stretch_Assembly_OverlapWithinConnectorBounds
                   - StretchyGlyphs_Stretch_Assembly_SizeCoversTargetExactlyWhenPossible
                   - StretchyGlyphs_Stretch_HorizontalArrow_Assembles
+                  - StretchyGlyphs_Stretch_HorizontalAssembly_HasInkExtents
                   - StretchyGlyphs_PreferredInlineSize_IsMaximumOverConstructions
 
               - id: CanvasNetMathMl-Layout-StretchyGlyphs-UnicodeFallback

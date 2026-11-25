@@ -66,6 +66,47 @@ public class MathFontTests
     }
 
     /// <summary>
+    ///     Validates the script, limit, stretch-stack, overbar, underbar and accent constants of the MATH table of the
+    ///     bundled font (font design units, 1000 per em), and their scaling to CSS pixels.
+    /// </summary>
+    /// <param name="constant">The name of the constant.</param>
+    /// <param name="expected">Its value in Noto Sans Math.</param>
+    [Theory]
+    [InlineData(nameof(MathConstant.SubscriptShiftDown), 210)]
+    [InlineData(nameof(MathConstant.SubscriptTopMax), 430)]
+    [InlineData(nameof(MathConstant.SubscriptBaselineDropMin), 140)]
+    [InlineData(nameof(MathConstant.SuperscriptShiftUp), 390)]
+    [InlineData(nameof(MathConstant.SuperscriptShiftUpCramped), 280)]
+    [InlineData(nameof(MathConstant.SuperscriptBottomMin), 134)]
+    [InlineData(nameof(MathConstant.SuperscriptBaselineDropMax), 240)]
+    [InlineData(nameof(MathConstant.SubSuperscriptGapMin), 160)]
+    [InlineData(nameof(MathConstant.SuperscriptBottomMaxWithSubscript), 430)]
+    [InlineData(nameof(MathConstant.SpaceAfterScript), 40)]
+    [InlineData(nameof(MathConstant.UpperLimitGapMin), 100)]
+    [InlineData(nameof(MathConstant.UpperLimitBaselineRiseMin), 244)]
+    [InlineData(nameof(MathConstant.LowerLimitGapMin), 100)]
+    [InlineData(nameof(MathConstant.LowerLimitBaselineDropMin), 630)]
+    [InlineData(nameof(MathConstant.StretchStackTopShiftUp), 244)]
+    [InlineData(nameof(MathConstant.StretchStackBottomShiftDown), 559)]
+    [InlineData(nameof(MathConstant.StretchStackGapAboveMin), 100)]
+    [InlineData(nameof(MathConstant.StretchStackGapBelowMin), 100)]
+    [InlineData(nameof(MathConstant.OverbarVerticalGap), 150)]
+    [InlineData(nameof(MathConstant.OverbarExtraAscender), 71)]
+    [InlineData(nameof(MathConstant.UnderbarVerticalGap), 150)]
+    [InlineData(nameof(MathConstant.UnderbarExtraDescender), 71)]
+    [InlineData(nameof(MathConstant.AccentBaseHeight), 556)]
+    public void MathFont_RawConstant_ScriptAndLimitConstants_MatchTheFont(string constant, int expected)
+    {
+        // Act
+        var parsed = Enum.Parse<MathConstant>(constant);
+        var raw = MathFont.Default.RawConstant(parsed);
+        var scaled = MathFont.Default.Constant(parsed, 100);
+
+        // Assert: the value, and its scaling to 100 px
+        Assert.Equal(expected, raw);
+        Assert.Equal(expected / 10.0, scaled, 9);
+    }
+    /// <summary>
     ///     Validates the constructions of the MATH table scaled to a font size: the vertical variants and assembly of the
     ///     parenthesis, the horizontal assembly of the right arrow, none for a fallback font or a letter, and the minimum
     ///     connector overlap and overbar thickness.

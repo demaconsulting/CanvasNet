@@ -283,6 +283,87 @@ public class StyleResolverTests
     }
 
     /// <summary>
+    ///     Validates the user agent rules of the children of the scripted elements: the base keeps the style of its parent,
+    ///     every script gets <c>math-depth: add(1); math-style: compact</c>, and the subscript of <c>msub</c> and
+    ///     <c>msubsup</c> gets <c>math-shift: compact</c> (the superscripts do not).
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_Scripts_AddOneAndCompact()
+    {
+        // Arrange
+        var styles = Styles();
+        var display = Parent with { DisplayStyle = true };
+        var msubsup = Node("msubsup", [Node("mi", []), Node("mi", []), Node("mi", [])]);
+        var mover = Node("mover", [Node("mi", []), Node("mi", [])]);
+
+        // Act
+        var @base = styles.ResolveChild(Node("mi", []), display, StyleResolver.ScriptRule(msubsup, 0));
+        var sub = styles.ResolveChild(Node("mi", []), display, StyleResolver.ScriptRule(msubsup, 1));
+        var sup = styles.ResolveChild(Node("mi", []), display, StyleResolver.ScriptRule(msubsup, 2));
+        var over = styles.ResolveChild(Node("mi", []), display, StyleResolver.ScriptRule(mover, 1));
+
+        // Assert
+        Assert.Equal((0, true, 100.0, false), (@base.MathDepth, @base.DisplayStyle, @base.FontSize, @base.MathShiftCompact));
+        Assert.Equal((1, false, 60.0, true), (sub.MathDepth, sub.DisplayStyle, System.Math.Round(sub.FontSize, 9), sub.MathShiftCompact));
+        Assert.Equal((1, false, false), (sup.MathDepth, sup.DisplayStyle, sup.MathShiftCompact));
+        Assert.Equal((1, false, false), (over.MathDepth, over.DisplayStyle, over.MathShiftCompact));
+        Assert.Equal(ChildStyleRule.Script with { MathShiftCompact = true }, StyleResolver.ScriptRule(Node("msub", []), 1));
+    }
+
+    /// <summary>
+    ///     Validates the accent rules: an accent script (<c>accent</c> or <c>accentunder</c> an ASCII case-insensitive
+    ///     match to <c>true</c>) keeps the font size of its parent while its math depth grows, and the base of an accent
+    ///     <c>mover</c> or <c>munderover</c> gets <c>math-shift: compact</c>; other values are not accents.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_AccentScript_KeepsFontSize()
+    {
+        // Arrange
+        var styles = Styles();
+        var mover = Node("mover", [], ("accent", "TRUE"));
+        var munderover = Node("munderover", [], ("accent", "true"), ("accentunder", "true"));
+        var notAccent = Node("mover", [], ("accent", "yes"));
+        var munder = Node("munder", [], ("accent", "true"));
+
+        // Act
+        var accent = styles.ResolveChild(Node("mo", []), Parent, StyleResolver.ScriptRule(mover, 1));
+        var accentBase = styles.ResolveChild(Node("mi", []), Parent, StyleResolver.ScriptRule(mover, 0));
+        var under = styles.ResolveChild(Node("mo", []), Parent, StyleResolver.ScriptRule(munderover, 1));
+        var over = styles.ResolveChild(Node("mo", []), Parent, StyleResolver.ScriptRule(munderover, 2));
+        var plain = styles.ResolveChild(Node("mo", []), Parent, StyleResolver.ScriptRule(notAccent, 1));
+        var underscript = styles.ResolveChild(Node("mo", []), Parent, StyleResolver.ScriptRule(munder, 1));
+
+        // Assert
+        Assert.Equal((1, 100.0), (accent.MathDepth, accent.FontSize));
+        Assert.True(accentBase.MathShiftCompact);
+        Assert.Equal((100.0, 100.0), (under.FontSize, over.FontSize));
+        Assert.Equal(60.0, System.Math.Round(plain.FontSize, 9));
+        Assert.Equal(60.0, System.Math.Round(underscript.FontSize, 9));
+        Assert.False(styles.ResolveChild(Node("mi", []), Parent, StyleResolver.ScriptRule(munder, 0)).MathShiftCompact);
+    }
+
+    /// <summary>
+    ///     Validates <c>math-shift</c> in <c>mmultiscripts</c>: compact on the children at even positions (counting from
+    ///     1) before <c>mprescripts</c> and at odd positions after it, inherited by the others.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_Multiscripts_MathShiftByPosition()
+    {
+        // Arrange: the base, a subscript, a superscript, mprescripts, a prescript subscript and a prescript superscript
+        var element = Node("mmultiscripts", [Node("mi", []), Node("mi", []), Node("mi", []), Node("mprescripts", []), Node("mi", []), Node("mi", [])]);
+        var cramped = Parent with { MathShiftCompact = true };
+
+        // Act
+        var rules = Enumerable.Range(0, 6).Select(index => StyleResolver.ScriptRule(element, index).MathShiftCompact).ToList();
+        var inheritedSup = Styles().ResolveChild(Node("mi", []), cramped, StyleResolver.ScriptRule(element, 5));
+
+        // Assert
+        Assert.Equal(new bool?[] { null, true, null, true, true, null }, rules);
+        Assert.True(inheritedSup.MathShiftCompact);
+        Assert.Equal(ChildStyleRule.Script, StyleResolver.ScriptRule(element, 2));
+    }
+
+    /// <summary>
     ///     Creates the style resolver of a call.
     /// </summary>
     /// <param name="sink">The sink, or null for a new one.</param>

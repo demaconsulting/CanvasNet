@@ -67,6 +67,12 @@ internal readonly record struct ChildStyleRule(bool Compact, MathDepthRule Depth
 
     /// <summary>The rule of the index of a root: <c>math-depth: add(2); math-style: compact</c>.</summary>
     public static ChildStyleRule RootIndex => new(true, MathDepthRule.Add, 2, null, false);
+
+    /// <summary>The rule of a script (every child of a scripted element but the first): <c>math-depth: add(1); math-style: compact</c>.</summary>
+    public static ChildStyleRule Script => new(true, MathDepthRule.Add, 1, null, false);
+
+    /// <summary>The rule of the base of an accent <c>mover</c> or <c>munderover</c>: <c>math-shift: compact</c>.</summary>
+    public static ChildStyleRule AccentBase => new(false, MathDepthRule.None, 0, true, false);
 }
 
 /// <summary>
@@ -83,8 +89,10 @@ internal readonly record struct ChildStyleRule(bool Compact, MathDepthRule Depth
 ///         depth to zero and the math shift to normal; <c>merror</c> gets its light yellow background; <c>msqrt</c> and
 ///         <c>mroot</c> get <c>math-shift: compact</c>. The rules that a layout element applies to its children by
 ///         position (<see cref="ChildStyleRule"/>: the numerator and denominator of <c>mfrac</c>, the index of
-///         <c>mroot</c>) are user agent rules too, so a hint of the child replaces them: <c>scriptlevel="+1"</c> on a
-///         numerator is one level more than the fraction's, not two.
+///         <c>mroot</c>, the scripts of the scripted elements with the <c>font-size: inherit</c> of an accent and the
+///         <c>math-shift: compact</c> of a subscript or of the base of an accent) are user agent rules too, so a hint of
+///         the child replaces them: <c>scriptlevel="+1"</c> on a numerator is one level more than the fraction's, not
+///         two.
 ///     </para>
 ///     <para>
 ///         <b>Font size.</b> Unless <c>mathsize</c> or a <c>font-size</c> declaration sets it, the font size of every
@@ -189,6 +197,66 @@ internal sealed class StyleResolver
     /// <param name="rule">The user agent rule of the child's position.</param>
     /// <returns>The style.</returns>
     public MathStyle ResolveChild(MathElement child, MathStyle parent, ChildStyleRule rule) => Resolve(child, parent, isRoot: false, rule);
+
+    /// <summary>
+    ///     Gets the user agent rule of a child of a scripted element (<c>msub</c>, <c>msup</c>, <c>msubsup</c>,
+    ///     <c>munder</c>, <c>mover</c>, <c>munderover</c>, <c>mmultiscripts</c>; MathML Core 3.4.4 and Appendix A) by its
+    ///     index among the element children: every child but the first gets <c>math-depth: add(1); math-style:
+    ///     compact</c>; an accent script keeps the font size of its parent (<c>font-size: inherit</c>); the subscript of
+    ///     <c>msub</c> and <c>msubsup</c>, the subscripts of <c>mmultiscripts</c> (its children at even positions
+    ///     before <c>mprescripts</c> and at odd positions after it, counting from 1) and the base of an accent
+    ///     <c>mover</c> or <c>munderover</c> get <c>math-shift: compact</c>; the superscripts after <c>mprescripts</c>
+    ///     inherit it.
+    /// </summary>
+    /// <param name="element">The scripted element.</param>
+    /// <param name="index">The index of the child among the element children (from 0, hidden elements included).</param>
+    /// <returns>The rule.</returns>
+    public static ChildStyleRule ScriptRule(MathElement element, int index)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        var accent = IsTrue(element, "accent");
+        var accentUnder = IsTrue(element, "accentunder");
+        if (index == 0)
+        {
+            return accent && (element.Name is "mover" or "munderover") ? ChildStyleRule.AccentBase : default;
+        }
+
+        var rule = ChildStyleRule.Script;
+        switch (element.Name)
+        {
+            case "msub" or "msubsup" when index == 1:
+                return rule with { MathShiftCompact = true };
+            case "munder" or "munderover" when index == 1 && accentUnder:
+            case "mover" when index == 1 && accent:
+            case "munderover" when index == 2 && accent:
+                return rule with { FontSizeInherit = true };
+            case "mmultiscripts":
+                {
+                    // Positions counted from 1: even before mprescripts, odd after it (even after it inherits)
+                    var position = index + 1;
+                    var prescripts = element.ElementChildren.Select((child, i) => (child, i)).FirstOrDefault(entry => entry.child.Name == "mprescripts");
+                    var after = prescripts.child is not null && index > prescripts.i;
+                    var compact = after ? position % 2 == 1 : position % 2 == 0;
+                    return rule with { MathShiftCompact = compact ? true : null };
+                }
+
+            default:
+                return rule;
+        }
+    }
+
+    /// <summary>
+    ///     Decides whether an attribute is an ASCII case-insensitive match to <c>true</c>, as the attribute selectors of the
+    ///     user agent stylesheet of MathML Core match <c>accent</c> and <c>accentunder</c>.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <param name="name">The attribute name.</param>
+    /// <returns>True when the attribute is <c>true</c> in any case.</returns>
+    public static bool IsTrue(MathElement element, string name)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return element.Attributes.TryGetValue(name, out var attribute) && attribute.Value.Equals("true", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     ///     Resolves a length attribute of a layout (<c>mspace</c>, <c>mpadded</c>, <c>mo</c>) to CSS pixels.

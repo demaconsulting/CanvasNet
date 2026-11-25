@@ -11,30 +11,39 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 /// <remarks>
 ///     <para>
 ///         <b>Dispatch.</b> The token elements go to <see cref="TokenLayout"/>; <c>math</c>, <c>mrow</c>, <c>mstyle</c>,
-///         <c>mphantom</c>, <c>merror</c>, <c>mpadded</c>, <c>semantics</c> and <c>maction</c> to
-///         <see cref="RowLayout"/> (the last two with their first child only, as the user agent stylesheet of MathML Core
-///         hides the others); <c>mfrac</c> to <see cref="FractionLayout"/>; <c>msqrt</c> (the row of its children) and
-///         <c>mroot</c> to <see cref="RadicalLayout"/>. Every other element (an element of MathML Core that a later version
-///         draws, such as <c>msub</c>, or an element that MathML Core does not define, such as <c>mfenced</c>) is laid
-///         out as a row of its children, as MathML Core lays out an unknown element, and reported as
-///         <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>. Annotations and elements with <c>display: none</c> get
-///         no box. Text written directly inside a layout element is laid out like an <c>mtext</c>.
+///         <c>mphantom</c>, <c>merror</c>, <c>mpadded</c>, <c>mprescripts</c>, <c>none</c>, <c>semantics</c> and
+///         <c>maction</c> to <see cref="RowLayout"/> (the last two with their first child only, as the user agent
+///         stylesheet of MathML Core hides the others); <c>mfrac</c> to <see cref="FractionLayout"/>; <c>msqrt</c> (the row
+///         of its children) and <c>mroot</c> to <see cref="RadicalLayout"/>; <c>msub</c>, <c>msup</c>, <c>msubsup</c> and
+///         <c>mmultiscripts</c> to <see cref="ScriptLayout"/>; <c>munder</c>, <c>mover</c> and <c>munderover</c> to
+///         <see cref="UnderOverLayout"/>, or to <see cref="ScriptLayout"/> when their base is an embellished operator with
+///         <c>movablelimits</c> and their math style is compact (MathML Core 3.4.2.1). Every other element (an element of
+///         MathML Core that a later version draws, such as <c>mtable</c>, or an element that MathML Core does not define,
+///         such as <c>mfenced</c>) is laid out as a row of its children, as MathML Core lays out an unknown element, and
+///         reported as <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>. Annotations and elements with
+///         <c>display: none</c> get no box. Text written directly inside a layout element is laid out like an
+///         <c>mtext</c>.
 ///     </para>
 ///     <para>
-///         <b>Children.</b> The children of a fraction and of a root get the user agent rules of their positions
-///         (<see cref="StyleResolver.ResolveChild"/>). An <c>mfrac</c> or an <c>mroot</c> without exactly two in-flow
-///         children is laid out as a row of its children, as MathML Core lays out invalid markup, and reported as the
+///         <b>Children.</b> The children of a fraction, of a root and of a scripted element get the user agent rules of
+///         their positions (<see cref="StyleResolver.ResolveChild"/>, <see cref="StyleResolver.ScriptRule"/>). An
+///         element without the in-flow children MathML Core requires (two for <c>mfrac</c>, <c>mroot</c>, <c>msub</c>,
+///         <c>msup</c>, <c>munder</c> and <c>mover</c>, three for <c>msubsup</c> and <c>munderover</c>, a base and pairs
+///         of scripts around at most one <c>mprescripts</c> for <c>mmultiscripts</c>) is laid out as a row of its
+///         children, as MathML Core lays out invalid markup, and reported as the
 ///         <see cref="MathMlDiagnosticCodes.ChildCount"/> warning.
 ///     </para>
 ///     <para>
 ///         <b>Operators.</b> Each embellished operator child of a row gets its form from its position among the children
 ///         that are not space-like (MathML Core 3.2.4.2: the first of several is prefix, the last postfix, the others
-///         infix; the children of <c>msqrt</c> likewise); an element that is itself an embellished operator (a row of one
-///         operator and space-like elements, or a fraction whose numerator is one) passes the form its row gave it to its
-///         operator.
+///         infix; the children of <c>msqrt</c> likewise); a script (a child of a scripted element but the first) is
+///         postfix. An element that is itself an embellished operator (a row of one operator and space-like elements, or
+///         a fraction or a scripted element whose first child is one) passes the form its parent gave it to its operator.
 ///         After the children of a row are laid out, its stretchy operators are laid out again with a block stretch size
-///         constraint (3.3.1.1, <see cref="RowLayout.Stretch"/>); an embellished element with a constraint passes it to
-///         its operator. Whether a child is space-like or an embellished operator is predicted from the tree before it is
+///         constraint (3.3.1.1, <see cref="RowLayout.Stretch"/>); after the children of an under- or overscript element,
+///         its operators stretchy along the inline axis with an inline stretch size constraint (3.4.2.2,
+///         <see cref="UnderOverLayout.StretchInline"/>); an embellished element with a constraint passes it to its
+///         operator. Whether a child is space-like or an embellished operator is predicted from the tree before it is
 ///         laid out (an element hidden by a <c>display: none</c> declaration below the child is not seen).
 ///     </para>
 ///     <para>
@@ -55,15 +64,17 @@ internal sealed partial class LayoutEngine
     /// <summary>The token elements.</summary>
     private static readonly FrozenSet<string> TokenNames = new[] { "mi", "mn", "mo", "mtext", "ms", "mspace" }.ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>The elements laid out as a row of all their children.</summary>
-    private static readonly FrozenSet<string> RowNames = new[] { "math", "mrow", "mstyle", "mphantom", "merror", "mpadded" }.ToFrozenSet(StringComparer.Ordinal);
+    /// <summary>
+    ///     The elements laid out as a row of all their children (<c>mprescripts</c> is a grouping element of MathML Core
+    ///     and <c>none</c> an empty element; both mark positions in <c>mmultiscripts</c>).
+    /// </summary>
+    private static readonly FrozenSet<string> RowNames = new[] { "math", "mrow", "mstyle", "mphantom", "merror", "mpadded", "mprescripts", "none" }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>The scripted elements: their children but the first are scripts (MathML Core 3.4).</summary>
+    private static readonly FrozenSet<string> ScriptedNames = new[] { "msub", "msup", "msubsup", "munder", "mover", "munderover", "mmultiscripts" }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>The elements of MathML Core that this version lays out as rows (a later version draws them).</summary>
-    private static readonly FrozenSet<string> LaterCoreNames = new[]
-    {
-        "msub", "msup", "msubsup", "munder", "mover", "munderover", "mmultiscripts", "mprescripts", "none",
-        "mtable", "mtr", "mtd",
-    }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> LaterCoreNames = new[] { "mtable", "mtr", "mtd" }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>The attributes every element accepts (MathML Core 2.1.3); those with no effect on a picture are accepted silently.</summary>
     private static readonly FrozenSet<string> GlobalAttributes = new[]
@@ -77,6 +88,9 @@ internal sealed partial class LayoutEngine
     {
         ["math"] = new[] { "display", "alttext" }.ToFrozenSet(StringComparer.Ordinal),
         ["mfrac"] = new[] { "linethickness" }.ToFrozenSet(StringComparer.Ordinal),
+        ["munder"] = new[] { "accentunder" }.ToFrozenSet(StringComparer.Ordinal),
+        ["mover"] = new[] { "accent" }.ToFrozenSet(StringComparer.Ordinal),
+        ["munderover"] = new[] { "accent", "accentunder" }.ToFrozenSet(StringComparer.Ordinal),
         ["mo"] = new[] { "form", "fence", "separator", "lspace", "rspace", "stretchy", "symmetric", "maxsize", "minsize", "largeop", "movablelimits", "accent" }.ToFrozenSet(StringComparer.Ordinal),
         ["mspace"] = new[] { "width", "height", "depth" }.ToFrozenSet(StringComparer.Ordinal),
         ["mpadded"] = new[] { "width", "height", "depth", "lspace", "voffset" }.ToFrozenSet(StringComparer.Ordinal),
@@ -108,6 +122,12 @@ internal sealed partial class LayoutEngine
     /// <summary>The radical layout of the call.</summary>
     private readonly RadicalLayout _radicals;
 
+    /// <summary>The script layout of the call.</summary>
+    private readonly ScriptLayout _scripts;
+
+    /// <summary>The under- and overscript layout of the call.</summary>
+    private readonly UnderOverLayout _underOver;
+
     /// <summary>The work charged so far.</summary>
     private long _work;
 
@@ -134,6 +154,8 @@ internal sealed partial class LayoutEngine
         _rows = new RowLayout(_styles);
         _fractions = new FractionLayout(font, _styles);
         _radicals = new RadicalLayout(font, limits);
+        _scripts = new ScriptLayout(font);
+        _underOver = new UnderOverLayout(font);
     }
 
     /// <summary>
@@ -201,6 +223,21 @@ internal sealed partial class LayoutEngine
             CheckAttributes(element);
             box = LayoutRadical(element, style, depth, context);
         }
+        else if (element.Name is "msub" or "msup" or "msubsup")
+        {
+            CheckAttributes(element);
+            box = LayoutScripted(element, style, depth, context);
+        }
+        else if (element.Name is "munder" or "mover" or "munderover")
+        {
+            CheckAttributes(element);
+            box = LayoutUnderOver(element, style, depth, context);
+        }
+        else if (element.Name is "mmultiscripts")
+        {
+            CheckAttributes(element);
+            box = LayoutMultiscripts(element, style, depth, context);
+        }
         else
         {
             // An element this version does not draw is a row of its children, as MathML Core lays out an unknown element
@@ -260,7 +297,7 @@ internal sealed partial class LayoutEngine
         var opaque = element.Name is "math" or "msqrt";
         var spaceLike = flow.Select(entry => entry.Node is not MathElement child || IsSpaceLike(child)).ToArray();
         var count = spaceLike.Count(value => !value);
-        var passThrough = !opaque && (context.Form is not null || context.Stretch is not null) && IsEmbellishedOperator(element);
+        var passThrough = !opaque && (context.Form is not null || context.HasStretch) && IsEmbellishedOperator(element);
         var contexts = new OperatorContext[flow.Count];
         var position = 0;
         for (var i = 0; i < flow.Count; i++)
@@ -283,7 +320,7 @@ internal sealed partial class LayoutEngine
             }
         }
 
-        Func<int, BlockStretchConstraint, MathBox>? relayout = passThrough && context.Stretch is not null
+        Func<int, BlockStretchConstraint, MathBox>? relayout = passThrough && context.HasStretch
             ? null
             : (index, constraint) =>
             {
@@ -334,8 +371,8 @@ internal sealed partial class LayoutEngine
     /// <summary>
     ///     Predicts from the tree whether an element is space-like (MathML Core 3.2.5.1): an <c>mtext</c> or an
     ///     <c>mspace</c>, or an element laid out as a row whose in-flow children are all space-like (text written directly
-    ///     inside it counts as space-like). A fraction or a radical is never space-like, unless an invalid number of
-    ///     children makes it a row. The result is cached per element.
+    ///     inside it counts as space-like). A fraction, a radical or a scripted element is never space-like, unless an
+    ///     invalid number of children makes it a row. The result is cached per element.
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>True when it is space-like.</returns>
@@ -350,7 +387,7 @@ internal sealed partial class LayoutEngine
         {
             "mtext" or "mspace" => true,
             "mi" or "mn" or "mo" or "ms" or "msqrt" => false,
-            "mfrac" or "mroot" when HasValidChildCount(element) => false,
+            _ when HasValidChildren(element) => false,
             _ => InFlowChildren(element).All(child => child is not MathElement childElement || IsSpaceLike(childElement)),
         };
         _spaceLike[element] = result;
@@ -359,9 +396,9 @@ internal sealed partial class LayoutEngine
 
     /// <summary>
     ///     Predicts from the tree whether an element is an embellished operator (MathML Core 3.2.4.1): an <c>mo</c>; an
-    ///     <c>mfrac</c> whose first in-flow child is an embellished operator; or an element laid out as a row whose in-flow
-    ///     children are one embellished operator and space-like elements. A radical is never one, unless an invalid number
-    ///     of children makes an <c>mroot</c> a row. The result is cached per element.
+    ///     <c>mfrac</c> or a scripted element whose first in-flow child is an embellished operator; or an element laid out
+    ///     as a row whose in-flow children are one embellished operator and space-like elements. A radical is never one,
+    ///     unless an invalid number of children makes an <c>mroot</c> a row. The result is cached per element.
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>True when it is an embellished operator.</returns>
@@ -377,13 +414,13 @@ internal sealed partial class LayoutEngine
         {
             result = true;
         }
-        else if (TokenNames.Contains(element.Name) || element.Name is "math" or "msqrt" || (element.Name == "mroot" && HasValidChildCount(element)))
+        else if (TokenNames.Contains(element.Name) || element.Name is "math" or "msqrt" || (element.Name == "mroot" && HasValidChildren(element)))
         {
             result = false;
         }
-        else if (element.Name == "mfrac" && HasValidChildCount(element))
+        else if ((element.Name == "mfrac" || ScriptedNames.Contains(element.Name)) && HasValidChildren(element))
         {
-            result = InFlowChildren(element).First() is MathElement numerator && IsEmbellishedOperator(numerator);
+            result = InFlowChildren(element).First() is MathElement first && IsEmbellishedOperator(first);
         }
         else
         {

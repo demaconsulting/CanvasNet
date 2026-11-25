@@ -15,14 +15,15 @@ sections:
               - id: CanvasNetMathMl-Layout-RowLayout-Row
                 title: >-
                   The RowLayout unit shall place the children of a row left to right on a shared baseline with the
-                  maximum ascent and descent, add the leading and trailing space of an operator child around it, and
-                  give the row the italic correction of its last child without adding italic corrections between
-                  children.
+                  maximum ascent and descent (at least zero), add the leading and trailing space of an operator child
+                  around it, and give the row the italic correction of its last child without adding italic corrections
+                  between children.
                 justification: |
                   MathML Core lays rows out this way; Chrome, which the reference layouts come from, adds no italic
-                  correction between children.
+                  correction between children and lets a row reach down to its baseline.
                 tests:
                   - RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents
+                  - RowLayout_LayoutRow_NegativeExtents_ClampToZero
                   - RowLayout_LayoutRow_Operator_GetsItsSpacing
                   - RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator
                   - RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild

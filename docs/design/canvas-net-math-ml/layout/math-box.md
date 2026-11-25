@@ -26,12 +26,14 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/math-box.yaml`.
 - `EmbellishedOperator(LeadingSpace, TrailingSpace)` - the properties of an embellished operator (MathML Core 3.2.4.2)
   resolved by the token layout: what a row adds before and after it, and `CoreText`, `Form`, `Category`, `Stretchy`,
   `Symmetric`, `LargeOp`, `MovableLimits`, `Fence`, `Separator`, `Axis`, `MinSize`, and `MaxSize` (infinity when there
-  is none). Rows read the spacing and whether to stretch; `MovableLimits` is kept for the under-over layout of a later
-  stage.
+  is none). Rows read the spacing and whether to stretch; the under- and overscript layouts read `LargeOp`, `Stretchy`
+  with `Axis`, and `MovableLimits`.
 - `BlockStretchConstraint(Ascent, Descent)` - the block stretch size constraint that a row gives its stretchy operators
   (MathML Core 3.3.1.1).
-- `OperatorContext(Form, Stretch)` - what the parent of an element tells the layout of an embellished operator: the
-  form inferred from its position, and the constraint when it is stretched.
+- `OperatorContext(Form, Stretch, InlineStretch)` - what the parent of an element tells the layout of an embellished
+  operator: the form inferred from its position, the block constraint when a row stretches it, and the inline stretch
+  size constraint (a width) when an under- or overscript element stretches it (MathML Core 3.4.2.2); `HasStretch`
+  tells whether either constraint is given.
 - `PlacedBox(Box, X, Y)` - a child box at its offset.
 - `MathBox(width, ascent, descent, children, items)` - the inline size, line-ascent, and line-descent; the placed
   children and the box's own paint items; `ItalicCorrection`, `TopAccentAttachment`, `Operator`, `IsSpaceLike`

@@ -22,12 +22,13 @@ row, and builds the boxes that `mpadded` and `merror` put around a row. The unit
 - `LayoutRow(children, isMath, relayout)` - `isMath` marks a row that is never an embellished operator (the inferred
   rows of `math` and `msqrt`); first, when a relayout function is given, `Stretch`; then MathML Core
   3.3.1.2: the children are placed left to right with their alphabetic baselines aligned; the ascent and descent are
-  the maximums of the children's. When the row is itself an embellished operator (one embellished-operator child and
+  the maximums of the children's and at least zero, as Chrome lays rows out (a row of a minus sign reaches down to its
+  baseline). When the row is itself an embellished operator (one embellished-operator child and
   any number of space-like children, MathML Core 3.2.4.1) and is not `math`, it adds no spacing inside and passes the
   operator to its parent; otherwise an embellished-operator child gets its leading space before it and its trailing
   space after it (the `lspace` and `rspace` that the token layout resolved from the operator dictionary). A row of
-  space-like children is space-like (3.2.5.1). The italic correction of the last child becomes the row's (for the
-  scripts of a later stage), but it is not added between children: MathML Core adds the italic correction of a slanted
+  space-like children is space-like (3.2.5.1). The italic correction of the last child becomes the row's, but it is
+  not added between children: MathML Core adds the italic correction of a slanted
   child before the next upright one, and Chrome, whose layout the reference tests compare with, does not.
 - `Stretch(children, relayout)` - MathML Core 3.3.1.1: the children whose embellished operator is stretchy with a block
   stretch axis are laid out again by the relayout function (the engine) with a block stretch size constraint: the

@@ -4,8 +4,9 @@ using DemaConsulting.CanvasNet.MathMl.Syntax;
 namespace DemaConsulting.CanvasNet.MathMl.Layout;
 
 /// <summary>
-///     The element walk of the layout engine for the layout elements beyond rows: fractions and radicals, their in-flow
-///     children with the user agent rules of their positions, and the child-count rule of MathML Core.
+///     The element walk of the layout engine for the layout elements beyond rows: fractions, radicals, scripts and under-
+///     and overscripts, their in-flow children with the user agent rules of their positions, and the child-count rules of
+///     MathML Core.
 /// </summary>
 internal sealed partial class LayoutEngine
 {
@@ -63,7 +64,7 @@ internal sealed partial class LayoutEngine
         var flow = FlowChildren(element, style, depth, FractionRule);
         if (flow.Count != 2)
         {
-            ReportChildCount(element, flow.Count, "a numerator and a denominator");
+            ReportChildCount(element, flow.Count, 2, "a numerator and a denominator");
             return LayoutRowLike(element, style, depth, context, flow);
         }
 
@@ -96,7 +97,7 @@ internal sealed partial class LayoutEngine
         var flow = FlowChildren(element, style, depth, RootRule);
         if (flow.Count != 2)
         {
-            ReportChildCount(element, flow.Count, "a base and an index");
+            ReportChildCount(element, flow.Count, 2, "a base and an index");
             return LayoutRowLike(element, style, depth, context, flow);
         }
 
@@ -116,12 +117,18 @@ internal sealed partial class LayoutEngine
         LayoutChild(child.Node, child.Style, depth, context) ?? throw new InvalidOperationException("A displayed child has no box.");
 
     /// <summary>
-    ///     Predicts from the tree whether an <c>mfrac</c> or an <c>mroot</c> has the two in-flow children that MathML Core
-    ///     requires (an element hidden by <c>display: none</c> is counted).
+    ///     Predicts from the tree whether an element with a fixed structure (<c>mfrac</c>, <c>mroot</c>, a scripted element)
+    ///     has the in-flow children that MathML Core requires (an element hidden by <c>display: none</c> is counted).
     /// </summary>
     /// <param name="element">The element.</param>
-    /// <returns>True when it has exactly two.</returns>
-    private static bool HasValidChildCount(MathElement element) => InFlowChildren(element).Take(3).Count() == 2;
+    /// <returns>True when its children are valid; false for every other element.</returns>
+    private static bool HasValidChildren(MathElement element) => element.Name switch
+    {
+        "mfrac" or "mroot" or "msub" or "msup" or "munder" or "mover" => InFlowChildren(element).Take(3).Count() == 2,
+        "msubsup" or "munderover" => InFlowChildren(element).Take(4).Count() == 3,
+        "mmultiscripts" => MultiscriptsProblem(InFlowChildren(element).ToList()) is null,
+        _ => false,
+    };
 
     /// <summary>
     ///     Reports an element whose number of in-flow children is not the one MathML Core requires; it is laid out as a
@@ -129,13 +136,248 @@ internal sealed partial class LayoutEngine
     /// </summary>
     /// <param name="element">The element.</param>
     /// <param name="count">Its number of in-flow children.</param>
+    /// <param name="required">The number it requires (two or three).</param>
     /// <param name="expected">What it requires, in words.</param>
-    private void ReportChildCount(MathElement element, int count, string expected) =>
+    private void ReportChildCount(MathElement element, int count, int required, string expected)
+    {
+        var number = required == 2 ? "two" : "three";
         _sink.Warn(
             MathMlDiagnosticCodes.ChildCount,
-            string.Create(CultureInfo.InvariantCulture, $"the element <{element.Name}> has {count} in-flow children instead of two ({expected}); it is laid out as a row of its children, as MathML Core lays out invalid markup"),
+            string.Create(CultureInfo.InvariantCulture, $"the element <{element.Name}> has {count} in-flow children instead of {number} ({expected}); it is laid out as a row of its children, as MathML Core lays out invalid markup"),
             element.Location,
-            $"give <{element.Name}> exactly two children, {expected}; wrap the elements of one part in an <mrow>");
+            $"give <{element.Name}> exactly {number} children, {expected}; wrap the elements of one part in an <mrow>");
+    }
+
+    /// <summary>
+    ///     Lays out an <c>msub</c>, <c>msup</c> or <c>msubsup</c> (MathML Core 3.4.1): its base, then its scripts as postfix
+    ///     operators under the user agent rules of their positions; a row of its children with a
+    ///     <see cref="MathMlDiagnosticCodes.ChildCount"/> warning when it does not have the two (three for <c>msubsup</c>)
+    ///     in-flow children it requires.
+    /// </summary>
+    /// <param name="element">The scripted element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <param name="context">The form and the stretch constraint its parent gives it, passed to its base when the element is an embellished operator.</param>
+    /// <returns>The box.</returns>
+    private MathBox LayoutScripted(MathElement element, MathStyle style, int depth, OperatorContext context)
+    {
+        var flow = FlowChildren(element, style, depth, index => StyleResolver.ScriptRule(element, index));
+        var required = element.Name == "msubsup" ? 3 : 2;
+        if (flow.Count != required)
+        {
+            ReportChildCount(element, flow.Count, required, element.Name switch
+            {
+                "msub" => "a base and a subscript",
+                "msup" => "a base and a superscript",
+                _ => "a base, a subscript and a superscript",
+            });
+            return LayoutRowLike(element, style, depth, context, flow);
+        }
+
+        // An embellished scripted element passes the context of its parent to its base and carries its operator
+        var embellished = IsEmbellishedOperator(element);
+        var @base = LayoutFlowChild(flow[0], depth, embellished ? context : default);
+        var first = LayoutFlowChild(flow[1], depth, ScriptContext);
+        var second = required == 3 ? LayoutFlowChild(flow[2], depth, ScriptContext) : null;
+        var op = embellished ? @base.Operator : null;
+        return element.Name switch
+        {
+            "msub" => _scripts.Layout(@base, first, null, style, op),
+            "msup" => _scripts.Layout(@base, null, first, style, op),
+            _ => _scripts.Layout(@base, first, second, style, op),
+        };
+    }
+
+    /// <summary>
+    ///     Lays out an <c>munder</c>, <c>mover</c> or <c>munderover</c> (MathML Core 3.4.2): its base, then its scripts as
+    ///     postfix operators under the user agent rules of their positions; as scripts when its math style is compact and
+    ///     its base is an embellished operator with <c>movablelimits</c>, else under and over the base after stretching its
+    ///     operators along the inline axis; a row of its children with a <see cref="MathMlDiagnosticCodes.ChildCount"/>
+    ///     warning when it does not have the two (three for <c>munderover</c>) in-flow children it requires.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <param name="context">The form and the stretch constraint its parent gives it, passed to its base when the element is an embellished operator.</param>
+    /// <returns>The box.</returns>
+    private MathBox LayoutUnderOver(MathElement element, MathStyle style, int depth, OperatorContext context)
+    {
+        var flow = FlowChildren(element, style, depth, index => StyleResolver.ScriptRule(element, index));
+        var required = element.Name == "munderover" ? 3 : 2;
+        if (flow.Count != required)
+        {
+            ReportChildCount(element, flow.Count, required, element.Name switch
+            {
+                "munder" => "a base and an underscript",
+                "mover" => "a base and an overscript",
+                _ => "a base, an underscript and an overscript",
+            });
+            return LayoutRowLike(element, style, depth, context, flow);
+        }
+
+        // The accents (an invalid value is false, reported)
+        var accentUnder = element.Name != "mover" && Accent(element, "accentunder");
+        var accent = element.Name != "munder" && Accent(element, "accent");
+
+        // The base first: an embellished element passes the context of its parent to it and carries its operator
+        var embellished = IsEmbellishedOperator(element);
+        var baseContext = embellished ? context : default;
+        var contexts = new OperatorContext[flow.Count];
+        contexts[0] = baseContext;
+        for (var i = 1; i < flow.Count; i++)
+        {
+            contexts[i] = ScriptContext;
+        }
+
+        var boxes = new MathBox[flow.Count];
+        boxes[0] = LayoutFlowChild(flow[0], depth, baseContext);
+        for (var i = 1; i < flow.Count; i++)
+        {
+            boxes[i] = LayoutFlowChild(flow[i], depth, contexts[i]);
+        }
+
+        // Limits of a movable operator outside display style are scripts (MathML Core 3.4.2.1)
+        var op = embellished ? boxes[0].Operator : null;
+        var (under, over) = element.Name switch
+        {
+            "munder" => (1, -1),
+            "mover" => (-1, 1),
+            _ => (1, 2),
+        };
+        if (!style.DisplayStyle && boxes[0].Operator is { MovableLimits: true })
+        {
+            return _scripts.Layout(boxes[0], under < 0 ? null : boxes[under], over < 0 ? null : boxes[over], style, op);
+        }
+
+        // The operators stretchy along the inline axis stretch to the widest other child (3.4.2.2)
+        var stretched = UnderOverLayout.StretchInline(
+            boxes,
+            embellished && context.HasStretch,
+            (index, width) => LayoutFlowChild(flow[index], depth, contexts[index] with { InlineStretch = width }));
+        return _underOver.Layout(
+            stretched[0],
+            under < 0 ? null : stretched[under],
+            over < 0 ? null : stretched[over],
+            style,
+            accentUnder,
+            accent,
+            embellished ? stretched[0].Operator : null);
+    }
+
+    /// <summary>
+    ///     Lays out an <c>mmultiscripts</c> (MathML Core 3.4.3): its base, its postscript pairs, its <c>mprescripts</c> and
+    ///     its prescript pairs (the scripts as postfix operators under the user agent rules of their positions); a row of
+    ///     its children with a <see cref="MathMlDiagnosticCodes.ChildCount"/> warning when it is not valid.
+    /// </summary>
+    /// <param name="element">The <c>mmultiscripts</c> element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <param name="context">The form and the stretch constraint its parent gives it, passed to its base when the element is an embellished operator.</param>
+    /// <returns>The box.</returns>
+    private MathBox LayoutMultiscripts(MathElement element, MathStyle style, int depth, OperatorContext context)
+    {
+        var flow = FlowChildren(element, style, depth, index => StyleResolver.ScriptRule(element, index));
+        if (MultiscriptsProblem(flow.Select(entry => entry.Node).ToList()) is { } problem)
+        {
+            _sink.Warn(
+                MathMlDiagnosticCodes.ChildCount,
+                $"the element <mmultiscripts> is not valid: {problem}; it is laid out as a row of its children, as MathML Core lays out invalid markup",
+                element.Location,
+                "write a base, then pairs of a subscript and a superscript, then optionally <mprescripts/> and more pairs; use <none/> for a missing script");
+            return LayoutRowLike(element, style, depth, context, flow);
+        }
+
+        // The base with the context of an embellished element, then the scripts in pairs around mprescripts
+        var embellished = IsEmbellishedOperator(element);
+        var @base = LayoutFlowChild(flow[0], depth, embellished ? context : default);
+        var postscripts = new List<ScriptPair>();
+        var prescripts = new List<ScriptPair>();
+        MathBox? separator = null;
+        var target = postscripts;
+        var i = 1;
+        while (i < flow.Count)
+        {
+            if (flow[i].Node is MathElement { Name: "mprescripts" })
+            {
+                separator = LayoutFlowChild(flow[i], depth, default);
+                target = prescripts;
+                i++;
+                continue;
+            }
+
+            var sub = LayoutFlowChild(flow[i], depth, ScriptContext);
+            var sup = LayoutFlowChild(flow[i + 1], depth, ScriptContext);
+            target.Add(new ScriptPair(sub, sup));
+            i += 2;
+        }
+
+        return _scripts.LayoutMultiscripts(@base, postscripts, prescripts, separator, style, embellished ? @base.Operator : null);
+    }
+
+    /// <summary>
+    ///     Finds why the in-flow children of an <c>mmultiscripts</c> do not form a valid element (MathML Core 3.4.3): a
+    ///     base that is not <c>mprescripts</c>, an even number of postscripts, then optionally one <c>mprescripts</c> and
+    ///     an even number of prescripts.
+    /// </summary>
+    /// <param name="children">The in-flow children.</param>
+    /// <returns>The problem in words, or null when the element is valid.</returns>
+    private static string? MultiscriptsProblem(IReadOnlyList<MathNode> children)
+    {
+        if (children.Count == 0)
+        {
+            return "it has no base";
+        }
+
+        if (children[0] is MathElement { Name: "mprescripts" })
+        {
+            return "its base is <mprescripts>";
+        }
+
+        var separators = children.Select((child, index) => (child, index)).Where(entry => entry.child is MathElement { Name: "mprescripts" }).Select(entry => entry.index).ToList();
+        if (separators.Count > 1)
+        {
+            return "it has more than one <mprescripts>";
+        }
+
+        var postscripts = (separators.Count == 1 ? separators[0] : children.Count) - 1;
+        var prescripts = separators.Count == 1 ? children.Count - separators[0] - 1 : 0;
+        if (postscripts % 2 != 0)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"it has an odd number of postscripts ({postscripts})");
+        }
+
+        return prescripts % 2 != 0 ? string.Create(CultureInfo.InvariantCulture, $"it has an odd number of prescripts ({prescripts})") : null;
+    }
+
+    /// <summary>
+    ///     Reads the <c>accent</c> or <c>accentunder</c> attribute of an under- or overscript element: true when it is an
+    ///     ASCII case-insensitive match to <c>true</c> (MathML Core 3.4.2); a value other than <c>true</c> or <c>false</c> is
+    ///     false and reported as <see cref="MathMlDiagnosticCodes.AttributeInvalid"/>.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <param name="name">The attribute name.</param>
+    /// <returns>Whether the script is an accent.</returns>
+    private bool Accent(MathElement element, string name)
+    {
+        if (!element.Attributes.TryGetValue(name, out var attribute))
+        {
+            return false;
+        }
+
+        if (!attribute.Value.Equals("true", StringComparison.OrdinalIgnoreCase) && !attribute.Value.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            _sink.Warn(
+                MathMlDiagnosticCodes.AttributeInvalid,
+                $"'{attribute.Value}' is not a valid value of the attribute '{name}'; it is treated as false",
+                attribute.Location,
+                "use true or false");
+        }
+
+        return StyleResolver.IsTrue(element, name);
+    }
+
+    /// <summary>The context of a script: the postfix form (MathML Core 3.2.4.2), no stretch constraint.</summary>
+    private static OperatorContext ScriptContext => new(OperatorForm.Postfix, null);
 
     /// <summary>
     ///     Gets the user agent rule of a child of <c>mfrac</c> (MathML Core Appendix A): every child gets

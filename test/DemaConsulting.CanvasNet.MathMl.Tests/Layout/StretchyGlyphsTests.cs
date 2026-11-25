@@ -149,6 +149,24 @@ public class StretchyGlyphsTests
     }
 
     /// <summary>
+    ///     Validates the ascent and the descent of a horizontal assembly: the ink of its parts rounded out to whole pixels,
+    ///     negative when the ink is above the baseline (the over brace), as the ink of a glyph.
+    /// </summary>
+    [Fact]
+    public void StretchyGlyphs_Stretch_HorizontalAssembly_HasInkExtents()
+    {
+        // Act: the over brace, whose ink is above the baseline
+        var result = StretchyGlyphs.Stretch(Font, 0x23DE, StretchAxis.Inline, 1000, Size, 1000, Location)!;
+
+        // Assert
+        Assert.Equal(StretchKind.Assembly, result.Kind);
+        Assert.True(result.Descent < 0);
+        Assert.Equal(System.Math.Round(result.Ascent), result.Ascent);
+        Assert.Equal(System.Math.Round(result.Descent), result.Descent);
+        Assert.True(result.Ascent > 0 && result.Ascent + result.Descent > 0);
+    }
+
+    /// <summary>
     ///     Validates that a character without a construction in the math font uses its Unicode-based assembly (B.4): the
     ///     left-right arrow is a left arrow, extenders and a right arrow, joined without overlap.
     /// </summary>

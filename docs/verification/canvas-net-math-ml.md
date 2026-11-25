@@ -14,8 +14,8 @@ This document describes the system-level verification strategy for CanvasNetMath
   `MathMlOpenOptions`, `MathMlRenderOptions`, and `MathMlLimits`, and assert on observable outputs: the description
   properties, the exceptions with their codes, locations, and hints, the sizes, baselines, and pixels of rendered
   surfaces, and the reports delivered to the handlers. The system test classes are `MathMlSystemIntegrationTests`
-  (reading, description, rendering, fractions, radicals, limits, cancellation, determinism, reports, strict mode,
-  offline, notices) and
+  (reading, description, rendering, fractions, radicals, scripts, under- and overscripts, horizontal stretching,
+  limits, cancellation, determinism, reports, strict mode, offline, notices) and
   `MathMlReferenceLayoutTests` (the layout of the original fixtures compared with the reference layouts that headless
   Chrome computes for them).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see *Syntax Subsystem
@@ -122,6 +122,7 @@ line, and two-character operators) match Chrome's boxes.
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`,
 `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller`,
 `MathMlSystemIntegrationTests.CanvasNetMathMl_StretchUnavailable_IsReported`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_Overbrace_StretchesHorizontally`,
 `MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
 
 Asserts the exact pixels of parentheses stretched around an `mspace` of 4 em by 3 em at 32 px: pure black in the middle
@@ -131,7 +132,8 @@ that a summation is taller in display style than inline; that a stretchy `x` bes
 glyph, variants, and an assembly), `stretchy-brackets-braces`, `stretchy-symmetric` (symmetric and non-symmetric
 targets, `stretchy="false"`, an operator without a construction), `largeop-display`, `largeop-inline`, and
 `minsize-maxsize` (lengths and percentages, all children stretchy, embellished operators in `mrow` and `mstyle`)
-match Chrome's boxes.
+match Chrome's boxes. The horizontal stretching is asserted by `CanvasNetMathMl_Render_Overbrace_StretchesHorizontally`
+(see *CanvasNetMathMl-UnderOver*).
 
 ### CanvasNetMathMl-Fractions: Fractions Are Drawn
 
@@ -159,6 +161,40 @@ and that the fixtures `msqrt-basic` (one and several children, operators that in
 (fractions and tall `mspace` bases that select size variants and the glyph assembly), and `mroot-index` (a cube root
 with a narrow index, a wide index, and nested roots in display style) match Chrome's boxes.
 
+### CanvasNetMathMl-Scripts: Scripts Are Drawn
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts at 40 px in a block equation that the ink of the superscript of `x²` starts at the right of its base and above
+its top, that the ink of the subscript of `a₁` starts at the right of its base and below its bottom, and that nothing is
+reported; and that the fixtures `msub-msup` (letter, italic *f*, digit, and row bases), `msubsup-gap` (the gap of both
+scripts with `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop`
+(integrals inline and in display style, whose subscript follows the italic correction of the large variant),
+`mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and prescripts
+with `none`), and `scripts-embellished-fence` (scripts on a fenced row, embellished scripted operators spaced by their
+operators) match Chrome's boxes.
+
+### CanvasNetMathMl-UnderOver: Under- And Overscripts Are Drawn
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_MovableLimits_FollowDisplayStyle`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_Overbrace_StretchesHorizontally`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts at 40 px that the limits of a summation in display style are inked above and below it, the upper limit centered
+on it within 3 pixels; that the limits of the same summation are scripts after it in an inline equation (so the block
+picture is taller and narrower); that an over brace is assembled at least as wide as the expression under it, starting
+within a pixel of its left edge, with ink in more than 90% of its columns; that a caret over two letters keeps its glyph
+silently while the same caret with `stretchy="true"` is reported once as `mathml-stretch-unavailable` at line 4, column
+56; and that the fixtures `munderover-limits` (summation, union, and product limits in display style),
+`movablelimits-inline` (limits moved to the script positions inline, `movablelimits="false"`, a text operator, and a
+letter base), `mover-accents` (stretched combining circumflexes, a tilde, an accent `munderover` with an upper-case
+`TRUE`, an accent underline, and an overscript that is not an accent), `overbrace-underbrace` (braces stretched over and
+under rows, a labeled brace, and a brace base with a label), and `arrow-over` (arrows as bases with labels at the
+stretch stack gaps and as an overscript) match Chrome's boxes, the arrow values and the height of the under brace within
+the documented exceptions.
+
 ### CanvasNetMathMl-ChildCount: Invalid Fractions And Roots
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow`
@@ -173,8 +209,9 @@ root is a row of its three children on its baseline, and that the picture has in
 `MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
 
 Asserts that `mathcolor="red"`, `mathbackground="lime"`, and `mathsize="200%"` give red ink, a lime background, no black
-pixel, and twice the width (within 2 pixels), and that the `mstyle-scriptlevel` fixture and the fraction and radical
-fixtures, whose children are drawn at the script levels of the user agent rules, match Chrome.
+pixel, and twice the width (within 2 pixels), and that the `mstyle-scriptlevel` fixture and the fraction, radical,
+script, and under- and overscript fixtures, whose children are drawn at the script levels of the user agent rules (an
+accent at the size of its base), match Chrome.
 
 ### CanvasNetMathMl-MathFont: The Bundled Math Font And Its Fallback
 

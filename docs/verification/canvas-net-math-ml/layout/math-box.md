@@ -36,8 +36,11 @@ for a glyph without contours, its rectangle for a border).
 
 ##### CanvasNetMathMl-Layout-MathBox-Operators: The Operator Records
 
-**Tests**: `MathBoxTests.MathBox_EmbellishedOperator_DefaultsDoNotStretch`
+**Tests**: `MathBoxTests.MathBox_EmbellishedOperator_DefaultsDoNotStretch`,
+`MathBoxTests.MathBox_OperatorContext_InlineConstraint_IsAStretchConstraint`
 
 Asserts that an embellished operator with only its spacing is infix, Default, block-axis, not stretchy, symmetric,
 large, movable, a fence, or a separator, with a minimum size of zero and no maximum size, and that an empty operator
-context has neither a form nor a constraint while a copy can carry one.
+context has neither a form nor a constraint while a copy can carry one; and that an operator context carries a postfix
+form with an inline stretch size constraint of 120 px, and that both an inline and a block constraint count as a
+stretch constraint.

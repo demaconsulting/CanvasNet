@@ -96,5 +96,24 @@ public class MathBoxTests
         Assert.Equal((0.0, double.PositiveInfinity), (op.MinSize, op.MaxSize));
         Assert.Equal(((OperatorForm?)null, (BlockStretchConstraint?)null), (context.Form, context.Stretch));
         Assert.Equal(new BlockStretchConstraint(3, 4), (context with { Stretch = new BlockStretchConstraint(3, 4) }).Stretch);
+        Assert.Null(context.InlineStretch);
+        Assert.False(context.HasStretch);
+    }
+
+    /// <summary>
+    ///     Validates the inline stretch size constraint of an operator context: it is carried with the form and counts as a
+    ///     stretch constraint, like a block one.
+    /// </summary>
+    [Fact]
+    public void MathBox_OperatorContext_InlineConstraint_IsAStretchConstraint()
+    {
+        // Act
+        var inline = new OperatorContext(OperatorForm.Postfix, null, 120);
+        var block = new OperatorContext(null, new BlockStretchConstraint(1, 2));
+
+        // Assert
+        Assert.Equal((OperatorForm.Postfix, 120.0), (inline.Form, inline.InlineStretch!.Value));
+        Assert.True(inline.HasStretch && block.HasStretch);
+        Assert.Null(block.InlineStretch);
     }
 }

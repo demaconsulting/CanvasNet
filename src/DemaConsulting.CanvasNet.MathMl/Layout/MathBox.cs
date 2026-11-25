@@ -111,8 +111,9 @@ internal sealed record BorderItem(MathRect Rect, double Width, Rgba32 Color) : I
 /// </summary>
 /// <remarks>
 ///     A row reads <see cref="LeadingSpace"/> and <see cref="TrailingSpace"/> for its spacing and <see cref="Stretchy"/>
-///     with <see cref="Axis"/> to decide whether to stretch the operator; the other properties are kept for the layouts
-///     of a later version (<see cref="MovableLimits"/> for under- and overscripts) and for the tests.
+///     with <see cref="Axis"/> to decide whether to stretch the operator; the under- and overscript layouts read
+///     <see cref="LargeOp"/>, <see cref="Stretchy"/> with <see cref="Axis"/> and <see cref="MovableLimits"/>; the other
+///     properties are kept for the tests.
 /// </remarks>
 /// <param name="LeadingSpace">The space before the operator (<c>lspace</c>) in CSS pixels.</param>
 /// <param name="TrailingSpace">The space after the operator (<c>rspace</c>) in CSS pixels.</param>
@@ -166,9 +167,17 @@ internal readonly record struct BlockStretchConstraint(double Ascent, double Des
 /// <summary>
 ///     What the parent of an element tells the layout of an embellished operator: its form and its stretch constraint.
 /// </summary>
-/// <param name="Form">The form inferred from the position of the embellished operator in its row, or null for infix.</param>
+/// <param name="Form">The form inferred from the position of the embellished operator (in its row, or as a script), or null for infix.</param>
 /// <param name="Stretch">The block stretch size constraint, or null when the operator is laid out without one.</param>
-internal readonly record struct OperatorContext(OperatorForm? Form, BlockStretchConstraint? Stretch);
+/// <param name="InlineStretch">
+///     The inline stretch size constraint in CSS pixels (MathML Core 3.4.2.2: the width of the widest child of an
+///     under- or overscript element that does not stretch), or null when the operator is laid out without one.
+/// </param>
+internal readonly record struct OperatorContext(OperatorForm? Form, BlockStretchConstraint? Stretch, double? InlineStretch = null)
+{
+    /// <summary>Gets a value indicating whether the context carries a stretch size constraint along either axis.</summary>
+    public bool HasStretch => Stretch is not null || InlineStretch is not null;
+}
 
 /// <summary>
 ///     A child box placed inside its parent.
@@ -227,7 +236,7 @@ internal sealed class MathBox
     /// <summary>Gets the paint items of the box itself (not of its children).</summary>
     public IReadOnlyList<IPaintItem> Items { get; }
 
-    /// <summary>Gets the italic correction in CSS pixels (MathML Core: of a single slanted glyph, or of the last child of a row).</summary>
+    /// <summary>Gets the italic correction in CSS pixels (MathML Core: of a single slanted glyph, or of the last child of a row; the scripts read it only from a large or stretched operator, as Chrome).</summary>
     public double ItalicCorrection { get; init; }
 
     /// <summary>Gets the top accent attachment in CSS pixels from the left edge, or null when the box has none.</summary>

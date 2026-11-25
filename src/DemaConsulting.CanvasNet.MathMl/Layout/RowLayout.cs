@@ -11,10 +11,11 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 /// <remarks>
 ///     <para>
 ///         <b>Row.</b> As MathML Core 3.3.1.2: the children are placed left to right with their alphabetic baselines
-///         aligned; the ascent and the descent are the maximums of the children's. An embellished operator child gets its
+///         aligned; the ascent and the descent are the maximums of the children's, and at least zero, as Chrome (a row of
+///         a minus sign reaches down to its baseline). An embellished operator child gets its
 ///         leading space before it and its trailing space after it, unless the row is itself an embellished operator (it
 ///         then passes its operator to its parent) and is not <c>math</c>. The italic correction of the last child
-///         becomes the italic correction of the row (for the scripts of a later version), but it is not added between
+///         becomes the italic correction of the row, but it is not added between
 ///         children: MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next upright one, and
 ///         Chrome does not, so CanvasNet lays rows out as Chrome does (a documented difference from the text of MathML
 ///         Core). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
@@ -107,7 +108,7 @@ internal sealed class RowLayout
 
         // The italic correction of a slanted last child (not an operator) is the row's
         var last = children.Count == 0 ? null : children[^1];
-        return new MathBox(offset, children.Count == 0 ? 0 : ascent, children.Count == 0 ? 0 : descent, placed)
+        return new MathBox(offset, Math.Max(0, ascent), Math.Max(0, descent), placed)
         {
             ItalicCorrection = last is { Operator: null } ? last.ItalicCorrection : 0,
             Operator = isMath ? null : embellished,

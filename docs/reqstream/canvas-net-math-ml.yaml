@@ -119,7 +119,8 @@ sections:
       - id: CanvasNetMathMl-Operators
         title: >-
           The library shall space every mo by the operator dictionary of MathML Core for its text and its form (prefix,
-          infix, or postfix, inferred from its position in its row unless the form attribute sets it), and shall apply
+          infix, or postfix, inferred from its position in its row, and postfix for a script, unless the form attribute
+          sets it), and shall apply
           the form, fence, separator, lspace, rspace, stretchy, symmetric, largeop, movablelimits, minsize, and maxsize
           attributes of the mo over the dictionary.
         tags: [system]
@@ -137,13 +138,16 @@ sections:
           The library shall stretch the stretchy operators of a row (fences, bars, vertical arrows, and every mo with
           stretchy="true") vertically to the height of their neighbors, symmetrically about the math axis for symmetric
           operators and within their minsize and maxsize, with the size variants and glyph assemblies of the math font,
-          the Unicode-based glyph assemblies of MathML Core, or a rule for a line character; shall draw large operators
-          larger in display style; and shall report an operator that cannot stretch as mathml-stretch-unavailable.
+          the Unicode-based glyph assemblies of MathML Core, or a rule for a line character; shall stretch the stretchy
+          operators of an under- or overscript element (braces, arrows, and wide accents) horizontally to the width of
+          the widest other child; shall draw large operators larger in display style; and shall report an operator
+          that cannot stretch as mathml-stretch-unavailable (horizontally, only when it has stretchy="true").
         tags: [system]
         justification: |
-          Parentheses, brackets, and bars must enclose tall content, and sums and integrals must be drawn large in
-          displayed equations, as in a browser; an operator that cannot grow must be reported instead of silently
-          drawn too small.
+          Parentheses, brackets, and bars must enclose tall content, braces and arrows must span what they annotate,
+          and sums and integrals must be drawn large in displayed equations, as in a browser; an operator that cannot
+          grow must be reported instead of silently drawn too small, except the accents the bundled font cannot widen,
+          which a browser draws at their size too.
         children:
           - CanvasNetMathMl-Layout-Stretching
           - CanvasNetMathMl-MathMlPainter-Rules
@@ -151,6 +155,7 @@ sections:
           - CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels
           - CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller
           - CanvasNetMathMl_StretchUnavailable_IsReported
+          - CanvasNetMathMl_Render_Overbrace_StretchesHorizontally
           - CanvasNetMathMl_ReferenceLayout_MatchesChrome
 
       - id: CanvasNetMathMl-Fractions
@@ -188,11 +193,51 @@ sections:
           - CanvasNetMathMl_Render_SquareRoot_PaintsSurdAndOverbar
           - CanvasNetMathMl_ReferenceLayout_MatchesChrome
 
+      - id: CanvasNetMathMl-Scripts
+        title: >-
+          The library shall draw msub, msup, msubsup and mmultiscripts as MathML Core lays them out: subscripts and
+          superscripts one script level smaller, shifted by the script constants of the math font (the cramped
+          superscript shift under a fraction bar, a radical, or in a subscript), kept apart by the minimum gap, after
+          their base and followed by the space after a script; and the postscript and prescript pairs of mmultiscripts
+          around their base, with none for a missing script and mprescripts before the prescripts.
+        tags: [system]
+        justification: |
+          Indices, exponents, tensor indices, and the nuclide notation are everyday constructs of written mathematics
+          and science; they must be drawn where a browser draws them.
+        children:
+          - CanvasNetMathMl-Layout-Scripts
+        tests:
+          - CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-UnderOver
+        title: >-
+          The library shall draw munder, mover and munderover as MathML Core lays them out: the scripts centered under
+          and over their base, as limits of a large operator, as accents at the size of their base when accent or
+          accentunder is true, or at the gaps of the math font otherwise; the limits of an operator with movablelimits
+          drawn as scripts outside display style; and the stretchy operators among the children stretched horizontally
+          to the widest other child.
+        tags: [system]
+        justification: |
+          Limits of sums, products, and integrals, accents such as hats and tildes, braces with labels, and labeled
+          arrows are drawn with these elements; inline equations move limits to the script positions as a browser
+          does.
+        children:
+          - CanvasNetMathMl-Layout-UnderOver
+          - CanvasNetMathMl-Layout-Stretching
+        tests:
+          - CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts
+          - CanvasNetMathMl_Render_MovableLimits_FollowDisplayStyle
+          - CanvasNetMathMl_Render_Overbrace_StretchesHorizontally
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
       - id: CanvasNetMathMl-ChildCount
         title: >-
-          The library shall lay out an mfrac or an mroot that does not have exactly two in-flow children as a row of
-          its children, as MathML Core lays out invalid markup, and shall report it as a mathml-child-count warning at
-          its location that does not stop a strict rendering.
+          The library shall lay out an mfrac, mroot, msub, msup, munder or mover that does not have exactly two in-flow
+          children, an msubsup or munderover that does not have exactly three, and an mmultiscripts that is not a base
+          followed by pairs of scripts around at most one mprescripts, as a row of its children, as MathML Core lays
+          out invalid markup, and shall report it as a mathml-child-count warning at its location that does not stop a
+          strict rendering.
         tags: [system]
         justification: |
           Invalid markup must still produce the picture a browser draws, and the author must learn which element is
@@ -208,13 +253,13 @@ sections:
         title: >-
           The library shall apply the displaystyle, scriptlevel, mathsize, mathcolor, mathbackground, and mathvariant
           attributes and the supported subset of the inline style attribute to an element and, where MathML Core
-          inherits them, to its descendants, and shall give the children of fractions and radicals the script levels
-          and math styles of the user agent stylesheet of MathML Core.
+          inherits them, to its descendants, and shall give the children of fractions, radicals, and scripted elements
+          the script levels, math styles, and math shifts of the user agent stylesheet of MathML Core.
         tags: [system]
         justification: |
           Authors and tools color, size, and style parts of equations with these attributes; ignoring them would draw
-          a different equation from the one that was written. The numerator and denominator of an inline fraction and
-          the index of a root are drawn smaller, as in a browser.
+          a different equation from the one that was written. The numerator and denominator of an inline fraction, the
+          index of a root, and the scripts (but not the accents) are drawn smaller, as in a browser.
         children:
           - CanvasNetMathMl-Layout-Style
           - CanvasNetMathMl-Syntax-AttributeValues
@@ -312,8 +357,8 @@ sections:
 
       - id: CanvasNetMathMl-UnsupportedFeatures
         title: >-
-          The library shall lay out every element this version does not draw (the script, under-over, and table
-          elements of MathML Core, and every element outside MathML Core) as a row of its children, and shall report
+          The library shall lay out every element this version does not draw (the table elements of MathML Core, and
+          every element outside MathML Core) as a row of its children, and shall report
           it, an element of another namespace, an attribute without effect, and a style declaration outside the
           supported subset to the caller's handler with a stable mathml-* code and its location, once, in document
           order, on the calling thread.

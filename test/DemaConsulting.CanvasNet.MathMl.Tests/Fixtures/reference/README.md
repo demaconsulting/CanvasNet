@@ -30,6 +30,17 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
 - **Radicals**: `msqrt-basic` (one and several children, with the forms of their operators), `msqrt-tall` (size
   variants and the glyph assembly of the radical symbol), and `mroot-index` (a narrow index, a wide index, and nested
   roots).
+- **Scripts**: `msub-msup` (letter, italic *f*, digit, and row bases), `msubsup-gap` (the gap of both scripts with
+  `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop` (integrals inline
+  and in display style), `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide
+  notation and prescripts with `none`), and `scripts-embellished-fence` (scripts on a fenced row and embellished
+  scripted operators spaced by their operators).
+- **Under- and overscripts**: `munderover-limits` (limits of a summation, a union, and a product in display style),
+  `movablelimits-inline` (limits moved to the script positions inline, `movablelimits="false"`, a text operator, and a
+  letter base), `mover-accents` (combining circumflexes stretched over one and three letters, a tilde, an accent
+  `munderover` written `TRUE`, an accent underline, and an overscript that is not an accent), `overbrace-underbrace`
+  (braces stretched over and under rows, a labeled brace, and a brace base with a label), and `arrow-over` (arrows as
+  bases with labels at the stretch stack gaps, a non-stretchy arrow over a wide label, and an arrow overscript).
 
 ## Behaviors Matched
 
@@ -50,6 +61,15 @@ pin them:
   symbol drawn; an assembled symbol is as wide as its ink (`msqrt-tall`).
 - The bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical symbol,
   the percentage taken at Chrome's 1/64 precision (`mroot-index`).
+- Only the italic correction of an operator drawn with a size variant or an assembly moves a script (`scripts-largeop`;
+  the superscript of an italic *f* starts at its advance, `msub-msup`), and the width of a scripted element is its base
+  and its wider script with SpaceAfterScript, without the italic corrections.
+- An overscript is centered on its base rather than placed by its top accent attachment, and the gaps of an accent and
+  of a script that is neither a limit nor on a stretchy base are measured between the boxes (`mover-accents`).
+- An operator stretched along the inline axis keeps the inline size of its unstretched glyph, its stretched glyph
+  centered on it (`mover-accents`, `overbrace-underbrace`).
+- The ascent and the descent of a row, a scripted element, and an under- and overscript element are at least zero (the
+  brace base of `overbrace-underbrace` reaches down to the baseline).
 
 ## Fixture Notes
 
@@ -65,6 +85,14 @@ pin them:
   test, and `mfrac-fenced` and `mfrac-operators` avoid the letters whose automatic italic Chrome measures on a taller or
   shorter upright letter (see *Known Differences*). The ink width of an assembled radical symbol rounds a pixel narrower
   than Chrome's for the same reason (`msqrt-tall`, within the tolerance).
+- The script fixtures avoid the same pixel: digits and letters with descenders as scripts at 60 px (`j`, `y`, and the
+  `=` sign of a limit), and the `lim` operator in display style (a pixel taller in Chrome), would carry it beyond the
+  tolerance together with Chrome's 1/64 pixel flooring of the MATH constants; `msubsup-gap` uses `mspace` scripts to
+  test the gap.
+- Chrome computes the width of an `mmultiscripts` with both prescripts and postscripts from its postscript pairs only
+  (its box is then wider than its content), so `mmultiscripts-prescripts` uses script pairs of one width.
+- The U+02D9 dot above has no glyph in Noto Sans Math; Chrome draws it with a system font and CanvasNet with the bundled
+  Noto Sans, so `mover-accents` uses the ring above (U+02DA) and the combining low line (U+0332) instead.
 
 ## Fixtures Not Compared With Chrome
 
@@ -74,9 +102,23 @@ pin them:
   tests of `TokenLayout`.
 - **The stretch fallbacks**: Chrome stretches only what the font constructs, so the Unicode-based glyph assemblies of
   MathML Core B.4 and the rule of a line character are verified by the unit tests of `StretchyGlyphs`.
+- **Stretched arrows**: Chrome does not stretch the right and left arrows of Noto Sans Math (their assembly connectors
+  are shorter than MinConnectorOverlap), which CanvasNet assembles; `arrow-over` compares their boxes (the box keeps the
+  inline size of the unstretched arrow in both), and the stretching is verified by the unit tests of `TokenLayout`.
+- **Stretchy operators at the base of a script**: MathML Core makes a scripted element whose base is a stretchy operator
+  an embellished operator that its row stretches; Chrome does not stretch it (it draws the operator at its size,
+  centered on the baseline). `scripts-embellished-fence` uses `stretchy="false"` there, and the stretching is verified
+  by the unit tests of `LayoutEngine`.
+- **The form of an operator at the base of a script**: MathML Core gives it the form of the scripted element in its row;
+  Chrome infers it from the position of the operator inside the scripted element (prefix), so the fixtures use operators
+  without a prefix form there (`=`).
 
 ## Known Differences (Exceptions of the Test)
 
 - **`tokens-mi-italic`, value `1 <mi> height`**, and **`operators-spacing`, value `10 <mi> height`**: Chrome measures
   the ink of an automatic italic `mi` on the untransformed character (the upright `f` has no descender) but draws and
   advances the italic glyph, which descends below the baseline; CanvasNet measures the glyph it draws.
+- **`arrow-over`, values `math height`, `1 <munderover> height`, and `1/1 <mi> y`**, and **`overbrace-underbrace`,
+  value `math height`**: Chrome's hinted bounds of the arrow and of the under brace are a pixel shorter than their
+  outlines rounded out, and Chrome floors the MATH constants to its layout unit (1/64 pixel); together the values
+  differ by just over the tolerance (1.02 pixels).

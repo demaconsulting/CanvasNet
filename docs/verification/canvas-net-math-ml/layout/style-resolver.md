@@ -89,3 +89,16 @@ still follows the rule.
 Asserts that the `math` element has `math-shift: normal`, that a denominator, `msqrt`, and `mroot` get
 `math-shift: compact` while a numerator does not, and that a compact math shift is inherited by a row and by a numerator
 under it.
+
+##### CanvasNetMathMl-Layout-StyleResolver-ScriptRules: The Children Of Scripted Elements
+
+**Tests**: `StyleResolverTests.StyleResolver_ResolveChild_Scripts_AddOneAndCompact`,
+`StyleResolverTests.StyleResolver_ResolveChild_AccentScript_KeepsFontSize`,
+`StyleResolverTests.StyleResolver_ResolveChild_Multiscripts_MathShiftByPosition`
+
+Asserts that under a display-style parent the base of an `msubsup` keeps depth 0, display style, and 100 px while its
+subscript and superscript and the overscript of an `mover` get depth 1, compact style, and 60 px, with
+`math-shift: compact` for the subscript only; that an accent script (`accent="TRUE"` on `mover`, both accents on
+`munderover`) keeps 100 px at depth 1 and the base of an accent `mover` gets `math-shift: compact`, while
+`accent="yes"` and `accent` on `munder` are not accents; and that the children of an `mmultiscripts` with
+`mprescripts` get `math-shift: compact` at positions 2, 4, and 5 (counting from 1) and inherit it elsewhere.

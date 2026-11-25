@@ -46,12 +46,21 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/token-layout.yaml`.
     rule; it is shifted vertically so that its center is the center of the target, and centered horizontally in a box of
     the preferred inline size (the widest construction), as Chrome draws it. A character that cannot stretch keeps its
     glyph, centered on the target as Chrome centers it, and is reported when the glyph is shorter than the target;
+  - with the `stretchy` property, an inline stretch axis, and an inline constraint (`StretchInline`, MathML Core
+    3.4.2.2), gets `StretchyGlyphs.Stretch` along the inline axis for the width of the constraint; a stretched glyph is
+    centered, on its baseline, in a box as wide as the unstretched glyph, as Chrome lays it out (the glyph keeps its box
+    when it already covers the target). A character that cannot stretch horizontally (Noto Sans Math has no construction
+    for `^` or `~`) keeps its glyph, and is reported as `mathml-stretch-unavailable` only when the `mo` has an explicit
+    `stretchy="true"` and its glyph is narrower than the target: Chrome draws such accents at their size, so reporting
+    every hat would be noise;
   - with the `largeop` property in display style (`LargeOperator`), gets `StretchyGlyphs.LargeVariant` for
     `DisplayOperatorMinHeight`, centered on the math axis as Chrome centers it, and keeps its glyph when there is no
     variant;
   - otherwise keeps the `mtext` layout.
 
-  The box is an embellished operator (`EmbellishedOperator` with every resolved property) and is not space-like.
+  The box is an embellished operator (`EmbellishedOperator` with every resolved property) and is not space-like. Its
+  italic correction is that of a size variant or an assembly; an operator drawn with its normal glyph has none, so that
+  the scripts follow it as Chrome places them.
 - `LayoutText(text, style, autoItalic, location)` - transforms the characters (`Transform`), resolves each with the math
   font, and places the glyphs by their advances (no kerning, no glyph substitution): an invisible format character (the
   invisible operators U+2061 to U+2064) takes no space and draws nothing; a white-space character advances by its width;

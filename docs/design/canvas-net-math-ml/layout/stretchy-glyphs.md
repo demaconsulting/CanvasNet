@@ -48,7 +48,8 @@ style. The unit's behavior is specified by the `CanvasNetMathMl-Layout-StretchyG
 - `Assemble` - places the glyphs from the bottom (or the left), each the overlap before the end of the previous one: a
   vertical part with the bottom of its ink on that position, a horizontal part with its origin there. The width of a
   vertical assembly is the largest advance of its parts; the ascent and descent of a horizontal one are the largest of
-  the ink of its parts. The italic correction is the assembly's.
+  the ink of its parts rounded out to whole CSS pixels, as the ink of a glyph (negative for an assembly above the
+  baseline, such as an over brace). The italic correction is the assembly's.
 - `UnicodeAssembly(font, codePoint, axis, fontSize)` - the parts of a B.4 entry: the bottom character, the extender,
   optionally the middle character and the extender again, and the top character, each resolved through the bundled
   fallback, with zero connectors and the ink height (block) or the advance (inline) as its size; null when a part has
@@ -77,5 +78,5 @@ The `MathFont` unit (glyphs, ink, advances, constructions, constants), the `Math
 #### Callers
 
 `TokenLayout` stretches operators along the block axis and finds the large variants; `RadicalLayout` stretches the
-radical symbol along the block axis and reads its preferred inline size; the under-over layout of a later stage will
-stretch along the inline axis.
+radical symbol along the block axis and reads its preferred inline size; `TokenLayout` stretches the operators of the
+under- and overscript elements along the inline axis.
