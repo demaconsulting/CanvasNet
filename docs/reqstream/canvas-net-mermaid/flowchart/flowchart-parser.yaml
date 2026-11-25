@@ -45,13 +45,16 @@ sections:
               - id: CanvasNetMermaid-Flowchart-FlowchartParser-LinearTime
                 title: >-
                   The FlowchartParser unit shall read long lines - hundreds of chained links, of words with an at
-                  sign, and of repeated direction words - with the results of Mermaid's lexer and without matching
-                  work that grows faster than the length of the line.
+                  sign, and of repeated direction words - and long runs of white space - between statements, in the
+                  text of a link, and in a label - with the results of Mermaid's lexer and without matching work that
+                  grows faster than the length of the text.
                 justification: |
                   The text is untrusted; the lexer rules that look ahead in Mermaid must not let one long line cost
-                  quadratic or exponential time.
+                  quadratic or exponential time, and the rules that start with white space must not scan a run of
+                  white space again at every character the lexer reads from it.
                 tests:
                   - FlowchartParser_Parse_LongLines_Parse
+                  - FlowchartParser_Tokenize_LongSpaceRun_ScansTheRunOnce
 
               - id: CanvasNetMermaid-Flowchart-FlowchartParser-SyntaxErrors
                 title: >-
