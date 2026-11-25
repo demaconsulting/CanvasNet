@@ -5,8 +5,9 @@
 - **project-tagline**: `Canvas rendering library for .NET`
 - **description**: CanvasNet is a family of .NET libraries and a command-line tool built around a span-based 32-bit
   RGBA canvas: image codecs (PNG, JPEG, JPEG 2000, TIFF, BMP, GIF), TrueType text, and vector drawing in the core,
-  with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
-  Mermaid and PlantUML diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
+  with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts,
+  Mermaid and PlantUML diagrams, and MathML equations onto it, a viewer that loads any of them, and the `canvasnet`
+  tool that drives them all.
 - **languages**: `C#`
 - **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0),
   System.Numerics.Tensors

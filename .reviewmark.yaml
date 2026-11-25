@@ -6071,6 +6071,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlSystemIntegrationTests.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlReferenceLayoutTests.cs"  # reference layout tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlHardeningTests.cs"  # hardening tests (limits, fuzzer)
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlGalleryTests.cs"  # documentation gallery tests
+      - "docs/user_guide/examples/mathml-*.mml"                       # user guide gallery equations
+      - "docs/images/mathml/*.mml"                                    # README gallery equations
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Fixtures/**"  # original fixtures and reference goldens
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/DemaConsulting.CanvasNet.MathMl.Tests.csproj"  # test project

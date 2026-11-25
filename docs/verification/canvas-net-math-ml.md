@@ -19,7 +19,8 @@ This document describes the system-level verification strategy for CanvasNetMath
   `MathMlReferenceLayoutTests` (the layout of the original fixtures compared with the reference layouts that headless
   Chrome computes for them, and the MathML 3 table attributes compared with headless Firefox), and
   `MathMlHardeningTests` (table, span, stretch, nesting, and length limits with deterministic work measures, and a
-  seeded mutation fuzzer).
+  seeded mutation fuzzer), and `MathMlGalleryTests` (the equations of the user guide and README galleries, rendered in
+  strict mode).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see *Syntax Subsystem
   Verification Design* and *Layout Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -45,8 +46,8 @@ time, and no test reads a clock.
   net11.0
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Files**: temporary files written and deleted by the tests, the fixtures and reference layouts of
-  `Fixtures/reference/` and `Fixtures/reference-firefox/`, and the third-party notices copied to the test output; no
-  network, no browser
+  `Fixtures/reference/` and `Fixtures/reference-firefox/`, the gallery equations, and the third-party notices copied to
+  the test output; no network, no browser
 - **Mocking**: None
 - **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and`
   `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`carry`[Trait("Category", "Platform")]` and are the
@@ -273,12 +274,22 @@ laid out with the metrics of Noto Sans Math, match Chrome.
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Measure_MatchesRenderAndReportsBaseline`,
 `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_FitsExactSize`,
 `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize`,
-`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels`
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels`,
+`MathMlGalleryTests.CanvasNetMathMl_Gallery_RendersStrictWithoutWarnings`,
+`MathMlGalleryTests.CanvasNetMathMl_Gallery_ShowsTheMajorConstructs`
 
 Asserts that the measured size equals the rendered size at scale 1.5 and that the digits are inked just above the
 baseline row and not below it; that a 300 by 200 render keeps a white margin above and below the centered equation with
 ink near both sides, and that a zero width is refused; and the exact pixels (a transparent corner, the blue background,
 the red border, the black operator) at positions derived from the layout.
+
+The gallery tests render every equation of the documentation galleries (the user guide gallery
+`docs/user_guide/examples/mathml-*.mml` and the README gallery `docs/images/mathml/*.mml`, copied next to the test
+assembly) in strict mode, and assert for each that no warning and no unsupported feature is reported, that the measured
+size equals the rendered size, and that more than 2% of the pixels are inked. They also assert that the user guide
+gallery holds at least 12 equations and the README gallery 6, that every equation is a block equation with a text
+alternative, and that the user guide gallery together uses `mfrac`, `msqrt`, `mroot`, `msubsup`, `munderover`,
+`mover`, `mtable`, and `mmultiscripts`, so the published equations can never use a construct that is only reported.
 
 ### CanvasNetMathMl-Limits: Untrusted Input Is Bounded
 

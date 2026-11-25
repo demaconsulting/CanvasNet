@@ -1,0 +1,30 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="phi equals 1 plus 1 over 1 plus 1 over 1 plus and so on, which equals 1 plus the square root of 5, over 2">
+  <mi>&phi;</mi>
+  <mo>=</mo>
+  <mn>1</mn>
+  <mo>+</mo>
+  <mfrac>
+    <mn>1</mn>
+    <mrow>
+      <mn>1</mn>
+      <mo>+</mo>
+      <mfrac displaystyle="true">
+        <mn>1</mn>
+        <mrow>
+          <mn>1</mn>
+          <mo>+</mo>
+          <mfrac displaystyle="true">
+            <mn>1</mn>
+            <mrow><mn>1</mn><mo>+</mo><mi>&ctdot;</mi></mrow>
+          </mfrac>
+        </mrow>
+      </mfrac>
+    </mrow>
+  </mfrac>
+  <mo>=</mo>
+  <mfrac>
+    <mrow><mn>1</mn><mo>+</mo><msqrt><mn>5</mn></msqrt></mrow>
+    <mn>2</mn>
+  </mfrac>
+</math>

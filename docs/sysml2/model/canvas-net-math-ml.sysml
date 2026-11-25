@@ -12,7 +12,8 @@ package CanvasNetMathMl {
             testFiles = (
                 "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlSystemIntegrationTests.cs",
                 "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlReferenceLayoutTests.cs",
-                "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlHardeningTests.cs"
+                "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlHardeningTests.cs",
+                "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlGalleryTests.cs"
             );
             designFiles = ("docs/design/canvas-net-math-ml.md");
             verificationFiles = ("docs/verification/canvas-net-math-ml.md");

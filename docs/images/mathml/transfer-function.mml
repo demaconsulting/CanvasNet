@@ -1,0 +1,28 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="H of s equals Y of s over U of s equals omega n squared over s squared plus 2 zeta omega n s plus omega n squared">
+  <mi>H</mi>
+  <mo>&ApplyFunction;</mo>
+  <mrow><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+  <mo>=</mo>
+  <mfrac>
+    <mrow><mi>Y</mi><mo>&ApplyFunction;</mo><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+    <mrow><mi>U</mi><mo>&ApplyFunction;</mo><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+  </mfrac>
+  <mo>=</mo>
+  <mfrac>
+    <msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup>
+    <mrow>
+      <msup><mi>s</mi><mn>2</mn></msup>
+      <mo>+</mo>
+      <mn>2</mn>
+      <mo>&InvisibleTimes;</mo>
+      <mi>&zeta;</mi>
+      <mo>&InvisibleTimes;</mo>
+      <msub><mi>&omega;</mi><mi>n</mi></msub>
+      <mo>&InvisibleTimes;</mo>
+      <mi>s</mi>
+      <mo>+</mo>
+      <msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup>
+    </mrow>
+  </mfrac>
+</math>

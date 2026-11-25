@@ -1,0 +1,35 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The integral over the real line of the normal density with mean mu and standard deviation sigma is 1">
+  <msubsup>
+    <mo>&int;</mo>
+    <mrow><mo>&minus;</mo><mi>&infin;</mi></mrow>
+    <mi>&infin;</mi>
+  </msubsup>
+  <mfrac>
+    <mn>1</mn>
+    <mrow>
+      <mi>&sigma;</mi>
+      <mo>&InvisibleTimes;</mo>
+      <msqrt><mn>2</mn><mo>&InvisibleTimes;</mo><mi>&pi;</mi></msqrt>
+    </mrow>
+  </mfrac>
+  <mo>&InvisibleTimes;</mo>
+  <msup>
+    <mi mathvariant="normal">e</mi>
+    <mrow>
+      <mo>&minus;</mo>
+      <mfrac>
+        <msup>
+          <mrow><mo stretchy="false">(</mo><mi>x</mi><mo>&minus;</mo><mi>&mu;</mi><mo stretchy="false">)</mo></mrow>
+          <mn>2</mn>
+        </msup>
+        <mrow><mn>2</mn><mo>&InvisibleTimes;</mo><msup><mi>&sigma;</mi><mn>2</mn></msup></mrow>
+      </mfrac>
+    </mrow>
+  </msup>
+  <mspace width="0.1667em"/>
+  <mi mathvariant="normal">d</mi>
+  <mi>x</mi>
+  <mo>=</mo>
+  <mn>1</mn>
+</math>

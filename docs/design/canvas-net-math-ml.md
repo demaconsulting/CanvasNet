@@ -242,7 +242,11 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   it.
 - **Form inference** - the forms of the operators of a row are inferred before the row is laid out, from the tree;
   an element hidden by a `display: none` declaration below a child of the row is not seen when the space-like children
-  are counted.
+  are counted. The same prediction still counts a child that is itself hidden by `display: none` when it checks whether
+  a fraction, a root, or a scripted element has the children MathML Core requires (which decides whether the element
+  is an embellished operator or space-like), while the layout of the element and its `mathml-child-count` report leave
+  the hidden child out; an operator beside such an element may therefore take another form than in a browser. This
+  rare case is deferred: fixing it needs a second, non-reporting style resolution in the prediction.
 - **Style** - only the inline `style` attribute styles an equation (there are no style sheets), and only its
   supported subset; `dir="rtl"` is reported and the equation is laid out left to right.
 - **Fractions** - the legacy `bevelled`, `numalign`, and `denomalign` attributes of MathML 3 are reported as
@@ -255,7 +259,12 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   symbol while the base follows the symbol drawn; the inline size of an assembled symbol is its ink width rounded out
   to whole pixels (Chrome measures the ink of an assembly and its glyph bounds are pixel-snapped, which may differ by a
   pixel); the bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical
-  symbol taken at Chrome's 1/64 precision, and the descent of a root uses Chrome's formula.
+  symbol taken at Chrome's 1/64 precision (MathML Core takes the percentage of the block size of the square root B),
+  and the descent of a root uses Chrome's formula. With D(B) the line-descent of B, R the raise of the index, and
+  A(I) and D(I) the line-ascent and line-descent of the index, MathML Core 3.3.3.3 gives the descent
+  max(D(B), D(B) − R + A(I)), while Chrome and CanvasNet use max(D(B), D(B) − R + A(I) + D(I)): the two agree whenever
+  the raise is at least the height of the index (as it is for an ordinary index), and for a tall index the Chrome
+  formula adds the depth of the index, so the picture has empty space below the root.
 - **Scripts** - as Chrome lays them out, only the italic correction of an operator drawn with a size variant or an
   assembly moves a script (the italic correction of a token glyph such as an italic *f*, which MathML Core 3.2.1.1
   defines, does not), and the width of a scripted element is that of its base and its wider script with
@@ -318,4 +327,9 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   their children, the `mathml-child-count` report, tables (`mtable`, `mtr`, `mtd` with spans and the D2 attributes,
   with the `MaxTableCells` limit and the Firefox reference layouts), the image source of `.mml` files
   (`MathMlImageSource`), and the hardening tests with a seeded fuzzer. Every element of MathML Core is drawn.
-- **Stage C** - the Viewer, the `canvasnet` tool, the Pandoc filter, and the user guide open `.mml` files.
+- **Stage C, done** - the Viewer opens, probes, renders, and composes `.mml` files (the `equation` kind and the
+  `#display=` fragment) with help cards that teach how to write good equations; the `canvasnet` tool reports the facts
+  of an equation, draws it at its natural size, and checks it in its self-validation; the Pandoc filter draws `.mml`
+  pictures and `mathml` code blocks at their natural width; and the README gallery, the user guide gallery, and their
+  strict-mode tests (`MathMlGalleryTests`) show the major constructs. A LaTeX front end is planned separately (issue
+  #198).

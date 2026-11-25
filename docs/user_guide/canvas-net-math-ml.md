@@ -635,5 +635,93 @@ figure, like the one below, which this guide draws as it is built:
 </math>
 ```
 
+An equation file is linked like any other picture. The quadratic formula of Example 78 is the file
+`examples/mathml-quadratic.mml` of this guide, and `![The roots of a quadratic](examples/mathml-quadratic.mml)` draws
+it, also at its natural width:
+
+![The roots of a quadratic](examples/mathml-quadratic.mml)
+
 A `theme` attribute is refused (an equation has none), and `size`, `scale`, `width`, and `height` work as for any other
 picture of the filter.
+
+### Example 82: The MathML Gallery
+
+The gallery is a set of 16 equations from algebra, analysis, statistics, physics, and control engineering (the quadratic
+formula of Example 81 is one of them) that together use the major constructs of the package: fractions, square roots and
+roots with an index, scripts and prescripts, sums, products, and integrals with their limits, stretchy fences, matrices,
+cases, aligned derivations, accents, braces, and units. Every equation is **original to this repository**, lies in
+`docs/user_guide/examples` as `mathml-*.mml`, follows the advice of *Writing Good-Looking Equations*, has a text
+alternative, and is drawn below by the Pandoc filter at its natural width, so the pictures are always those of the
+version of the library that built this guide. A test (`MathMlGalleryTests`) renders every file with
+`ThrowOnUnsupportedFeature = true` and fails on any warning, so an equation of the gallery cannot use a construct that
+is only reported. The same files can be drawn with the tool, for example
+`canvasnet render docs/user_guide/examples/mathml-maxwell.mml --strict --scale 3 -o maxwell.png`.
+
+*Fractions and roots.* The golden ratio as a continued fraction (`mfrac` with `displaystyle="true"` in the nested
+levels) and in closed form with `msqrt`:
+
+![The golden ratio](examples/mathml-golden-ratio.mml)
+
+*A root with an index and a product.* `mroot` with the index n, a product with `munderover`, and a stretchy fence with a
+superscript:
+
+![The geometric mean](examples/mathml-geometric-mean.mml)
+
+*A sum with limits.* `munderover` with an infinite upper limit, a fraction, and a condition in `mtext`:
+
+![The geometric series](examples/mathml-geometric-series.mml)
+
+*An integral with limits.* `msubsup` on the integral sign, a fraction with a square root, and an exponent that holds a
+fraction:
+
+![The normal distribution is normalized](examples/mathml-normal-distribution.mml)
+
+*A series with function names.* `cos` and `sin` with `&ApplyFunction;` and a thin space before a fraction argument,
+inside fences that stretch around the fractions:
+
+![A Fourier series](examples/mathml-fourier-series.mml)
+
+*An aligned derivation.* A table with `columnalign="right left"` and `columnspacing="0"`, aligned at the equals signs,
+with tight fences (`stretchy="false"`) around the short arguments:
+
+![Expanding a square](examples/mathml-derivation.mml)
+
+*Cases.* A stretchy brace before a table with `columnalign="left left"`, and `mtext` for the conditions:
+
+![The sign function](examples/mathml-cases.mml)
+
+*Matrices.* Three tables inside stretchy parentheses, primes written as operators after their base, and function names:
+
+![A rotation by an angle](examples/mathml-rotation-matrix.mml)
+
+*Tensor indices.* `mmultiscripts` with `none` to stagger the upper and lower indices of the connection coefficients of
+a metric, and partial derivatives with subscripts:
+
+![The connection coefficients of a metric](examples/mathml-tensor.mml)
+
+*Prescripts and accents.* `mmultiscripts` with `mprescripts` for the mass and atomic numbers, a superscript sign, and a
+bar accent over a Greek letter:
+
+![The beta decay of carbon 14](examples/mathml-isotopes.mml)
+
+*Braces and labels.* A sum under a stretchy underbrace (U+23DF) with a text label, and a bar accent for the mean:
+
+![The sample variance](examples/mathml-sample-variance.mml)
+
+*Contour integrals.* Two of Maxwell's equations in integral form, aligned in a table in display style, with bold
+vectors (`mathvariant="bold"`) and upright differentials:
+
+![Gauss's law and Faraday's law](examples/mathml-maxwell.mml)
+
+*A transfer function.* A PID controller with upright subscripts (`mathvariant="normal"`) and tight parentheses:
+
+![A PID controller](examples/mathml-pid-controller.mml)
+
+*A state-space model.* A discrete-time model aligned in a table, with bold matrices and vectors and compound
+subscripts:
+
+![A discrete-time state-space model](examples/mathml-discrete-state-space.mml)
+
+*Units.* Upright units after a thin space, a dot operator, and a unit inside a fence with an exponent:
+
+![Kinetic energy](examples/mathml-kinetic-energy.mml)

@@ -42,7 +42,9 @@ behavior is specified by the `CanvasNetMathMl-Layout-TableLayout-*` requirements
     largest padded descent (cells of one row) and is at least the padded height of its other cells of one row; then each
     cell spanning several rows (shorter spans first) spreads the height it lacks in proportion to the row heights.
   - **Positions** - columns and rows follow each other with their gaps, inside the frame and the frame spacing. The
-    table's ascent is half its height plus `AxisHeight` at its font size, its descent half its height minus it.
+    table's ascent is half its height plus `AxisHeight` at its font size, its descent half its height minus it. A table
+    lower than twice `AxisHeight` (an empty table such as `<mtable><mtr/></mtable>`) therefore has a negative descent,
+    as CSS centering on the axis gives it; this is harmless, and clamping it is deferred.
   - **Boxes** - the `mtable` box (completed by the engine) holds a box per row (as wide as the cells, on the row
     baseline, `Element` the `mtr` or null), which holds a box per cell starting in that row (the whole cell rectangle,
     spans and padding included, on the baseline of its first row, `Element` the `mtd` or null), which holds the content.

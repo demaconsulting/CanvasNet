@@ -1,0 +1,42 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="Gauss's law and Faraday's law in integral form">
+  <mtable columnalign="right left" columnspacing="0" rowspacing="0.8em" displaystyle="true">
+    <mtr>
+      <mtd>
+        <msub><mo>&oint;</mo><mrow><mo>&PartialD;</mo><mi>V</mi></mrow></msub>
+        <mi mathvariant="bold">E</mi>
+        <mo>&sdot;</mo>
+        <mi mathvariant="normal">d</mi>
+        <mi mathvariant="bold">A</mi>
+      </mtd>
+      <mtd>
+        <mo>=</mo>
+        <mfrac><mi>Q</mi><msub><mi>&epsilon;</mi><mn>0</mn></msub></mfrac>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd>
+        <msub><mo>&oint;</mo><mrow><mo>&PartialD;</mo><mi>S</mi></mrow></msub>
+        <mi mathvariant="bold">E</mi>
+        <mo>&sdot;</mo>
+        <mi mathvariant="normal">d</mi>
+        <mi mathvariant="bold">l</mi>
+      </mtd>
+      <mtd>
+        <mo>=</mo>
+        <mrow>
+          <mo>&minus;</mo>
+          <mfrac>
+            <mi mathvariant="normal">d</mi>
+            <mrow><mi mathvariant="normal">d</mi><mi>t</mi></mrow>
+          </mfrac>
+        </mrow>
+        <msub><mo>&int;</mo><mi>S</mi></msub>
+        <mi mathvariant="bold">B</mi>
+        <mo>&sdot;</mo>
+        <mi mathvariant="normal">d</mi>
+        <mi mathvariant="bold">A</mi>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>

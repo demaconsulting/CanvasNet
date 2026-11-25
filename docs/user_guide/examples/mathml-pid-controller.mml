@@ -1,0 +1,22 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The transfer function of a PID controller: C of s equals K p plus K i over s plus K d s">
+  <mi>C</mi>
+  <mo>&ApplyFunction;</mo>
+  <mrow><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+  <mo>=</mo>
+  <mfrac>
+    <mrow><mi>U</mi><mo>&ApplyFunction;</mo><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+    <mrow><mi>E</mi><mo>&ApplyFunction;</mo><mo stretchy="false">(</mo><mi>s</mi><mo stretchy="false">)</mo></mrow>
+  </mfrac>
+  <mo>=</mo>
+  <msub><mi>K</mi><mi mathvariant="normal">p</mi></msub>
+  <mo>+</mo>
+  <mfrac>
+    <msub><mi>K</mi><mi mathvariant="normal">i</mi></msub>
+    <mi>s</mi>
+  </mfrac>
+  <mo>+</mo>
+  <msub><mi>K</mi><mi mathvariant="normal">d</mi></msub>
+  <mo>&InvisibleTimes;</mo>
+  <mi>s</mi>
+</math>

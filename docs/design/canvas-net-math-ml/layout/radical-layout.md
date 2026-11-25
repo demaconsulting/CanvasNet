@@ -38,8 +38,9 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/radical-layout.yaml`.
   `RadicalKernAfterDegree` (not less than minus the width of the index; negative in Noto Sans Math, so the symbol slides
   under the index); the bottom of the index is raised from the bottom of the square root by
   `RadicalDegreeBottomRaisePercent` (at Chrome's 1/64 precision) of the height of the symbol; the ascent grows to the
-  top of the index, and the descent follows Chrome's formula (the larger of the square root's descent and its descent −
-  the raise + the height of the index).
+  top of the index, and the descent follows Chrome's formula: with D(B) the descent of the square root B, R the raise,
+  and A(I) and D(I) the ascent and descent of the index, the descent is max(D(B), D(B) − R + A(I) + D(I)), where
+  MathML Core 3.3.3.3 gives max(D(B), D(B) − R + A(I)); the two differ only for an index taller than the raise.
 
 #### Error Handling
 

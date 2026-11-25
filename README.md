@@ -15,14 +15,14 @@
 ## Overview
 
 **Every format in. Crisp pictures out.** CanvasNet draws SVG, PDF, PowerPoint, Visio, OpenSCAD 3D models, Vega-Lite
-charts, and Mermaid and PlantUML diagrams to pixels in pure .NET, as a library and as the `canvasnet` command-line tool,
-built for people, scripts, and AI agents. The banner above is itself one SVG file that CanvasNet drew from the files it
-shows.
+charts, Mermaid and PlantUML diagrams, and MathML equations to pixels in pure .NET, as a library and as the `canvasnet`
+command-line tool, built for people, scripts, and AI agents. The banner above is itself one SVG file that CanvasNet drew
+from the files it shows.
 
 ### Why CanvasNet
 
-- **One renderer for every format** - no browser, no Node.js, no OpenSCAD, no Java, no native libraries: managed .NET
-  code only.
+- **One renderer for every format** - no browser, no Node.js, no OpenSCAD, no Java, no TeX, no native libraries:
+  managed .NET code only.
 - **Composition** - any file can be a picture in another: an SVG page embeds a Mermaid diagram whose nodes show a 3D
   model and a chart, with fragments (`#page=2`, `#view=front`, `#theme=dark`, `#def.explode=1`) choosing what to draw
   and bindings landing arrows on embedded nodes at any size.
@@ -32,8 +32,8 @@ shows.
   that give the knowledge to an AI from code.
 - **The same pixels everywhere** - bundled fonts, no network access, documented resource limits, and file-access
   policies for documents you do not trust.
-- **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`, and
-  `mermaid` code blocks into pictures when the document is built.
+- **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`,
+  `![Roots](quadratic.mml)`, and `mermaid` and `mathml` code blocks into pictures when the document is built.
 
 ## Quick Start
 
@@ -43,6 +43,7 @@ dotnet tool install --global DemaConsulting.CanvasNet.Tool
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png   # a Mermaid diagram
 canvasnet render part.scad --view iso -o part.png              # an OpenSCAD model
 canvasnet render report.pdf --page 2 --dpi 150 -o page2.png    # a document page
+canvasnet render quadratic.mml --scale 3 -o quadratic.png      # a MathML equation
 canvasnet help topics                                          # everything else, with examples
 ```
 
@@ -79,6 +80,12 @@ from the examples of the user guide, rendered in strict mode with ports of Merma
 *Six of the eight PlantUML diagram types CanvasNet draws (sequence, activity, class, state, use case, and component),
 in PlantUML's default look, rendered in strict mode in pure .NET with no Java, Graphviz, or network.*
 
+![Six equations: the quadratic formula, the binomial theorem with a sum and a binomial coefficient, the Fourier transform with an integral, a transfer function with nested fractions and scripts, Maxwell's equations aligned at the equals signs, and a state-space model with matrices, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/mathml-gallery.png)
+
+*Six equations drawn in strict mode from MathML Core with the bundled Noto Sans Math, laid out as a browser lays them
+out, with no browser, no TeX, and no network; every equation is linked from one SVG page and drawn as vector at four
+times its natural size.*
+
 ![A product sheet for a planetary gearbox drawn by CanvasNet from a single OpenSCAD file. A large view shows the assembled gearbox: an orange sun gear and three blue herringbone planet gears inside a ring gear cut into a gray housing with a rounded flange, screws and engraved lettering. Callouts name the OpenSCAD construct behind each feature: linear_extrude with twist, polygon with a list comprehension, difference, a for loop, minkowski, text and rotate_extrude. A round inset shows the gears meshing from above. Two side panels show the same file as an exploded view (#def.explode=1), with the hull-shaped carrier and the bearing balls labeled, and as a cutaway (#def.cutaway=1), with the cut faces painted red](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/gearbox.png)
 
 *One OpenSCAD file, four views: CanvasNet runs the model with its own OpenSCAD interpreter, CSG engine, and 3D
@@ -93,7 +100,7 @@ Links are read the way Pandoc reads them, relative to the document, under a file
 (by default every local file; confine untrusted documents to chosen folders), and never from the network. A URL fragment
 passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=`, `#azimuth=`, `#elevation=`,
 `#projection=`, and `def.<name>=` (OpenSCAD views, camera angles, projection, and variables), `param.<name>=` (Vega-Lite
-parameters), and `#theme=` (Mermaid); join several with
+parameters), `#theme=` (Mermaid), and `#display=` (`block` or `inline`, MathML equations); join several with
 `&amp;` in XML.
 
 ![How CanvasNet composition works. On the left, an exploded view stacks three layers: the SVG page page.svg on top, the Mermaid diagram flow.mmd it embeds in the middle, and a PlantUML state diagram, an OpenSCAD model, and a Vega-Lite chart that the diagram's nodes embed at the bottom. Dashed lines show where each picture lands one layer up, and a pink line shows an annotation arrow of the page bound to a node of the diagram. Numbered cards show the markup behind each link: an SVG image href with #theme=dark, a cn:x2y2 binding, and Mermaid picture nodes that link release.puml, part.scad#def.explode=1, and chart.vl.json#param.goal=180, plus the same link in Markdown through the Pandoc filter. A curved arrow labeled renders to points to the finished page, and a card lists fragments such as #page=2, #view=front, #theme=dark and #param.goal=180](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition-explained.png)
@@ -144,11 +151,14 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🌱 **PlantUML Diagrams** - Render PlantUML sequence, activity, class, object, state, use case, component, and
   deployment diagrams with PlantUML's default look, local `!include` files, and no Java, Graphviz, or network; other
   PlantUML types are recognized and reported
+- 🧮 **MathML Equations** - Render MathML Core equations (fractions, roots, scripts, sums and integrals with limits,
+  stretchy fences, matrices, aligned derivations, accents, and colors) as a browser lays them out, with the bundled
+  Noto Sans Math font, the full W3C set of named characters, and no browser, TeX, or network
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
-- 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` and
-  `plantuml` code blocks and SVG drawings that link them, which are flattened so WeasyPrint shows them: a thin Lua
-  shim written by `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
+- 📝 **Pandoc Filter** - Draw models, charts, diagrams, equations, and pages in Pandoc documents, including `mermaid`,
+  `plantuml`, and `mathml` code blocks and SVG drawings that link them, which are flattened so WeasyPrint shows them: a
+  thin Lua shim written by `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -162,9 +172,9 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🔐 **File-Access Policies** - `FileReferenceResolver` reads the files a document references like Pandoc does
   (`..`, absolute paths, links), and a `FileAccessPolicy` (`AllowAll`, `UnderRoots`, `NoSymlinks`, combined or your
   own) decides on the real path of the opened file, so a swapped link cannot slip through
-- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid and PlantUML diagrams, other SVG
-  files, document pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the
-  `Viewer` package lists every format, and you can add your own source
+- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid and PlantUML diagrams, MathML
+  equations (`sum.mml#display=inline`), other SVG files, document pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and
+  pictures from the document's own folder; the `Viewer` package lists every format, and you can add your own source
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
@@ -207,6 +217,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Layout` | Shared graph layout (dagre); used by Mermaid and PlantUml, no public API |
 | `DemaConsulting.CanvasNet.Mermaid` | Mermaid diagrams, mindmaps, packets, git graphs |
 | `DemaConsulting.CanvasNet.PlantUml` | PlantUML sequence/activity/class/object/state/use case/component/deployment |
+| `DemaConsulting.CanvasNet.MathMl` | MathML Core equations, laid out as a browser lays them out |
 | `DemaConsulting.CanvasNet.Viewer` | The `canvasnet` operations and the help cards as library calls |
 | `DemaConsulting.CanvasNet.Tool` | The `canvasnet` command-line tool (dotnet tool) |
 
@@ -226,9 +237,9 @@ canvasnet --help
 ```
 
 An SVG drawing can also embed files that sit beside it with `<image href="part.scad" .../>` (a 3D model, a Vega-Lite
-chart, a Mermaid diagram, another SVG file, a document page, or a picture), so a diagram can show a part and a chart
-beside boxes and arrows; a fragment chooses the page of a document (`report.pdf#page=3`, `deck.pptx#slide=2`; page 1
-without one); run `canvasnet help svg embedding` for the file types and rules.
+chart, a Mermaid diagram, a MathML equation, another SVG file, a document page, or a picture), so a diagram can show a
+part and a chart beside boxes and arrows; a fragment chooses the page of a document (`report.pdf#page=3`,
+`deck.pptx#slide=2`; page 1 without one); run `canvasnet help svg embedding` for the file types and rules.
 
 The built-in help is a tree of short help cards: `canvasnet help mermaid` prints the index of the Mermaid cards,
 `canvasnet help mermaid gantt` one diagram type, and `canvasnet help topics` every card with its summary. Each card
@@ -272,7 +283,8 @@ local file, as Pandoc reads them), `roots`, `no-symlinks`, and `roots,no-symlink
 the modes, the diagnostics of a denied file, and the opt-in of the Pandoc filter.
 
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts (`.vl.json`, `.vl`),
-Mermaid diagrams (`.mmd`, `.mermaid`), and PlantUML diagrams (`.puml`, `.plantuml`, `.pu`), and applies `--crop`,
+Mermaid diagrams (`.mmd`, `.mermaid`), PlantUML diagrams (`.puml`, `.plantuml`, `.pu`), and MathML equations (`.mml`),
+and applies `--crop`,
 `--resize`, `--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo
 operations `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`,
 `--deskew`, `--trim`, and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are the same pipeline with one
@@ -335,6 +347,16 @@ component, and deployment diagrams; every other type is recognized, reported as 
 drawn as an empty picture. `!include` files are read from beside the diagram under `--file-access` and never from the
 network, themes are not supported (`!theme` is reported and the default look is drawn), and invalid text is the error
 `plantuml-error` with the file, line, column, and a hint (`canvasnet help plantuml`).
+
+A MathML equation is read from a file named `.mml` (one `<math>` element of MathML Core, saved as UTF-8) and is drawn
+at its natural size, the size a browser shows it at with a 16 pixel font; `--scale` lays it out again at that multiple
+so it stays sharp, for example `canvasnet render quadratic.mml --scale 3 -o quadratic.png`. It is an `equation` in the
+`kind` column of `canvasnet formats`, and `canvasnet info quadratic.mml` reports its size, baseline, display, number of
+elements, text alternative, and annotations without drawing it. `quadratic.mml#display=inline` (or `block`) chooses the
+display for one input or link. An element, attribute, or style outside MathML Core (`mfenced`, `menclose`, a
+`linebreak` attribute, ...) is reported in `diagnostics` with a stable `mathml-*` code and drawn as a row of its
+children, and invalid text is the error `mathml-error` with the file, line, column, and a hint
+(`canvasnet help mathml` has a card for each authoring task, with worked examples).
 
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
@@ -400,11 +422,15 @@ canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 #     (local !include files only, never the network)
 canvasnet info seq.puml --json
 canvasnet render seq.puml --scale 2 -o seq.png --json
+
+# 4g. Draw a MathML equation sharply for print (canvasnet help mathml pitfalls lists the markup that looks wrong)
+canvasnet info quadratic.mml --json
+canvasnet render quadratic.mml --scale 3 --strict -o quadratic.png --json
 ```
 
 Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
 `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `vega-lite-error`, `mermaid-error`,
-`plantuml-error`, `size-mismatch`, `threshold-failed`, and so on); read `diagnostics` even on
+`plantuml-error`, `mathml-error`, `size-mismatch`, `threshold-failed`, and so on); read `diagnostics` even on
 success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
 defaults, and recipes see the [User Guide][link-releases].
 
@@ -674,7 +700,8 @@ using var diagram = SvgCodec.Load(
     "diagrams/overview.svg", 800, 480, null, new SvgLoadOptions { ImageResolver = resolver });
 PngCodec.Save(diagram, "overview.png");
 
-// Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, or a raster)
+// Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML, MathML,
+// or a raster)
 using var image = CanvasNetViewer.Render("diagrams/part.scad", new ViewerRenderOptions { Width = 512 });
 PngCodec.Save(image.Surface, "part.png");
 
@@ -687,7 +714,8 @@ See the Viewer chapter of the User Guide for adding your own image source (a new
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
-Vega-Lite chart rendering, Mermaid and PlantUML diagram rendering, and SVG and JPEG 2000 decoding.
+Vega-Lite chart rendering, Mermaid and PlantUML diagram rendering, MathML equation rendering, and SVG and JPEG 2000
+decoding.
 
 ## Architecture
 
@@ -695,7 +723,7 @@ CanvasNet is a family of packages: a core canvas with image codecs, drawing, and
 reads, three shared building blocks (charts, 3D rendering, and graph layout), a Viewer that opens any of them, and the
 `canvasnet` tool that bundles them all. The diagram shows which package builds on which.
 
-![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package (the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the nine format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML); PowerPoint also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, Mermaid and PlantUML use the Layout package (the shared graph layout, which needs only .NET), and MathML uses the core alone; the format packages build on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
 
 ## Building
 
@@ -788,6 +816,17 @@ and no Java runs. The license text ships in the packages under `licenses/`; see
 [the third-party notice][link-plantuml-third-party] (`src/DemaConsulting.CanvasNet.PlantUml/third-party`) for the
 record of what was ported from where. The package is not affiliated with or endorsed by the PlantUML project.
 
+The `DemaConsulting.CanvasNet.MathMl` package (and the `canvasnet` tool, which bundles it) implements MathML Core from
+the text of the specification; its code is original, and five generated data tables are derived, with attribution,
+from W3C and Unicode data: the 2125 named character references of the W3C *XML Entity Definitions for Characters*, and
+the italic mapping, the operator dictionary, and the glyph assemblies of *MathML Core* (W3C Software and Document
+License, Copyright (c) World Wide Web Consortium), and the `mathvariant` mappings from the Unicode Character Database
+(Unicode License v3, Copyright (c) 1991-2026 Unicode, Inc.). Equations are drawn with the Noto Sans Math font that the
+core package bundles (SIL Open Font License, Version 1.1, see above). The license texts ship in the packages under
+`licenses/`; see [the third-party notice][link-mathml-third-party] (`src/DemaConsulting.CanvasNet.MathMl/third-party`)
+for the sources, their versions, and the generator. The package is not affiliated with, endorsed by, or promoted by the
+W3C or Unicode, Inc.
+
 ## Support
 
 - [Report a bug or request a feature][link-issues]
@@ -821,5 +860,6 @@ record of what was ported from where. The package is not affiliated with or endo
 [link-mermaid-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Mermaid/third-party
 [link-layout-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Layout/third-party
 [link-plantuml-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.PlantUml/third-party
+[link-mathml-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.MathMl/third-party
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues
 [link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

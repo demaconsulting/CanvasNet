@@ -1,0 +1,58 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The state-space model of a second-order system: x dot equals A x plus B u, y equals C x">
+  <mtable columnalign="right left" columnspacing="0" rowspacing="0.8em">
+    <mtr>
+      <mtd>
+        <mover accent="true"><mi mathvariant="bold">x</mi><mo>&#x2D9;</mo></mover>
+      </mtd>
+      <mtd>
+        <mo>=</mo>
+        <mrow>
+          <mo>[</mo>
+          <mtable>
+            <mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr>
+            <mtr>
+              <mtd><mrow><mo>&minus;</mo><msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup></mrow></mtd>
+              <mtd>
+                <mrow>
+                  <mo>&minus;</mo>
+                  <mn>2</mn>
+                  <mo>&InvisibleTimes;</mo>
+                  <mi>&zeta;</mi>
+                  <mo>&InvisibleTimes;</mo>
+                  <msub><mi>&omega;</mi><mi>n</mi></msub>
+                </mrow>
+              </mtd>
+            </mtr>
+          </mtable>
+          <mo>]</mo>
+        </mrow>
+        <mi mathvariant="bold">x</mi>
+        <mo>+</mo>
+        <mrow>
+          <mo>[</mo>
+          <mtable>
+            <mtr><mtd><mn>0</mn></mtd></mtr>
+            <mtr><mtd><msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup></mtd></mtr>
+          </mtable>
+          <mo>]</mo>
+        </mrow>
+        <mi>u</mi>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd><mi>y</mi></mtd>
+      <mtd>
+        <mo>=</mo>
+        <mrow>
+          <mo>[</mo>
+          <mtable>
+            <mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr>
+          </mtable>
+          <mo>]</mo>
+        </mrow>
+        <mi mathvariant="bold">x</mi>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>

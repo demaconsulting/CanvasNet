@@ -358,6 +358,8 @@ sections:
           - CanvasNetMathMl_Render_FitsExactSize
           - CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize
           - CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels
+          - CanvasNetMathMl_Gallery_RendersStrictWithoutWarnings
+          - CanvasNetMathMl_Gallery_ShowsTheMajorConstructs
 
       - id: CanvasNetMathMl-Limits
         title: >-

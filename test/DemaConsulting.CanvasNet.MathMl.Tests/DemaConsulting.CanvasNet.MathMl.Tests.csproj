@@ -75,6 +75,17 @@
     </None>
   </ItemGroup>
 
+  <!-- The documentation galleries (original equations of the user guide and of the README), copied so that a test renders
+       each of them -->
+  <ItemGroup>
+    <None Include="..\..\docs\user_guide\examples\mathml-*.mml" Link="Gallery\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\docs\images\mathml\*.mml" Link="ReadmeGallery\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- The third-party notices that ship with the package, copied so that a test can check that they exist -->
   <ItemGroup>
     <None Include="..\..\src\DemaConsulting.CanvasNet.MathMl\third-party\LICENSE-*.txt" Link="Notices\%(Filename)%(Extension)">

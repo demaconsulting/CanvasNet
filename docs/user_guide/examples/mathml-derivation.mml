@@ -1,0 +1,43 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="a plus b squared, expanded step by step to a squared plus 2 a b plus b squared">
+  <mtable columnalign="right left" columnspacing="0" rowspacing="0.5em">
+    <mtr>
+      <mtd>
+        <msup>
+          <mrow><mo stretchy="false">(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo stretchy="false">)</mo></mrow>
+          <mn>2</mn>
+        </msup>
+      </mtd>
+      <mtd>
+        <mo>=</mo>
+        <mrow><mo stretchy="false">(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo stretchy="false">)</mo></mrow>
+        <mo>&InvisibleTimes;</mo>
+        <mrow><mo stretchy="false">(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo stretchy="false">)</mo></mrow>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd></mtd>
+      <mtd>
+        <mo>=</mo>
+        <msup><mi>a</mi><mn>2</mn></msup>
+        <mo>+</mo>
+        <mi>a</mi><mo>&InvisibleTimes;</mo><mi>b</mi>
+        <mo>+</mo>
+        <mi>b</mi><mo>&InvisibleTimes;</mo><mi>a</mi>
+        <mo>+</mo>
+        <msup><mi>b</mi><mn>2</mn></msup>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd></mtd>
+      <mtd>
+        <mo>=</mo>
+        <msup><mi>a</mi><mn>2</mn></msup>
+        <mo>+</mo>
+        <mn>2</mn><mo>&InvisibleTimes;</mo><mi>a</mi><mo>&InvisibleTimes;</mo><mi>b</mi>
+        <mo>+</mo>
+        <msup><mi>b</mi><mn>2</mn></msup>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>

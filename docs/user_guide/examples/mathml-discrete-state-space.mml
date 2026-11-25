@@ -1,0 +1,23 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="A discrete-time state-space model: x k plus 1 equals A x k plus B u k, y k equals C x k plus D u k">
+  <mtable columnalign="right left" columnspacing="0" rowspacing="0.5em">
+    <mtr>
+      <mtd><msub><mi mathvariant="bold">x</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub></mtd>
+      <mtd>
+        <mo>=</mo>
+        <mi mathvariant="bold">A</mi><mo>&InvisibleTimes;</mo><msub><mi mathvariant="bold">x</mi><mi>k</mi></msub>
+        <mo>+</mo>
+        <mi mathvariant="bold">B</mi><mo>&InvisibleTimes;</mo><msub><mi mathvariant="bold">u</mi><mi>k</mi></msub>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd><msub><mi mathvariant="bold">y</mi><mi>k</mi></msub></mtd>
+      <mtd>
+        <mo>=</mo>
+        <mi mathvariant="bold">C</mi><mo>&InvisibleTimes;</mo><msub><mi mathvariant="bold">x</mi><mi>k</mi></msub>
+        <mo>+</mo>
+        <mi mathvariant="bold">D</mi><mo>&InvisibleTimes;</mo><msub><mi mathvariant="bold">u</mi><mi>k</mi></msub>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>
