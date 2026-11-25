@@ -30,14 +30,15 @@ repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocum
   `ThrowOnUnsupportedFeature`.
 - `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000), `MaxNestingDepth` (256; 1 to 1,024, which bounds
   the recursion of the layout), `MaxTokenLength` (10,000), `MaxLayoutWork` (10,000,000), `MaxPaintedGlyphs`
-  (1,000,000), and `MaxDiagnostics` (1,000); every value is at least one, validated when set.
+  (1,000,000), `MaxDiagnostics` (1,000), and `MaxAssemblyParts` (1,000, the glyphs of one stretched operator); every
+  value is at least one, validated when set.
 - `MathMlLocation(SourceName, Line, Column)` - one-based, `IsKnown` when the line is not zero, printed as
   `name:line:column`. `MathMlDiagnostic(Code, Message, Location) { Hint }` and
   `MathMlUnsupportedFeature(Feature, Message, Location) { Hint }` - the reports, printed with a known location as a
   prefix. `MathMlSize(Width, Height, Baseline)` - pixels, with the baseline row from the top.
 - `MathMlDiagnosticCodes` - `mathml-syntax-error`, `mathml-limit-exceeded`, `mathml-render-failed`,
   `mathml-element-unsupported`, `mathml-attribute-unsupported`, `mathml-attribute-invalid`, `mathml-css-unsupported`,
-  `mathml-text-missing-glyph`, and `mathml-diagnostics-suppressed`.
+  `mathml-text-missing-glyph`, `mathml-stretch-unavailable`, and `mathml-diagnostics-suppressed`.
 - `MathMlSyntaxException` (a `FormatException`), `MathMlRenderException` (an `InvalidOperationException`), and
   `MathMlUnsupportedFeatureException` (an `IOException`) - each with a code (`Feature` for the last), a `Location`, and
   a `Hint`; the standard constructors use the default code and an unknown location.

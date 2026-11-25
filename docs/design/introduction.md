@@ -423,8 +423,9 @@ software items, specifically:
   `MathMlDiagnosticCodes`, `MathMlSyntaxException`, `MathMlRenderException`, `MathMlUnsupportedFeatureException`, and
   the internal report sink) and `MathMlPainter` (the painter of the laid-out boxes), and the internal subsystems
   `Syntax` (`MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues`) and `Layout` (`LayoutEngine`,
-  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, and `RowLayout`). The token elements and the rows are drawn;
-  every other element is laid out as a row of its children and reported as unsupported — see *CanvasNetMathMl System
+  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `OperatorDictionary`, and `StretchyGlyphs`). The
+  token elements, the rows, the operator dictionary, and stretchy and large operators are drawn; every other element is
+  laid out as a row of its children and reported as unsupported — see *CanvasNetMathMl System
   Design* (`canvas-net-math-ml.md`) for the known differences from browsers and its Phase Plan. `CanvasNetMathMl`
   depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems through
   their public API and, for the `MATH` table reader and the cached bundled font, through internal friend access
@@ -757,12 +758,14 @@ below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A furth
 offline renderer of MathML Core equations: its direct unit `MathMlDocument` (namespace
 `DemaConsulting.CanvasNet.MathMl`) is the public API, its direct unit `MathMlPainter` paints the laid-out boxes, its
 internal `Syntax` subsystem holds the `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues` units,
-and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, and
-`RowLayout` units (each in the sub-namespace and the sub-folder of its name). In the SysML2 model the system is
+and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`,
+`RowLayout`, `OperatorDictionary`, and `StretchyGlyphs` units (each in the sub-namespace and the sub-folder of its
+name). In the SysML2 model the system is
 `CanvasNetMathMlSystem` and its subsystem and unit `part def` names carry the prefix `MathMl` (`MathMlSyntax`,
 `MathMlReader`, `MathMlCharacterReferences`, `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`,
-`MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, and
-`MathMlRowLayout`; the direct units are `MathMlDocument` and `MathMlPainter`), because part def names stay unique across
+`MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`,
+`MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units are `MathMlDocument` and `MathMlPainter`),
+because part def names stay unique across
 the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems,
 through their public API and, for the OpenType `MATH` table reader and the cached bundled font, through internal friend
 access. See the Folder Layout section below and *CanvasNetMathMl System Design* (`canvas-net-math-ml.md`). A further
@@ -1946,7 +1949,11 @@ src/DemaConsulting.CanvasNet.MathMl/
     ├── TokenLayout.cs             — TokenLayout: the token elements
     ├── MathVariants.cs            — TokenLayout: the automatic italic and the mathvariant mappings
     ├── MathVariants.Data.cs       — TokenLayout: the generated italic and mathvariant tables (data)
-    └── RowLayout.cs               — RowLayout: rows, grouping, mpadded, and merror
+    ├── RowLayout.cs               — RowLayout: rows, stretching, grouping, mpadded, and merror
+    ├── OperatorDictionary.cs      — OperatorDictionary: categories, forms, and the stretch axis
+    ├── OperatorDictionary.Data.cs — OperatorDictionary: the generated MathML Core B.1 tables (data)
+    ├── StretchyGlyphs.cs          — StretchyGlyphs: size variants, glyph assemblies, and the rule fallback
+    └── StretchyGlyphs.Fallback.cs — StretchyGlyphs: the generated MathML Core B.4 assemblies (data)
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMathMl` uses the `CanvasNet`

@@ -4,8 +4,8 @@ using DemaConsulting.CanvasNet.MathMl.Layout;
 namespace DemaConsulting.CanvasNet.MathMl.Tests;
 
 /// <summary>
-///     Unit tests for <see cref="MathMlPainter"/>: glyphs, backgrounds, borders, phantoms, cancellation and the glyph
-///     limit, on boxes built directly.
+///     Unit tests for <see cref="MathMlPainter"/>: glyphs, backgrounds, rules, borders, phantoms, cancellation and the
+///     glyph limit, on boxes built directly.
 /// </summary>
 public class MathMlPainterTests
 {
@@ -68,6 +68,24 @@ public class MathMlPainterTests
         // Assert
         Assert.Equal((red, red, red, red), (surface[5, 0], surface[5, 9], surface[0, 5], surface[9, 5]));
         Assert.Equal(0, surface[5, 5].A);
+    }
+
+    /// <summary>
+    ///     Validates that a rule (a stretched line character) fills its rectangle, after the glyphs, and nothing else.
+    /// </summary>
+    [Fact]
+    public void MathMlPainter_Paint_Rule_FillsItsRectangle()
+    {
+        // Arrange: a rule 20 px long and 2 px thick, 5 px above the baseline
+        var box = new MathBox(20, 7, 0, null, [new RuleItem(new MathRect(0, -7, 20, 2), Black)]);
+        using var surface = new Surface(30, 20);
+
+        // Act
+        MathMlPainter.Paint(surface, box, new MathPlacement(1, 5, 15), null, 10, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.All(Enumerable.Range(5, 20), x => Assert.Equal((Black, Black), (surface[x, 8], surface[x, 9])));
+        Assert.Equal((0, 0, 0), (surface[4, 8].A, surface[25, 8].A, surface[10, 10].A));
     }
 
     /// <summary>

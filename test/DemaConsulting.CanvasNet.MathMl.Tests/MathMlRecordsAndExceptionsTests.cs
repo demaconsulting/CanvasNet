@@ -102,7 +102,8 @@ public class MathMlRecordsAndExceptionsTests
         var codes = typeof(MathMlDiagnosticCodes).GetFields().Select(field => (string)field.GetValue(null)!).ToList();
 
         // Assert
-        Assert.Equal(9, codes.Count);
+        Assert.Equal(10, codes.Count);
+        Assert.Contains("mathml-stretch-unavailable", codes);
         Assert.All(codes, code => Assert.StartsWith("mathml-", code, StringComparison.Ordinal));
         Assert.Equal(codes.Count, codes.Distinct(StringComparer.Ordinal).Count());
     }

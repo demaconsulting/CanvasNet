@@ -28,8 +28,8 @@ repository has test methods with these names, so the requirements trace never mi
 The **Chrome reference layouts** are made offline by the developer script `tools/visual-diff/update-mathml-goldens.ps1`
 (headless Chrome through the puppeteer of the repository's pinned mermaid-cli, with the bundled Noto Sans Math font, at
 100 CSS pixels) and committed next to their fixtures as `*.layout.json`; no browser runs at test time. The tolerance
-(1 CSS pixel plus Chrome's layout unit of 1/64 pixel), the Chrome version, the behaviors matched, and the one documented
-exception are recorded in `Fixtures/reference/README.md`.
+(1 CSS pixel plus Chrome's layout unit of 1/64 pixel), the Chrome version, the behaviors matched, and the documented
+exceptions are recorded in `Fixtures/reference/README.md`.
 
 ## Test Environment
 
@@ -39,8 +39,9 @@ exception are recorded in `Fixtures/reference/README.md`.
 - **Files**: temporary files written and deleted by the tests, the fixtures and reference layouts of
   `Fixtures/reference/`, and the third-party notices copied to the test output; no network, no browser
 - **Mocking**: None
-- **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` carries `[Trait("Category", "Platform")]`
-  and is the evidence of the platform requirements on every operating system and runtime
+- **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and`
+  `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`carry`[Trait("Category", "Platform")]` and are the
+  evidence of the platform requirements on every operating system and runtime
 
 ## Acceptance Criteria
 
@@ -104,6 +105,33 @@ fixture paired with a golden.
 Asserts the pixels of a row with a styled group and an `merror` (the background between the tokens, the red border) and
 that the fixtures `row-nested`, `mpadded`, `mphantom`, `mstyle-scriptlevel`, and `merror` match Chrome's boxes.
 
+### CanvasNetMathMl-Operators: Dictionary Spacing
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Operators_SpacingFollowsDictionary`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts at 18 px that an infix plus adds 4 px on each side, a prefix minus nothing, and a comma 3 px after it only
+(measured against the same equations with `lspace="0"` and `rspace="0"`), and that the fixtures `operators-spacing`
+(categories A, B, C, K, M, and Default) and `operators-forms` (prefix, infix, and postfix forms, an explicit form,
+`lspace` and `rspace` with a percentage, a large operator inline, a text operator, a prime, the ForceDefault vertical
+line, and two-character operators) match Chrome's boxes.
+
+### CanvasNetMathMl-StretchyOperators: Stretched And Large Operators
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_StretchUnavailable_IsReported`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts the exact pixels of parentheses stretched around an `mspace` of 4 em by 3 em at 32 px: pure black in the middle
+of the stroke of every extender, ink in every row between the ends of each parenthesis, and no ink just outside them;
+that a summation is taller in display style than inline; that a stretchy `x` beside a tall `mspace` is reported once as
+`mathml-stretch-unavailable` at line 2, column 2, and still drawn; and that the fixtures `stretchy-parens` (base
+glyph, variants, and an assembly), `stretchy-brackets-braces`, `stretchy-symmetric` (symmetric and non-symmetric
+targets, `stretchy="false"`, an operator without a construction), `largeop-display`, `largeop-inline`, and
+`minsize-maxsize` (lengths and percentages, all children stretchy, embellished operators in `mrow` and `mstyle`)
+match Chrome's boxes.
+
 ### CanvasNetMathMl-Style: Style Attributes Apply
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize`,
@@ -136,11 +164,14 @@ the red border, the black operator) at positions derived from the layout.
 ### CanvasNetMathMl-Limits: Untrusted Input Is Bounded
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_OversizedText_IsRefused`,
-`MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow`
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_HugeStretch_IsRefused`
 
 Asserts that a text and a stream over a size limit of 100 throw `InvalidDataException` naming
-`MathMlLimits.MaxTextSize`, and that 10,000 nested rows fail with `mathml-limit-exceeded` naming
-`MathMlLimits.MaxNestingDepth` instead of a stack overflow.
+`MathMlLimits.MaxTextSize`, that 10,000 nested rows fail with `mathml-limit-exceeded` naming
+`MathMlLimits.MaxNestingDepth` instead of a stack overflow, and that a parenthesis beside an `mspace` of 50 em fails
+with `mathml-limit-exceeded` at the operator, naming `MathMlLimits.MaxAssemblyParts`, when the limit is 20 glyphs, and
+renders within the default limits.
 
 ### CanvasNetMathMl-Cancellation: A Canceled Token Stops The Work
 
@@ -182,13 +213,15 @@ that say the links are not followed; a document type declaration (the vehicle of
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ThirdPartyNotices_ArePresent`
 
 Asserts that the W3C and Unicode license texts and the provenance table ship next to the package, that the W3C
-notice names the W3C entity file and Appendix C.1 of MathML Core as its sources, and that the provenance table names
-both license files and states that the package is not affiliated.
+notice names the W3C entity file and Appendices B.1, B.4, and C.1 of MathML Core as its sources, and that the provenance
+table names both license files and states that the package is not affiliated.
 
 ### CanvasNetMathMl-Platform-Windows, Linux, MacOS, Net8, Net9, Net10, Net11: Every Platform And Runtime
 
-**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` (with the `windows@`,
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels` (with the `windows@`,
 `ubuntu@`, `macos@`, `net8.0@`, `net9.0@`, `net10.0@`, and `net11.0@` source filters)
 
-The exact-pixel test reads, lays out, and paints an equation with the bundled math font on every operating system and
-runtime of the CI matrix; its results from each are the evidence of the platform requirement of that platform.
+The exact-pixel tests read, lay out, and paint equations with the bundled math font and its `MATH` table (tokens, rows,
+and parentheses stretched from glyph assemblies) on every operating system and runtime of the CI matrix; their results
+from each are the evidence of the platform requirement of that platform.

@@ -4,7 +4,8 @@
 
 The `MathBox` unit is a data-model unit of the `Layout` subsystem. Its source file is `MathBox.cs`, which defines the
 record struct `MathRect`, the interface `IPaintItem` with the records `GlyphItem`, `RuleItem`, `BackgroundItem`, and
-`BorderItem`, the record `EmbellishedOperator`, the record struct `PlacedBox`, and the class `MathBox`.
+`BorderItem`, the record `EmbellishedOperator`, the record structs `BlockStretchConstraint`, `OperatorContext`, and
+`PlacedBox`, and the class `MathBox`.
 
 #### Purpose
 
@@ -19,11 +20,18 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/math-box.yaml`.
 - `MathRect(X, Y, Width, Height)` with `Right`, `Bottom`, `Union`, and `Offset`.
 - `IPaintItem.Bounds` - what an item paints, relative to its box, or null when it paints nothing.
 - `GlyphItem(Font, Glyph, Size, X, Baseline, Color, Ink)` - a glyph at its pen position, with its ink bounds (no bounds
-  when the ink is empty); `RuleItem(Rect, Color)` - a filled rectangle of the content (for the bars of a later stage);
-  `BackgroundItem(Rect, Color)` - painted before every glyph; `BorderItem(Rect, Width, Color)` - painted after every
-  glyph.
-- `EmbellishedOperator(LeadingSpace, TrailingSpace)` - what a row adds before and after an operator (MathML Core
-  3.2.4.1).
+  when the ink is empty); `RuleItem(Rect, Color)` - a filled rectangle of the content (a stretched line character, and
+  the bars of a later stage); `BackgroundItem(Rect, Color)` - painted before every glyph; `BorderItem(Rect, Width,
+  Color)` - painted after every glyph.
+- `EmbellishedOperator(LeadingSpace, TrailingSpace)` - the properties of an embellished operator (MathML Core 3.2.4.2)
+  resolved by the token layout: what a row adds before and after it, and `CoreText`, `Form`, `Category`, `Stretchy`,
+  `Symmetric`, `LargeOp`, `MovableLimits`, `Fence`, `Separator`, `Axis`, `MinSize`, and `MaxSize` (infinity when there
+  is none). Rows read the spacing and whether to stretch; `MovableLimits` is kept for the under-over layout of a later
+  stage.
+- `BlockStretchConstraint(Ascent, Descent)` - the block stretch size constraint that a row gives its stretchy operators
+  (MathML Core 3.3.1.1).
+- `OperatorContext(Form, Stretch)` - what the parent of an element tells the layout of an embellished operator: the
+  form inferred from its position, and the constraint when it is stretched.
 - `PlacedBox(Box, X, Y)` - a child box at its offset.
 - `MathBox(width, ascent, descent, children, items)` - the inline size, line-ascent, and line-descent; the placed
   children and the box's own paint items; `ItalicCorrection`, `TopAccentAttachment`, `Operator`, `IsSpaceLike`
@@ -43,10 +51,11 @@ N/A - the types hold values computed by the layout units; they perform no parsin
 
 #### Dependencies
 
-The `MathTree` unit of the Syntax subsystem (`MathElement`), the core `Fonts` subsystem (`TrueTypeFont` of a glyph), and
-the core `Canvas` subsystem (`Rgba32`).
+The `MathTree` unit of the Syntax subsystem (`MathElement`), the `OperatorDictionary` unit (`OperatorForm`,
+`OperatorCategory`, `StretchAxis`), the core `Fonts` subsystem (`TrueTypeFont` of a glyph), and the core `Canvas`
+subsystem (`Rgba32`).
 
 #### Callers
 
-`TokenLayout`, `RowLayout`, and `LayoutEngine` build boxes; `MathMlDocument` frames the picture from the content box and
-the ink of the `math` box; `MathMlPainter` paints the items.
+`TokenLayout`, `RowLayout`, and `LayoutEngine` build boxes and pass operator contexts; `MathMlDocument` frames the
+picture from the content box and the ink of the `math` box; `MathMlPainter` paints the items.

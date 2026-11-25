@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
 ///     Unit tests for <see cref="LayoutEngine"/>: the dispatch, the fallback of the elements this version does not draw,
-///     hidden elements, the first-child rule, attribute reports, and the depth, work and cancellation bounds.
+///     hidden elements, the first-child rule, attribute reports, the forms and stretching of embellished operators, and
+///     the depth, work and cancellation bounds.
 /// </summary>
 public class LayoutEngineTests
 {
@@ -130,6 +131,65 @@ public class LayoutEngineTests
         Assert.Contains("MathMlLimits.MaxLayoutWork", work.Message, StringComparison.Ordinal);
         Assert.NotNull(canceled);
         Assert.Equal(7, engine.Work);
+    }
+
+    /// <summary>
+    ///     Validates the form inference of the engine: the first and last of several children that are not space-like are
+    ///     prefix and postfix, the others infix; space-like children do not count; an embellished row passes its own form
+    ///     to its operator; and an explicit form wins.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_OperatorForms_FollowPositionInRow()
+    {
+        // Act
+        var (box, _, _) = Run("<mo>-</mo><mtext> </mtext><mi>x</mi><mo>+</mo><mi>y</mi><mrow><mo>!</mo><mspace width=\"1em\"/></mrow><mo form=\"prefix\">+</mo><mi>z</mi>");
+        var (lone, _, _) = Run("<mo>+</mo>");
+
+        // Assert
+        var forms = Flatten(box).Where(entry => entry.Box.Element?.Name == "mo").Select(entry => entry.Box.Operator!.Form);
+        Assert.Equal([OperatorForm.Prefix, OperatorForm.Infix, OperatorForm.Infix, OperatorForm.Prefix], forms);
+        var row = box.Children.Single(child => child.Box.Element?.Name == "mrow").Box;
+        Assert.Equal(OperatorForm.Infix, row.Operator!.Form);
+        Assert.Equal(OperatorForm.Infix, Assert.Single(lone.Children).Box.Operator!.Form);
+    }
+
+    /// <summary>
+    ///     Validates that an embellished operator inside an <c>mrow</c> takes the form of the <c>mrow</c> in its row and is
+    ///     stretched through it: the core operator grows to the tallest sibling of the <c>mrow</c>.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_EmbellishedInMrow_StretchesCoreOperator()
+    {
+        // Act
+        var (box, _, _) = Run("<mrow><mo>[</mo></mrow><mspace width=\"1em\" height=\"2em\" depth=\"1em\"/><mstyle mathcolor=\"red\"><mo>]</mo></mstyle>");
+
+        // Assert
+        var open = box.Children[0].Box;
+        var close = box.Children[2].Box;
+        Assert.Equal((OperatorForm.Prefix, OperatorForm.Postfix), (open.Operator!.Form, close.Operator!.Form));
+        Assert.True(open.Ascent >= 200 && open.Descent >= 100);
+        Assert.Equal((open.Ascent, open.Descent), (close.Ascent, close.Descent));
+        Assert.Equal(open.Ascent, Assert.Single(open.Children).Box.Ascent);
+    }
+
+    /// <summary>
+    ///     Validates that an operator laid out again to stretch is charged to the work budget again.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_StretchRelayout_IsCharged()
+    {
+        // Arrange
+        var stretchy = Tree(MathMlTestHelpers.Math("<mo>(</mo><mi>x</mi>"));
+        var plain = Tree(MathMlTestHelpers.Math("<mo stretchy=\"false\">(</mo><mi>x</mi>"));
+        var first = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
+        var second = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
+
+        // Act
+        first.Layout(stretchy, RootStyle(stretchy));
+        second.Layout(plain, RootStyle(plain));
+
+        // Assert: the parenthesis (one element, one character) is laid out a second time
+        Assert.Equal(second.Work + 2, first.Work);
     }
 
     /// <summary>

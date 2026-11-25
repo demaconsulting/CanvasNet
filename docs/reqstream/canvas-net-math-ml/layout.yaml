@@ -3,8 +3,9 @@
 #
 # These requirements decompose the CanvasNetMathMl system's layout responsibility into the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk and dispatch of the equation tree (LayoutEngine), the
-# computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), and the layouts of tokens
-# (TokenLayout) and rows (RowLayout). Each requirement here links down to the unit requirements that implement it.
+# computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), the layouts of tokens
+# (TokenLayout) and rows (RowLayout), the operator dictionary (OperatorDictionary), and the stretching of glyphs
+# (StretchyGlyphs). Each requirement here links down to the unit requirements that implement it.
 # See docs/verification/canvas-net-math-ml/layout.md for the test-evidence mapping.
 
 sections:
@@ -15,8 +16,8 @@ sections:
           - id: CanvasNetMathMl-Layout-Tokens
             title: >-
               The Layout subsystem shall lay out the token elements as MathML Core does: the transformed characters
-              drawn with the glyphs of the math font placed by their advances, a box as wide as the advances with the
-              ink ascent and descent, and the spacing of an operator.
+              drawn with the glyphs of the math font placed by their advances, and a box as wide as the advances with
+              the ink ascent and descent.
             justification: |
               Tokens are the leaves of every equation; their boxes decide the size and the spacing of everything else.
             children:
@@ -27,10 +28,54 @@ sections:
               - CanvasNetMathMl-Layout-TokenLayout-InvisibleCharacters
               - CanvasNetMathMl-Layout-TokenLayout-Space
               - CanvasNetMathMl-Layout-TokenLayout-String
-              - CanvasNetMathMl-Layout-TokenLayout-InterimOperatorSpacing
               - CanvasNetMathMl-Layout-MathBox-Model
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+
+          - id: CanvasNetMathMl-Layout-Operators
+            title: >-
+              The Layout subsystem shall space every operator by the operator dictionary of MathML Core for its text and
+              its form, the form being inferred from the position of the embellished operator in its row unless the form
+              attribute sets it, and the attributes of the mo overriding the dictionary.
+            justification: |
+              Operator spacing is what makes an equation read as mathematics; it must match a browser that implements
+              MathML Core.
+            children:
+              - CanvasNetMathMl-Layout-OperatorDictionary-Categories
+              - CanvasNetMathMl-Layout-OperatorDictionary-SpecialTables
+              - CanvasNetMathMl-Layout-OperatorDictionary-Forms
+              - CanvasNetMathMl-Layout-OperatorDictionary-Axis
+              - CanvasNetMathMl-Layout-TokenLayout-OperatorProperties
+              - CanvasNetMathMl-Layout-LayoutEngine-OperatorForms
+              - CanvasNetMathMl-Layout-RowLayout-Row
+            tests:
+              - Layout_TokenRow_MatchesFontMetricsAndSpacing
+
+          - id: CanvasNetMathMl-Layout-Stretching
+            title: >-
+              The Layout subsystem shall stretch the stretchy embellished operators of a row along the block axis to the
+              height of the other children (symmetric about the math axis when asked, within minsize and maxsize) with
+              the size variants and assemblies of the math font, the Unicode-based assemblies, or a rule, shall draw
+              large operators larger in display style, and shall report an operator that cannot stretch.
+            justification: |
+              Fences, bars, and vertical arrows must enclose their content, and sums and integrals must be drawn large
+              in displayed equations, as in a browser.
+            children:
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Variants
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
+              - CanvasNetMathMl-Layout-StretchyGlyphs-UnicodeFallback
+              - CanvasNetMathMl-Layout-StretchyGlyphs-RuleFallback
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Limit
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Failure
+              - CanvasNetMathMl-Layout-TokenLayout-Stretch
+              - CanvasNetMathMl-Layout-TokenLayout-LargeOp
+              - CanvasNetMathMl-Layout-RowLayout-Stretch
+              - CanvasNetMathMl-Layout-LayoutEngine-Stretching
+              - CanvasNetMathMl-Layout-MathFont-Constructions
+              - CanvasNetMathMl-Layout-MathBox-Model
+              - CanvasNetMathMl-Layout-MathBox-Operators
+            tests:
+              - Layout_StretchyFencesAroundTallRow_MatchConstants
 
           - id: CanvasNetMathMl-Layout-Rows
             title: >-

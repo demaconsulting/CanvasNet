@@ -17,7 +17,11 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         becomes the italic correction of the row (for the scripts of a later version), but it is not added between
 ///         children: MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next upright one, and
 ///         Chrome does not, so CanvasNet lays rows out as Chrome does (a documented difference from the text of MathML
-///         Core). Stretchy operators are not stretched in this version.
+///         Core). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
+///         again with a block stretch size constraint (MathML Core 3.3.1.1, <see cref="Stretch"/>): the largest ascent and
+///         descent of the other children, or, when every child stretches, of the operators at their own size. A row that
+///         is itself an embellished operator with a constraint from its parent passes that constraint to its operator
+///         instead (the layout engine decides).
 ///     </para>
 ///     <para>
 ///         <b>Grouping.</b> A grouping element or <c>mpadded</c> whose children are one embellished operator and any
@@ -58,13 +62,22 @@ internal sealed class RowLayout
     }
 
     /// <summary>
-    ///     Lays out a row of children (MathML Core 3.3.1.2).
+    ///     Lays out a row of children (MathML Core 3.3.1.2), stretching its stretchy operators first (3.3.1.1).
     /// </summary>
-    /// <param name="children">The boxes of the in-flow children, in order.</param>
+    /// <param name="children">The boxes of the in-flow children, in order, laid out without a stretch constraint.</param>
     /// <param name="isMath">Whether the row is the inferred row of the <c>math</c> element, which always adds operator spacing.</param>
+    /// <param name="relayout">
+    ///     Lays a child out again with a block stretch size constraint (by its index), or null when the row does not
+    ///     stretch its operators (it passes the constraint of its parent to its embellished operator instead).
+    /// </param>
     /// <returns>The box of the row.</returns>
-    public MathBox LayoutRow(IReadOnlyList<MathBox> children, bool isMath)
+    public MathBox LayoutRow(IReadOnlyList<MathBox> children, bool isMath, Func<int, BlockStretchConstraint, MathBox>? relayout = null)
     {
+        if (relayout is not null)
+        {
+            children = Stretch(children, relayout);
+        }
+
         // The row is an embellished operator when its children are one operator and space-like elements
         var embellished = EmbellishedOperatorOf(children);
         var addSpace = isMath || embellished is null;
@@ -100,6 +113,46 @@ internal sealed class RowLayout
             Operator = isMath ? null : embellished,
             IsSpaceLike = children.All(child => child.IsSpaceLike),
         };
+    }
+
+    /// <summary>
+    ///     Stretches the stretchy operators of a row along the block axis (MathML Core 3.3.1.1): the target is the largest
+    ///     ascent and descent of the other children, or, when every child stretches, of the operators laid out with the
+    ///     empty constraint (0, 0).
+    /// </summary>
+    /// <param name="children">The boxes of the children, laid out without a constraint.</param>
+    /// <param name="relayout">Lays a child out again with a constraint.</param>
+    /// <returns>The boxes with the stretchy operators laid out again.</returns>
+    public static IReadOnlyList<MathBox> Stretch(IReadOnlyList<MathBox> children, Func<int, BlockStretchConstraint, MathBox> relayout)
+    {
+        ArgumentNullException.ThrowIfNull(children);
+        ArgumentNullException.ThrowIfNull(relayout);
+        var toStretch = Enumerable.Range(0, children.Count).Where(i => children[i].Operator is { Stretchy: true, Axis: StretchAxis.Block }).ToList();
+        if (toStretch.Count == 0)
+        {
+            return children;
+        }
+
+        // The children that do not stretch give the target; when there are none, the operators at their own size do
+        var boxes = children.ToArray();
+        var measured = Enumerable.Range(0, boxes.Length).Except(toStretch).ToList();
+        if (measured.Count == 0)
+        {
+            foreach (var i in toStretch)
+            {
+                boxes[i] = relayout(i, new BlockStretchConstraint(0, 0));
+            }
+
+            measured = toStretch;
+        }
+
+        var constraint = new BlockStretchConstraint(measured.Max(i => boxes[i].Ascent), measured.Max(i => boxes[i].Descent));
+        foreach (var i in toStretch)
+        {
+            boxes[i] = relayout(i, constraint);
+        }
+
+        return boxes;
     }
 
     /// <summary>

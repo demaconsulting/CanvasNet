@@ -2,7 +2,8 @@
 
 This document describes the subsystem-level verification strategy for the `Layout` subsystem of CanvasNetMathMl
 (namespace `DemaConsulting.CanvasNet.MathMl.Layout`): the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`,
-`TokenLayout`, and `RowLayout` units working together as the document uses them.
+`TokenLayout`, `RowLayout`, `OperatorDictionary`, and `StretchyGlyphs` units working together as the document uses
+them.
 
 ### Verification Approach
 
@@ -27,13 +28,21 @@ failure.
 
 ### Subsystem-Level Test Scenarios
 
-#### CanvasNetMathMl-Layout-Tokens, Rows, And MathFont: A Row Of Tokens
+#### CanvasNetMathMl-Layout-Tokens, Rows, Operators, And MathFont: A Row Of Tokens
 
 **Tests**: `LayoutTests.Layout_TokenRow_MatchesFontMetricsAndSpacing`
 
-Lays out `x + 1` at 100 px and asserts the width as the advances of the italic x, the plus, and the one plus the Default
-spacing of the operator on both sides, the ascent as the rounded-out ink top of the three glyphs, and the positions of
-the three children.
+Lays out `x + 1` at 100 px and asserts the width as the advances of the italic x, the plus, and the one plus the
+dictionary spacing of the operator (category B, 4/18 em) on both sides, the ascent as the rounded-out ink top of the
+three glyphs, and the positions of the three children.
+
+#### CanvasNetMathMl-Layout-Stretching: Fences Around A Tall Row
+
+**Tests**: `LayoutTests.Layout_StretchyFencesAroundTallRow_MatchConstants`
+
+Lays out parentheses around an `mspace` of 2 em by 1 em at 100 px and asserts that each parenthesis is centered on the
+AxisHeight of the font, covers the larger half of the row on both sides of the axis, is as wide as its preferred inline
+size, and is placed without spacing (categories F and G).
 
 #### CanvasNetMathMl-Layout-Style And MathFont: Script Levels
 

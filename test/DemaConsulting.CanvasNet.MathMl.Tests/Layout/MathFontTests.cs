@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
 ///     Unit tests for <see cref="MathFont"/>: the constants of the bundled Noto Sans Math, their scaling, the glyph
-///     fallback, the ink bounds, the italic correction and the top accent attachment.
+///     fallback, the ink bounds, the italic correction, the top accent attachment and the stretch constructions.
 /// </summary>
 public class MathFontTests
 {
@@ -26,6 +26,40 @@ public class MathFontTests
         Assert.Equal(27.8, font.Constant(MathConstant.AxisHeight, 100), 9);
         Assert.Equal(4.448, font.Constant(MathConstant.AxisHeight, 16), 9);
         Assert.Throws<ArgumentOutOfRangeException>(() => font.RawConstant((MathConstant)99));
+    }
+
+    /// <summary>
+    ///     Validates the constructions of the MATH table scaled to a font size: the vertical variants and assembly of the
+    ///     parenthesis, the horizontal assembly of the right arrow, none for a fallback font or a letter, and the minimum
+    ///     connector overlap and overbar thickness.
+    /// </summary>
+    [Fact]
+    public void MathFont_TryGetConstruction_ScalesVariantsAndParts()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        var (parenFont, paren) = font.Resolve('(');
+        var (arrowFont, arrow) = font.Resolve(0x2192);
+        var (accentedFont, accented) = font.Resolve('\u00E9');
+        var (xFont, x) = font.Resolve('x');
+
+        // Act
+        var hasParen = font.TryGetConstruction(parenFont, paren, StretchAxis.Block, 100, out var vertical);
+        var hasArrow = font.TryGetConstruction(arrowFont, arrow, StretchAxis.Inline, 100, out var horizontal);
+        var hasFallback = font.TryGetConstruction(accentedFont, accented, StretchAxis.Block, 100, out _);
+        var hasLetter = font.TryGetConstruction(xFont, x, StretchAxis.Block, 100, out _);
+
+        // Assert
+        Assert.True(hasParen && hasArrow);
+        Assert.False(hasFallback || hasLetter);
+        Assert.Equal(13, vertical!.Variants.Count);
+        Assert.Equal((paren, 94.2), (vertical.Variants[0].Glyph, Math.Round(vertical.Variants[0].Advance, 9)));
+        Assert.Equal([false, true, false], vertical.Parts!.Select(part => part.IsExtender));
+        Assert.Equal((0.0, 62.7, 106.9), (vertical.Parts![0].StartConnector, Math.Round(vertical.Parts[0].EndConnector, 9), Math.Round(vertical.Parts[0].FullAdvance, 9)));
+        Assert.Empty(horizontal!.Variants);
+        Assert.NotEmpty(horizontal.Parts!);
+        Assert.Equal(10, font.MinConnectorOverlap(100), 9);
+        Assert.True(font.Constant(MathConstant.OverbarRuleThickness, 100) > 0);
     }
 
     /// <summary>

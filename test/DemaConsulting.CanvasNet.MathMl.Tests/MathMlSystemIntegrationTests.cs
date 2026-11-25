@@ -1,5 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.MathMl.Layout;
 
 namespace DemaConsulting.CanvasNet.MathMl.Tests;
 
@@ -196,6 +197,137 @@ public class MathMlSystemIntegrationTests
         var plusX = (int)(originX + mo.X + (mo.Box.Width / 2));
         var plusY = (int)(originY + ((mo.Box.Descent - mo.Box.Ascent) / 2));
         Assert.Equal(new Rgba32(0, 0, 0, 255), surface[plusX, plusY]);
+    }
+
+    /// <summary>
+    ///     Validates the exact pixels of stretched parentheses: the extenders of each assembly are pure black in the middle
+    ///     of their stroke, every row of the parenthesis between its ends is inked (the parts join without gaps), the rows
+    ///     just outside the box are transparent, and a corner is transparent.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Platform")]
+    public void CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels()
+    {
+        // Arrange: the layout gives the positions of the parts in the picture
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<mo>(</mo><mspace width=\"8px\" height=\"4em\" depth=\"3em\"/><mo>)</mo>"));
+        var options = new MathMlRenderOptions { FontSize = 32 };
+        var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
+        var extent = MathMlDocument.PictureExtent(root);
+        var originX = -Math.Floor(extent.X + 1e-6);
+        var originY = -Math.Floor(extent.Y + 1e-6);
+        var parens = MathMlTestHelpers.Flatten(root).Where(entry => entry.Box.Element?.Name == "mo").ToList();
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert: two assemblies of at least a bottom, an extender and a top
+        Assert.Equal(2, parens.Count);
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[surface.Width - 1, 0]);
+        foreach (var (box, x, y) in parens)
+        {
+            var glyphs = box.Items.OfType<GlyphItem>().ToList();
+            Assert.True(glyphs.Count >= 3);
+
+            // The middle of the stroke of every extender is fully inked
+            foreach (var extender in glyphs.Skip(1).SkipLast(1))
+            {
+                var column = (int)Math.Ceiling(originX + x + extender.Ink.X);
+                var row = (int)(originY + y + extender.Ink.Y + (extender.Ink.Height / 2));
+                Assert.Equal(new Rgba32(0, 0, 0, 255), surface[column, row]);
+            }
+
+            // Every row between the ends of the parenthesis has ink in its column range; the rows outside the box have none
+            var left = (int)(originX + x);
+            var right = (int)Math.Ceiling(originX + x + box.Width);
+            var top = (int)Math.Ceiling(originY + y - box.Ascent);
+            var bottom = (int)Math.Floor(originY + y + box.Descent);
+            bool Inked(int row) => Enumerable.Range(left, right - left).Any(column => surface[column, row].A != 0);
+            Assert.All(Enumerable.Range(top + 1, bottom - top - 2), row => Assert.True(Inked(row), $"row {row} has no ink"));
+            Assert.False(top - 2 >= 0 && Inked(top - 2));
+            Assert.False(bottom + 1 < surface.Height && Inked(bottom + 1));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the spacing around operators follows the operator dictionary: an infix plus adds 4/18 em on each
+    ///     side, a prefix minus none, a comma 3/18 em after it only.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Operators_SpacingFollowsDictionary()
+    {
+        // Arrange
+        double Width(string content) =>
+            MathMlDocument.Parse(MathMlTestHelpers.Math(content)).LayoutBox(new MathMlRenderOptions { FontSize = 18 }, TestContext.Current.CancellationToken).Width;
+
+        // Act
+        var plus = Width("<mi>a</mi><mo>+</mo><mi>b</mi>") - Width("<mi>a</mi><mo lspace=\"0\" rspace=\"0\">+</mo><mi>b</mi>");
+        var minus = Width("<mo>-</mo><mi>b</mi>") - Width("<mo lspace=\"0\" rspace=\"0\">-</mo><mi>b</mi>");
+        var comma = Width("<mi>a</mi><mo>,</mo><mi>b</mi>") - Width("<mi>a</mi><mo lspace=\"0\" rspace=\"0\">,</mo><mi>b</mi>");
+
+        // Assert
+        Assert.Equal(8, plus, 9);
+        Assert.Equal(0, minus, 9);
+        Assert.Equal(3, comma, 9);
+    }
+
+    /// <summary>
+    ///     Validates that a large operator is drawn taller in display style than inline.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller()
+    {
+        // Arrange
+        var inline = MathMlDocument.Parse(MathMlTestHelpers.Math("<mo>&#x2211;</mo><mi>k</mi>"));
+        var display = MathMlDocument.Parse(MathMlTestHelpers.Math("<mo>&#x2211;</mo><mi>k</mi>", "display=\"block\""));
+
+        // Act
+        var inlineSize = inline.Measure(cancellationToken: TestContext.Current.CancellationToken);
+        var displaySize = display.Measure(cancellationToken: TestContext.Current.CancellationToken);
+        using var picture = display.Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(displaySize.Height > inlineSize.Height);
+        Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0);
+    }
+
+    /// <summary>
+    ///     Validates that a stretchy operator that nothing can stretch is reported, located, and still drawn.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_StretchUnavailable_IsReported()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("<math>\n<mo stretchy=\"true\">x</mo><mspace width=\"1em\" height=\"3em\"/></math>");
+        var (options, warnings, _) = MathMlTestHelpers.Collecting();
+
+        // Act
+        using var picture = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MathMlDiagnosticCodes.StretchUnavailable, new MathMlLocation(null, 2, 2)), (warning.Code, warning.Location));
+        Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0);
+    }
+
+    /// <summary>
+    ///     Validates that a stretchy operator that would need more glyphs than <see cref="MathMlLimits.MaxAssemblyParts"/>
+    ///     is refused with a located limit error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Limits_HugeStretch_IsRefused()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("<math>\n<mo>(</mo><mspace width=\"1em\" height=\"50em\"/></math>");
+        var options = new MathMlRenderOptions { Limits = new MathMlLimits { MaxAssemblyParts = 20 } };
+
+        // Act
+        var ex = Assert.Throws<MathMlRenderException>(() => document.Measure(options, TestContext.Current.CancellationToken));
+        var size = document.Measure(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 2, 2)), (ex.Code, ex.Location));
+        Assert.Contains("MathMlLimits.MaxAssemblyParts", ex.Message, StringComparison.Ordinal);
+        Assert.True(size.Height > 800);
     }
 
     /// <summary>
@@ -488,6 +620,8 @@ public class MathMlSystemIntegrationTests
         Assert.Contains("W3C SOFTWARE AND DOCUMENT NOTICE AND LICENSE", w3c, StringComparison.Ordinal);
         Assert.Contains("htmlmathml-f.ent", w3c, StringComparison.Ordinal);
         Assert.Contains("Appendix C.1", w3c, StringComparison.Ordinal);
+        Assert.Contains("Appendix B.1", w3c, StringComparison.Ordinal);
+        Assert.Contains("Appendix B.4", w3c, StringComparison.Ordinal);
         Assert.Contains("UNICODE LICENSE V3", unicode, StringComparison.Ordinal);
         Assert.Contains("not affiliated", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-w3c.txt", provenance, StringComparison.Ordinal);

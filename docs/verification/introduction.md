@@ -134,12 +134,14 @@ constituent software items, specifically:
   `ClassModel`, and `ClassRenderer`), and `State` (units `StateParser`, `StateModel`, and `StateRenderer`) — see
   *CanvasNetPlantUml System Verification* (`canvas-net-plant-uml.md`)
 - **CanvasNetMathMl (System)** — A separate software system providing a MathML Core equation renderer that parses MathML
-  text with the full W3C set of named character references, draws the token elements and the rows with the bundled Noto
-  Sans Math font and its OpenType `MATH` table, and lays out every other element as a row with a report, containing two
+  text with the full W3C set of named character references, draws the token elements, the rows, and the operators
+  (spaced by the operator dictionary, stretched, and large) with the bundled Noto Sans Math font and its OpenType `MATH`
+  table, and lays out every other element as a row with a report, containing two
   direct units, `MathMlDocument` (the public API) and `MathMlPainter`, and two internal subsystems: `Syntax` (units
   `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues`) and `Layout` (units `LayoutEngine`,
-  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, and `RowLayout`) — see *CanvasNetMathMl System Verification*
-  (`canvas-net-math-ml.md`)- **CanvasNetViewer (System)** — A separate software system, distributed as the
+  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `OperatorDictionary`, and `StretchyGlyphs`) — see
+  *CanvasNetMathMl System Verification* (`canvas-net-math-ml.md`)
+- **CanvasNetViewer (System)** — A separate software system, distributed as the
   `DemaConsulting.CanvasNet.Viewer` package, that lists the image sources of every format, creates the image resolver
   that lets an SVG document embed them, renders any file as a picture, and is the library form of the `canvasnet` tool,
   containing two direct units, `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException`

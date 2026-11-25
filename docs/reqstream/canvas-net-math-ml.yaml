@@ -115,6 +115,43 @@ sections:
           - CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels
           - CanvasNetMathMl_ReferenceLayout_MatchesChrome
 
+      - id: CanvasNetMathMl-Operators
+        title: >-
+          The library shall space every mo by the operator dictionary of MathML Core for its text and its form (prefix,
+          infix, or postfix, inferred from its position in its row unless the form attribute sets it), and shall apply
+          the form, fence, separator, lspace, rspace, stretchy, symmetric, largeop, movablelimits, minsize, and maxsize
+          attributes of the mo over the dictionary.
+        tags: [system]
+        justification: |
+          The spacing around operators, signs, fences, and separators is what makes an equation read as mathematics;
+          it must be the spacing of a browser that implements MathML Core, and authors must be able to override it.
+        children:
+          - CanvasNetMathMl-Layout-Operators
+        tests:
+          - CanvasNetMathMl_Operators_SpacingFollowsDictionary
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-StretchyOperators
+        title: >-
+          The library shall stretch the stretchy operators of a row (fences, bars, vertical arrows, and every mo with
+          stretchy="true") vertically to the height of their neighbors, symmetrically about the math axis for symmetric
+          operators and within their minsize and maxsize, with the size variants and glyph assemblies of the math font,
+          the Unicode-based glyph assemblies of MathML Core, or a rule for a line character; shall draw large operators
+          larger in display style; and shall report an operator that cannot stretch as mathml-stretch-unavailable.
+        tags: [system]
+        justification: |
+          Parentheses, brackets, and bars must enclose tall content, and sums and integrals must be drawn large in
+          displayed equations, as in a browser; an operator that cannot grow must be reported instead of silently
+          drawn too small.
+        children:
+          - CanvasNetMathMl-Layout-Stretching
+          - CanvasNetMathMl-MathMlPainter-Rules
+        tests:
+          - CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels
+          - CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller
+          - CanvasNetMathMl_StretchUnavailable_IsReported
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
       - id: CanvasNetMathMl-Style
         title: >-
           The library shall apply the displaystyle, scriptlevel, mathsize, mathcolor, mathbackground, and mathvariant
@@ -164,6 +201,7 @@ sections:
           - CanvasNetMathMl-MathMlPainter-Backgrounds
           - CanvasNetMathMl-MathMlPainter-Borders
           - CanvasNetMathMl-MathMlPainter-Phantom
+          - CanvasNetMathMl-MathMlPainter-Rules
         tests:
           - CanvasNetMathMl_Measure_MatchesRenderAndReportsBaseline
           - CanvasNetMathMl_Render_FitsExactSize
@@ -173,9 +211,9 @@ sections:
       - id: CanvasNetMathMl-Limits
         title: >-
           The library shall bound the resources that reading and rendering an untrusted equation can consume, refusing
-          a text longer than the size limit with an InvalidDataException and a structural, layout, or painting limit
-          with a located exception whose code is mathml-limit-exceeded, and shall refuse deeply nested text without
-          exhausting the stack.
+          a text longer than the size limit with an InvalidDataException and a structural, layout, stretching, or
+          painting limit with a located exception whose code is mathml-limit-exceeded, and shall refuse deeply nested
+          text without exhausting the stack.
         tags: [system, security]
         justification: |
           Equations come from untrusted documents; a hostile one must fail with a clear error instead of exhausting
@@ -184,10 +222,12 @@ sections:
           - CanvasNetMathMl-MathMlDocument-Limits
           - CanvasNetMathMl-Syntax-Reading
           - CanvasNetMathMl-Layout-Bounds
+          - CanvasNetMathMl-Layout-Stretching
           - CanvasNetMathMl-MathMlPainter-Limit
         tests:
           - CanvasNetMathMl_Limits_OversizedText_IsRefused
           - CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow
+          - CanvasNetMathMl_Limits_HugeStretch_IsRefused
 
       - id: CanvasNetMathMl-Cancellation
         title: >-

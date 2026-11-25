@@ -6347,6 +6347,40 @@ reviews:
       - "src/DemaConsulting.CanvasNet.MathMl/Layout/RowLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/RowLayoutTests.cs"  # unit tests
 
+  # CanvasNetMathMl-Layout-OperatorDictionary Review (one per unit)
+  - id: CanvasNetMathMl-Layout-OperatorDictionary
+    title: Review that CanvasNetMathMl Layout OperatorDictionary Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/operator-dictionary.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/operator-dictionary.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/operator-dictionary.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/OperatorDictionary.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/OperatorDictionary.Data.cs"  # unit source (generated B.1 tables)
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/OperatorDictionaryTests.cs"  # unit tests
+
+  # CanvasNetMathMl-Layout-StretchyGlyphs Review (one per unit)
+  - id: CanvasNetMathMl-Layout-StretchyGlyphs
+    title: Review that CanvasNetMathMl Layout StretchyGlyphs Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/stretchy-glyphs.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/stretchy-glyphs.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/stretchy-glyphs.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/stretchy-glyphs.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/StretchyGlyphs.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/StretchyGlyphs.Fallback.cs"  # unit source (generated B.4 table)
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/StretchyGlyphsTests.cs"  # unit tests
+
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
     title: Review that CanvasNetTool Architecture Satisfies Requirements

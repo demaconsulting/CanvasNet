@@ -34,6 +34,7 @@ public class MathMlReferenceLayoutTests
         // Chrome measures the ink of an automatic italic mi on the untransformed character (the upright f has no
         // descender) but draws and advances the italic glyph, which descends; CanvasNet measures what it draws
         ["tokens-mi-italic 1 <mi> height"] = "Chrome measures the ink of the untransformed character",
+        ["operators-spacing 10 <mi> height"] = "Chrome measures the ink of the untransformed character",
     };
 
     /// <summary>
@@ -68,7 +69,7 @@ public class MathMlReferenceLayoutTests
         // Assert
         Assert.Empty(missing);
         Assert.Empty(orphans);
-        Assert.True(fixtures.Count >= 10);
+        Assert.True(fixtures.Count >= 19);
     }
 
     /// <summary>

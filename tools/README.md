@@ -45,7 +45,9 @@ or later). See [its README](visual-diff/README.md).
 
 **For** the data tables of the MathML package. `update-mathml-tables.ps1` downloads the pinned W3C and Unicode sources
 (the HTML+MathML entity file, the dated MathML Core Candidate Recommendation, and UnicodeData.txt of Unicode 16.0.0) and
-rewrites the generated C# data files `Syntax/CharacterReferences.Table.cs` and `Layout/MathVariants.Data.cs` of
+rewrites the generated C# data files `Syntax/CharacterReferences.Table.cs` (the named references),
+`Layout/MathVariants.Data.cs` (the italic and `mathvariant` tables), `Layout/OperatorDictionary.Data.cs` (the operator
+dictionary of MathML Core B.1), and `Layout/StretchyGlyphs.Fallback.cs` (the Unicode-based glyph assemblies of B.4) of
 `src/DemaConsulting.CanvasNet.MathMl/`, which are committed. The output is deterministic: a second run changes nothing.
 
 - **When**: only when a pinned source changes (a new Unicode version or MathML Core revision); update the provenance

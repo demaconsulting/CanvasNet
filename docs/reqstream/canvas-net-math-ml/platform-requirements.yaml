@@ -20,9 +20,10 @@
 #
 # A test cited with a framework filter (net8.0@ ... net11.0@) must carry [Trait("Category", "Platform")].
 #
-# The representative test reads an equation, lays out its tokens and rows with the bundled math font and its MATH
-# table, and paints them, checking exact pixels of a background, a border, and a glyph, so it exercises the reader, the
-# reference pre-pass, the layout, the font, and the painter on every platform and runtime.
+# The representative tests read an equation, lay out its tokens and rows with the bundled math font and its MATH table,
+# and paint them, checking exact pixels of a background, a border, and a glyph, and of parentheses stretched from the
+# glyph assemblies of the MATH table, so they exercise the reader, the reference pre-pass, the layout, the operator
+# dictionary, the stretching, the font, and the painter on every platform and runtime.
 
 sections:
   - title: Platform Support
@@ -35,6 +36,7 @@ sections:
         tests:
           # Tests link to "windows" to ensure results come from Windows platform
           - "windows@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "windows@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-Linux
         title: The library shall build and run on Linux platforms.
@@ -44,6 +46,7 @@ sections:
         tests:
           # Tests link to "ubuntu" to ensure results come from Linux platform
           - "ubuntu@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "ubuntu@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-MacOS
         title: The library shall build and run on macOS platforms.
@@ -53,6 +56,7 @@ sections:
         tests:
           # Tests link to "macos" to ensure results come from macOS platform
           - "macos@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "macos@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-Net8
         title: The library shall support .NET 8 runtime.
@@ -64,6 +68,7 @@ sections:
           using it.
         tests:
           - "net8.0@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "net8.0@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-Net9
         title: The library shall support .NET 9 runtime.
@@ -74,6 +79,7 @@ sections:
           newer release can keep using it.
         tests:
           - "net9.0@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "net9.0@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-Net10
         title: The library shall support .NET 10 runtime.
@@ -83,6 +89,7 @@ sections:
           a stable, long-term supported target for users who prefer LTS releases.
         tests:
           - "net10.0@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "net10.0@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"
 
       - id: CanvasNetMathMl-Platform-Net11
         title: The library shall support .NET 11 runtime.
@@ -92,3 +99,4 @@ sections:
           ensures the library works for users as they adopt the newest .NET version.
         tests:
           - "net11.0@CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels"
+          - "net11.0@CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels"

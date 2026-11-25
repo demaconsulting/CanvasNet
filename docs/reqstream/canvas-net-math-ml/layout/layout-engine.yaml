@@ -71,12 +71,33 @@ sections:
                 tests:
                   - LayoutEngine_Layout_TextInRow_IsLaidOutLikeMtext
 
+              - id: CanvasNetMathMl-Layout-LayoutEngine-OperatorForms
+                title: >-
+                  The LayoutEngine unit shall give each embellished operator child of a row the form of its position
+                  among the children that are not space-like, and pass the form of an embellished grouping element on to
+                  its operator.
+                justification: |
+                  The form decides the dictionary entry of an operator, and an operator wrapped in an mrow or mstyle is
+                  spaced by the position of the wrapper, as MathML Core 3.2.4.2 specifies.
+                tests:
+                  - LayoutEngine_Layout_OperatorForms_FollowPositionInRow
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-Stretching
+                title: >-
+                  The LayoutEngine unit shall lay out again the stretchy operators of a row with the constraint the row
+                  computes, and pass the constraint of an embellished grouping element on to its operator.
+                justification: |
+                  An operator wrapped in a grouping element stretches like the operator itself.
+                tests:
+                  - LayoutEngine_Layout_EmbellishedInMrow_StretchesCoreOperator
+
               - id: CanvasNetMathMl-Layout-LayoutEngine-Bounds
                 title: >-
                   The LayoutEngine unit shall refuse a nesting deeper than the limit and a layout whose elements and
-                  characters exceed the work limit with located mathml-limit-exceeded render errors, and stop when the
-                  token of the call is canceled.
+                  characters (charged again when an operator is laid out again to stretch) exceed the work limit with
+                  located mathml-limit-exceeded render errors, and stop when the token of the call is canceled.
                 justification: |
                   The layout must stay bounded for every equation the reader accepts.
                 tests:
                   - LayoutEngine_Layout_Bounds_AreEnforced
+                  - LayoutEngine_Layout_StretchRelayout_IsCharged

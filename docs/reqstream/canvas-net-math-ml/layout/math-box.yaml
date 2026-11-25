@@ -26,3 +26,15 @@ sections:
                   - MathBox_InkBounds_UnitesItemsAndChildren
                   - MathBox_InkBounds_PhantomAndEmpty_AreNull
                   - MathBox_PaintItems_ReportTheirBounds
+
+              - id: CanvasNetMathMl-Layout-MathBox-Operators
+                title: >-
+                  The MathBox unit shall represent the properties of an embellished operator (its spacing, core text,
+                  form, category, stretchy, symmetric, largeop, movablelimits, fence, separator, stretch axis, minsize,
+                  and maxsize, defaulting to an operator that does not stretch and has no maximum size), a block stretch
+                  size constraint, and the operator context that a row gives an embellished operator.
+                justification: |
+                  Rows read the operator data of their children to space and stretch them, and pass forms and
+                  constraints down to the operators.
+                tests:
+                  - MathBox_EmbellishedOperator_DefaultsDoNotStretch

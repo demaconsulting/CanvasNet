@@ -81,7 +81,8 @@
   </ItemGroup>
 
   <!-- Third-party license notices: the W3C Software and Document License (the named character references of the W3C
-       entity file and the italic table of MathML Core) and the Unicode License v3 (the mathvariant tables derived from
+       entity file and the operator dictionary (Appendix B.1), the Unicode-based glyph assemblies (Appendix B.4), and
+       the italic table (Appendix C.1) of MathML Core) and the Unicode License v3 (the mathvariant tables derived from
        UnicodeData.txt) require their notices in distributions, so they ship as plain files in the package's licenses\
        folder (the same approach as the PlantUml and Mermaid packages). -->
   <ItemGroup>

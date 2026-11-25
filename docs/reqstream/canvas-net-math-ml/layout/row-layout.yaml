@@ -2,8 +2,8 @@
 # Software Unit Requirements for RowLayout
 #
 # These requirements describe the design-level behavior of the RowLayout unit of the Layout subsystem (internal
-# namespace DemaConsulting.CanvasNet.MathMl.Layout): rows, the grouping rules, mpadded, and merror. See
-# docs/verification/canvas-net-math-ml/layout/row-layout.md for the test-evidence mapping.
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): rows, the stretching of their operators, the grouping rules,
+# mpadded, and merror. See docs/verification/canvas-net-math-ml/layout/row-layout.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetMathMl Requirements
@@ -24,7 +24,22 @@ sections:
                 tests:
                   - RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents
                   - RowLayout_LayoutRow_Operator_GetsItsSpacing
+                  - RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator
                   - RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild
+
+              - id: CanvasNetMathMl-Layout-RowLayout-Stretch
+                title: >-
+                  The RowLayout unit shall lay out again the stretchy embellished operators of a row with a block
+                  stretch axis, before placing the children, with the block stretch size constraint of the largest
+                  ascent and descent of the other children, or, when every child stretches, of the operators laid out
+                  with the constraint (0, 0), and shall stretch nothing in a row that passes the constraint of its
+                  parent on.
+                justification: |
+                  Fences grow to the height of what they enclose, as MathML Core 3.3.1.1 specifies.
+                tests:
+                  - RowLayout_LayoutRow_StretchyParens_CoverTallestSibling
+                  - RowLayout_LayoutRow_AllChildrenStretchy_UseUnconstrainedSize
+                  - RowLayout_LayoutRow_NonStretchyOrInlineAxis_AreNotStretched
 
               - id: CanvasNetMathMl-Layout-RowLayout-Grouping
                 title: >-

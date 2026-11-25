@@ -77,4 +77,24 @@ public class MathBoxTests
         Assert.Equal(new MathRect(2, 4, 3, 4), border.Rect.Offset(1, 2));
         Assert.Equal((4.0, 6.0), (border.Rect.Right, border.Rect.Bottom));
     }
+
+    /// <summary>
+    ///     Validates the defaults of the operator records: an embellished operator neither stretches nor grows and has no
+    ///     maximum size, and an empty operator context carries neither a form nor a constraint.
+    /// </summary>
+    [Fact]
+    public void MathBox_EmbellishedOperator_DefaultsDoNotStretch()
+    {
+        // Act
+        var op = new EmbellishedOperator(1, 2);
+        var context = default(OperatorContext);
+
+        // Assert
+        Assert.Equal((1.0, 2.0, string.Empty), (op.LeadingSpace, op.TrailingSpace, op.CoreText));
+        Assert.Equal((OperatorForm.Infix, OperatorCategory.Default, StretchAxis.Block), (op.Form, op.Category, op.Axis));
+        Assert.False(op.Stretchy || op.Symmetric || op.LargeOp || op.MovableLimits || op.Fence || op.Separator);
+        Assert.Equal((0.0, double.PositiveInfinity), (op.MinSize, op.MaxSize));
+        Assert.Equal(((OperatorForm?)null, (BlockStretchConstraint?)null), (context.Form, context.Stretch));
+        Assert.Equal(new BlockStretchConstraint(3, 4), (context with { Stretch = new BlockStretchConstraint(3, 4) }).Stretch);
+    }
 }

@@ -4,7 +4,9 @@ https://www.w3.org/copyright/software-license-2023/
 This software includes material copied from or derived from:
 
 - MathML Core, W3C Candidate Recommendation, 24 June 2025
-  (https://www.w3.org/TR/2025/CR-mathml-core-20250624/): the italic mapping table of Appendix C.1.
+  (https://www.w3.org/TR/2025/CR-mathml-core-20250624/): the operator dictionary of Appendix B.1 (the tables of
+  Figures 24-26 and the inline stretch axis list of Figure 28), the Unicode-based glyph assemblies of Appendix B.4,
+  and the italic mapping table of Appendix C.1.
   Copyright © 2025 World Wide Web Consortium. https://www.w3.org/copyright/software-license-2023/
 - XML Entity Definitions for Characters, the HTML MathML set
   (https://www.w3.org/2003/entities/2007/htmlmathml-f.ent): the names and values of the named character references.

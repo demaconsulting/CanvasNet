@@ -71,6 +71,13 @@ public static class MathMlDiagnosticCodes
     public const string TextMissingGlyph = "mathml-text-missing-glyph";
 
     /// <summary>
+    ///     A stretchy operator must grow to cover its neighbors, but neither the bundled math font, nor the Unicode-based
+    ///     glyph assemblies of MathML Core, nor a rule can stretch its character; it is drawn at its normal size
+    ///     (<see cref="MathMlDiagnostic"/>).
+    /// </summary>
+    public const string StretchUnavailable = "mathml-stretch-unavailable";
+
+    /// <summary>
     ///     More reports than <see cref="MathMlLimits.MaxDiagnostics"/> allows were produced by one call; the rest were
     ///     dropped (<see cref="MathMlDiagnostic"/>).
     /// </summary>

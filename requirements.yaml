@@ -308,6 +308,8 @@ includes:
   - docs/reqstream/canvas-net-math-ml/layout/math-box.yaml
   - docs/reqstream/canvas-net-math-ml/layout/token-layout.yaml
   - docs/reqstream/canvas-net-math-ml/layout/row-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/stretchy-glyphs.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

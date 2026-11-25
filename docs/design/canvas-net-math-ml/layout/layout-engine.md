@@ -22,23 +22,35 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
   them (`display` and `alttext` of `math`; the operator attributes of `mo`; the lengths of `mspace` and `mpadded`; the
   attributes of `maction` and `semantics`).
 - Per call: the limits, the report sink, the cancellation token, the `StyleResolver`, `TokenLayout`, and `RowLayout` of
-  the call, and the work charged so far (`Work`).
+  the call, the work charged so far (`Work`), and the cached predictions of which elements are space-like and which are
+  embellished operators.
 
 #### Key Methods
 
 - `Layout(root, rootStyle)` - lays out the `math` element with the style the document resolved for it and returns its
   box (an empty box of the element when it is hidden by `display: none`).
-- `LayoutElement(element, style, depth)` - checks the token and the depth against `MaxNestingDepth`, charges one unit of
-  work, and dispatches: a token is laid out by `TokenLayout.LayoutToken` (its characters charged too); `semantics` and
-  `maction` are laid out as rows of their first child only, as the user agent stylesheet of MathML Core hides the
-  others; every other element is laid out as a row of its children (`LayoutRowLike`), and an element that is neither a
-  row nor a token is reported first as `mathml-element-unsupported`. The attributes of a drawn element are checked, and
-  the box is decorated with its element, its background (a background item over its content box, behind everything it
-  paints), and the phantom flag of `mphantom`.
-- `LayoutRowLike` - lays out the children (`LayoutChildren`), then the row (`RowLayout.LayoutRow`), and around it the
-  box of `mpadded` (`LayoutPadded`) or the border of `merror` (`LayoutError`).
-- `LayoutChildren` - resolves the style of each child element and skips those with `display: none` and the annotations;
-  text written directly inside the element is laid out with `TokenLayout.LayoutText` as an `mtext` (space-like).
+- `LayoutElement(element, style, depth, context)` - checks the token and the depth against `MaxNestingDepth`, charges
+  one unit of work, and dispatches: a token is laid out by `TokenLayout.LayoutToken` with the operator context (its
+  characters charged too); `semantics` and `maction` are laid out as rows of their first child only, as the user agent
+  stylesheet of MathML Core hides the others; every other element is laid out as a row of its children
+  (`LayoutRowLike`), and an element that is neither a row nor a token is reported first as
+  `mathml-element-unsupported`. The attributes of a drawn element are checked, and the box is decorated with its
+  element, its background (a background item over its content box, behind everything it paints), and the phantom flag
+  of `mphantom`.
+- `LayoutRowLike(element, style, depth, context)` - resolves the style of each child element and skips those with
+  `display: none` and the annotations (still charged and depth-checked); infers the form of each child that is not
+  space-like from its position among those children (`OperatorDictionary.InferForm`); lays the children out
+  (`LayoutChild`: text written directly inside the element is laid out with `TokenLayout.LayoutText` as an `mtext`,
+  space-like); then lays out the row (`RowLayout.LayoutRow`) with a relayout function that lays a child out again with
+  a block stretch size constraint, and around it the box of `mpadded` (`LayoutPadded`) or the border of `merror`
+  (`LayoutError`). An element that is itself an embellished operator and gets a form or a constraint from its parent
+  passes them on to its embellished child; with a constraint, it gives the row no relayout function (MathML Core
+  3.3.1.1).
+- `IsSpaceLike` and `IsEmbellishedOperator` - predict from the tree, before the children are laid out, which children
+  are space-like (`mtext`, `mspace`, and row-like elements of space-like children, MathML Core 3.2.5.1) and which are
+  embellished operators (`mo`, and row-like elements of one embellished operator and space-like children, 3.2.4.1);
+  cached per element, so the predictions cost linear work. An element hidden by a `display: none` declaration below the
+  child is not seen; the boxes, built bottom-up, decide the spacing.
 - `CheckAttributes` - reports, as `mathml-attribute-unsupported` at the attribute, an attribute that is neither global
   nor defined for the element, and `dir="rtl"` (the equation is laid out left to right).
 
@@ -46,13 +58,14 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
 
 A nesting deeper than `MaxNestingDepth` or work beyond `MaxLayoutWork` throws a `MathMlRenderException` with the code
 `mathml-limit-exceeded`, located at the element and naming the property; a canceled token throws
-`OperationCanceledException`. Elements and attributes this version does not use are reported, never errors. The walk is
+`OperationCanceledException`. An operator laid out again to stretch is charged again, so the work of the stretch passes
+is bounded by the same limit. Elements and attributes this version does not use are reported, never errors. The walk is
 recursive, and its depth is bounded by the nesting limit (at most 1,024), which the reader already enforced.
 
 #### Dependencies
 
-The `StyleResolver`, `TokenLayout`, `RowLayout`, `MathBox`, and `MathFont` units, the `MathTree` unit of the Syntax
-subsystem, and the root namespace's `MathMlLimits`, `MathMlReportSink`, `MathMlRenderException`, and
+The `StyleResolver`, `TokenLayout`, `RowLayout`, `MathBox`, `MathFont`, and `OperatorDictionary` units, the `MathTree`
+unit of the Syntax subsystem, and the root namespace's `MathMlLimits`, `MathMlReportSink`, `MathMlRenderException`, and
 `MathMlDiagnosticCodes`.
 
 #### Callers

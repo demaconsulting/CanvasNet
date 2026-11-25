@@ -2,9 +2,9 @@
 # Software Unit Requirements for TokenLayout
 #
 # These requirements describe the design-level behavior of the TokenLayout unit of the Layout subsystem (internal
-# namespace DemaConsulting.CanvasNet.MathMl.Layout): the character transforms, the token boxes, mspace, ms, the interim
-# operator spacing, and the missing glyphs. See docs/verification/canvas-net-math-ml/layout/token-layout.md for the
-# test-evidence mapping.
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the character transforms, the token boxes, mspace, ms, the operator
+# properties, stretched and large operators, and the missing glyphs. See
+# docs/verification/canvas-net-math-ml/layout/token-layout.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetMathMl Requirements
@@ -73,14 +73,43 @@ sections:
                 tests:
                   - TokenLayout_LayoutToken_Ms_DrawsTextWithoutQuotes
 
-              - id: CanvasNetMathMl-Layout-TokenLayout-InterimOperatorSpacing
+              - id: CanvasNetMathMl-Layout-TokenLayout-OperatorProperties
                 title: >-
-                  The TokenLayout unit shall give every mo the spacing of the Default operator category (5/18 em on each
-                  side), or its lspace and rspace when they are set (a percentage of the default).
+                  The TokenLayout unit shall give an mo the properties of the operator dictionary for its text and its
+                  form (the form attribute, else the form its row inferred), overridden by its form, fence, separator,
+                  lspace, rspace, stretchy, symmetric, largeop, movablelimits, minsize, and maxsize attributes (a
+                  percentage of lspace or rspace being of the dictionary value, of minsize or maxsize of the unstretched
+                  height), and shall report an invalid value and ignore it.
                 justification: |
-                  Operators are spaced apart from their operands until the operator dictionary arrives.
+                  Operators are spaced and stretched by the dictionary of MathML Core unless the author says otherwise.
                 tests:
-                  - TokenLayout_LayoutToken_Mo_HasInterimSpacing
+                  - TokenLayout_LayoutToken_Mo_HasDictionarySpacing
+                  - TokenLayout_LayoutToken_OperatorAttributes_OverrideDictionary
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-Stretch
+                title: >-
+                  The TokenLayout unit shall stretch a stretchy mo of one character with a block stretch axis to the
+                  block stretch size constraint of its row (symmetric about the math axis when it is symmetric, scaled
+                  to its minsize and maxsize about the axis), centered on the target and in a box of its preferred
+                  inline size, and shall keep the glyph of a character that cannot stretch, centered on the target and
+                  reported as mathml-stretch-unavailable when it is shorter than the target.
+                justification: |
+                  Fences and vertical arrows grow to their content as MathML Core 3.2.4.3 specifies and Chrome draws
+                  them.
+                tests:
+                  - TokenLayout_LayoutOperator_StretchConstraint_CoversTargetCenteredOnAxis
+                  - TokenLayout_LayoutOperator_MinMaxSize_ClampTarget
+                  - TokenLayout_LayoutOperator_NoConstruction_KeepsGlyphAndReports
+
+              - id: CanvasNetMathMl-Layout-TokenLayout-LargeOp
+                title: >-
+                  The TokenLayout unit shall draw a largeop mo in display style with its large variant centered on the
+                  math axis, and keep the base glyph outside display style or without the largeop property.
+                justification: |
+                  Sums and integrals are drawn larger in displayed equations.
+                tests:
+                  - TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight
+                  - TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph
 
               - id: CanvasNetMathMl-Layout-TokenLayout-MissingGlyph
                 title: >-

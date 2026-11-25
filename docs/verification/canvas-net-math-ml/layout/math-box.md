@@ -33,3 +33,11 @@ constitutes a failure.
 Asserts the content box (the width, the ascent above and the descent below the baseline), the union of the ink of the
 items and of the children at their offsets, no ink for a phantom and for an empty box, and the bounds of the items (none
 for a glyph without contours, its rectangle for a border).
+
+##### CanvasNetMathMl-Layout-MathBox-Operators: The Operator Records
+
+**Tests**: `MathBoxTests.MathBox_EmbellishedOperator_DefaultsDoNotStretch`
+
+Asserts that an embellished operator with only its spacing is infix, Default, block-axis, not stretchy, symmetric,
+large, movable, a fence, or a separator, with a minimum size of zero and no maximum size, and that an empty operator
+context has neither a form nor a constraint while a copy can carry one.

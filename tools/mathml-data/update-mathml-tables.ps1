@@ -15,6 +15,11 @@
       value) derived from UnicodeData.txt: each code point whose decomposition is "<font> X" is classified by the
       prefix of its name. A Mathematical Alphanumeric Symbol wins over a Letterlike Symbol with the same style and base,
       so the letterlike symbols only fill the holes of the Mathematical Alphanumeric Symbols block.
+    - Layout/OperatorDictionary.Data.cs: the compact operator dictionary of MathML Core (Appendix B.1): the special
+      tables of Figure 24 (Operators_2_ascii_chars, Operators_fence, Operators_separator), the mapping of Figure 25 from
+      (Content, Form) to a category, as sorted ranges per form, the values of each category of Figure 26, and the list
+      of characters with an inline stretch axis of Figure 28.
+    - Layout/StretchyGlyphs.Fallback.cs: the Unicode-based glyph assemblies of MathML Core (Appendix B.4).
 
     The output is deterministic: run it twice and nothing changes. See src/DemaConsulting.CanvasNet.MathMl/third-party/
     README.md for the provenance and the licenses of the sources.
@@ -262,6 +267,219 @@ try {
     $lines.Add('    ];')
     $lines.Add('}')
     Write-Generated (Join-Path $package 'Layout/MathVariants.Data.cs') $lines
+
+    # --- The operator dictionary of MathML Core (Appendix B.1) -------------------------------------------------
+    # Returns the HTML of the element that starts at an id, up to the given closing tag
+    function Get-Section([string]$id, [string]$closing) {
+        $at = $core.IndexOf("id=`"$id`"")
+        if ($at -lt 0) {
+            throw "The MathML Core text has no element '$id'."
+        }
+
+        return $core.Substring($at, $core.IndexOf($closing, $at) - $at)
+    }
+
+    # Reads the code point ranges of a list such as "[U+0028–U+0029], {U+005B}, U+002C," as pairs of first and last
+    function Get-Ranges([string]$text) {
+        $pattern = '\[U\+([0-9A-F]{4,6})\u2013U\+([0-9A-F]{4,6})\]|\{U\+([0-9A-F]{4,6})\}|U\+([0-9A-F]{4,6})'
+        foreach ($match in [regex]::Matches($text, $pattern)) {
+            if ($match.Groups[1].Success) {
+                , @([Convert]::ToInt32($match.Groups[1].Value, 16), [Convert]::ToInt32($match.Groups[2].Value, 16))
+            }
+            else {
+                $single = if ($match.Groups[3].Success) { $match.Groups[3].Value } else { $match.Groups[4].Value }
+                , @([Convert]::ToInt32($single, 16), [Convert]::ToInt32($single, 16))
+            }
+        }
+    }
+
+    # Gets the cells of the rows of a table, as text without markup
+    function Get-Rows([string]$html) {
+        foreach ($row in [regex]::Matches($html, '<tr>(.*?)</tr>', 'Singleline')) {
+            $cells = @([regex]::Matches($row.Groups[1].Value, '<td>(.*?)</td>', 'Singleline') | ForEach-Object {
+                    [System.Net.WebUtility]::HtmlDecode([regex]::Replace($_.Groups[1].Value, '<[^>]+>', '')).Trim()
+                })
+            if ($cells.Count -gt 0) {
+                , $cells
+            }
+        }
+    }
+
+    # Figure 24: the special tables
+    $special = @(Get-Rows (Get-Section 'operator-dictionary-compact-special-tables' '</table>'))
+    $twoAscii = @()
+    $fence = @()
+    $separator = @()
+    foreach ($row in $special) {
+        switch ($row[0]) {
+            'Operators_2_ascii_chars' { $twoAscii = @([regex]::Matches($row[1], "'([^']{2})'") | ForEach-Object { $_.Groups[1].Value }) }
+            'Operators_fence' { $fence = @(Get-Ranges $row[1]) }
+            'Operators_separator' { $separator = @(Get-Ranges $row[1]) }
+        }
+    }
+
+    if ($twoAscii.Count -ne 18 -or $fence.Count -eq 0 -or $separator.Count -eq 0) {
+        throw 'The special tables of the operator dictionary (Figure 24) could not be read.'
+    }
+
+    # Figure 25: the category of each (Content, Form), as ranges per form sorted by their first code point
+    $forms = [ordered]@{ infix = [System.Collections.Generic.List[int[]]]::new(); prefix = [System.Collections.Generic.List[int[]]]::new(); postfix = [System.Collections.Generic.List[int[]]]::new() }
+    $categoryNames = @('Default', 'ForceDefault', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M')
+    foreach ($row in [regex]::Matches((Get-Section 'operator-dictionary-category-table' '</table>'), '<tr><td>(.*?)</td><td>([A-M])</td></tr>', 'Singleline')) {
+        $form = [regex]::Match($row.Groups[1].Value, 'in <strong>(infix|prefix|postfix)</strong> form').Groups[1].Value
+        if (-not $form) {
+            throw "A row of Figure 25 has no form: $($row.Groups[1].Value)"
+        }
+
+        foreach ($range in Get-Ranges $row.Groups[1].Value) {
+            $forms[$form].Add(@($range[0], $range[1], [array]::IndexOf($categoryNames, $row.Groups[2].Value)))
+        }
+    }
+
+    # Figure 26: the values of each category
+    $values = [System.Collections.Generic.List[object]]::new()
+    foreach ($row in Get-Rows (Get-Section 'operator-dictionary-categories-values' '</table>')) {
+        $space = { param($text) if ($text -eq '0') { '0' } else { $text -replace 'em$', '' } }
+        $properties = $row[5]
+        $values.Add([pscustomobject]@{
+                Category      = $row[0]
+                Leading       = & $space $row[3]
+                Trailing      = & $space $row[4]
+                Stretchy      = $properties -match '\bstretchy\b'
+                Symmetric     = $properties -match '\bsymmetric\b'
+                LargeOp       = $properties -match '\blargeop\b'
+                MovableLimits = $properties -match '\bmovablelimits\b'
+            })
+    }
+
+    if ($values.Count -ne $categoryNames.Count) {
+        throw "Figure 26 has $($values.Count) categories; $($categoryNames.Count) were expected."
+    }
+
+    # Figure 28: the characters with an inline stretch axis
+    $inline = @(Get-Ranges (Get-Section 'inline-stretch-axis' '</figure>') | ForEach-Object { $_[0] } | Sort-Object)
+
+    $lowercase = { param($value) if ($value) { 'true' } else { 'false' } }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('// Generated by tools/mathml-data/update-mathml-tables.ps1 from https://www.w3.org/TR/2025/CR-mathml-core-20250624/ (B.1); do not edit by hand.')
+    $lines.Add('// Portions derived from MathML Core (W3C); see third-party/README.md')
+    $lines.Add('')
+    $lines.Add('namespace DemaConsulting.CanvasNet.MathMl.Layout;')
+    $lines.Add('')
+    $lines.Add('/// <content>')
+    $lines.Add('///     The generated tables of the operator dictionary of MathML Core (Appendix B.1). The tables are properties (read')
+    $lines.Add('///     once), so that the order of the static initializers of the two files of the class does not matter.')
+    $lines.Add('/// </content>')
+    $lines.Add('internal static partial class OperatorDictionary')
+    $lines.Add('{')
+    $lines.Add('    /// <summary>')
+    $lines.Add('    ///     The strings of the special table Operators_2_ascii_chars (Figure 24), in order: the string at index i is looked')
+    $lines.Add('    ///     up as the character U+0320 plus i.')
+    $lines.Add('    /// </summary>')
+    $lines.Add('    private static string[] TwoAsciiOperators =>')
+    $lines.Add('    [')
+    foreach ($entry in $twoAscii) {
+        $lines.Add("        `"$($entry.Replace('\', '\\').Replace('"', '\"'))`",")
+    }
+
+    $lines.Add('    ];')
+    foreach ($table in @(@('FenceRanges', 'Operators_fence', $fence), @('SeparatorRanges', 'Operators_separator', $separator))) {
+        $lines.Add('')
+        $lines.Add('    /// <summary>')
+        $lines.Add("    ///     The ranges of the special table $($table[1]) (Figure 24): pairs of the first and the last code point.")
+        $lines.Add('    /// </summary>')
+        $lines.Add("    private static ReadOnlySpan<int> $($table[0]) =>")
+        $lines.Add('    [')
+        foreach ($range in $table[2]) {
+            $lines.Add(('        0x{0:X4}, 0x{1:X4},' -f $range[0], $range[1]))
+        }
+
+        $lines.Add('    ];')
+    }
+
+    foreach ($form in $forms.Keys) {
+        $name = [System.Globalization.CultureInfo]::InvariantCulture.TextInfo.ToTitleCase($form) + 'Ranges'
+        $sortedRanges = [System.Linq.Enumerable]::ToArray([System.Linq.Enumerable]::OrderBy([int[][]]$forms[$form], [Func[int[], int]] { param($r) $r[0] }))
+        $lines.Add('')
+        $lines.Add('    /// <summary>')
+        $lines.Add("    ///     The categories of the operators in the $form form (Figure 25): triples of the first and the last code point")
+        $lines.Add('    ///     of a range and its category, in ascending order of the first code point.')
+        $lines.Add('    /// </summary>')
+        $lines.Add("    private static ReadOnlySpan<int> $name =>")
+        $lines.Add('    [')
+        foreach ($range in $sortedRanges) {
+            $lines.Add(('        0x{0:X4}, 0x{1:X4}, (int)OperatorCategory.{2},' -f $range[0], $range[1], $categoryNames[$range[2]]))
+        }
+
+        $lines.Add('    ];')
+    }
+
+    $lines.Add('')
+    $lines.Add('    /// <summary>')
+    $lines.Add('    ///     The values of each category (Figure 26): the leading and the trailing space in em, and whether the operators')
+    $lines.Add('    ///     of the category are stretchy, symmetric, large operators, and have movable limits.')
+    $lines.Add('    /// </summary>')
+    $lines.Add('    private static (OperatorCategory Category, double LeadingSpace, double TrailingSpace, bool Stretchy, bool Symmetric, bool LargeOp, bool MovableLimits)[] CategoryValues =>')
+    $lines.Add('    [')
+    foreach ($value in $values) {
+        $lines.Add("        (OperatorCategory.$($value.Category), $($value.Leading), $($value.Trailing), $(& $lowercase $value.Stretchy), $(& $lowercase $value.Symmetric), $(& $lowercase $value.LargeOp), $(& $lowercase $value.MovableLimits)),")
+    }
+
+    $lines.Add('    ];')
+    $lines.Add('')
+    $lines.Add('    /// <summary>')
+    $lines.Add('    ///     The characters whose intrinsic stretch axis is inline (Figure 28), in ascending order; every other character')
+    $lines.Add('    ///     stretches along the block axis.')
+    $lines.Add('    /// </summary>')
+    $lines.Add('    private static ReadOnlySpan<int> InlineAxisCodePoints =>')
+    $lines.Add('    [')
+    foreach ($codePoint in $inline) {
+        $lines.Add(('        0x{0:X4},' -f $codePoint))
+    }
+
+    $lines.Add('    ];')
+    $lines.Add('}')
+    Write-Generated (Join-Path $package 'Layout/OperatorDictionary.Data.cs') $lines
+
+    # --- The Unicode-based glyph assemblies of MathML Core (Appendix B.4) --------------------------------------
+    $assemblies = [System.Collections.Generic.List[object]]::new()
+    foreach ($row in Get-Rows (Get-Section 'unicode-based-glyph-assemblies' '</table>')) {
+        $codes = @($row | ForEach-Object { if ($_ -match '^U\+([0-9A-F]{4,6})') { [Convert]::ToInt32($Matches[1], 16) } elseif ($_ -eq 'N/A') { -1 } else { $_ } })
+        if ($codes.Count -ne 6 -or $codes[1] -notin @('Vertical', 'Horizontal')) {
+            throw "A row of the Unicode-based glyph assemblies has an unexpected form: $($row -join ' | ')"
+        }
+
+        $assemblies.Add($codes)
+    }
+
+    $format = { param($codePoint) if ($codePoint -lt 0) { '-1' } else { '0x{0:X4}' -f $codePoint } }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('// Generated by tools/mathml-data/update-mathml-tables.ps1 from https://www.w3.org/TR/2025/CR-mathml-core-20250624/ (B.4); do not edit by hand.')
+    $lines.Add('// Portions derived from MathML Core (W3C); see third-party/README.md')
+    $lines.Add('')
+    $lines.Add('namespace DemaConsulting.CanvasNet.MathMl.Layout;')
+    $lines.Add('')
+    $lines.Add('/// <content>')
+    $lines.Add('///     The generated table of the Unicode-based glyph assemblies of MathML Core (Appendix B.4).')
+    $lines.Add('/// </content>')
+    $lines.Add('internal static partial class StretchyGlyphs')
+    $lines.Add('{')
+    $lines.Add('    /// <summary>')
+    $lines.Add("    ///     The $($assemblies.Count) Unicode-based glyph assemblies (Appendix B.4), in the order of the table: groups of six values,")
+    $lines.Add('    ///     the base character, the stretch axis, the extender, the bottom (or left) character, the middle character and the')
+    $lines.Add('    ///     top (or right) character; -1 stands for a part that the assembly does not have. A property (read once), so that')
+    $lines.Add('    ///     the order of the static initializers of the files of the class does not matter.')
+    $lines.Add('    /// </summary>')
+    $lines.Add('    private static ReadOnlySpan<int> UnicodeAssemblyTable =>')
+    $lines.Add('    [')
+    foreach ($entry in $assemblies) {
+        $axis = if ($entry[1] -eq 'Vertical') { 'Block' } else { 'Inline' }
+        $lines.Add("        $(& $format $entry[0]), (int)StretchAxis.$axis, $(& $format $entry[2]), $(& $format $entry[3]), $(& $format $entry[4]), $(& $format $entry[5]),")
+    }
+
+    $lines.Add('    ];')
+    $lines.Add('}')
+    Write-Generated (Join-Path $package 'Layout/StretchyGlyphs.Fallback.cs') $lines
 }
 finally {
     if ($temporary) {

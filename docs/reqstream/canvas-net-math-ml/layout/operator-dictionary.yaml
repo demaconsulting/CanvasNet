@@ -1,0 +1,69 @@
+---
+# Software Unit Requirements for OperatorDictionary
+#
+# These requirements describe the design-level behavior of the OperatorDictionary unit of the Layout subsystem
+# (internal namespace DemaConsulting.CanvasNet.MathMl.Layout): the operator dictionary of MathML Core (Appendix B.1),
+# its special tables, the form inference, and the stretch axis. See
+# docs/verification/canvas-net-math-ml/layout/operator-dictionary.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: OperatorDictionary Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-OperatorDictionary-Categories
+                title: >-
+                  The OperatorDictionary unit shall determine the category of an operator from its text and form with
+                  the algorithm and the tables of MathML Core B.1 (the infix vertical line and tilde operator being
+                  ForceDefault and every other text without an entry Default), shall give each category its spacing and
+                  its stretchy, symmetric, largeop, and movablelimits values, and shall try the infix, postfix, and
+                  prefix forms in turn when an inferred form has no entry.
+                justification: |
+                  The operator dictionary decides the spacing of every operator and which operators stretch or grow,
+                  as in a browser that implements MathML Core.
+                tests:
+                  - OperatorDictionary_Lookup_PlusInfix_IsCategoryB
+                  - OperatorDictionary_Lookup_EqualsInfix_IsCategoryA
+                  - OperatorDictionary_Lookup_LeftParenPrefix_IsFenceStretchySymmetric
+                  - OperatorDictionary_Lookup_SumPrefix_IsLargeOpMovableLimits
+                  - OperatorDictionary_Lookup_IntegralPrefix_IsLargeOpNotMovable
+                  - OperatorDictionary_Lookup_VerticalBarInfix_IsForceDefault
+                  - OperatorDictionary_Lookup_UnlistedCharacter_IsDefault
+                  - OperatorDictionary_Data_RangesAreSortedAndDisjoint
+
+              - id: CanvasNetMathMl-Layout-OperatorDictionary-SpecialTables
+                title: >-
+                  The OperatorDictionary unit shall look a two-character ASCII operator up through
+                  Operators_2_ascii_chars, drop a combining long solidus or vertical line overlay before the lookup,
+                  and give the fence and separator defaults from Operators_fence and Operators_separator.
+                justification: |
+                  Authors write operators such as && and negated relations, which MathML Core maps onto the
+                  dictionary through these tables.
+                tests:
+                  - OperatorDictionary_Lookup_TwoAsciiChars_MapsThroughSpecialTable
+                  - OperatorDictionary_Lookup_NegatedOperator_StripsCombiningSolidus
+                  - OperatorDictionary_Lookup_LeftParenPrefix_IsFenceStretchySymmetric
+
+              - id: CanvasNetMathMl-Layout-OperatorDictionary-Forms
+                title: >-
+                  The OperatorDictionary unit shall infer the prefix form for the first and the postfix form for the
+                  last of several children of a row that are not space-like, and the infix form otherwise, and shall
+                  parse an explicit form ASCII case-insensitively, disabling the fallback to the other forms.
+                justification: |
+                  The same character is spaced differently as a sign, an operator, or a postfix, as MathML Core
+                  3.2.4.2 specifies.
+                tests:
+                  - OperatorDictionary_InferForm_FirstMiddleLast_PrefixInfixPostfix
+                  - OperatorDictionary_InferForm_ExplicitAttribute_Wins
+
+              - id: CanvasNetMathMl-Layout-OperatorDictionary-Axis
+                title: >-
+                  The OperatorDictionary unit shall give an operator the inline stretch axis when its text is a single
+                  character of the inline list of MathML Core B.1, and the block stretch axis otherwise.
+                justification: |
+                  Rows stretch only the operators that stretch vertically; horizontal arrows and accents stretch under
+                  and over a base.
+                tests:
+                  - OperatorDictionary_Axis_InlineList_IsInline

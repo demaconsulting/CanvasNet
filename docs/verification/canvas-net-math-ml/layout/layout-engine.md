@@ -64,10 +64,28 @@ global attributes that do not change a picture are silent.
 
 Asserts that text directly inside a row is laid out as a space-like text box.
 
+##### CanvasNetMathMl-Layout-LayoutEngine-OperatorForms: Forms From Positions
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_OperatorForms_FollowPositionInRow`
+
+Asserts that in a row with a space-like `mtext` the first operator is prefix and the middle ones infix, that an `mrow`
+wrapping an operator and an `mspace` passes its own (infix) form to the operator, that an explicit form wins, and that
+the lone operator of a row is infix.
+
+##### CanvasNetMathMl-Layout-LayoutEngine-Stretching: Embellished Operators Stretch
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_EmbellishedInMrow_StretchesCoreOperator`
+
+Asserts that a bracket wrapped in an `mrow` and one wrapped in an `mstyle` take the prefix and postfix forms of their
+wrappers and stretch through them to cover an `mspace` of 2 em by 1 em, with the same extents, and that the wrapper has
+the extents of its operator.
+
 ##### CanvasNetMathMl-Layout-LayoutEngine-Bounds: Depth, Work, And Cancellation
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_Bounds_AreEnforced`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_Bounds_AreEnforced`,
+`LayoutEngineTests.LayoutEngine_Layout_StretchRelayout_IsCharged`
 
 Asserts that a nesting limit of 2 and a work limit of 5 fail with messages naming `MathMlLimits.MaxNestingDepth` and
-`MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws, and that the work of the equation is 7 (four elements
-and three characters).
+`MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws, that the work of the equation is 7 (four elements
+and three characters), and that a stretchy parenthesis laid out again to stretch is charged twice (two more units than
+the same row with `stretchy="false"`).

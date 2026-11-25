@@ -46,6 +46,15 @@ sections:
             tests:
               - MathMlPainter_Paint_Phantom_PaintsNothing
 
+          - id: CanvasNetMathMl-MathMlPainter-Rules
+            title: >-
+              The MathMlPainter unit shall fill the rectangle of a rule (a stretched line character) in its color, after
+              the glyphs.
+            justification: |
+              A line character stretched as a rule must be painted where the layout placed it.
+            tests:
+              - MathMlPainter_Paint_Rule_FillsItsRectangle
+
           - id: CanvasNetMathMl-MathMlPainter-Cancellation
             title: >-
               The MathMlPainter unit shall stop with an OperationCanceledException when the token of the call is

@@ -62,3 +62,9 @@ Asserts `OperationCanceledException` for a pre-canceled token and a surface left
 
 Asserts that more glyphs than the limit throw `mathml-limit-exceeded` located at their element and naming
 `MathMlLimits.MaxPaintedGlyphs`, with nothing painted.
+
+#### CanvasNetMathMl-MathMlPainter-Rules: A Rule Fills Its Rectangle
+
+**Tests**: `MathMlPainterTests.MathMlPainter_Paint_Rule_FillsItsRectangle`
+
+Asserts that a rule 20 px long and 2 px thick is painted solid over its two pixel rows and nowhere beside or below it.

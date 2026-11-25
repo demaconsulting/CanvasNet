@@ -70,7 +70,8 @@ internal sealed record GlyphItem(TrueTypeFont Font, int Glyph, double Size, doub
 }
 
 /// <summary>
-///     A filled rectangle that belongs to the content (a fraction bar or the overbar of a radical in later versions).
+///     A filled rectangle that belongs to the content (a stretched line character; a fraction bar or the overbar of a
+///     radical in later versions).
 /// </summary>
 /// <param name="Rect">The rectangle.</param>
 /// <param name="Color">The color.</param>
@@ -105,15 +106,69 @@ internal sealed record BorderItem(MathRect Rect, double Width, Rgba32 Color) : I
 }
 
 /// <summary>
-///     The spacing of an embellished operator (MathML Core 3.2.4.1): what a row adds before and after it.
+///     The properties of an embellished operator (MathML Core 3.2.4.2), resolved from the operator dictionary and the
+///     attributes of its core <c>mo</c>: what a row adds before and after it and how it stretches.
 /// </summary>
 /// <remarks>
-///     In this version every operator gets its explicit <c>lspace</c> and <c>rspace</c>, or the spacing of the
-///     <c>Default</c> category of the operator dictionary (5/18 em on each side); the dictionary itself comes later.
+///     A row reads <see cref="LeadingSpace"/> and <see cref="TrailingSpace"/> for its spacing and <see cref="Stretchy"/>
+///     with <see cref="Axis"/> to decide whether to stretch the operator; the other properties are kept for the layouts
+///     of a later version (<see cref="MovableLimits"/> for under- and overscripts) and for the tests.
 /// </remarks>
-/// <param name="LeadingSpace">The space before the operator in CSS pixels.</param>
-/// <param name="TrailingSpace">The space after the operator in CSS pixels.</param>
-internal sealed record EmbellishedOperator(double LeadingSpace, double TrailingSpace);
+/// <param name="LeadingSpace">The space before the operator (<c>lspace</c>) in CSS pixels.</param>
+/// <param name="TrailingSpace">The space after the operator (<c>rspace</c>) in CSS pixels.</param>
+internal sealed record EmbellishedOperator(double LeadingSpace, double TrailingSpace)
+{
+    /// <summary>Gets the text of the core operator.</summary>
+    public string CoreText { get; init; } = string.Empty;
+
+    /// <summary>Gets the form (explicit, or inferred from the position in the row).</summary>
+    public OperatorForm Form { get; init; }
+
+    /// <summary>Gets the category of the operator dictionary that gave the defaults.</summary>
+    public OperatorCategory Category { get; init; }
+
+    /// <summary>Gets a value indicating whether the operator stretches.</summary>
+    public bool Stretchy { get; init; }
+
+    /// <summary>Gets a value indicating whether the operator stretches symmetrically about the math axis.</summary>
+    public bool Symmetric { get; init; }
+
+    /// <summary>Gets a value indicating whether the operator is drawn larger in display style.</summary>
+    public bool LargeOp { get; init; }
+
+    /// <summary>Gets a value indicating whether the under- and overscripts of the operator move to the script positions outside display style.</summary>
+    public bool MovableLimits { get; init; }
+
+    /// <summary>Gets a value indicating whether the operator is a fence (no effect on the layout).</summary>
+    public bool Fence { get; init; }
+
+    /// <summary>Gets a value indicating whether the operator is a separator (no effect on the layout).</summary>
+    public bool Separator { get; init; }
+
+    /// <summary>Gets the stretch axis.</summary>
+    public StretchAxis Axis { get; init; }
+
+    /// <summary>Gets the minimum stretched size in CSS pixels.</summary>
+    public double MinSize { get; init; }
+
+    /// <summary>Gets the maximum stretched size in CSS pixels; infinity when there is none.</summary>
+    public double MaxSize { get; init; } = double.PositiveInfinity;
+}
+
+/// <summary>
+///     A block stretch size constraint (MathML Core 3.3.1.1): the ascent and the descent that a stretchy operator of a row
+///     covers.
+/// </summary>
+/// <param name="Ascent">The target ascent in CSS pixels.</param>
+/// <param name="Descent">The target descent in CSS pixels.</param>
+internal readonly record struct BlockStretchConstraint(double Ascent, double Descent);
+
+/// <summary>
+///     What the parent of an element tells the layout of an embellished operator: its form and its stretch constraint.
+/// </summary>
+/// <param name="Form">The form inferred from the position of the embellished operator in its row, or null for infix.</param>
+/// <param name="Stretch">The block stretch size constraint, or null when the operator is laid out without one.</param>
+internal readonly record struct OperatorContext(OperatorForm? Form, BlockStretchConstraint? Stretch);
 
 /// <summary>
 ///     A child box placed inside its parent.

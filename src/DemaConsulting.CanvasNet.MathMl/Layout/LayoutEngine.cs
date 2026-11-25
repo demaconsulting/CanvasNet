@@ -20,6 +20,15 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         no box. Text written directly inside a layout element is laid out like an <c>mtext</c>.
 ///     </para>
 ///     <para>
+///         <b>Operators.</b> Each embellished operator child of a row gets its form from its position among the children
+///         that are not space-like (MathML Core 3.2.4.2: the first of several is prefix, the last postfix, the others
+///         infix); an element that is itself an embellished operator passes the form its row gave it to its operator.
+///         After the children of a row are laid out, its stretchy operators are laid out again with a block stretch size
+///         constraint (3.3.1.1, <see cref="RowLayout.Stretch"/>); an embellished element with a constraint passes it to
+///         its operator. Whether a child is space-like or an embellished operator is predicted from the tree before it is
+///         laid out (an element hidden by a <c>display: none</c> declaration below the child is not seen).
+///     </para>
+///     <para>
 ///         <b>Attributes.</b> An attribute that has no effect in this version on an element it draws (a legacy MathML 3
 ///         attribute, <c>dir="rtl"</c>, an attribute the element does not define) is reported as
 ///         <see cref="MathMlDiagnosticCodes.AttributeUnsupported"/>. The global attributes that do not change a picture
@@ -28,8 +37,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///     <para>
 ///         <b>Bounds.</b> The walk is recursive; its depth is bounded by <see cref="MathMlLimits.MaxNestingDepth"/>, which
 ///         the reader already enforced, and checked again here. Every element and every character of a token is charged
-///         to <see cref="MathMlLimits.MaxLayoutWork"/>, and the cancellation token is checked at every element. An
-///         instance serves one call on one thread.
+///         to <see cref="MathMlLimits.MaxLayoutWork"/>, and the cancellation token is checked at every element; an operator
+///         laid out again to stretch is charged again. An instance serves one call on one thread.
 ///     </para>
 /// </remarks>
 internal sealed class LayoutEngine
@@ -86,6 +95,12 @@ internal sealed class LayoutEngine
     /// <summary>The work charged so far.</summary>
     private long _work;
 
+    /// <summary>The cached predictions of <see cref="IsSpaceLike"/>.</summary>
+    private readonly Dictionary<MathElement, bool> _spaceLike = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>The cached predictions of <see cref="IsEmbellishedOperator"/>.</summary>
+    private readonly Dictionary<MathElement, bool> _embellished = new(ReferenceEqualityComparer.Instance);
+
     /// <summary>
     ///     Initializes the engine of one call.
     /// </summary>
@@ -99,7 +114,7 @@ internal sealed class LayoutEngine
         _sink = sink;
         _cancellationToken = cancellationToken;
         _styles = new StyleResolver(font, sink);
-        _tokens = new TokenLayout(font, _styles, sink);
+        _tokens = new TokenLayout(font, _styles, sink, limits);
         _rows = new RowLayout(_styles);
     }
 
@@ -135,17 +150,12 @@ internal sealed class LayoutEngine
     /// <param name="element">The element.</param>
     /// <param name="style">Its computed style.</param>
     /// <param name="depth">Its nesting depth, the <c>math</c> element being 1.</param>
+    /// <param name="context">The form and the stretch constraint its row gives it when it is an embellished operator.</param>
     /// <returns>The box, or null when the element is not displayed.</returns>
-    private MathBox? LayoutElement(MathElement element, MathStyle style, int depth)
+    private MathBox? LayoutElement(MathElement element, MathStyle style, int depth, OperatorContext context = default)
     {
         // The bounds of every element: cancellation, the work budget, and the depth of the recursion
-        _cancellationToken.ThrowIfCancellationRequested();
-        Charge(1, element.Location);
-        if (depth > _limits.MaxNestingDepth)
-        {
-            throw Limit($"the elements are nested deeper than {_limits.MaxNestingDepth} (MathMlLimits.MaxNestingDepth)", element.Location);
-        }
-
+        Enter(element, depth);
         if (style.DisplayNone || element.Name is "annotation" or "annotation-xml")
         {
             return null;
@@ -156,37 +166,111 @@ internal sealed class LayoutEngine
         {
             CheckAttributes(element);
             Charge(element.TextContent.Length, element.Location);
-            box = _tokens.LayoutToken(element, style);
+            box = _tokens.LayoutToken(element, style, context);
         }
         else if (RowNames.Contains(element.Name) || element.Name is "semantics" or "maction")
         {
             CheckAttributes(element);
-            box = LayoutRowLike(element, style, depth);
+            box = LayoutRowLike(element, style, depth, context);
         }
         else
         {
             // An element this version does not draw is a row of its children, as MathML Core lays out an unknown element
             ReportUnsupportedElement(element);
-            box = _rows.LayoutRow(LayoutChildren(element.Children, style, depth), isMath: false);
+            box = LayoutRowLike(element, style, depth, context);
         }
 
         return Decorate(box, element, style);
     }
 
     /// <summary>
-    ///     Lays out an element that is laid out like a row.
+    ///     Checks the bounds of an element: cancellation, the work budget, and the depth of the recursion.
     /// </summary>
+    /// <param name="element">The element.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    private void Enter(MathElement element, int depth)
+    {
+        _cancellationToken.ThrowIfCancellationRequested();
+        Charge(1, element.Location);
+        if (depth > _limits.MaxNestingDepth)
+        {
+            throw Limit($"the elements are nested deeper than {_limits.MaxNestingDepth} (MathMlLimits.MaxNestingDepth)", element.Location);
+        }
+    }
+
+    /// <summary>
+    ///     Lays out an element that is laid out like a row: its in-flow children, each embellished operator with the form
+    ///     of its position (MathML Core 3.2.4.2), then the row, which stretches its stretchy operators (3.3.1.1).
+    /// </summary>
+    /// <remarks>
+    ///     A row that is itself an embellished operator passes the form and the stretch constraint of its parent to its
+    ///     embellished child; with a constraint it does not stretch on its own (3.3.1.1). The forms are inferred before the
+    ///     children are laid out, so whether a child is space-like or an embellished operator is predicted from the tree
+    ///     (<see cref="IsSpaceLike"/>, <see cref="IsEmbellishedOperator"/>); the boxes then decide the spacing.
+    /// </remarks>
     /// <param name="element">The element.</param>
     /// <param name="style">Its computed style.</param>
     /// <param name="depth">Its nesting depth.</param>
+    /// <param name="context">The form and the stretch constraint its parent gives it.</param>
     /// <returns>The box.</returns>
-    private MathBox LayoutRowLike(MathElement element, MathStyle style, int depth)
+    private MathBox LayoutRowLike(MathElement element, MathStyle style, int depth, OperatorContext context)
     {
-        // semantics and maction draw their first child only (the user agent stylesheet hides the others)
-        IReadOnlyList<MathNode> children = element.Name is "semantics" or "maction"
-            ? element.ElementChildren.Take(1).ToList<MathNode>()
-            : element.Children;
-        var row = _rows.LayoutRow(LayoutChildren(children, style, depth), isMath: element.Name == "math");
+        // The in-flow children with their styles; an annotation or an element with display: none takes no part
+        var flow = new List<(MathNode Node, MathStyle Style)>();
+        foreach (var node in RowChildren(element))
+        {
+            if (node is not MathElement child)
+            {
+                flow.Add((node, style));
+                continue;
+            }
+
+            var childStyle = _styles.Resolve(child, style);
+            if (childStyle.DisplayNone || child.Name is "annotation" or "annotation-xml")
+            {
+                Enter(child, depth + 1);
+                continue;
+            }
+
+            flow.Add((child, childStyle));
+        }
+
+        // The form of each embellished operator from its position among the children that are not space-like
+        var isMath = element.Name == "math";
+        var spaceLike = flow.Select(entry => entry.Node is not MathElement child || IsSpaceLike(child)).ToArray();
+        var count = spaceLike.Count(value => !value);
+        var passThrough = !isMath && (context.Form is not null || context.Stretch is not null) && IsEmbellishedOperator(element);
+        var contexts = new OperatorContext[flow.Count];
+        var position = 0;
+        for (var i = 0; i < flow.Count; i++)
+        {
+            if (!spaceLike[i])
+            {
+                contexts[i] = passThrough ? context : new OperatorContext(OperatorDictionary.InferForm(position++, count), null);
+            }
+        }
+
+        // Lay the children out; a row with a constraint of its parent passes it on and does not stretch on its own
+        var boxes = new List<MathBox>(flow.Count);
+        var sources = new List<int>(flow.Count);
+        for (var i = 0; i < flow.Count; i++)
+        {
+            if (LayoutChild(flow[i].Node, flow[i].Style, depth, contexts[i]) is { } box)
+            {
+                boxes.Add(box);
+                sources.Add(i);
+            }
+        }
+
+        Func<int, BlockStretchConstraint, MathBox>? relayout = passThrough && context.Stretch is not null
+            ? null
+            : (index, constraint) =>
+            {
+                var source = sources[index];
+                return LayoutChild(flow[source].Node, flow[source].Style, depth, contexts[source] with { Stretch = constraint })
+                    ?? throw new InvalidOperationException("A displayed child has no box.");
+            };
+        var row = _rows.LayoutRow(boxes, isMath, relayout);
         return element.Name switch
         {
             "mpadded" => _rows.LayoutPadded(element, style, row),
@@ -196,39 +280,114 @@ internal sealed class LayoutEngine
     }
 
     /// <summary>
-    ///     Lays out the children of an element.
+    ///     Lays out a child of a row: an element, or text written directly inside a layout element (laid out like an
+    ///     <c>mtext</c>, reported while reading).
     /// </summary>
-    /// <param name="children">The children to lay out.</param>
-    /// <param name="style">The computed style of the parent.</param>
+    /// <param name="node">The child.</param>
+    /// <param name="style">Its computed style (the parent's for text).</param>
     /// <param name="depth">The nesting depth of the parent.</param>
-    /// <returns>The boxes of the displayed children, in order.</returns>
-    private List<MathBox> LayoutChildren(IReadOnlyList<MathNode> children, MathStyle style, int depth)
+    /// <param name="context">The form and the stretch constraint of the child.</param>
+    /// <returns>The box, or null when the child is not displayed.</returns>
+    private MathBox? LayoutChild(MathNode node, MathStyle style, int depth, OperatorContext context)
     {
-        var boxes = new List<MathBox>(children.Count);
-        foreach (var child in children)
+        if (node is MathElement element)
         {
-            MathBox? box;
-            if (child is MathElement element)
-            {
-                box = LayoutElement(element, _styles.Resolve(element, style), depth + 1);
-            }
-            else
-            {
-                // Text directly inside a layout element (reported while reading) is laid out like an mtext
-                var text = (MathText)child;
-                Charge(text.Text.Length, text.Location);
-                box = _tokens.LayoutText(text.Text, style, autoItalic: false, text.Location);
-                box = new MathBox(box.Width, box.Ascent, box.Descent, box.Children, box.Items) { IsSpaceLike = true };
-            }
-
-            if (box is not null)
-            {
-                boxes.Add(box);
-            }
+            return LayoutElement(element, style, depth + 1, context);
         }
 
-        return boxes;
+        var text = (MathText)node;
+        Charge(text.Text.Length, text.Location);
+        var box = _tokens.LayoutText(text.Text, style, autoItalic: false, text.Location);
+        return new MathBox(box.Width, box.Ascent, box.Descent, box.Children, box.Items) { IsSpaceLike = true };
     }
+
+    /// <summary>
+    ///     Gets the children that a row-like element lays out: the first child only for <c>semantics</c> and
+    ///     <c>maction</c> (the user agent stylesheet of MathML Core hides the others), every child otherwise.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The children.</returns>
+    private static IReadOnlyList<MathNode> RowChildren(MathElement element) =>
+        element.Name is "semantics" or "maction" ? element.ElementChildren.Take(1).ToList<MathNode>() : element.Children;
+
+    /// <summary>
+    ///     Predicts from the tree whether an element is space-like (MathML Core 3.2.5.1): an <c>mtext</c> or an
+    ///     <c>mspace</c>, or an element laid out as a row whose in-flow children are all space-like (text written directly
+    ///     inside it counts as space-like). The result is cached per element.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>True when it is space-like.</returns>
+    private bool IsSpaceLike(MathElement element)
+    {
+        if (_spaceLike.TryGetValue(element, out var cached))
+        {
+            return cached;
+        }
+
+        var result = element.Name switch
+        {
+            "mtext" or "mspace" => true,
+            "mi" or "mn" or "mo" or "ms" => false,
+            _ => InFlowChildren(element).All(child => child is not MathElement childElement || IsSpaceLike(childElement)),
+        };
+        _spaceLike[element] = result;
+        return result;
+    }
+
+    /// <summary>
+    ///     Predicts from the tree whether an element is an embellished operator (MathML Core 3.2.4.1): an <c>mo</c>, or an
+    ///     element laid out as a row whose in-flow children are one embellished operator and space-like elements. The
+    ///     result is cached per element.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>True when it is an embellished operator.</returns>
+    private bool IsEmbellishedOperator(MathElement element)
+    {
+        if (_embellished.TryGetValue(element, out var cached))
+        {
+            return cached;
+        }
+
+        bool result;
+        if (element.Name == "mo")
+        {
+            result = true;
+        }
+        else if (TokenNames.Contains(element.Name) || element.Name == "math")
+        {
+            result = false;
+        }
+        else
+        {
+            var operators = 0;
+            result = true;
+            foreach (var child in InFlowChildren(element).OfType<MathElement>())
+            {
+                if (IsEmbellishedOperator(child))
+                {
+                    operators++;
+                }
+                else if (!IsSpaceLike(child))
+                {
+                    result = false;
+                    break;
+                }
+            }
+
+            result = result && operators == 1;
+        }
+
+        _embellished[element] = result;
+        return result;
+    }
+
+    /// <summary>
+    ///     Gets the in-flow children of an element as the tree shows them: the children it lays out, annotations excluded.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>The children.</returns>
+    private static IEnumerable<MathNode> InFlowChildren(MathElement element) =>
+        RowChildren(element).Where(child => child is not MathElement { Name: "annotation" or "annotation-xml" });
 
     /// <summary>
     ///     Completes the box of an element: its background, its element, and whether it is a phantom.

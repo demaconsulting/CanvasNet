@@ -51,6 +51,9 @@ public sealed class MathMlLimits
     /// <summary>The backing field of <see cref="MaxDiagnostics"/>.</summary>
     private readonly int _maxDiagnostics = 1_000;
 
+    /// <summary>The backing field of <see cref="MaxAssemblyParts"/>.</summary>
+    private readonly int _maxAssemblyParts = 1_000;
+
     /// <summary>
     ///     Gets the shared instance that holds the default limits.
     /// </summary>
@@ -146,6 +149,22 @@ public sealed class MathMlLimits
     {
         get => _maxDiagnostics;
         init => _maxDiagnostics = (int)RequireAtLeastOne(value);
+    }
+
+    /// <summary>
+    ///     Gets the maximum number of glyphs of one stretched operator (the parts of a glyph assembly, extenders repeated);
+    ///     1,000 by default.
+    /// </summary>
+    /// <remarks>
+    ///     A stretchy operator grows to cover its neighbors by repeating the extender parts of its glyph assembly, so the
+    ///     number of glyphs grows with the size of the neighbors. The number is computed before any glyph is placed, and an
+    ///     operator that needs more fails with a located <see cref="MathMlRenderException"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
+    public int MaxAssemblyParts
+    {
+        get => _maxAssemblyParts;
+        init => _maxAssemblyParts = (int)RequireAtLeastOne(value);
     }
 
     /// <summary>

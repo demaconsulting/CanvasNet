@@ -7,7 +7,8 @@ This document describes the unit-level verification strategy for the `TokenLayou
 
 The unit is verified by laying out tokens with the bundled math font (whose glyph data are known facts of the font
 file), the real `StyleResolver`, and a collecting report sink, through the test assembly's `InternalsVisibleTo` access,
-and by asserting the code points drawn, the box metrics, the operator spacing, and the reports. The `mathvariant`
+and by asserting the code points drawn, the box metrics, the operator properties, the stretched and large operators, and
+the reports; an `mo` gets its form and stretch constraint directly through an `OperatorContext`. The `mathvariant`
 mappings are checked against the Unicode code charts in a theory over every value. Unit tests reside in
 `Layout/TokenLayoutTests.cs`.
 
@@ -70,12 +71,36 @@ a percentage ignored with a report.
 
 Asserts that `ms` draws its text as written, without quotes.
 
-##### CanvasNetMathMl-Layout-TokenLayout-InterimOperatorSpacing: Operator Spacing
+##### CanvasNetMathMl-Layout-TokenLayout-OperatorProperties: The Dictionary And The Attributes
 
-**Tests**: `TokenLayoutTests.TokenLayout_LayoutToken_Mo_HasInterimSpacing`
+**Tests**: `TokenLayoutTests.TokenLayout_LayoutToken_Mo_HasDictionarySpacing`,
+`TokenLayoutTests.TokenLayout_LayoutToken_OperatorAttributes_OverrideDictionary`
 
-Asserts the Default spacing of 5/18 em on each side, explicit `lspace` and `rspace` lengths, and a percentage of the
-default.
+Asserts the category B spacing of an infix plus (4/18 em on each side), no spacing for a prefix plus, explicit `lspace`
+and `rspace` lengths and a percentage of the dictionary value; that every attribute (`form` in another case, `fence`,
+`separator`, `stretchy`, `symmetric`, `largeop`, `movablelimits`, `minsize`, and a percentage `maxsize`) overrides the
+dictionary, that an explicit form without an entry gives the Default category, and that an invalid `form` and an
+invalid boolean are reported and ignored.
+
+##### CanvasNetMathMl-Layout-TokenLayout-Stretch: Stretched Operators
+
+**Tests**: `TokenLayoutTests.TokenLayout_LayoutOperator_StretchConstraint_CoversTargetCenteredOnAxis`,
+`TokenLayoutTests.TokenLayout_LayoutOperator_MinMaxSize_ClampTarget`,
+`TokenLayoutTests.TokenLayout_LayoutOperator_NoConstruction_KeepsGlyphAndReports`
+
+Asserts that a parenthesis stretched to the constraint (200, 100) covers it symmetrically about the math axis in a box
+of its preferred inline size, that `symmetric="false"` centers it on the constraint instead, that `minsize` grows and
+`maxsize` (in length and in percent) shrinks the target about the axis, that the empty constraint gives the unstretched
+height centered on the axis, and that a stretchy `x` keeps its glyph centered on the target with one
+`mathml-stretch-unavailable` warning, none when the target is shorter than the glyph.
+
+##### CanvasNetMathMl-Layout-TokenLayout-LargeOp: Large Operators
+
+**Tests**: `TokenLayoutTests.TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight`,
+`TokenLayoutTests.TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph`
+
+Asserts that a summation in display style draws its large variant, taller than inline and centered on the math axis,
+and that it keeps its base glyph inline and with `largeop="false"`.
 
 ##### CanvasNetMathMl-Layout-TokenLayout-MissingGlyph: A Character No Font Has
 

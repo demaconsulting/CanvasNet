@@ -47,3 +47,12 @@ bundled font has to glyph 0 of the math font.
 Asserts the ink bounds of the italic x (0, 0, 547, 536 of 1000 units) scaled, the empty bounds of a space, the same
 bounds on a repeated lookup, the italic correction of the italic f (145 units) and the top accent attachment of a (281
 units), and that a fallback glyph has neither.
+
+##### CanvasNetMathMl-Layout-MathFont-Constructions: Variants And Assemblies
+
+**Tests**: `MathFontTests.MathFont_TryGetConstruction_ScalesVariantsAndParts`
+
+Asserts at 100 px the 13 vertical variants of the parenthesis (the first is the base glyph, 942 units), its three-part
+assembly (bottom, extender, top) with the connectors and full advance of the bottom part (0, 627, 1069 units), the
+horizontal assembly of the right arrow without variants, no construction for a fallback glyph or a letter, the minimum
+connector overlap of 100 units, and a positive overbar thickness.

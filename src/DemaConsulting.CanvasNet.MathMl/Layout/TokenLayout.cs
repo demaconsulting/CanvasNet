@@ -27,20 +27,39 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         legacy <c>lquote</c> and <c>rquote</c> are reported as unsupported attributes).
 ///     </para>
 ///     <para>
-///         <b>Operators.</b> An <c>mo</c> is an embellished operator: a row adds its <c>lspace</c> before it and its
-///         <c>rspace</c> after it. This version gives every operator the spacing of the <c>Default</c> category of the
-///         operator dictionary (5/18 em on each side) unless the attributes set it; the dictionary comes in a later
-///         version.
+///         <b>Operators.</b> An <c>mo</c> is an embellished operator (MathML Core 3.2.4). Its properties come from the
+///         operator dictionary (<see cref="OperatorDictionary"/>) for its text and its form (the <c>form</c> attribute, else
+///         the form that its row inferred from its position), and its attributes override them: <c>form</c>,
+///         <c>fence</c>, <c>separator</c>, <c>lspace</c>, <c>rspace</c> (a percentage is of the dictionary value),
+///         <c>stretchy</c>, <c>symmetric</c>, <c>largeop</c>, <c>movablelimits</c>, <c>minsize</c> and <c>maxsize</c>
+///         (a percentage is of the unstretched height of the glyph). A row adds the <c>lspace</c> before the operator
+///         and the <c>rspace</c> after it. An operator of a single character is laid out as MathML Core 3.2.4.3 lays it
+///         out:
 ///     </para>
+///     <list type="bullet">
+///         <item>
+///             a stretchy operator with a block stretch axis that its row stretches gets a target from the constraint:
+///             its ascent and descent, symmetric about the math axis when the operator is <c>symmetric</c>, scaled to
+///             <c>minsize</c> and <c>maxsize</c>; its glyph is stretched by <see cref="StretchyGlyphs"/>, centered on the
+///             target, and centered in a box as wide as the widest of its constructions (its preferred inline size), as
+///             Chrome draws it. A character that cannot stretch keeps its glyph, centered on the target as Chrome centers
+///             it; when the glyph is shorter than the target it is reported
+///             (<see cref="MathMlDiagnosticCodes.StretchUnavailable"/>);
+///         </item>
+///         <item>
+///             a large operator in display style takes the first size variant at least DisplayOperatorMinHeight tall (else
+///             the largest), centered on the math axis, as Chrome centers it;
+///         </item>
+///         <item>
+///             any other operator is laid out like an <c>mtext</c>.
+///         </item>
+///     </list>
 ///     <para>
 ///         An instance serves one call on one thread.
 ///     </para>
 /// </remarks>
 internal sealed class TokenLayout
 {
-    /// <summary>The spacing of the <c>Default</c> operator category on each side, in em (MathML Core B.1).</summary>
-    public const double DefaultOperatorSpace = 5.0 / 18;
-
     /// <summary>The tolerance that keeps an ascent of 20.0000000001 from becoming 21 when it is rounded out.</summary>
     private const double RoundingTolerance = 1e-6;
 
@@ -53,17 +72,22 @@ internal sealed class TokenLayout
     /// <summary>The sink of the call.</summary>
     private readonly MathMlReportSink _sink;
 
+    /// <summary>The limits of the call (the glyphs of a stretched operator).</summary>
+    private readonly MathMlLimits _limits;
+
     /// <summary>
     ///     Initializes the token layout of one call.
     /// </summary>
     /// <param name="font">The math font.</param>
     /// <param name="styles">The style resolver of the call.</param>
     /// <param name="sink">The sink of the call.</param>
-    public TokenLayout(MathFont font, StyleResolver styles, MathMlReportSink sink)
+    /// <param name="limits">The limits of the call, or null for the defaults.</param>
+    public TokenLayout(MathFont font, StyleResolver styles, MathMlReportSink sink, MathMlLimits? limits = null)
     {
         _font = font;
         _styles = styles;
         _sink = sink;
+        _limits = limits ?? MathMlLimits.Default;
     }
 
     /// <summary>
@@ -71,28 +95,59 @@ internal sealed class TokenLayout
     /// </summary>
     /// <param name="element">The token element.</param>
     /// <param name="style">Its computed style.</param>
+    /// <param name="context">The form and the stretch constraint that the row gives an <c>mo</c>; ignored by the other tokens.</param>
     /// <returns>The box.</returns>
-    public MathBox LayoutToken(MathElement element, MathStyle style)
+    /// <exception cref="MathMlRenderException">Thrown when a stretched operator needs more glyphs than <see cref="MathMlLimits.MaxAssemblyParts"/>.</exception>
+    public MathBox LayoutToken(MathElement element, MathStyle style, OperatorContext context = default)
     {
         if (element.Name == "mspace")
         {
             return LayoutSpace(element, style);
         }
 
-        // The text as written (ms has no quotes in MathML Core)
-        var text = element.TextContent;
-        var location = element.Children.OfType<MathText>().FirstOrDefault()?.Location ?? element.Location;
-        var box = LayoutText(text, style, autoItalic: element.Name == "mi", location);
         if (element.Name == "mo")
         {
-            // The interim operator spacing: explicit lspace and rspace, else the Default category; a percentage is of it
-            var space = DefaultOperatorSpace * style.FontSize;
-            var leading = _styles.ResolveLength(element, "lspace", style, space) ?? space;
-            var trailing = _styles.ResolveLength(element, "rspace", style, space) ?? space;
-            return Copy(box, isSpaceLike: false, new EmbellishedOperator(leading, trailing));
+            return LayoutOperator(element, style, context);
         }
 
+        // The text as written (ms has no quotes in MathML Core)
+        var text = element.TextContent;
+        var location = TextLocation(element);
+        var box = LayoutText(text, style, autoItalic: element.Name == "mi", location);
         return element.Name == "mtext" ? Copy(box, isSpaceLike: true, null) : box;
+    }
+
+    /// <summary>
+    ///     Lays out an <c>mo</c> (MathML Core 3.2.4): resolves its properties, and stretches it or draws its large variant
+    ///     when they ask for it.
+    /// </summary>
+    /// <param name="element">The <c>mo</c> element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="context">The form inferred by the row and the stretch constraint, if any.</param>
+    /// <returns>The box, an embellished operator.</returns>
+    public MathBox LayoutOperator(MathElement element, MathStyle style, OperatorContext context)
+    {
+        var text = element.TextContent;
+        var location = TextLocation(element);
+        var plain = LayoutText(text, style, autoItalic: false, location);
+        var op = ResolveOperator(element, style, context.Form, plain.Ascent + plain.Descent);
+
+        // Only an operator of one character stretches or grows (MathML Core 3.2.4.3)
+        var codePoints = Transform(text, style.Variant, autoItalic: false);
+        MathBox box = plain;
+        if (codePoints.Count == 1)
+        {
+            if (op.Stretchy && op.Axis == StretchAxis.Block && context.Stretch is { } constraint)
+            {
+                box = StretchBlock(codePoints[0], style, op, constraint, element.Location);
+            }
+            else if (op.LargeOp && style.DisplayStyle)
+            {
+                box = LargeOperator(codePoints[0], style, plain);
+            }
+        }
+
+        return Copy(box, isSpaceLike: false, op);
     }
 
     /// <summary>
@@ -189,6 +244,217 @@ internal sealed class TokenLayout
 
         return codePoints;
     }
+
+    /// <summary>
+    ///     Gets the location of the text of a token, or of the token when it has no text.
+    /// </summary>
+    /// <param name="element">The token element.</param>
+    /// <returns>The location.</returns>
+    private static MathMlLocation TextLocation(MathElement element) =>
+        element.Children.OfType<MathText>().FirstOrDefault()?.Location ?? element.Location;
+
+    /// <summary>
+    ///     Resolves the properties of an operator (MathML Core 3.2.4.2): the dictionary values of its text and form, and
+    ///     the attributes that override them.
+    /// </summary>
+    /// <param name="element">The <c>mo</c> element.</param>
+    /// <param name="style">Its computed style (the base of <c>em</c>, <c>ex</c> and the spacing).</param>
+    /// <param name="inferred">The form inferred by the row, or null for infix.</param>
+    /// <param name="glyphHeight">The unstretched height of the operator, the base of a <c>minsize</c> or <c>maxsize</c> percentage.</param>
+    /// <returns>The properties.</returns>
+    private EmbellishedOperator ResolveOperator(MathElement element, MathStyle style, OperatorForm? inferred, double glyphHeight)
+    {
+        // The form: an explicit valid attribute wins over the position in the row
+        var text = element.TextContent;
+        OperatorForm? explicitForm = null;
+        if (element.Attributes.TryGetValue("form", out var formAttribute))
+        {
+            if (OperatorDictionary.TryParseForm(formAttribute.Value, out var parsed))
+            {
+                explicitForm = parsed;
+            }
+            else
+            {
+                Invalid("form", formAttribute, "prefix, infix or postfix");
+            }
+        }
+
+        var form = explicitForm ?? inferred ?? OperatorForm.Infix;
+        var properties = OperatorDictionary.Lookup(text, form, explicitForm is not null);
+
+        // The attributes override the dictionary; a percentage of lspace or rspace is of the dictionary value
+        var leading = properties.LeadingSpace * style.FontSize;
+        var trailing = properties.TrailingSpace * style.FontSize;
+        return new EmbellishedOperator(
+            _styles.ResolveLength(element, "lspace", style, leading) ?? leading,
+            _styles.ResolveLength(element, "rspace", style, trailing) ?? trailing)
+        {
+            CoreText = text,
+            Form = form,
+            Category = properties.Category,
+            Stretchy = Boolean(element, "stretchy", properties.Stretchy),
+            Symmetric = Boolean(element, "symmetric", properties.Symmetric),
+            LargeOp = Boolean(element, "largeop", properties.LargeOp),
+            MovableLimits = Boolean(element, "movablelimits", properties.MovableLimits),
+            Fence = Boolean(element, "fence", OperatorDictionary.IsFence(text)),
+            Separator = Boolean(element, "separator", OperatorDictionary.IsSeparator(text)),
+            Axis = OperatorDictionary.Axis(text),
+            MinSize = _styles.ResolveLength(element, "minsize", style, glyphHeight) ?? glyphHeight,
+            MaxSize = _styles.ResolveLength(element, "maxsize", style, glyphHeight) ?? double.PositiveInfinity,
+        };
+    }
+
+    /// <summary>
+    ///     Stretches an operator along the block axis to the constraint of its row (MathML Core 3.2.4.3).
+    /// </summary>
+    /// <param name="codePoint">The character, transformed by the <c>mathvariant</c> in effect.</param>
+    /// <param name="style">The computed style of the operator.</param>
+    /// <param name="op">The properties of the operator.</param>
+    /// <param name="constraint">The block stretch size constraint.</param>
+    /// <param name="location">The location of the operator.</param>
+    /// <returns>The box of the stretched operator; the box of its glyph, centered on the target, when the character cannot stretch.</returns>
+    private MathBox StretchBlock(int codePoint, MathStyle style, EmbellishedOperator op, BlockStretchConstraint constraint, MathMlLocation location)
+    {
+        // The target: symmetric about the math axis when asked, the smallest such target that holds the constraint
+        var axis = _font.Constant(MathConstant.AxisHeight, style.FontSize);
+        var (ascent, descent) = (constraint.Ascent, constraint.Descent);
+        if (op.Symmetric)
+        {
+            var half = Math.Max(ascent - axis, descent + axis);
+            (ascent, descent) = (half + axis, half - axis);
+        }
+
+        // minsize and maxsize scale the target about the math axis
+        var minSize = Math.Max(0, op.MinSize);
+        var maxSize = Math.Max(minSize, op.MaxSize);
+        var target = ascent + descent;
+        if (target <= 0)
+        {
+            ascent = (minSize / 2) + axis;
+            descent = minSize - ascent;
+        }
+        else if (target < minSize)
+        {
+            ascent = Math.Max(0, ((ascent - axis) * minSize / target) + axis);
+            descent = minSize - ascent;
+        }
+        else if (maxSize < target)
+        {
+            ascent = Math.Max(0, ((ascent - axis) * maxSize / target) + axis);
+            descent = maxSize - ascent;
+        }
+
+        target = ascent + descent;
+        var result = StretchyGlyphs.Stretch(_font, codePoint, StretchAxis.Block, target, style.FontSize, _limits.MaxAssemblyParts, location);
+        if (result is null)
+        {
+            // Nothing stretches the character: it keeps its glyph, centered on the target as Chrome centers it, which is
+            // only reported when it is too short
+            result = StretchyGlyphs.Glyph(_font, codePoint, style.FontSize);
+            if (target > result.Height + RoundingTolerance)
+            {
+                _sink.Warn(
+                    MathMlDiagnosticCodes.StretchUnavailable,
+                    $"the operator '{op.CoreText}' cannot stretch to the size of its row: neither the bundled math font nor the fallbacks of MathML Core can stretch it; it is drawn at its normal size",
+                    location,
+                    "use a character that Noto Sans Math stretches, such as a parenthesis, a bracket, a brace or a vertical bar, or set stretchy=\"false\"");
+            }
+        }
+
+        // The glyph is centered on the target vertically, and in the widest of its constructions horizontally (as Chrome)
+        var width = Math.Max(result.Width, StretchyGlyphs.PreferredInlineSize(_font, codePoint, style.FontSize));
+        var shift = ((result.Ascent - result.Descent) - (ascent - descent)) / 2;
+        return Place(result, width, (width - result.Width) / 2, shift, style);
+    }
+
+    /// <summary>
+    ///     Lays out a large operator in display style (MathML Core 3.2.4.3): its first size variant at least
+    ///     DisplayOperatorMinHeight tall, else its largest, centered on the math axis as Chrome centers it.
+    /// </summary>
+    /// <param name="codePoint">The character, transformed by the <c>mathvariant</c> in effect.</param>
+    /// <param name="style">The computed style of the operator.</param>
+    /// <param name="plain">The unstretched box of the operator.</param>
+    /// <returns>The box of the large operator, or the unstretched box when the character has no larger variant.</returns>
+    private MathBox LargeOperator(int codePoint, MathStyle style, MathBox plain)
+    {
+        var minHeight = _font.Constant(MathConstant.DisplayOperatorMinHeight, style.FontSize);
+        if (StretchyGlyphs.LargeVariant(_font, codePoint, minHeight, style.FontSize) is not { } result)
+        {
+            return plain;
+        }
+
+        // Center on the axis: the ascent exceeds the descent by twice the axis height
+        var axis = _font.Constant(MathConstant.AxisHeight, style.FontSize);
+        var shift = ((result.Ascent - result.Descent) / 2) - axis;
+        return Place(result, result.Width, 0, shift, style);
+    }
+
+    /// <summary>
+    ///     Builds the box of a stretched glyph moved by an offset.
+    /// </summary>
+    /// <param name="result">The stretched glyph.</param>
+    /// <param name="width">The width of the box.</param>
+    /// <param name="left">The horizontal offset of the glyph in the box.</param>
+    /// <param name="shift">The downward offset of the glyph.</param>
+    /// <param name="style">The style, for the size and the color of the glyphs.</param>
+    /// <returns>The box.</returns>
+    private MathBox Place(StretchResult result, double width, double left, double shift, MathStyle style)
+    {
+        var items = new List<IPaintItem>(result.Glyphs.Count + 1);
+        foreach (var glyph in result.Glyphs)
+        {
+            var x = left + glyph.X;
+            var baseline = glyph.Baseline + shift;
+            var ink = _font.InkBounds(glyph.Font, glyph.Glyph, style.FontSize).Offset(x, baseline);
+            items.Add(new GlyphItem(glyph.Font, glyph.Glyph, style.FontSize, x, baseline, style.Color, ink));
+        }
+
+        if (result.Rule is { } rule)
+        {
+            items.Add(new RuleItem(rule.Offset(left, shift), style.Color));
+        }
+
+        return new MathBox(width, result.Ascent - shift, result.Descent + shift, null, items)
+        {
+            ItalicCorrection = result.ItalicCorrection,
+        };
+    }
+
+    /// <summary>
+    ///     Reads a boolean attribute of an <c>mo</c>, warning about an invalid value.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <param name="name">The attribute name.</param>
+    /// <param name="fallback">The value when the attribute is absent or invalid.</param>
+    /// <returns>The value.</returns>
+    private bool Boolean(MathElement element, string name, bool fallback)
+    {
+        if (!element.Attributes.TryGetValue(name, out var attribute))
+        {
+            return fallback;
+        }
+
+        if (AttributeValues.TryParseBoolean(attribute.Value, out var value))
+        {
+            return value;
+        }
+
+        Invalid(name, attribute, "true or false");
+        return fallback;
+    }
+
+    /// <summary>
+    ///     Warns about an invalid attribute value.
+    /// </summary>
+    /// <param name="name">The attribute name.</param>
+    /// <param name="attribute">The attribute.</param>
+    /// <param name="expected">What the attribute accepts.</param>
+    private void Invalid(string name, MathAttribute attribute, string expected) =>
+        _sink.Warn(
+            MathMlDiagnosticCodes.AttributeInvalid,
+            $"'{attribute.Value}' is not a valid value of the attribute '{name}'; it is ignored",
+            attribute.Location,
+            $"use {expected}");
 
     /// <summary>
     ///     Lays out an <c>mspace</c>: a blank box of the given width, height and depth.

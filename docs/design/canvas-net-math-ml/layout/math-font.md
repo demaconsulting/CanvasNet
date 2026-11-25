@@ -3,7 +3,8 @@
 ![Layout Structure](MathMlLayoutView.svg)
 
 The `MathFont` unit is a software unit of the `Layout` subsystem. Its source file is `MathFont.cs`, which defines the
-internal enum `MathConstant` and the internal sealed class `MathFont`.
+internal enum `MathConstant`, the record structs `StretchVariant` and `StretchPart`, the record `StretchConstruction`,
+and the internal sealed class `MathFont`.
 
 #### Purpose
 
@@ -16,8 +17,13 @@ is specified by the `CanvasNetMathMl-Layout-MathFont-*` requirements in
 #### Data Model
 
 - `MathConstant` - the constants of the `MATH` table that the layout reads now: `ScriptPercentScaleDown`,
-  `ScriptScriptPercentScaleDown`, `AxisHeight`, `FractionRuleThickness`, `DisplayOperatorMinHeight`, and
-  `DelimitedSubFormulaMinHeight`; the layouts of later stages add theirs.
+  `ScriptScriptPercentScaleDown`, `AxisHeight`, `FractionRuleThickness`, `DisplayOperatorMinHeight`,
+  `DelimitedSubFormulaMinHeight`, and `OverbarRuleThickness` (the thickness of a rule without ink to copy); the layouts
+  of later stages add theirs.
+- `StretchVariant(Glyph, Advance)`, `StretchPart(Font, Glyph, StartConnector, EndConnector, FullAdvance, IsExtender)`,
+  and `StretchConstruction(Variants, Parts, AssemblyItalicCorrection)` - a construction of the `MathVariants` table in
+  CSS pixels at a font size (the part records also serve the Unicode-based assemblies of `StretchyGlyphs`, whose parts
+  may come from a fallback font).
 - `BundledFileName` - `NotoSansMath-Regular.ttf`.
 - `Primary` - the primary `TrueTypeFont` and its `MathTable` (read once by the core); `UnitsPerEm`.
 - The ink cache - a `ConcurrentDictionary` of the outline bounds in font units per font and glyph, filled on demand
@@ -38,6 +44,9 @@ is specified by the `CanvasNetMathMl-Layout-MathFont-*` requirements in
 - `ItalicCorrection` and `TopAccentAttachment` - from the `MATH` glyph information of the primary font, in CSS pixels;
   zero and null for a glyph of a fallback font.
 - `XHeight(fontSize)` - the ink top of the letter x, the base of the `ex` unit.
+- `MinConnectorOverlap(fontSize)` - the minimum overlap of two parts of an assembly in CSS pixels.
+- `TryGetConstruction(font, glyph, axis, fontSize, out construction)` - the vertical (block axis) or horizontal (inline
+  axis) construction of a glyph of the primary font, scaled; false for a glyph of a fallback font or without one.
 
 #### Error Handling
 
@@ -54,4 +63,4 @@ outlines).
 #### Callers
 
 `MathMlDocument` creates every layout over `MathFont.Default`; `LayoutEngine`, `StyleResolver`, and `TokenLayout` read
-its constants and metrics.
+its constants and metrics; `StretchyGlyphs` reads its constructions.

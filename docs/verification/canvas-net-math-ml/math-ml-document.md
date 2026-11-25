@@ -72,7 +72,8 @@ that a whitespace source name throws while no limits mean the defaults.
 `MathMlLimitsTests.MathMlLimits_MaxNestingDepth_OutsideRange_Throws`,
 `MathMlDocumentTests.MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException`
 
-Asserts every documented default, that zero throws for every limit (with the property name), that a nesting depth of 0
+Asserts every documented default (`MaxAssemblyParts` 1,000 among them), that zero throws for every limit (with the
+property name), that a nesting depth of 0
 or 1,025 throws, and that a small `MaxLayoutWork` fails a render with a located `mathml-limit-exceeded` naming the
 property.
 
@@ -88,7 +89,7 @@ property.
 Asserts the `name:line:column` formatting with and without a name and position, the location prefix of the reports, the
 value equality of the size and the annotation, the code, location, hint, and message of the located exceptions, the
 default codes and unknown location of the standard constructors, and that every published code is a distinct
-`mathml-*` identifier.
+`mathml-*` identifier (ten of them, `mathml-stretch-unavailable` among them).
 
 #### CanvasNetMathMl-MathMlDocument-Reports: Ordered, De-Duplicated, Capped Delivery
 

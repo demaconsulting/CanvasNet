@@ -69,9 +69,9 @@ sections:
           - id: CanvasNetMathMl-MathMlDocument-Limits
             title: >-
               The MathMlDocument unit shall provide resource limits with documented defaults (text size, elements,
-              nesting depth from 1 to 1,024, token length, layout work, painted glyphs, and reports), refuse values
-              below one, and fail a call that exceeds the layout work with a located render exception that names the
-              limit.
+              nesting depth from 1 to 1,024, token length, layout work, painted glyphs, reports, and the glyphs of a
+              stretched operator), refuse values below one, and fail a call that exceeds the layout work with a located
+              render exception that names the limit.
             justification: |
               The caller tunes the bounds of untrusted input, and an exceeded bound must name the setting to change.
             tests:
@@ -84,7 +84,8 @@ sections:
             title: >-
               The MathMlDocument unit shall provide value records for locations, warnings, unsupported features, sizes,
               and annotations with editor-style formatting, exceptions that carry a code, a location, and a hint (with
-              default codes for the standard constructors), and distinct mathml-* diagnostic codes.
+              default codes for the standard constructors), and distinct mathml-* diagnostic codes (among them
+              mathml-stretch-unavailable for an operator that cannot stretch).
             justification: |
               Callers and tools compare, print, and react to the results and failures of the library.
             tests:

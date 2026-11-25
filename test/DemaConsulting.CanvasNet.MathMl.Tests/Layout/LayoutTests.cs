@@ -11,8 +11,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 public class LayoutTests
 {
     /// <summary>
-    ///     Validates the box of <c>x + 1</c> at 100 px: the advances of the glyphs plus the Default spacing of the
-    ///     operator, and the ink ascent and descent rounded out.
+    ///     Validates the box of <c>x + 1</c> at 100 px: the advances of the glyphs plus the dictionary spacing of the
+    ///     operator (category B, 4/18 em on each side), and the ink ascent and descent rounded out.
     /// </summary>
     [Fact]
     public void Layout_TokenRow_MatchesFontMetricsAndSpacing()
@@ -31,7 +31,7 @@ public class LayoutTests
             return -font.InkBounds(glyphFont, glyph, 100).Y;
         }
 
-        var space = 500 / 18.0;
+        var space = 400 / 18.0;
 
         // Act
         var box = LayoutText(MathMlTestHelpers.Math("<mi>x</mi><mo>+</mo><mn>1</mn>"));
@@ -40,6 +40,33 @@ public class LayoutTests
         Assert.Equal(Advance(0x1D465) + space + Advance('+') + space + Advance('1'), box.Width, 9);
         Assert.Equal(System.Math.Ceiling(new[] { Top(0x1D465), Top('+'), Top('1') }.Max()), box.Ascent);
         Assert.Equal([0, Advance(0x1D465) + space, Advance(0x1D465) + space + Advance('+') + space], box.Children.Select(child => child.X));
+    }
+
+    /// <summary>
+    ///     Validates stretchy fences around a tall row through the subsystem: each parenthesis covers the row symmetrically
+    ///     about the math axis of the MATH table, in a box as wide as its widest construction, without spacing (categories F
+    ///     and G of the operator dictionary).
+    /// </summary>
+    [Fact]
+    public void Layout_StretchyFencesAroundTallRow_MatchConstants()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        var axis = font.Constant(MathConstant.AxisHeight, 100);
+        var half = System.Math.Max(200 - axis, 100 + axis);
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math("<mo>(</mo><mspace width=\"10px\" height=\"2em\" depth=\"1em\"/><mo>)</mo>"));
+
+        // Assert
+        var width = StretchyGlyphs.PreferredInlineSize(font, '(', 100);
+        Assert.Equal([0, width, width + 10], box.Children.Select(child => child.X));
+        foreach (var paren in new[] { box.Children[0].Box, box.Children[2].Box })
+        {
+            Assert.Equal(axis, (paren.Ascent - paren.Descent) / 2, 9);
+            Assert.True(paren.Ascent >= half + axis - 1e-9);
+            Assert.Equal(width, paren.Width, 9);
+        }
     }
 
     /// <summary>

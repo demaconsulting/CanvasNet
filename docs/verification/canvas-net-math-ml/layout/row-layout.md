@@ -7,8 +7,9 @@ This document describes the unit-level verification strategy for the `RowLayout`
 
 The unit is verified by laying out rows of hand-built child boxes (with chosen widths, ascents, descents, operator data,
 italic corrections, and space-likeness) and `mpadded` and `merror` around them, through the test assembly's
-`InternalsVisibleTo` access, with the real `StyleResolver` for the `mpadded` attributes. Hand-built boxes isolate the
-row rules from the glyph metrics. Unit tests reside in `Layout/RowLayoutTests.cs`.
+`InternalsVisibleTo` access, with the real `StyleResolver` for the `mpadded` attributes, and a relayout function that
+records the constraints it is given and returns boxes of their size. Hand-built boxes isolate the row rules from the
+glyph metrics. Unit tests reside in `Layout/RowLayoutTests.cs`.
 
 #### Test Environment
 
@@ -28,11 +29,23 @@ that differs from the expected value constitutes a failure.
 
 **Tests**: `RowLayoutTests.RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents`,
 `RowLayoutTests.RowLayout_LayoutRow_Operator_GetsItsSpacing`,
+`RowLayoutTests.RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator`,
 `RowLayoutTests.RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild`
 
 Asserts the left-to-right placement on a shared baseline with the maximum ascent and descent, the leading and trailing
-space around an operator child, and that italic corrections are not added between children while the row takes the
-italic correction of its last child.
+space around an operator child (also from the operator data of a stretched operator), and that italic corrections are
+not added between children while the row takes the italic correction of its last child.
+
+##### CanvasNetMathMl-Layout-RowLayout-Stretch: Stretchy Operators
+
+**Tests**: `RowLayoutTests.RowLayout_LayoutRow_StretchyParens_CoverTallestSibling`,
+`RowLayoutTests.RowLayout_LayoutRow_AllChildrenStretchy_UseUnconstrainedSize`,
+`RowLayoutTests.RowLayout_LayoutRow_NonStretchyOrInlineAxis_AreNotStretched`
+
+With a recording relayout function, asserts that both parentheses of a row are laid out again with the largest ascent
+and descent of the other children and that their new boxes are placed; that when every child stretches, the operators
+are laid out with (0, 0) first and then with the largest of those sizes; and that a non-stretchy operator, an operator
+with an inline stretch axis, and a row without a relayout function are not stretched.
 
 ##### CanvasNetMathMl-Layout-RowLayout-Grouping: Embellished Operators And Space-Likeness
 

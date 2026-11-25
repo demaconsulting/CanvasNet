@@ -26,7 +26,37 @@ internal enum MathConstant
 
     /// <summary>The minimum height of a delimited sub-formula, to which stretchy delimiters grow.</summary>
     DelimitedSubFormulaMinHeight,
+
+    /// <summary>The thickness of an overbar, the thickness of the rule that draws a stretched line character.</summary>
+    OverbarRuleThickness,
 }
+
+/// <summary>
+///     A size variant of a stretchy glyph of the math font (OpenType MathGlyphVariantRecord), scaled to a font size.
+/// </summary>
+/// <param name="Glyph">The glyph index of the variant in the primary font.</param>
+/// <param name="Advance">Its size along the stretch axis in CSS pixels.</param>
+internal readonly record struct StretchVariant(int Glyph, double Advance);
+
+/// <summary>
+///     A part of a glyph assembly (OpenType GlyphPartRecord, or a part of a Unicode-based assembly of MathML Core B.4),
+///     scaled to a font size.
+/// </summary>
+/// <param name="Font">The font of the part glyph.</param>
+/// <param name="Glyph">The glyph index.</param>
+/// <param name="StartConnector">The length of the connector at its start (bottom or left) in CSS pixels.</param>
+/// <param name="EndConnector">The length of the connector at its end (top or right) in CSS pixels.</param>
+/// <param name="FullAdvance">Its full size along the stretch axis in CSS pixels.</param>
+/// <param name="IsExtender">Whether the part may be repeated (or left out) to reach a size.</param>
+internal readonly record struct StretchPart(TrueTypeFont Font, int Glyph, double StartConnector, double EndConnector, double FullAdvance, bool IsExtender);
+
+/// <summary>
+///     How a glyph of the math font stretches along one axis (OpenType MathGlyphConstruction), scaled to a font size.
+/// </summary>
+/// <param name="Variants">The size variants in increasing size; may be empty.</param>
+/// <param name="Parts">The parts of the glyph assembly from bottom to top or left to right, or null when there is none.</param>
+/// <param name="AssemblyItalicCorrection">The italic correction of the assembled glyph in CSS pixels.</param>
+internal sealed record StretchConstruction(IReadOnlyList<StretchVariant> Variants, IReadOnlyList<StretchPart>? Parts, double AssemblyItalicCorrection);
 
 /// <summary>
 ///     The math font of the layout: the bundled Noto Sans Math with its OpenType MATH table, scaled to a font size, with
@@ -116,6 +146,7 @@ internal sealed class MathFont
             MathConstant.FractionRuleThickness => constants.FractionRuleThickness,
             MathConstant.DisplayOperatorMinHeight => constants.DisplayOperatorMinHeight,
             MathConstant.DelimitedSubFormulaMinHeight => constants.DelimitedSubFormulaMinHeight,
+            MathConstant.OverbarRuleThickness => constants.OverbarRuleThickness,
             _ => throw new ArgumentOutOfRangeException(nameof(constant), constant, "Unknown math constant."),
         };
     }
@@ -189,6 +220,45 @@ internal sealed class MathFont
     /// <returns>The attachment, or null for a glyph without one or of a fallback font.</returns>
     public double? TopAccentAttachment(TrueTypeFont font, int glyph, double fontSize) =>
         ReferenceEquals(font, Primary) && _table.TryGetTopAccentAttachment(glyph, out var value) ? value * fontSize / UnitsPerEm : null;
+
+    /// <summary>
+    ///     Gets the minimum overlap of two adjacent parts of a glyph assembly (MATH MinConnectorOverlap) in CSS pixels.
+    /// </summary>
+    /// <param name="fontSize">The font size in CSS pixels.</param>
+    /// <returns>The overlap.</returns>
+    public double MinConnectorOverlap(double fontSize) => _table.MinConnectorOverlap * fontSize / UnitsPerEm;
+
+    /// <summary>
+    ///     Gets how a glyph of the primary font stretches along an axis (the MathVariants table), scaled to a font size.
+    /// </summary>
+    /// <param name="font">The font of the glyph.</param>
+    /// <param name="glyph">The glyph index.</param>
+    /// <param name="axis">The stretch axis: block reads the vertical constructions, inline the horizontal ones.</param>
+    /// <param name="fontSize">The font size in CSS pixels.</param>
+    /// <param name="construction">The construction.</param>
+    /// <returns>True when the glyph belongs to the primary font and has a construction for the axis.</returns>
+    public bool TryGetConstruction(TrueTypeFont font, int glyph, StretchAxis axis, double fontSize, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out StretchConstruction? construction)
+    {
+        construction = null;
+        if (!ReferenceEquals(font, Primary))
+        {
+            return false;
+        }
+
+        var source = axis == StretchAxis.Block ? _table.GetVerticalConstruction(glyph) : _table.GetHorizontalConstruction(glyph);
+        if (source is null)
+        {
+            return false;
+        }
+
+        var scale = fontSize / UnitsPerEm;
+        var variants = source.Variants.Select(variant => new StretchVariant(variant.Glyph, variant.AdvanceMeasurement * scale)).ToList();
+        var parts = source.Assembly?.Parts
+            .Select(part => new StretchPart(Primary, part.Glyph, part.StartConnectorLength * scale, part.EndConnectorLength * scale, part.FullAdvance * scale, part.IsExtender))
+            .ToList();
+        construction = new StretchConstruction(variants, parts, (source.Assembly?.ItalicsCorrection ?? 0) * scale);
+        return true;
+    }
 
     /// <summary>
     ///     Gets the x-height in CSS pixels (the base of the <c>ex</c> unit): the ink top of the letter x.
