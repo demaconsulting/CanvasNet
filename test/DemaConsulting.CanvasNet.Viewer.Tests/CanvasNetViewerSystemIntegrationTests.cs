@@ -19,6 +19,7 @@ public class CanvasNetViewerSystemIntegrationTests
     ///     image source of every format it supports, with the extensions it claims.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetViewer_SystemIntegration_ImageSources_ListEveryFormat()
     {
         // Arrange / Act

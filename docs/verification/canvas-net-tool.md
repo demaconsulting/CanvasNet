@@ -49,11 +49,15 @@ SCAD (OpenSCAD), Vega-Lite, Mermaid, and PlantUML paths of the bundled libraries
 
 ## Test Environment
 
-System tests run on .NET 10.0 and .NET 11.0 on Windows, Linux, and macOS in CI; all scenarios are
+System tests run on .NET 10.0 on Windows, Linux, and macOS in every CI build, and also on .NET 11.0 in the release
+and weekly full-matrix builds (every other build runs only the Platform subset on .NET 11.0); all scenarios are
 expected to produce identical results everywhere. Out-of-process tests need the tool assembly and its
 libraries in the test output directory, which the test project's project references provide. Temporary files
 are created in the system temporary directory and removed by each test. Tests that redirect the console
-belong to the "Sequential" collection because console redirection is process-wide.
+belong to the "Sequential" collection because console redirection is process-wide. Each self-validation test runs the
+tool as its own process with the command line of the contract it covers (bare `--validate`, a TRX results file, a
+JUnit XML results file, the legacy alias, an unsupported extension, and a heading depth), so a fault in any one
+argument combination fails its own test.
 
 ## Acceptance Criteria
 

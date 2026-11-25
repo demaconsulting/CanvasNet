@@ -56,6 +56,7 @@ public class PathFillerTests
     ///     and the bottom-right cell not at all).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PathFiller_Fill_DiagonalTriangle_MatchesHandComputedCoverageGradient()
     {
         // Arrange: a 2x2 surface and a right triangle with a diagonal hypotenuse from (2,0) to (0,2)

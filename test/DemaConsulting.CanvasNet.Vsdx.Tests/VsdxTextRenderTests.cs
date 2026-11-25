@@ -68,6 +68,7 @@ public class VsdxTextRenderTests
 
     /// <summary>Proves a glyph paints its resolved color at the expected, identity-transformed pixel location and leaves pixels outside its outline untouched.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintTextLayout_IdentityTransform_PaintsGlyphAtExpectedLocationWithResolvedColor()
     {
         // Arrange: Size 100 -> scale 100/1000 = 0.1. Font-unit square [100,900]x[100,900] scales
@@ -92,6 +93,7 @@ public class VsdxTextRenderTests
 
     /// <summary>Proves the shape-to-surface transform composes with the glyph's own local scale/origin (a non-identity translation shifts the painted location accordingly).</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintTextLayout_TranslatedShapeTransform_ShiftsPaintedLocation()
     {
         var font = NewFilledSquareFont();
@@ -119,6 +121,7 @@ public class VsdxTextRenderTests
     ///     pixel band rather than the mirrored band a Pptx-style flip would produce.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PaintTextLayout_NoYFlipApplied_UpperHalfInkPaintsAtUnmirroredLocation()
     {
         // Arrange: Size 100 -> scale 0.1. Font-unit ink y in [600,900] scales to [60,90];

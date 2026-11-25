@@ -7,6 +7,8 @@
 # Test links can include a source filter prefix (e.g. "windows@", "ubuntu@", "net8.0@") to restrict
 # which test results count as evidence for a requirement. This is critical for platform and framework
 # requirements - removing these filters invalidates the evidence-based proof.
+# A test cited with a framework filter (net8.0@ ... net11.0@) must carry [Trait("Category", "Platform")]:
+# the CI build runs the full test suite on net10.0 but only that Platform subset on net8.0, net9.0, and net11.0.
 #
 # Source filter prefixes:
 #   windows@TestName  - proves the test passed on a Windows platform

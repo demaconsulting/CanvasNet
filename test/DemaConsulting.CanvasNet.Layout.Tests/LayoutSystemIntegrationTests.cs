@@ -20,6 +20,7 @@ public class LayoutSystemIntegrationTests
     ///     the drawing has a size, and the ranks run in the requested direction.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetLayout_LayeredLayout_CompoundCyclicLabeledGraph_LaidOutInEveryRankDirection()
     {
         foreach (var rankDir in new[] { "TB", "BT", "LR", "RL" })

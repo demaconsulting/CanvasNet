@@ -167,6 +167,7 @@ public class DagrePositioningTests
     ///     Validates the x positions of small graphs.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void DagrePositioning_PositionX_SmallGraphs_MatchDagre()
     {
         // Arrange

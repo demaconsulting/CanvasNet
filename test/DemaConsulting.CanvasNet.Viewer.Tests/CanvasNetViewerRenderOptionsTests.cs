@@ -88,6 +88,7 @@ public class CanvasNetViewerRenderOptionsTests
     ///     reports the page and the page count.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution()
     {
         // Arrange: page 2 of the PDF is displayed 96 by 144 points

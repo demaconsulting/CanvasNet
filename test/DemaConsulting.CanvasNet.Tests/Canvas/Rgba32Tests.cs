@@ -211,6 +211,7 @@ public class Rgba32Tests
     ///     color, with the composited alpha channel computed per <c>outA = fgA + bgA * (1 - fgA)</c>.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void Rgba32_CompositeOver_BothBackgroundAndForegroundPartiallyTransparent_BlendsExactly()
     {
         var background = new Rgba32(100, 150, 200, 100);

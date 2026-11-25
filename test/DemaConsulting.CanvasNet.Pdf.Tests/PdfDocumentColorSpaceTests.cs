@@ -480,6 +480,7 @@ public class PdfDocumentColorSpaceTests
 
     /// <summary>Proves /ICCBased with /N 1 and no /Alternate resolves as DeviceGray, and /N 4 as DeviceCMYK.</summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void PdfDocument_ColorSpace_IccBased_N1AndN4_ResolveAsDeviceSpaces()
     {
         // Arrange / Act

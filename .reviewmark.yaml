@@ -6162,6 +6162,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/validation.sysml"          # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Validation.cs"             # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ValidationTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/ValidationRunFixture.cs"  # shared in-process validation run
 
   # CanvasNetTool-PathHelpers Review (one per direct unit)
   - id: CanvasNetTool-PathHelpers

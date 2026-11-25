@@ -18,6 +18,7 @@ public class PlantUmlSequenceIntegrationTests
     ///     participants outlined in #181818, and pale yellow notes.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_Sequence_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange

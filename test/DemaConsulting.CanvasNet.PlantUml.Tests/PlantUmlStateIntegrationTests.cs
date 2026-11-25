@@ -19,6 +19,7 @@ public class PlantUmlStateIntegrationTests
     ///     states, and the dark start circle.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_State_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange

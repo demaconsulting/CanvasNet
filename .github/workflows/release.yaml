@@ -19,7 +19,8 @@ on:
 
 jobs:
   # Calls the reusable build workflow to build, test, and generate documentation
-  # for the release version.
+  # for the release version. A release runs the full unit-test suite on every target
+  # framework (full-test-matrix), not only the Platform subset on the non-LTS frameworks.
   build:
     name: Build
     permissions:
@@ -30,6 +31,7 @@ jobs:
     uses: ./.github/workflows/build.yaml
     with:
       version: ${{ inputs.version }}
+      full-test-matrix: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

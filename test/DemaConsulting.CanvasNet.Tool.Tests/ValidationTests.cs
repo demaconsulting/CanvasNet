@@ -3,20 +3,38 @@ namespace DemaConsulting.CanvasNet.Tool.Tests;
 /// <summary>
 ///     Unit tests for the Validation class.
 /// </summary>
+/// <remarks>
+///     The tests that only read the outcome of a not-silent run with a TRX results file share one run through
+///     <see cref="ValidationRunFixture"/>; the tests of the other options (silent, depth, silent output with a TRX
+///     results file, other results formats) run the self-validation with their own context.
+/// </remarks>
 [Collection("Sequential")]
-public class ValidationTests
+public class ValidationTests : IClassFixture<ValidationRunFixture>
 {
+    /// <summary>
+    ///     The shared run of the self-validation with a TRX results file and normal output.
+    /// </summary>
+    private readonly ValidationRunFixture _run;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ValidationTests"/> class.
+    /// </summary>
+    /// <param name="run">The shared self-validation run, started on first use.</param>
+    public ValidationTests(ValidationRunFixture run)
+    {
+        _run = run;
+    }
+
     /// <summary>
     ///     Test that Run prints the summary lines.
     /// </summary>
     [Fact]
     public void Validation_Run_NotSilent_PrintsSummary()
     {
-        // Arrange: a context that is not silent so the summary reaches standard output
-        using var context = Context.Create([]);
+        // Arrange: (none - the fixture's context is not silent so the summary reaches standard output)
 
-        // Act: run the self-validation
-        var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
         // Assert: header, both platform self-tests, and a summary with no failures are printed
         Assert.Contains("# DEMA Consulting CanvasNet Tool", stdOut);
@@ -34,25 +52,16 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_FormatsSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the formats self-test passed, and its name is in the results file
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_Formats - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_Formats", File.ReadAllText(resultsFile));
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the formats self-test passed, and its name is in the results file
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_Formats - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_Formats", File.ReadAllText(resultsFile));
     }
 
     /// <summary>
@@ -61,32 +70,23 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_ImagingSelfTests_PassAndAreRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
+
+        // Assert: each imaging self-test passed and is named in the results file
+        Assert.Equal(0, _run.ExitCode);
+        var content = File.ReadAllText(resultsFile);
+        foreach (var name in new[]
+                 {
+                     "CanvasNetTool_RenderPng", "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg",
+                     "CanvasNetTool_PdfMinimal", "CanvasNetTool_RenderScad", "CanvasNetTool_CropResize", "CanvasNetTool_RotateFlipPad"
+                 })
         {
-            using var context = Context.Create(["--results", resultsFile]);
-
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: each imaging self-test passed and is named in the results file
-            Assert.Equal(0, context.ExitCode);
-            var content = File.ReadAllText(resultsFile);
-            foreach (var name in new[]
-                     {
-                         "CanvasNetTool_RenderPng", "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg",
-                         "CanvasNetTool_PdfMinimal", "CanvasNetTool_RenderScad", "CanvasNetTool_CropResize", "CanvasNetTool_RotateFlipPad"
-                     })
-            {
-                Assert.Contains($"✓ {name} - Passed", stdOut);
-                Assert.Contains(name, content);
-            }
-        }
-        finally
-        {
-            File.Delete(resultsFile);
+            Assert.Contains($"✓ {name} - Passed", stdOut);
+            Assert.Contains(name, content);
         }
     }
 
@@ -96,31 +96,22 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_CompareMontageSelfTests_PassAndAreRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
+
+        // Assert: each self-test passed and is named in the results file, and nineteen self-tests ran in all
+        Assert.Equal(0, _run.ExitCode);
+        var content = File.ReadAllText(resultsFile);
+        foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
         {
-            using var context = Context.Create(["--results", resultsFile]);
-
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: each self-test passed and is named in the results file, and nineteen self-tests ran in all
-            Assert.Equal(0, context.ExitCode);
-            var content = File.ReadAllText(resultsFile);
-            foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
-            {
-                Assert.Contains($"✓ {name} - Passed", stdOut);
-                Assert.Contains(name, content);
-            }
-
-            Assert.Contains("Total Tests: 19", stdOut);
+            Assert.Contains($"✓ {name} - Passed", stdOut);
+            Assert.Contains(name, content);
         }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+
+        Assert.Contains("Total Tests: 19", stdOut);
     }
 
     /// <summary>
@@ -129,26 +120,17 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the photo-operations self-test passed, is named in the results file, and no test failed
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_Adjustments - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_Adjustments", File.ReadAllText(resultsFile));
-            Assert.Contains("Failed: 0", stdOut);
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the photo-operations self-test passed, is named in the results file, and no test failed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_Adjustments - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_Adjustments", File.ReadAllText(resultsFile));
+        Assert.Contains("Failed: 0", stdOut);
     }
 
     /// <summary>
@@ -157,28 +139,19 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the chart self-test passed, is named in the results file, and all nineteen self-tests passed
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_RenderVegaLite - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_RenderVegaLite", File.ReadAllText(resultsFile));
-            Assert.Contains("Total Tests: 19", stdOut);
-            Assert.Contains("Passed: 19", stdOut);
-            Assert.Contains("Failed: 0", stdOut);
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the chart self-test passed, is named in the results file, and all nineteen self-tests passed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_RenderVegaLite - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_RenderVegaLite", File.ReadAllText(resultsFile));
+        Assert.Contains("Total Tests: 19", stdOut);
+        Assert.Contains("Passed: 19", stdOut);
+        Assert.Contains("Failed: 0", stdOut);
     }
 
     /// <summary>
@@ -187,26 +160,17 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_MermaidSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the diagram self-test passed, is named in the results file, and no test failed
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_RenderMermaid - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_RenderMermaid", File.ReadAllText(resultsFile));
-            Assert.Contains("Failed: 0", stdOut);
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the diagram self-test passed, is named in the results file, and no test failed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_RenderMermaid - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_RenderMermaid", File.ReadAllText(resultsFile));
+        Assert.Contains("Failed: 0", stdOut);
     }
 
     /// <summary>
@@ -215,26 +179,17 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_PlantUmlSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the diagram self-test passed, is named in the results file, and no test failed
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_RenderPlantUml - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_RenderPlantUml", File.ReadAllText(resultsFile));
-            Assert.Contains("Failed: 0", stdOut);
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the diagram self-test passed, is named in the results file, and no test failed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_RenderPlantUml - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_RenderPlantUml", File.ReadAllText(resultsFile));
+        Assert.Contains("Failed: 0", stdOut);
     }
 
     /// <summary>
@@ -244,11 +199,10 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder()
     {
-        // Arrange: a silent-free context without a results file
-        using var context = Context.Create([]);
+        // Arrange: (none - the fixture's context is not silent so every self-test line reaches standard output)
 
-        // Act: run the self-validation
-        var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
         // Assert: the names of the passed tests, in the order they were printed
         var names = stdOut.Split('\n')
@@ -266,7 +220,7 @@ public class ValidationTests
                 "CanvasNetTool_HelpExamples"
             ],
             names);
-        Assert.Equal(0, context.ExitCode);
+        Assert.Equal(0, _run.ExitCode);
     }
 
     /// <summary>
@@ -275,26 +229,17 @@ public class ValidationTests
     [Fact]
     public void Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded()
     {
-        // Arrange: a temporary TRX path and a context that is not silent
-        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
 
-        try
-        {
-            using var context = Context.Create(["--results", resultsFile]);
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
 
-            // Act: run the self-validation
-            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
-
-            // Assert: the help-examples self-test passed, is named in the results file, and no test failed
-            Assert.Equal(0, context.ExitCode);
-            Assert.Contains("✓ CanvasNetTool_HelpExamples - Passed", stdOut);
-            Assert.Contains("CanvasNetTool_HelpExamples", File.ReadAllText(resultsFile));
-            Assert.Contains("Failed: 0", stdOut);
-        }
-        finally
-        {
-            File.Delete(resultsFile);
-        }
+        // Assert: the help-examples self-test passed, is named in the results file, and no test failed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_HelpExamples - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_HelpExamples", File.ReadAllText(resultsFile));
+        Assert.Contains("Failed: 0", stdOut);
     }
 
     /// <summary>

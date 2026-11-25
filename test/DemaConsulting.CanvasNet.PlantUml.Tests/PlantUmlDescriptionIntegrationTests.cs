@@ -31,6 +31,7 @@ public class PlantUmlDescriptionIntegrationTests
     ///     actor head, and a light grey use case ellipse.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_UseCase_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange
@@ -205,6 +206,7 @@ public class PlantUmlDescriptionIntegrationTests
     ///     components, and light grey interface circles.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_Component_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange
@@ -376,6 +378,7 @@ public class PlantUmlDescriptionIntegrationTests
     ///     grey nodes, queues, and boundaries (the symbols the sequence diagrams fill grey-blue are light grey here).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetPlantUml_Deployment_DefaultSkin_PaintsPlantUmlColors()
     {
         // Arrange

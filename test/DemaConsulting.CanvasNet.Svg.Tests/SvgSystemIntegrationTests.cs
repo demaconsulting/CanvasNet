@@ -122,6 +122,7 @@ public class SvgSystemIntegrationTests
     ///     <c>SvgFixtureTests</c> for the full unit test coverage).
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetSvg_SystemIntegration_SvgLoad_ReturnsExpectedPixel()
     {
         // Arrange: a minimal SVG document with a viewBox matching the requested raster exactly,

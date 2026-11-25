@@ -39,6 +39,7 @@ public class MermaidMindmapIntegrationTests
     ///     in <c>cScale1</c> <c>#FFFF78</c>, each read inside the node's body beside its label.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetMermaid_Mindmap_DefaultTheme_PaintsRootAndSections()
     {
         // Arrange

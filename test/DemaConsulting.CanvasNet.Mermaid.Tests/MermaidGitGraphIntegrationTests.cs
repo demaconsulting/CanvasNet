@@ -79,6 +79,7 @@ public class MermaidGitGraphIntegrationTests
     ///     another color in the dark theme.
     /// </summary>
     [Fact]
+    [Trait("Category", "Platform")]
     public void CanvasNetMermaid_GitGraph_Pixels_CarryTheThemeColors()
     {
         // Arrange
