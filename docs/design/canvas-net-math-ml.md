@@ -21,9 +21,10 @@ The goal is **fidelity to MathML Core as browsers implement it**: an equation mu
 for it with the same font. The layout is therefore implemented from the MathML Core specification and checked against
 reference layouts that headless Chrome computes for original fixtures (see *Known Differences* for where CanvasNet
 follows Chrome rather than a literal reading of the specification). This version draws the token elements, the rows,
-the operator dictionary with its spacing, and stretchy and large operators; every other element is laid out as a row of
-its children, as MathML Core lays out an unknown element, and is **reported with a stable `mathml-*` code and the exact
-location, never skipped silently** (see *Phase Plan*).
+the operator dictionary with its spacing, stretchy and large operators, fractions, and radicals; every other element is
+laid out as a row of its children, as MathML Core lays out an unknown element, and is **reported with a stable
+`mathml-*` code and the exact location, never skipped silently** (see *Phase Plan*). A fraction or a root without the
+two children MathML Core requires is laid out as a row too, and reported as the `mathml-child-count` warning.
 
 The system is decomposed into two direct units and two internal subsystems:
 
@@ -38,15 +39,16 @@ The system is decomposed into two direct units and two internal subsystems:
 - **Layout** (subsystem) - the `LayoutEngine` unit (the walk and dispatch), the `StyleResolver` unit (the computed
   styles), the `MathFont` unit (the bundled math font and its `MATH` data), the `MathBox` unit (the box model), the
   `TokenLayout` unit (the token elements, the properties of operators, and the `mathvariant` tables), the `RowLayout`
-  unit (rows, their stretchy operators, and grouping elements), the `OperatorDictionary` unit (the operator dictionary
-  of MathML Core), and the `StretchyGlyphs` unit (size variants, glyph assemblies, and their fallbacks); see *Layout
-  Subsystem Design*.
+  unit (rows, their stretchy operators, and grouping elements), the `FractionLayout` unit (`mfrac`), the
+  `RadicalLayout` unit (`msqrt` and `mroot`), the `OperatorDictionary` unit (the operator dictionary of MathML Core),
+  and the `StretchyGlyphs` unit (size variants, glyph assemblies, and their fallbacks); see *Layout Subsystem Design*.
 
 The SysML2 model names the system `CanvasNetMathMlSystem` and prefixes the names of its subsystems and units with
 `MathMl` (`MathMlDocument`, `MathMlPainter`, `MathMlSyntax`, `MathMlReader`, `MathMlCharacterReferences`,
 `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`, `MathMlLayoutEngine`, `MathMlStyleResolver`,
-`MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`, `MathMlOperatorDictionary`, and
-`MathMlStretchyGlyphs`), because part def names stay unique across the model and the other systems already use
+`MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`, `MathMlFractionLayout`,
+`MathMlRadicalLayout`, `MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`), because part def names stay unique
+across the model and the other systems already use
 `Syntax`, `Layout`, and similar short names.
 
 The pipeline is:
@@ -111,10 +113,10 @@ MathML text is untrusted input. The design segregates the risk as follows:
 - **No recursion on input** - the reader is iterative, so deep nesting fails with a limit error, never a stack
   overflow; the layout recursion is bounded by the nesting limit, which the reader enforced.
 - **Bounded layout and painting** - every element and character is charged to `MaxLayoutWork`, again when a stretchy
-  operator is laid out a second time; a stretched operator is refused above `MaxAssemblyParts` glyphs before any glyph
-  is placed; lengths are clamped to a finite magnitude and the math depth to plus or minus 64; the picture is refused
-  above `Surface.MaxDimension`; the painter counts the glyphs against `MaxPaintedGlyphs` before it paints; every call
-  can be canceled.
+  operator is laid out a second time; a stretched operator or radical symbol is refused above `MaxAssemblyParts` glyphs
+  before any glyph is placed; lengths are clamped to a finite magnitude and the math depth to plus or minus 64; the
+  picture is refused above `Surface.MaxDimension`; the painter counts the glyphs against `MaxPaintedGlyphs` before it
+  paints; every call can be canceled.
 - **Fail closed** - every refusal is a documented exception with a stable code; an unsupported construct is reported,
   never silently ignored, and strict mode turns it into an exception; an exception that the layout does not document
   becomes a located `mathml-render-failed` error.
@@ -131,7 +133,9 @@ the `LayoutEngine` lay the tree out into a tree of boxes over the bundled math f
 Within each row, the engine infers the form of every embellished operator from its position, the token layout gives
 the operator the spacing and properties of the operator dictionary (overridden by its attributes), and the row lays
 its stretchy operators out again to the height of their neighbors, stretched by the size variants and glyph assemblies
-of the `MATH` table or their fallbacks.
+of the `MATH` table or their fallbacks. The children of a fraction and of a root get the user agent rules of their
+positions (script level and math style) before their own attributes; the fraction layout places the numerator and the
+denominator around a bar on the math axis, and the radical layout stretches the radical symbol over its base.
 The picture is the content box of the `math` element united with the ink of every painted item, rounded out to whole
 pixels at the scale, with the baseline on a whole row; `Measure` returns its size and `Render` has the painter draw the
 boxes onto a new surface. The reports are delivered once, on the calling thread, after the work.
@@ -211,22 +215,35 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   are counted.
 - **Style** - only the inline `style` attribute styles an equation (there are no style sheets), and only its
   supported subset; `dir="rtl"` is reported and the equation is laid out left to right.
+- **Fractions** - the legacy `bevelled`, `numalign`, and `denomalign` attributes of MathML 3 are reported as
+  unsupported attributes and the fraction is drawn as MathML Core draws it; the MathML 3 names `thin`, `medium`, and
+  `thick` of `linethickness` are invalid values (MathML Core and Chrome define no names), reported, and the default
+  thickness is used; a negative thickness draws no bar, as Chrome draws it. The "ink" ascent and descent of the
+  children in the formulas of MathML Core are the ascent and descent of their boxes (a token box is its ink, as in
+  Chrome).
+- **Radicals** - as Chrome lays them out, a radical is as wide as its base plus the widest construction of the radical
+  symbol while the base follows the symbol drawn; the inline size of an assembled symbol is its ink width rounded out
+  to whole pixels (Chrome measures the ink of an assembly and its glyph bounds are pixel-snapped, which may differ by a
+  pixel); the bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical
+  symbol taken at Chrome's 1/64 precision, and the descent of a root uses Chrome's formula.
 - **Rounding** - Chrome rounds to its layout unit (1/64 pixel) and glyph bounds to whole pixels; the reference tests
-  allow 1 CSS pixel plus one layout unit.
+  allow 1 CSS pixel plus one layout unit. Chrome's glyph bounds also follow the hinting of the font at small sizes (the
+  digits are a pixel shorter at 50 px than their outlines rounded out), so the reference fixtures use letters where
+  that would add up beyond the tolerance.
 
 ## Phase Plan
 
-- **Stage A, this version** - the package, the public API, the Syntax subsystem with the full named-reference set,
+- **Stage A** - the package, the public API, the Syntax subsystem with the full named-reference set,
   the token elements with every `mathvariant`, rows and the grouping elements (`mstyle`, `mpadded`, `mphantom`,
   `merror`, `semantics`, `maction`), the painter, the Chrome reference layouts, the operator dictionary of MathML Core
   (form inference, spacing, and properties with their attribute overrides), and stretchy operators (vertical stretching
   in rows with the `MATH` variants and glyph assemblies, the B.4 and rule fallbacks, `symmetric`, `minsize`, `maxsize`,
   and large operators in display style, with the `mathml-stretch-unavailable` report and the `MaxAssemblyParts`
   limit). The horizontal stretching of `StretchyGlyphs` is in place for the under and over scripts of stage B.
-- **Stage B** - fractions (`mfrac`), radicals (`msqrt`, `mroot`), scripts (`msub`, `msup`, `msubsup`,
-  `mmultiscripts`), under and over scripts (`munder`, `mover`, `munderover`, with the horizontal stretching of their
-  operators and `movablelimits`), and tables (`mtable`, `mtr`, `mtd`, with
-  the `MaxTableCells` limit and the `mathml-child-count` report), the image source of `.mml` files for the other
-  formats, and a hardening fuzzer. Until then these elements are laid out as rows and reported as
-  `mathml-element-unsupported`.
+- **Stage B, in progress** - done in this version: fractions (`mfrac` with `linethickness`), radicals (`msqrt`,
+  `mroot`), the user agent rules of their children, and the `mathml-child-count` report. Next: scripts (`msub`, `msup`,
+  `msubsup`, `mmultiscripts`), under and over scripts (`munder`, `mover`, `munderover`, with the horizontal stretching
+  of their operators and `movablelimits`), and tables (`mtable`, `mtr`, `mtd`, with the `MaxTableCells` limit), the
+  image source of `.mml` files for the other formats, and a hardening fuzzer. Until then these elements are laid out as
+  rows and reported as `mathml-element-unsupported`.
 - **Stage C** - the Viewer, the `canvasnet` tool, the Pandoc filter, and the user guide open `.mml` files.

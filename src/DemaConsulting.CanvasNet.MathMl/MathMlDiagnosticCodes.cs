@@ -38,9 +38,9 @@ public static class MathMlDiagnosticCodes
     public const string RenderFailed = "mathml-render-failed";
 
     /// <summary>
-    ///     An element is not drawn by this version (an element of MathML Core that a later version draws, an element of
-    ///     full MathML that MathML Core does not define, or an element of another namespace): it is laid out as an
-    ///     <c>mrow</c> of its children, or skipped when it belongs to another namespace
+    ///     An element is not drawn by this version (an element of MathML Core that a later version draws, such as a
+    ///     script or a table, an element of full MathML that MathML Core does not define, or an element of another
+    ///     namespace): it is laid out as an <c>mrow</c> of its children, or skipped when it belongs to another namespace
     ///     (<see cref="MathMlUnsupportedFeature"/>).
     /// </summary>
     public const string ElementUnsupported = "mathml-element-unsupported";
@@ -76,6 +76,13 @@ public static class MathMlDiagnosticCodes
     ///     (<see cref="MathMlDiagnostic"/>).
     /// </summary>
     public const string StretchUnavailable = "mathml-stretch-unavailable";
+
+    /// <summary>
+    ///     An element does not have the in-flow children that MathML Core requires (an <c>mfrac</c> or an <c>mroot</c>
+    ///     without exactly two); it is laid out as an <c>mrow</c> of its children, as MathML Core lays out invalid markup
+    ///     (<see cref="MathMlDiagnostic"/>).
+    /// </summary>
+    public const string ChildCount = "mathml-child-count";
 
     /// <summary>
     ///     More reports than <see cref="MathMlLimits.MaxDiagnostics"/> allows were produced by one call; the rest were

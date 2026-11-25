@@ -8,8 +8,9 @@
 # CanvasNetMathMl is an independent software system distributed as its own NuGet package. It reads MathML equations
 # and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public CanvasNet
 # APIs (and the internal OpenType MATH table reader of the core, through friend access), and the fonts bundled with
-# CanvasNet: there is no browser and no network access. The elements this version does not draw are laid out as rows
-# of their children and reported with a stable mathml-* identifier instead of failing (see
+# CanvasNet: there is no browser and no network access. The elements this version does not draw (in this version the
+# scripts, under-overs, and tables of MathML Core) are laid out as rows of their children and reported with a stable
+# mathml-* identifier instead of failing (see
 # docs/design/canvas-net-math-ml.md, Known Differences, and the Phase Plan). The data tables derived from W3C and
 # Unicode data files are attributed in the package's third-party notice (src/DemaConsulting.CanvasNet.MathMl/
 # third-party).
@@ -152,15 +153,68 @@ sections:
           - CanvasNetMathMl_StretchUnavailable_IsReported
           - CanvasNetMathMl_ReferenceLayout_MatchesChrome
 
+      - id: CanvasNetMathMl-Fractions
+        title: >-
+          The library shall draw mfrac as MathML Core lays it out: the numerator over the denominator, centered, with a
+          fraction bar on the math axis whose thickness is the font's default or the linethickness attribute (a length,
+          or a percentage of the default; a negative value draws no bar), as a stack without a bar for a zero
+          thickness, with the display-style or compact shifts and gaps of the math font, and shall report the legacy
+          bevelled, numalign, and denomalign attributes as mathml-attribute-unsupported.
+        tags: [system]
+        justification: |
+          Fractions, binomial-style stacks, and continued fractions are among the most common constructs of written
+          mathematics; they must be drawn with the positions a browser computes, and the MathML 3 attributes that
+          MathML Core dropped must be reported instead of silently ignored.
+        children:
+          - CanvasNetMathMl-Layout-Fractions
+          - CanvasNetMathMl-Layout-UnsupportedFeatures
+        tests:
+          - CanvasNetMathMl_Render_FractionBar_PaintsExactPixels
+          - CanvasNetMathMl_Fractions_LegacyAttributes_AreReported
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Radicals
+        title: >-
+          The library shall draw msqrt and mroot as MathML Core lays them out: the radical symbol stretched with the
+          size variants or the glyph assembly of the math font to cover the base, the gap, and the overbar, the overbar
+          over the base, and the index of a root kerned and raised by the constants of the math font.
+        tags: [system]
+        justification: |
+          Square roots and roots of other degrees are common constructs; the symbol must grow with its base and the
+          index must sit where a browser puts it.
+        children:
+          - CanvasNetMathMl-Layout-Radicals
+        tests:
+          - CanvasNetMathMl_Render_SquareRoot_PaintsSurdAndOverbar
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-ChildCount
+        title: >-
+          The library shall lay out an mfrac or an mroot that does not have exactly two in-flow children as a row of
+          its children, as MathML Core lays out invalid markup, and shall report it as a mathml-child-count warning at
+          its location that does not stop a strict rendering.
+        tags: [system]
+        justification: |
+          Invalid markup must still produce the picture a browser draws, and the author must learn which element is
+          wrong and where; it is an error in the equation, not a construct this version leaves out, so strict mode does
+          not fail on it.
+        children:
+          - CanvasNetMathMl-Layout-ChildCount
+          - CanvasNetMathMl-MathMlDocument-Records
+        tests:
+          - CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow
+
       - id: CanvasNetMathMl-Style
         title: >-
           The library shall apply the displaystyle, scriptlevel, mathsize, mathcolor, mathbackground, and mathvariant
           attributes and the supported subset of the inline style attribute to an element and, where MathML Core
-          inherits them, to its descendants.
+          inherits them, to its descendants, and shall give the children of fractions and radicals the script levels
+          and math styles of the user agent stylesheet of MathML Core.
         tags: [system]
         justification: |
           Authors and tools color, size, and style parts of equations with these attributes; ignoring them would draw
-          a different equation from the one that was written.
+          a different equation from the one that was written. The numerator and denominator of an inline fraction and
+          the index of a root are drawn smaller, as in a browser.
         children:
           - CanvasNetMathMl-Layout-Style
           - CanvasNetMathMl-Syntax-AttributeValues
@@ -258,11 +312,11 @@ sections:
 
       - id: CanvasNetMathMl-UnsupportedFeatures
         title: >-
-          The library shall lay out every element this version does not draw (the fraction, radical, script,
-          under-over, and table elements of MathML Core, and every element outside MathML Core) as a row of its
-          children, and shall report it, an element of another namespace, an attribute without effect, and a style
-          declaration outside the supported subset to the caller's handler with a stable mathml-* code and its location,
-          once, in document order, on the calling thread.
+          The library shall lay out every element this version does not draw (the script, under-over, and table
+          elements of MathML Core, and every element outside MathML Core) as a row of its children, and shall report
+          it, an element of another namespace, an attribute without effect, and a style declaration outside the
+          supported subset to the caller's handler with a stable mathml-* code and its location, once, in document
+          order, on the calling thread.
         tags: [system]
         justification: |
           An equation that uses a construct this version does not draw must still produce a picture, and the caller

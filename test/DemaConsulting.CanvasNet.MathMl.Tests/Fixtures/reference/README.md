@@ -24,6 +24,12 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
   `stretchy-brackets-braces`, `stretchy-symmetric` (symmetric and non-symmetric targets, `stretchy="false"`, and an
   operator without a construction), `largeop-display`, `largeop-inline`, and `minsize-maxsize` (lengths and percentages,
   a row of only stretchy operators, and operators wrapped in `mrow` and `mstyle`).
+- **Fractions**: `mfrac-basic` (inline and display style), `mfrac-linethickness` (`0`, `0px`, `200%`, `3px`, `0.2em`,
+  and `-1px`), `mfrac-nested` (continued fractions, whose levels follow `math-depth: auto-add`), `mfrac-operators`
+  (fractions between operators and an embellished fraction), and `mfrac-fenced` (stretchy fences around fractions).
+- **Radicals**: `msqrt-basic` (one and several children, with the forms of their operators), `msqrt-tall` (size
+  variants and the glyph assembly of the radical symbol), and `mroot-index` (a narrow index, a wide index, and nested
+  roots).
 
 ## Behaviors Matched
 
@@ -39,6 +45,11 @@ pin them:
 - A stretched operator is centered in a box as wide as its widest construction (`stretchy-parens`), a stretchy operator
   without a construction keeps its glyph centered on its target (`stretchy-symmetric`), and a large operator in display
   style is centered on the math axis (`largeop-display`).
+- A negative `linethickness` draws no bar (`mfrac-linethickness`).
+- A radical is as wide as its base plus the widest construction of the radical symbol, while its base follows the
+  symbol drawn; an assembled symbol is as wide as its ink (`msqrt-tall`).
+- The bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical symbol,
+  the percentage taken at Chrome's 1/64 precision (`mroot-index`).
 
 ## Fixture Notes
 
@@ -47,6 +58,13 @@ pin them:
   empty box while keeping its ascent; the fixture avoids that browser quirk, which is not what it tests.
 - Chrome rounds the overlap of a glyph assembly to its layout unit, so its assemblies may be a fraction of a pixel
   taller than CanvasNet's; the difference is within the tolerance.
+- Chrome's glyph bounds follow the hinting of the font: at 50 px (two script levels) the digits are a pixel shorter
+  than their outlines rounded out, and the plus sign is a pixel higher at 100 px. Each alone is within the tolerance,
+  but a pixel carried through a nested fraction or a root adds up beyond it, so `mfrac-nested` and `mroot-index` use
+  letters (or a minus sign) where a digit at 50 px or a plus sign would carry such a pixel into the values the fixtures
+  test, and `mfrac-fenced` and `mfrac-operators` avoid the letters whose automatic italic Chrome measures on a taller or
+  shorter upright letter (see *Known Differences*). The ink width of an assembled radical symbol rounds a pixel narrower
+  than Chrome's for the same reason (`msqrt-tall`, within the tolerance).
 
 ## Fixtures Not Compared With Chrome
 

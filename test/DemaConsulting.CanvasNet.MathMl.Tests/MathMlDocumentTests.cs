@@ -174,7 +174,7 @@ public class MathMlDocumentTests
     public void MathMlDocument_Render_HandlerFailures_FollowTheDeliveryRules()
     {
         // Arrange
-        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<mfrac><mi>a</mi><mi>b</mi></mfrac>"));
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<menclose><mi>a</mi><mi>b</mi></menclose>"));
         var throwing = new MathMlRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
         var failing = new MathMlRenderOptions
         {

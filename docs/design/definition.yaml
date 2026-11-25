@@ -296,6 +296,8 @@ input-files:
   - docs/design/canvas-net-math-ml/layout/math-box.md
   - docs/design/canvas-net-math-ml/layout/token-layout.md
   - docs/design/canvas-net-math-ml/layout/row-layout.md
+  - docs/design/canvas-net-math-ml/layout/fraction-layout.md
+  - docs/design/canvas-net-math-ml/layout/radical-layout.md
   - docs/design/canvas-net-math-ml/layout/operator-dictionary.md
   - docs/design/canvas-net-math-ml/layout/stretchy-glyphs.md
   - docs/design/canvas-net-viewer.md

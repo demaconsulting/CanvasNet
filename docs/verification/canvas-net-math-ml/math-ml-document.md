@@ -89,7 +89,7 @@ property.
 Asserts the `name:line:column` formatting with and without a name and position, the location prefix of the reports, the
 value equality of the size and the annotation, the code, location, hint, and message of the located exceptions, the
 default codes and unknown location of the standard constructors, and that every published code is a distinct
-`mathml-*` identifier (ten of them, `mathml-stretch-unavailable` among them).
+`mathml-*` identifier (eleven of them, `mathml-stretch-unavailable` and `mathml-child-count` among them).
 
 #### CanvasNetMathMl-MathMlDocument-Reports: Ordered, De-Duplicated, Capped Delivery
 

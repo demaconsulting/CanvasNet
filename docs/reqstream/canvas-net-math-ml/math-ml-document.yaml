@@ -85,7 +85,8 @@ sections:
               The MathMlDocument unit shall provide value records for locations, warnings, unsupported features, sizes,
               and annotations with editor-style formatting, exceptions that carry a code, a location, and a hint (with
               default codes for the standard constructors), and distinct mathml-* diagnostic codes (among them
-              mathml-stretch-unavailable for an operator that cannot stretch).
+              mathml-stretch-unavailable for an operator that cannot stretch and mathml-child-count for an element
+              without the children that MathML Core requires).
             justification: |
               Callers and tools compare, print, and react to the results and failures of the library.
             tests:

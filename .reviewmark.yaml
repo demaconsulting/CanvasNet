@@ -6263,6 +6263,7 @@ reviews:
       - "docs/verification/canvas-net-math-ml/layout/layout-engine.md"  # unit verification
       - "docs/sysml2/model/canvas-net-math-ml/layout/layout-engine.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.MathMl/Layout/LayoutEngine.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/LayoutEngine.Elements.cs"  # unit source (layout elements)
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/LayoutEngineTests.cs"  # unit tests
 
   # CanvasNetMathMl-Layout-StyleResolver Review (one per unit)
@@ -6346,6 +6347,38 @@ reviews:
       - "docs/sysml2/model/canvas-net-math-ml/layout/row-layout.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.MathMl/Layout/RowLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/RowLayoutTests.cs"  # unit tests
+
+  # CanvasNetMathMl-Layout-FractionLayout Review (one per unit)
+  - id: CanvasNetMathMl-Layout-FractionLayout
+    title: Review that CanvasNetMathMl Layout FractionLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/fraction-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/fraction-layout.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/fraction-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/fraction-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/FractionLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/FractionLayoutTests.cs"  # unit tests
+
+  # CanvasNetMathMl-Layout-RadicalLayout Review (one per unit)
+  - id: CanvasNetMathMl-Layout-RadicalLayout
+    title: Review that CanvasNetMathMl Layout RadicalLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/radical-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/radical-layout.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/radical-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/radical-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/RadicalLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/RadicalLayoutTests.cs"  # unit tests
 
   # CanvasNetMathMl-Layout-OperatorDictionary Review (one per unit)
   - id: CanvasNetMathMl-Layout-OperatorDictionary

@@ -70,8 +70,8 @@ internal sealed record GlyphItem(TrueTypeFont Font, int Glyph, double Size, doub
 }
 
 /// <summary>
-///     A filled rectangle that belongs to the content (a stretched line character; a fraction bar or the overbar of a
-///     radical in later versions).
+///     A filled rectangle that belongs to the content (a stretched line character, a fraction bar, or the overbar of a
+///     radical).
 /// </summary>
 /// <param name="Rect">The rectangle.</param>
 /// <param name="Color">The color.</param>

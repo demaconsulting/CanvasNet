@@ -9,8 +9,9 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///         <see cref="MathMlDocument"/> parses a text (<c>Parse</c>, <c>Open</c>), describes it without drawing it
 ///         (<see cref="MathMlDocument.Display"/>, <see cref="MathMlDocument.ElementCount"/>,
 ///         <see cref="MathMlDocument.AltText"/>, <see cref="MathMlDocument.Annotations"/>), measures it with its baseline
-///         and renders it. The token elements, <c>mrow</c> and the grouping elements are drawn, with the automatic italic
-///         of a single-character <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not drawn
+///         and renders it. The token elements, <c>mrow</c> and the grouping elements, stretchy and large operators,
+///         fractions (<c>mfrac</c>) and radicals (<c>msqrt</c>, <c>mroot</c>) are drawn, with the automatic italic of a
+///         single-character <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not drawn
 ///         is reported with a stable <c>mathml-*</c> code and a location (<see cref="MathMlUnsupportedFeature"/>), and
 ///         strict mode (<see cref="MathMlRenderOptions.ThrowOnUnsupportedFeature"/>) turns the first one into an
 ///         exception. Untrusted text is bounded by <see cref="MathMlLimits"/>.

@@ -20,9 +20,9 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/math-box.yaml`.
 - `MathRect(X, Y, Width, Height)` with `Right`, `Bottom`, `Union`, and `Offset`.
 - `IPaintItem.Bounds` - what an item paints, relative to its box, or null when it paints nothing.
 - `GlyphItem(Font, Glyph, Size, X, Baseline, Color, Ink)` - a glyph at its pen position, with its ink bounds (no bounds
-  when the ink is empty); `RuleItem(Rect, Color)` - a filled rectangle of the content (a stretched line character, and
-  the bars of a later stage); `BackgroundItem(Rect, Color)` - painted before every glyph; `BorderItem(Rect, Width,
-  Color)` - painted after every glyph.
+  when the ink is empty); `RuleItem(Rect, Color)` - a filled rectangle of the content (a stretched line character, a
+  fraction bar, the overbar of a radical); `BackgroundItem(Rect, Color)` - painted before every glyph;
+  `BorderItem(Rect, Width, Color)` - painted after every glyph.
 - `EmbellishedOperator(LeadingSpace, TrailingSpace)` - the properties of an embellished operator (MathML Core 3.2.4.2)
   resolved by the token layout: what a row adds before and after it, and `CoreText`, `Form`, `Category`, `Stretchy`,
   `Symmetric`, `LargeOp`, `MovableLimits`, `Fence`, `Separator`, `Axis`, `MinSize`, and `MaxSize` (infinity when there

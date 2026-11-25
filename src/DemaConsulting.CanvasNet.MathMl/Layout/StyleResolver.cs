@@ -8,9 +8,9 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///     The computed style of an element: what MathML Core expresses with CSS properties and the layout reads.
 /// </summary>
 /// <remarks>
-///     <see cref="FontSize"/>, <see cref="DisplayStyle"/>, <see cref="MathDepth"/>, <see cref="Color"/> and
-///     <see cref="Variant"/> are inherited; <see cref="Background"/> and <see cref="DisplayNone"/> belong to the element
-///     alone. The record is immutable.
+///     <see cref="FontSize"/>, <see cref="DisplayStyle"/>, <see cref="MathDepth"/>, <see cref="Color"/>,
+///     <see cref="Variant"/> and <see cref="MathShiftCompact"/> are inherited; <see cref="Background"/> and
+///     <see cref="DisplayNone"/> belong to the element alone. The record is immutable.
 /// </remarks>
 /// <param name="FontSize">The font size in CSS pixels.</param>
 /// <param name="DisplayStyle">True for <c>math-style: normal</c> (display style), false for <c>compact</c>.</param>
@@ -24,6 +24,49 @@ internal sealed record MathStyle(double FontSize, bool DisplayStyle, int MathDep
 
     /// <summary>Gets a value indicating whether the element is not displayed (<c>display: none</c>; not inherited).</summary>
     public bool DisplayNone { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <c>math-shift</c> is <c>compact</c> (inherited): a superscript of the element
+    ///     uses the cramped shift of the MATH table (MathML Core 3.4.1; set by the user agent rules of radicals and of
+    ///     the denominator of a fraction).
+    /// </summary>
+    public bool MathShiftCompact { get; init; }
+}
+
+/// <summary>
+///     How a user agent rule of MathML Core sets the <c>math-depth</c> of a child.
+/// </summary>
+internal enum MathDepthRule
+{
+    /// <summary>The child inherits the math depth (no rule).</summary>
+    None,
+
+    /// <summary><c>math-depth: auto-add</c>: one more than the parent's when the parent's math style is compact.</summary>
+    AutoAdd,
+
+    /// <summary><c>math-depth: add(n)</c>: the parent's plus <see cref="ChildStyleRule.DepthAdd"/>.</summary>
+    Add,
+}
+
+/// <summary>
+///     The user agent rules of MathML Core (Appendix A) that a layout element applies to one of its children by position,
+///     such as <c>mfrac &gt; * { math-depth: auto-add; math-style: compact }</c>.
+/// </summary>
+/// <param name="Compact">Whether the child gets <c>math-style: compact</c>.</param>
+/// <param name="Depth">How the child's math depth is set.</param>
+/// <param name="DepthAdd">The levels added by <see cref="MathDepthRule.Add"/>.</param>
+/// <param name="MathShiftCompact">The <c>math-shift</c> of the child: true for compact, false for normal, null to inherit.</param>
+/// <param name="FontSizeInherit">Whether the child keeps the font size of its parent (<c>font-size: inherit</c>) while its math depth changes.</param>
+internal readonly record struct ChildStyleRule(bool Compact, MathDepthRule Depth, int DepthAdd, bool? MathShiftCompact, bool FontSizeInherit)
+{
+    /// <summary>The rule of the numerator of a fraction: <c>math-depth: auto-add; math-style: compact</c>.</summary>
+    public static ChildStyleRule FractionNumerator => new(true, MathDepthRule.AutoAdd, 0, null, false);
+
+    /// <summary>The rule of the denominator of a fraction: the numerator's plus <c>math-shift: compact</c>.</summary>
+    public static ChildStyleRule FractionDenominator => new(true, MathDepthRule.AutoAdd, 0, true, false);
+
+    /// <summary>The rule of the index of a root: <c>math-depth: add(2); math-style: compact</c>.</summary>
+    public static ChildStyleRule RootIndex => new(true, MathDepthRule.Add, 2, null, false);
 }
 
 /// <summary>
@@ -37,7 +80,11 @@ internal sealed record MathStyle(double FontSize, bool DisplayStyle, int MathDep
 ///         <b>Cascade.</b> The user agent rules come first, the presentational hints of the attributes override them, and
 ///         the declarations of the inline <c>style</c> attribute override both, as in CSS. The <c>math</c> element takes
 ///         its math style from its display mode (the <c>display</c> attribute or the render option), and resets the math
-///         depth to zero; <c>merror</c> gets its light yellow background.
+///         depth to zero and the math shift to normal; <c>merror</c> gets its light yellow background; <c>msqrt</c> and
+///         <c>mroot</c> get <c>math-shift: compact</c>. The rules that a layout element applies to its children by
+///         position (<see cref="ChildStyleRule"/>: the numerator and denominator of <c>mfrac</c>, the index of
+///         <c>mroot</c>) are user agent rules too, so a hint of the child replaces them: <c>scriptlevel="+1"</c> on a
+///         numerator is one level more than the fraction's, not two.
 ///     </para>
 ///     <para>
 ///         <b>Font size.</b> Unless <c>mathsize</c> or a <c>font-size</c> declaration sets it, the font size of every
@@ -122,7 +169,7 @@ internal sealed class StyleResolver
 
         var mode = displayOverride ?? own;
         var inherited = new MathStyle(fontSize, mode == MathMlDisplay.Block, 0, color, null);
-        return Resolve(math, inherited, isRoot: true);
+        return Resolve(math, inherited, isRoot: true, default);
     }
 
     /// <summary>
@@ -131,7 +178,17 @@ internal sealed class StyleResolver
     /// <param name="element">The element.</param>
     /// <param name="parent">The computed style of the parent.</param>
     /// <returns>The style.</returns>
-    public MathStyle Resolve(MathElement element, MathStyle parent) => Resolve(element, parent, isRoot: false);
+    public MathStyle Resolve(MathElement element, MathStyle parent) => Resolve(element, parent, isRoot: false, default);
+
+    /// <summary>
+    ///     Computes the style of a child of a layout element from its parent's, with the user agent rule that the parent
+    ///     applies to the child's position (MathML Core Appendix A) before the child's own hints and inline style.
+    /// </summary>
+    /// <param name="child">The child element.</param>
+    /// <param name="parent">The computed style of the parent.</param>
+    /// <param name="rule">The user agent rule of the child's position.</param>
+    /// <returns>The style.</returns>
+    public MathStyle ResolveChild(MathElement child, MathStyle parent, ChildStyleRule rule) => Resolve(child, parent, isRoot: false, rule);
 
     /// <summary>
     ///     Resolves a length attribute of a layout (<c>mspace</c>, <c>mpadded</c>, <c>mo</c>) to CSS pixels.
@@ -218,13 +275,23 @@ internal sealed class StyleResolver
     /// </summary>
     /// <param name="element">The element.</param>
     /// <param name="parent">The inherited style.</param>
-    /// <param name="isRoot">Whether the element is the <c>math</c> element (math depth 0, inherited font size).</param>
+    /// <param name="isRoot">Whether the element is the <c>math</c> element (math depth 0, math shift normal, inherited font size).</param>
+    /// <param name="rule">The user agent rule of the element's position in its parent (default: none).</param>
     /// <returns>The style.</returns>
-    private MathStyle Resolve(MathElement element, MathStyle parent, bool isRoot)
+    private MathStyle Resolve(MathElement element, MathStyle parent, bool isRoot, ChildStyleRule rule)
     {
-        var displayStyle = parent.DisplayStyle;
-        var depth = isRoot ? 0 : parent.MathDepth;
-        double? fontSize = null;
+        // The user agent rules: of the position in the parent, then of the element itself
+        var displayStyle = !rule.Compact && parent.DisplayStyle;
+        var inheritedDepth = isRoot ? 0 : parent.MathDepth;
+        var depth = rule.Depth switch
+        {
+            _ when isRoot => 0,
+            MathDepthRule.AutoAdd => parent.DisplayStyle ? parent.MathDepth : parent.MathDepth + 1,
+            MathDepthRule.Add => parent.MathDepth + rule.DepthAdd,
+            _ => parent.MathDepth,
+        };
+        var mathShiftCompact = !isRoot && ((rule.MathShiftCompact ?? parent.MathShiftCompact) || element.Name is "msqrt" or "mroot");
+        double? fontSize = rule.FontSizeInherit ? parent.FontSize : null;
         var color = parent.Color;
         Rgba32? background = element.Name == "merror" ? LightYellow : null;
         var variant = parent.Variant;
@@ -246,7 +313,8 @@ internal sealed class StyleResolver
         {
             if (AttributeValues.TryParseScriptLevel(scriptLevel.Value, out var relative, out var level))
             {
-                depth = relative ? depth + level : level;
+                // math-depth: add(n) replaces the user agent rule: it adds to the inherited depth
+                depth = relative ? inheritedDepth + level : level;
             }
             else
             {
@@ -315,6 +383,7 @@ internal sealed class StyleResolver
         {
             Background = background,
             DisplayNone = displayNone,
+            MathShiftCompact = mathShiftCompact,
         };
     }
 

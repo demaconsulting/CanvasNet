@@ -1,0 +1,27 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mroot>
+    <mi>x</mi>
+    <mn>3</mn>
+  </mroot>
+  <mroot>
+    <mrow>
+      <mi>x</mi>
+      <mo>&#x2212;</mo>
+      <mn>1</mn>
+    </mrow>
+    <mrow>
+      <mi>a</mi>
+      <mi>b</mi>
+      <mi>c</mi>
+    </mrow>
+  </mroot>
+  <mstyle displaystyle="true">
+    <mroot>
+      <mroot>
+        <mi>y</mi>
+        <mn>4</mn>
+      </mroot>
+      <mn>5</mn>
+    </mroot>
+  </mstyle>
+</math>

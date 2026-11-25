@@ -38,7 +38,7 @@ repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocum
   prefix. `MathMlSize(Width, Height, Baseline)` - pixels, with the baseline row from the top.
 - `MathMlDiagnosticCodes` - `mathml-syntax-error`, `mathml-limit-exceeded`, `mathml-render-failed`,
   `mathml-element-unsupported`, `mathml-attribute-unsupported`, `mathml-attribute-invalid`, `mathml-css-unsupported`,
-  `mathml-text-missing-glyph`, `mathml-stretch-unavailable`, and `mathml-diagnostics-suppressed`.
+  `mathml-text-missing-glyph`, `mathml-stretch-unavailable`, `mathml-child-count`, and `mathml-diagnostics-suppressed`.
 - `MathMlSyntaxException` (a `FormatException`), `MathMlRenderException` (an `InvalidOperationException`), and
   `MathMlUnsupportedFeatureException` (an `IOException`) - each with a code (`Feature` for the last), a `Location`, and
   a `Hint`; the standard constructors use the default code and an unknown location.

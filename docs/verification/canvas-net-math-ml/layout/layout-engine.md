@@ -6,7 +6,8 @@ This document describes the unit-level verification strategy for the `LayoutEngi
 #### Verification Approach
 
 The unit is verified by laying out small equations through the engine with the real `StyleResolver`, `TokenLayout`,
-`RowLayout`, and bundled `MathFont` (the engine creates its collaborators, and the font is deterministic), through the
+`RowLayout`, `FractionLayout`, `RadicalLayout`, and bundled `MathFont` (the engine creates its collaborators, and the
+font is deterministic), through the
 test assembly's `InternalsVisibleTo` access, and by asserting the boxes, their elements, the reports of the sink, and
 the bounds. The bounds scenarios use small limits and a pre-canceled token (no clock). Unit tests reside in
 `Layout/LayoutEngineTests.cs`.
@@ -27,16 +28,37 @@ exception that differs from the expected one constitutes a failure.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Dispatch: Tokens And Rows
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows`,
+`LayoutEngineTests.LayoutEngine_Layout_FractionsAndRadicals_AreDispatched`
 
-Asserts that tokens paint glyphs, that rows place their children, and that every box keeps its element.
+Asserts that tokens paint glyphs, that rows place their children, and that every box keeps its element; that a
+fraction, a square root, and a root are drawn without reports: the numerator above and the denominator below the
+baseline with a bar, the radical symbol and the overbar around the row of the children of `msqrt`, and the index of
+`mroot` first at the 50 px of its two added script levels.
+
+##### CanvasNetMathMl-Layout-LayoutEngine-ChildCount: Invalid Fractions And Roots
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_WrongChildCount_IsRowWithChildCountWarning`
+
+Asserts that an `mfrac` with one child and an `mroot` with three are rows of their children (every child on the
+baseline) with `mathml-child-count` warnings naming the counts and no unsupported report, that the child of the invalid
+fraction still gets the script size of the user agent rule (60 px), and that a fraction whose third child is hidden by
+`display: none` has two in-flow children and is drawn with its bar.
+
+##### CanvasNetMathMl-Layout-LayoutEngine-Embellishment: Embellished Fractions And Radicals
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_EmbellishedFraction_CarriesItsOperator`,
+`LayoutEngineTests.LayoutEngine_Layout_SqrtChildren_InferForms`
+
+Asserts that a fraction whose numerator is `=` carries the infix operator `=` and is spaced by its row with the leading
+and trailing space of the operator, and that the row of a square root and the square root itself carry no operator.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements: Later And Unknown Elements
 
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport`
 
-Asserts that an element of a later version and an unknown element are laid out as rows of their children and reported
-as `mathml-element-unsupported` at their locations.
+Asserts that an element of a later version (`mtable`) and an unknown element (`menclose`) are laid out as rows of their
+children and reported as `mathml-element-unsupported` at their locations.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-HiddenElements: No Box
 
@@ -66,11 +88,13 @@ Asserts that text directly inside a row is laid out as a space-like text box.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-OperatorForms: Forms From Positions
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_OperatorForms_FollowPositionInRow`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_OperatorForms_FollowPositionInRow`,
+`LayoutEngineTests.LayoutEngine_Layout_SqrtChildren_InferForms`
 
 Asserts that in a row with a space-like `mtext` the first operator is prefix and the middle ones infix, that an `mrow`
 wrapping an operator and an `mspace` passes its own (infix) form to the operator, that an explicit form wins, and that
-the lone operator of a row is infix.
+the lone operator of a row is infix; and that inside `msqrt` the first and last operators of several children are
+prefix and postfix, and a lone operator is infix and keeps its leading space.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Stretching: Embellished Operators Stretch
 

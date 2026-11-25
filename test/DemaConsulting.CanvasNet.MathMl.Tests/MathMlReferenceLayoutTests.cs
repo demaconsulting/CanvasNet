@@ -69,7 +69,7 @@ public class MathMlReferenceLayoutTests
         // Assert
         Assert.Empty(missing);
         Assert.Empty(orphans);
-        Assert.True(fixtures.Count >= 19);
+        Assert.True(fixtures.Count >= 27);
     }
 
     /// <summary>

@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the LayoutEngine unit of the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk of the equation tree, the dispatch of each element, the
-# elements without a box, the reports of the elements and attributes this version does not draw, and the bounds. See
+# elements without a box, the child-count rule, embellished operators, the reports of the elements and attributes this
+# version does not draw, and the bounds. See
 # docs/verification/canvas-net-math-ml/layout/layout-engine.md for the test-evidence mapping.
 
 sections:
@@ -15,19 +16,45 @@ sections:
             requirements:
               - id: CanvasNetMathMl-Layout-LayoutEngine-Dispatch
                 title: >-
-                  The LayoutEngine unit shall lay out the token elements with the token layout and math, mrow, mstyle,
-                  mphantom, merror, and mpadded with the row layout, with the computed style of each element, and keep
-                  the element of every box.
+                  The LayoutEngine unit shall lay out the token elements with the token layout, math, mrow, mstyle,
+                  mphantom, merror, and mpadded with the row layout, mfrac with the fraction layout, and msqrt (the row
+                  of its children) and mroot with the radical layout, with the computed style of each element (the
+                  children of mfrac and mroot under the user agent rules of their positions), and keep the element of
+                  every box.
                 justification: |
                   Each element has its own layout, and the painter and the reports need the element of a box.
                 tests:
                   - LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows
+                  - LayoutEngine_Layout_FractionsAndRadicals_AreDispatched
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-ChildCount
+                title: >-
+                  The LayoutEngine unit shall lay out an mfrac or an mroot whose number of in-flow children is not two
+                  as a row of its children, still under the user agent rules of their positions, and report it as a
+                  mathml-child-count warning at its location.
+                justification: |
+                  MathML Core lays out invalid markup as an mrow; a warning, not an unsupported feature, tells the
+                  author that the markup is wrong without stopping a strict rendering.
+                tests:
+                  - LayoutEngine_Layout_WrongChildCount_IsRowWithChildCountWarning
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-Embellishment
+                title: >-
+                  The LayoutEngine unit shall treat an mfrac whose first in-flow child is an embellished operator as an
+                  embellished operator that passes the form and the stretch constraint of its row to its numerator and
+                  carries its operator, and shall treat fractions and radicals as neither space-like nor, apart from
+                  such a fraction, embellished operators.
+                justification: |
+                  MathML Core 3.2.4.1 and 3.2.5.1 decide the spacing and the stretching in a row from these properties.
+                tests:
+                  - LayoutEngine_Layout_EmbellishedFraction_CarriesItsOperator
+                  - LayoutEngine_Layout_SqrtChildren_InferForms
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements
                 title: >-
-                  The LayoutEngine unit shall lay out an element of MathML Core that a later version draws, and an
-                  element outside MathML Core, as a row of its children and report it as mathml-element-unsupported at
-                  its location.
+                  The LayoutEngine unit shall lay out an element of MathML Core that a later version draws (a script,
+                  under-over, or table element), and an element outside MathML Core, as a row of its children and report
+                  it as mathml-element-unsupported at its location.
                 justification: |
                   MathML Core lays an unknown element out as a row; the caller must learn that it was not drawn as
                   written.
@@ -73,14 +100,15 @@ sections:
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-OperatorForms
                 title: >-
-                  The LayoutEngine unit shall give each embellished operator child of a row the form of its position
-                  among the children that are not space-like, and pass the form of an embellished grouping element on to
-                  its operator.
+                  The LayoutEngine unit shall give each embellished operator child of a row (and of msqrt) the form of
+                  its position among the children that are not space-like, and pass the form of an embellished grouping
+                  element on to its operator.
                 justification: |
                   The form decides the dictionary entry of an operator, and an operator wrapped in an mrow or mstyle is
                   spaced by the position of the wrapper, as MathML Core 3.2.4.2 specifies.
                 tests:
                   - LayoutEngine_Layout_OperatorForms_FollowPositionInRow
+                  - LayoutEngine_Layout_SqrtChildren_InferForms
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-Stretching
                 title: >-

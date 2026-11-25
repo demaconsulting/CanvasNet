@@ -7,13 +7,14 @@
 The `Layout` subsystem (namespace `DemaConsulting.CanvasNet.MathMl.Layout`, folder
 `src/DemaConsulting.CanvasNet.MathMl/Layout/`) lays the equation tree out into a tree of boxes as MathML Core does, in
 CSS pixels at the font size of the call, over the bundled math font. It is **internal**: its types are visible only to
-the other parts of the system and, through `InternalsVisibleTo`, to the test assembly. It contains eight units:
+the other parts of the system and, through `InternalsVisibleTo`, to the test assembly. It contains ten units:
 
-- **LayoutEngine** - the internal `LayoutEngine` (`LayoutEngine.cs`): the walk of the tree, the dispatch of each
-  element, the elements without a box, the reports of the elements and attributes this version does not draw, and the
-  bounds; see *LayoutEngine Unit Design*
-- **StyleResolver** - the internal `StyleResolver` with the record `MathStyle` (`StyleResolver.cs`): the computed style
-  of each element; see *StyleResolver Unit Design*
+- **LayoutEngine** - the internal `LayoutEngine` (`LayoutEngine.cs` and `LayoutEngine.Elements.cs`): the walk of the
+  tree, the dispatch of each element, the elements without a box, the child-count rule, the reports of the elements
+  and attributes this version does not draw, and the bounds; see *LayoutEngine Unit Design*
+- **StyleResolver** - the internal `StyleResolver` with the records `MathStyle` and `ChildStyleRule` and the enum
+  `MathDepthRule` (`StyleResolver.cs`): the computed style of each element and the user agent rules of the children of
+  layout elements; see *StyleResolver Unit Design*
 - **MathFont** - the internal `MathFont` with the enum `MathConstant` and the construction records `StretchVariant`,
   `StretchPart`, and `StretchConstruction` (`MathFont.cs`): the bundled Noto Sans Math, its `MATH` constants and
   constructions, its glyph metrics, and the bundled fallback; see *MathFont Unit Design*
@@ -24,6 +25,10 @@ the other parts of the system and, through `InternalsVisibleTo`, to the test ass
   operators, and stretched and large operators; see *TokenLayout Unit Design*
 - **RowLayout** - the internal `RowLayout` (`RowLayout.cs`): rows, the stretching of their operators, the grouping
   rules, `mpadded`, and `merror`; see *RowLayout Unit Design*
+- **FractionLayout** - the internal `FractionLayout` (`FractionLayout.cs`): `mfrac` with a bar or as a stack, and its
+  `linethickness`; see *FractionLayout Unit Design*
+- **RadicalLayout** - the internal `RadicalLayout` (`RadicalLayout.cs`): `msqrt` and `mroot`; see *RadicalLayout Unit
+  Design*
 - **OperatorDictionary** - the internal `OperatorDictionary` with the enums `OperatorForm`, `StretchAxis`, and
   `OperatorCategory` and the record `OperatorProperties` (`OperatorDictionary.cs` and the generated
   `OperatorDictionary.Data.cs`): the operator dictionary of MathML Core; see *OperatorDictionary Unit Design*
@@ -38,11 +43,12 @@ subsystem `MathMlLayout` (see *CanvasNetMathMl System Design*).
 ### Interfaces
 
 **Exposed** (internal only): `new LayoutEngine(MathFont, MathMlLimits, MathMlReportSink, CancellationToken)` with
-`Styles`, `Work`, and `Layout(MathElement, MathStyle)`; `StyleResolver.ResolveRoot`, `Resolve`, `ResolveLength`,
-`ScaleFactor`, and `TryParseDisplay`; `MathFont.Default` with its constants, metrics, and constructions; the `MathBox`
-tree with its `ContentRect` and `InkBounds` and the paint items `GlyphItem`, `RuleItem`, `BackgroundItem`, and
-`BorderItem`; `TokenLayout.LayoutToken`, `LayoutOperator`, `LayoutText`, and `Transform`; `MathVariants.TryParse`,
-`Map`, and `AutoItalic`; `RowLayout.LayoutRow`, `Stretch`, `LayoutPadded`, and `LayoutError`;
+`Styles`, `Work`, and `Layout(MathElement, MathStyle)`; `StyleResolver.ResolveRoot`, `Resolve`, `ResolveChild`,
+`ResolveLength`, `ScaleFactor`, and `TryParseDisplay`; `MathFont.Default` with its constants, metrics, and
+constructions; the `MathBox` tree with its `ContentRect` and `InkBounds` and the paint items `GlyphItem`, `RuleItem`,
+`BackgroundItem`, and `BorderItem`; `TokenLayout.LayoutToken`, `LayoutOperator`, `LayoutText`, and `Transform`;
+`MathVariants.TryParse`, `Map`, and `AutoItalic`; `RowLayout.LayoutRow`, `Stretch`, `LayoutPadded`, and `LayoutError`;
+`FractionLayout.ResolveThickness` and `Layout`; `RadicalLayout.LayoutSquareRoot` and `LayoutRoot`;
 `OperatorDictionary.Category`, `Lookup`, `Properties`, `IsFence`, `IsSeparator`, `Axis`, `InferForm`, and
 `TryParseForm`; `StretchyGlyphs.Stretch` (both axes; the inline axis is for the under-over layout of a later stage),
 `Glyph`, `LargeVariant`, `PreferredInlineSize`, `SolveAssembly`, and `UnicodeAssembly`.
@@ -58,15 +64,20 @@ element, lays the tree out, and frames the picture from the box; `MathMlPainter`
 
 ### Design
 
-The document creates a `LayoutEngine` per call, which creates the `StyleResolver`, `TokenLayout`, and `RowLayout` of
-the call over the shared `MathFont.Default` and the report sink of the call. The engine walks the tree depth-first: for
-each element it computes the style from the parent's, skips the elements without a box, and lays the element out with
-the token layout or as a row of its laid-out children with the row layout, which builds `MathBox`es bottom-up. Before
+The document creates a `LayoutEngine` per call, which creates the `StyleResolver`, `TokenLayout`, `RowLayout`,
+`FractionLayout`, and `RadicalLayout` of the call over the shared `MathFont.Default` and the report sink of the call.
+The engine walks the tree depth-first: for each element it computes the style from the parent's (with the user agent
+rule of its position under a fraction or a root), skips the elements without a box, and lays the element out with the
+token layout, as a row of its laid-out children with the row layout, or from the boxes of its children with the
+fraction or radical layout, which build `MathBox`es bottom-up. A fraction or a root without two in-flow children is a
+row with a `mathml-child-count` warning. Before
 the children of a row are laid out, the engine infers the form of each embellished operator from its position among
 the children that are not space-like (MathML Core 3.2.4.2); the token layout resolves the properties of an `mo` from
 the operator dictionary and its attributes. After the children are laid out, the row layout asks the engine to lay its
 stretchy operators out again with a block stretch size constraint (3.3.1.1), and the token layout stretches the glyph
-with `StretchyGlyphs`; an embellished grouping element passes the form and the constraint on to its operator. The
+with `StretchyGlyphs`; an embellished grouping element, or a fraction whose numerator is an embellished operator,
+passes the form and the constraint on to its operator. The radical layout stretches the radical symbol with
+`StretchyGlyphs` too. The
 boxes carry their paint items (glyphs, backgrounds, rules, and borders), the embellished-operator data and space-like
 flag that rows read, the element (for the reports and the painter), and the phantom flag. All lengths are CSS pixels
 at the font size of the call; the scale of the picture is applied only by the painter. Every unit records its reports

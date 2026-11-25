@@ -65,7 +65,7 @@ internal sealed class RowLayout
     ///     Lays out a row of children (MathML Core 3.3.1.2), stretching its stretchy operators first (3.3.1.1).
     /// </summary>
     /// <param name="children">The boxes of the in-flow children, in order, laid out without a stretch constraint.</param>
-    /// <param name="isMath">Whether the row is the inferred row of the <c>math</c> element, which always adds operator spacing.</param>
+    /// <param name="isMath">Whether the row is the inferred row of the <c>math</c> element or of <c>msqrt</c>, which is never an embellished operator and always adds operator spacing.</param>
     /// <param name="relayout">
     ///     Lays a child out again with a block stretch size constraint (by its index), or null when the row does not
     ///     stretch its operators (it passes the constraint of its parent to its embellished operator instead).

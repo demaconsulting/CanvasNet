@@ -2,7 +2,8 @@
 # Software Unit Requirements for StyleResolver
 #
 # These requirements describe the design-level behavior of the StyleResolver unit of the Layout subsystem (internal
-# namespace DemaConsulting.CanvasNet.MathMl.Layout): the computed style of each element. See
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the computed style of each element, with the user agent rules
+# that a layout element applies to its children by position. See
 # docs/verification/canvas-net-math-ml/layout/style-resolver.md for the test-evidence mapping.
 
 sections:
@@ -74,3 +75,27 @@ sections:
                   reported.
                 tests:
                   - StyleResolver_Resolve_InlineStyle_OverridesAttributes
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-ChildRules
+                title: >-
+                  The StyleResolver unit shall apply the user agent rules of MathML Core to the children of a layout
+                  element by position (math-depth: auto-add and math-style: compact for the children of mfrac, add(2)
+                  and compact for the index of mroot) before the hints and the inline style of the child, which replace
+                  them, a relative scriptlevel being relative to the depth of the parent.
+                justification: |
+                  The numerators and denominators of inline fractions and the indices of roots are drawn at script size
+                  as in a browser, and the cascade of CSS lets an author override the user agent rules.
+                tests:
+                  - StyleResolver_ResolveChild_FractionChildren_AutoAddAndCompact
+                  - StyleResolver_ResolveChild_RootIndex_AddsTwoLevels
+                  - StyleResolver_ResolveChild_Hints_ReplaceUaRules
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-MathShift
+                title: >-
+                  The StyleResolver unit shall compute math-shift: normal for the math element, compact for the
+                  denominator of mfrac and for msqrt and mroot, and inherited otherwise.
+                justification: |
+                  MathML Core uses the cramped superscript shift under a fraction bar and a radical; the style carries
+                  it to the scripts.
+                tests:
+                  - StyleResolver_ResolveChild_MathShift_CompactAndInherited

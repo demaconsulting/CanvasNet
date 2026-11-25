@@ -19,7 +19,8 @@ row, and builds the boxes that `mpadded` and `merror` put around a row. The unit
 
 #### Key Methods
 
-- `LayoutRow(children, isMath, relayout)` - first, when a relayout function is given, `Stretch`; then MathML Core
+- `LayoutRow(children, isMath, relayout)` - `isMath` marks a row that is never an embellished operator (the inferred
+  rows of `math` and `msqrt`); first, when a relayout function is given, `Stretch`; then MathML Core
   3.3.1.2: the children are placed left to right with their alphabetic baselines aligned; the ascent and descent are
   the maximums of the children's. When the row is itself an embellished operator (one embellished-operator child and
   any number of space-like children, MathML Core 3.2.4.1) and is not `math`, it adds no spacing inside and passes the

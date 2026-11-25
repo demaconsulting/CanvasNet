@@ -2,8 +2,8 @@
 
 This document describes the subsystem-level verification strategy for the `Layout` subsystem of CanvasNetMathMl
 (namespace `DemaConsulting.CanvasNet.MathMl.Layout`): the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`,
-`TokenLayout`, `RowLayout`, `OperatorDictionary`, and `StretchyGlyphs` units working together as the document uses
-them.
+`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `OperatorDictionary`, and `StretchyGlyphs` units working
+together as the document uses them.
 
 ### Verification Approach
 
@@ -50,12 +50,28 @@ size, and is placed without spacing (categories F and G).
 
 Asserts that `scriptlevel="1"` makes the digits 60 % as wide, the ScriptPercentScaleDown constant of the font.
 
+#### CanvasNetMathMl-Layout-Fractions, Radicals, And Style: Fractions And Square Roots
+
+**Tests**: `LayoutTests.Layout_FractionsAndRadicals_MatchConstants`
+
+Lays out `x/2` and the square root of 2 inline at 100 px and asserts that the numerator is drawn at the script size of
+60 px, shifted up by the larger of FractionNumeratorShiftUp and the gap rule of FractionNumeratorGapMin above the bar,
+that the bar has the FractionRuleThickness of the font and is centered on its AxisHeight, and that the square root rises
+above its base by RadicalVerticalGap, RadicalRuleThickness, and RadicalExtraAscender.
+
+#### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
+
+**Tests**: `LayoutTests.Layout_WrongChildCount_IsRowWithWarning`
+
+Lays out an `mfrac` with three children and asserts that it is a row of its children on its baseline without a bar,
+with one `mathml-child-count` warning at line 2, column 2.
+
 #### CanvasNetMathMl-Layout-UnsupportedFeatures: Rows With Reports
 
 **Tests**: `LayoutTests.Layout_UnsupportedElementsAndAttributes_AreRowsWithReports`
 
-Lays out an `mfrac`, an `mi` with `dir="rtl"`, and an `mn` with an invalid `mathcolor`, and asserts that the fraction is
-a row of its two children on its baseline, that the three boxes follow each other, and the reports
+Lays out an `menclose`, an `mi` with `dir="rtl"`, and an `mn` with an invalid `mathcolor`, and asserts that the
+enclosure is a row of its two children on its baseline, that the three boxes follow each other, and the reports
 `mathml-element-unsupported` and `mathml-attribute-unsupported`, in order, with one `mathml-attribute-invalid` warning.
 
 #### CanvasNetMathMl-Layout-Bounds: Work And Cancellation

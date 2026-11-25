@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
 ///     Unit tests for <see cref="StyleResolver"/>: the display mode, <c>displaystyle</c>, <c>scriptlevel</c> and the
-///     font-size scaling of MathML Core, <c>mathsize</c>, colors, backgrounds, <c>mathvariant</c> and the inline style.
+///     font-size scaling of MathML Core, <c>mathsize</c>, colors, backgrounds, <c>mathvariant</c>, the inline style, the
+///     user agent rules of the children of fractions and roots, and <c>math-shift</c>.
 /// </summary>
 public class StyleResolverTests
 {
@@ -196,6 +197,89 @@ public class StyleResolverTests
         // Assert
         Assert.Equal((StyleResolver.MaxMathDepth, -StyleResolver.MaxMathDepth), (deep.MathDepth, shallow.MathDepth));
         Assert.True(double.IsFinite(shallow.FontSize));
+    }
+
+    /// <summary>
+    ///     Validates the user agent rules of the children of a fraction: <c>math-depth: auto-add</c> adds a level only
+    ///     under a compact fraction, and both children get <c>math-style: compact</c> and the font size of their depth.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_FractionChildren_AutoAddAndCompact()
+    {
+        // Arrange
+        var display = Parent with { DisplayStyle = true };
+
+        // Act
+        var inline = Styles().ResolveChild(Node("mi", []), Parent, ChildStyleRule.FractionNumerator);
+        var underDisplay = Styles().ResolveChild(Node("mi", []), display, ChildStyleRule.FractionNumerator);
+        var denominator = Styles().ResolveChild(Node("mi", []), Parent, ChildStyleRule.FractionDenominator);
+
+        // Assert
+        Assert.Equal((1, false, 60.0), (inline.MathDepth, inline.DisplayStyle, System.Math.Round(inline.FontSize, 9)));
+        Assert.Equal((0, false, 100.0), (underDisplay.MathDepth, underDisplay.DisplayStyle, underDisplay.FontSize));
+        Assert.Equal((1, false), (denominator.MathDepth, denominator.DisplayStyle));
+    }
+
+    /// <summary>
+    ///     Validates the user agent rule of the index of a root: <c>math-depth: add(2); math-style: compact</c>, whatever
+    ///     the math style of the root.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_RootIndex_AddsTwoLevels()
+    {
+        // Act
+        var index = Styles().ResolveChild(Node("mn", []), Parent with { DisplayStyle = true }, ChildStyleRule.RootIndex);
+        var none = Styles().ResolveChild(Node("mi", []), Parent with { DisplayStyle = true }, default);
+
+        // Assert
+        Assert.Equal((2, false, 50.0), (index.MathDepth, index.DisplayStyle, System.Math.Round(index.FontSize, 9)));
+        Assert.Equal((0, true, 100.0), (none.MathDepth, none.DisplayStyle, none.FontSize));
+    }
+
+    /// <summary>
+    ///     Validates <c>math-shift</c>: normal on the <c>math</c> element, compact on a denominator, on <c>msqrt</c> and
+    ///     <c>mroot</c> and inherited by their descendants, and unchanged by the numerator rule.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_MathShift_CompactAndInherited()
+    {
+        // Arrange
+        var styles = Styles();
+        var cramped = Parent with { MathShiftCompact = true };
+
+        // Act
+        var root = styles.ResolveRoot(Node("math", []), 16, Black, null);
+        var denominator = styles.ResolveChild(Node("mi", []), Parent, ChildStyleRule.FractionDenominator);
+        var numerator = styles.ResolveChild(Node("mi", []), Parent, ChildStyleRule.FractionNumerator);
+        var radical = styles.Resolve(Node("msqrt", []), Parent);
+        var root3 = styles.Resolve(Node("mroot", []), Parent);
+        var inherited = styles.Resolve(Node("mrow", []), cramped);
+        var underCramped = styles.ResolveChild(Node("mi", []), cramped, ChildStyleRule.FractionNumerator);
+
+        // Assert
+        Assert.False(root.MathShiftCompact);
+        Assert.False(numerator.MathShiftCompact);
+        Assert.True(denominator.MathShiftCompact && radical.MathShiftCompact && root3.MathShiftCompact);
+        Assert.True(inherited.MathShiftCompact && underCramped.MathShiftCompact);
+    }
+
+    /// <summary>
+    ///     Validates that the presentational hints of a child replace the user agent rule of its position:
+    ///     <c>scriptlevel="+1"</c> is one level over the parent (not over the rule's), <c>displaystyle="true"</c> undoes
+    ///     <c>math-style: compact</c>, and <c>mathsize</c> sets the font size.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_ResolveChild_Hints_ReplaceUaRules()
+    {
+        // Act
+        var relative = Styles().ResolveChild(Node("mi", [], ("scriptlevel", "+1")), Parent, ChildStyleRule.RootIndex);
+        var absolute = Styles().ResolveChild(Node("mi", [], ("scriptlevel", "0"), ("displaystyle", "true")), Parent, ChildStyleRule.FractionNumerator);
+        var sized = Styles().ResolveChild(Node("mi", [], ("mathsize", "30px")), Parent, ChildStyleRule.FractionNumerator);
+
+        // Assert
+        Assert.Equal(1, relative.MathDepth);
+        Assert.Equal((0, true, 100.0), (absolute.MathDepth, absolute.DisplayStyle, absolute.FontSize));
+        Assert.Equal((1, 30.0), (sized.MathDepth, sized.FontSize));
     }
 
     /// <summary>

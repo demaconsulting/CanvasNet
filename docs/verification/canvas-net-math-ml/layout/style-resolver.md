@@ -68,3 +68,24 @@ value.
 
 Asserts that the inline style overrides the attributes, sets the math depth and the font style, hides with
 `display: none`, and reports declarations outside the subset as `mathml-css-unsupported`.
+
+##### CanvasNetMathMl-Layout-StyleResolver-ChildRules: The Children Of Fractions And Roots
+
+**Tests**: `StyleResolverTests.StyleResolver_ResolveChild_FractionChildren_AutoAddAndCompact`,
+`StyleResolverTests.StyleResolver_ResolveChild_RootIndex_AddsTwoLevels`,
+`StyleResolverTests.StyleResolver_ResolveChild_Hints_ReplaceUaRules`
+
+Asserts that the numerator and the denominator of a compact fraction get depth 1, the compact style, and 60 px, those
+of a display fraction keep depth 0 and 100 px in the compact style; that the index of a root in display style gets
+depth 2, the compact style, and 50 px while a child without a rule keeps the parent's style; and that the hints of a
+child replace the rule: `scriptlevel="+1"` on an index is one level over the parent (depth 1, not 3),
+`scriptlevel="0"` with `displaystyle="true"` undoes the numerator rule, and `mathsize` sets the size while the depth
+still follows the rule.
+
+##### CanvasNetMathMl-Layout-StyleResolver-MathShift: math-shift
+
+**Tests**: `StyleResolverTests.StyleResolver_ResolveChild_MathShift_CompactAndInherited`
+
+Asserts that the `math` element has `math-shift: normal`, that a denominator, `msqrt`, and `mroot` get
+`math-shift: compact` while a numerator does not, and that a compact math shift is inherited by a row and by a numerator
+under it.

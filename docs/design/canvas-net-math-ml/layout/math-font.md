@@ -18,8 +18,15 @@ is specified by the `CanvasNetMathMl-Layout-MathFont-*` requirements in
 
 - `MathConstant` - the constants of the `MATH` table that the layout reads now: `ScriptPercentScaleDown`,
   `ScriptScriptPercentScaleDown`, `AxisHeight`, `FractionRuleThickness`, `DisplayOperatorMinHeight`,
-  `DelimitedSubFormulaMinHeight`, and `OverbarRuleThickness` (the thickness of a rule without ink to copy); the layouts
-  of later stages add theirs.
+  `DelimitedSubFormulaMinHeight`, and `OverbarRuleThickness` (the thickness of a rule without ink to copy); the
+  fraction constants (`FractionNumeratorShiftUp`, `FractionNumeratorDisplayStyleShiftUp`,
+  `FractionDenominatorShiftDown`, `FractionDenominatorDisplayStyleShiftDown`, `FractionNumeratorGapMin`,
+  `FractionNumDisplayStyleGapMin`, `FractionDenominatorGapMin`, `FractionDenomDisplayStyleGapMin`); the stack constants
+  (`StackTopShiftUp`, `StackTopDisplayStyleShiftUp`, `StackBottomShiftDown`, `StackBottomDisplayStyleShiftDown`,
+  `StackGapMin`, `StackDisplayStyleGapMin`); and the radical constants (`RadicalVerticalGap`,
+  `RadicalDisplayStyleVerticalGap`, `RadicalRuleThickness`, `RadicalExtraAscender`, `RadicalKernBeforeDegree`,
+  `RadicalKernAfterDegree`, and the percentage `RadicalDegreeBottomRaisePercent`); the script layouts of a later
+  version add theirs.
 - `StretchVariant(Glyph, Advance)`, `StretchPart(Font, Glyph, StartConnector, EndConnector, FullAdvance, IsExtender)`,
   and `StretchConstruction(Variants, Parts, AssemblyItalicCorrection)` - a construction of the `MathVariants` table in
   CSS pixels at a font size (the part records also serve the Unicode-based assemblies of `StretchyGlyphs`, whose parts
@@ -62,5 +69,5 @@ outlines).
 
 #### Callers
 
-`MathMlDocument` creates every layout over `MathFont.Default`; `LayoutEngine`, `StyleResolver`, and `TokenLayout` read
-its constants and metrics; `StretchyGlyphs` reads its constructions.
+`MathMlDocument` creates every layout over `MathFont.Default`; `LayoutEngine`, `StyleResolver`, `TokenLayout`,
+`FractionLayout`, and `RadicalLayout` read its constants and metrics; `StretchyGlyphs` reads its constructions.

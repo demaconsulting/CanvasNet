@@ -139,7 +139,8 @@ constituent software items, specifically:
   table, and lays out every other element as a row with a report, containing two
   direct units, `MathMlDocument` (the public API) and `MathMlPainter`, and two internal subsystems: `Syntax` (units
   `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues`) and `Layout` (units `LayoutEngine`,
-  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `OperatorDictionary`, and `StretchyGlyphs`) — see
+  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`,
+  `OperatorDictionary`, and `StretchyGlyphs`) — see
   *CanvasNetMathMl System Verification* (`canvas-net-math-ml.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the
   `DemaConsulting.CanvasNet.Viewer` package, that lists the image sources of every format, creates the image resolver

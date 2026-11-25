@@ -522,7 +522,7 @@ public class MathMlSystemIntegrationTests
     public void CanvasNetMathMl_UnsupportedElements_AreDrawnAsRowsAndReported()
     {
         // Arrange
-        var document = MathMlDocument.Parse("<math>\n<mfrac><mi>a</mi><mi>b</mi></mfrac>\n<mfenced><mi>c</mi></mfenced></math>");
+        var document = MathMlDocument.Parse("<math>\n<menclose><mi>a</mi><mi>b</mi></menclose>\n<mfenced><mi>c</mi></mfenced></math>");
         var row = MathMlDocument.Parse("<math><mrow><mi>a</mi><mi>b</mi></mrow><mrow><mi>c</mi></mrow></math>");
         var (options, _, unsupported) = MathMlTestHelpers.Collecting();
 
@@ -543,7 +543,7 @@ public class MathMlSystemIntegrationTests
     public void CanvasNetMathMl_StrictMode_FirstUnsupportedFeatureThrows()
     {
         // Arrange
-        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<msqrt><mi>x</mi></msqrt><mfenced/>"));
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<menclose><mi>x</mi></menclose><mfenced/>"));
         var (options, _, unsupported) = MathMlTestHelpers.Collecting(strict: true);
 
         // Act
@@ -551,8 +551,136 @@ public class MathMlSystemIntegrationTests
 
         // Assert
         Assert.Equal(MathMlDiagnosticCodes.ElementUnsupported, ex.Feature);
-        Assert.Contains("<msqrt>", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("<menclose>", ex.Message, StringComparison.Ordinal);
         Assert.Single(unsupported);
+    }
+
+    /// <summary>
+    ///     Validates the exact pixels of a fraction bar: a 4 px bar of <c>linethickness</c> centered on the math axis
+    ///     between two empty children is pure black across the content box, and the pixels above and below it and in the
+    ///     1 px inline padding are transparent.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_FractionBar_PaintsExactPixels()
+    {
+        // Arrange: the layout gives the position of the fraction in the picture
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<mfrac linethickness=\"4px\"><mspace width=\"30px\" height=\"10px\"/><mspace width=\"30px\" height=\"10px\"/></mfrac>"));
+        var options = new MathMlRenderOptions { FontSize = 32 };
+        var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
+        var extent = MathMlDocument.PictureExtent(root);
+        var originX = -Math.Floor(extent.X + 1e-6);
+        var originY = -Math.Floor(extent.Y + 1e-6);
+        var (fraction, fractionX, _) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "mfrac");
+        var bar = Assert.IsType<RuleItem>(Assert.Single(fraction.Items)).Rect;
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert: the bar is 4 px thick, centered on the axis (AxisHeight 278 at 32 px), 30 px wide after the padding
+        Assert.Equal((1.0, 30.0, 4.0), (bar.X, bar.Width, bar.Height));
+        Assert.Equal(-0.278 * 32, bar.Y + 2, 9);
+        var top = (int)Math.Ceiling(originY + bar.Y);
+        var bottom = (int)Math.Floor(originY + bar.Bottom);
+        var left = (int)Math.Ceiling(originX + fractionX + bar.X);
+        var right = (int)Math.Floor(originX + fractionX + bar.Right);
+        for (var y = top; y < bottom; y++)
+        {
+            for (var x = left; x < right; x++)
+            {
+                Assert.Equal(new Rgba32(0, 0, 0, 255), surface[x, y]);
+            }
+        }
+
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[left + 10, top - 2]);
+        Assert.Equal(new Rgba32(0, 0, 0, 0), surface[left + 10, bottom + 1]);
+        Assert.Equal(0, surface[(int)(originX + fractionX), top + 1].A);
+    }
+
+    /// <summary>
+    ///     Validates the pixels of a square root: the overbar is pure black from the end of the radical symbol over the whole
+    ///     base, the space under it (an empty base) is transparent, and the radical symbol is inked at the left.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_SquareRoot_PaintsSurdAndOverbar()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<msqrt><mspace width=\"40px\" height=\"20px\" depth=\"5px\"/></msqrt>"));
+        var options = new MathMlRenderOptions { FontSize = 32 };
+        var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
+        var extent = MathMlDocument.PictureExtent(root);
+        var originX = -Math.Floor(extent.X + 1e-6);
+        var originY = -Math.Floor(extent.Y + 1e-6);
+        var (sqrt, sqrtX, _) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "msqrt");
+        var bar = Assert.Single(sqrt.Items.OfType<RuleItem>()).Rect;
+        var symbol = sqrt.Items.OfType<GlyphItem>().Single();
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert: the overbar covers the base and is fully inked along its middle row
+        Assert.Equal(40, bar.Width, 9);
+        var row = (int)(originY + bar.Y + (bar.Height / 2));
+        var left = (int)Math.Ceiling(originX + sqrtX + bar.X);
+        var right = (int)Math.Floor(originX + sqrtX + bar.Right);
+        Assert.All(Enumerable.Range(left, right - left), x => Assert.Equal(new Rgba32(0, 0, 0, 255), surface[x, row]));
+
+        // Under the overbar, over the empty base, nothing is painted; the symbol has ink left of the base
+        Assert.Equal(0, surface[(left + right) / 2, (int)originY].A);
+        var symbolLeft = (int)(originX + sqrtX + symbol.Ink.X);
+        var symbolRight = (int)Math.Ceiling(originX + sqrtX + symbol.Ink.Right);
+        var inked = Enumerable.Range(symbolLeft, symbolRight - symbolLeft).Sum(x => Enumerable.Range(0, surface.Height).Count(y => surface[x, y].A != 0));
+        Assert.True(inked > 50);
+    }
+
+    /// <summary>
+    ///     Validates that a fraction and a root without two children are reported as <c>mathml-child-count</c> warnings
+    ///     with their locations, laid out as rows, and do not stop a strict rendering (invalid markup is not an unsupported
+    ///     feature).
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("<math>\n<mfrac><mi>a</mi></mfrac>\n<mroot><mi>a</mi><mi>b</mi><mi>c</mi></mroot></math>");
+        var (options, warnings, unsupported) = MathMlTestHelpers.Collecting(strict: true);
+
+        // Act
+        using var picture = document.Render(options, TestContext.Current.CancellationToken);
+        var root = document.LayoutBox(new MathMlRenderOptions(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Equal([MathMlDiagnosticCodes.ChildCount, MathMlDiagnosticCodes.ChildCount], warnings.Select(warning => warning.Code));
+        Assert.Equal([new MathMlLocation(null, 2, 2), new MathMlLocation(null, 3, 2)], warnings.Select(warning => warning.Location));
+        var mroot = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "mroot").Box;
+        Assert.Equal(3, mroot.Children.Count);
+        Assert.All(mroot.Children, child => Assert.Equal(0, child.Y));
+        Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0);
+    }
+
+    /// <summary>
+    ///     Validates that the legacy attributes of <c>mfrac</c> that MathML Core dropped (<c>bevelled</c>,
+    ///     <c>numalign</c>, <c>denomalign</c>) are reported as unsupported attributes, and that the fraction is still drawn
+    ///     as MathML Core draws it (the same as without them).
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Fractions_LegacyAttributes_AreReported()
+    {
+        // Arrange
+        var legacy = MathMlDocument.Parse(MathMlTestHelpers.Math("<mfrac bevelled=\"true\" numalign=\"left\" denomalign=\"right\"><mi>a</mi><mn>10</mn></mfrac>"));
+        var core = MathMlDocument.Parse(MathMlTestHelpers.Math("<mfrac><mi>a</mi><mn>10</mn></mfrac>"));
+        var (options, warnings, unsupported) = MathMlTestHelpers.Collecting();
+
+        // Act
+        using var legacyPicture = legacy.Render(options, TestContext.Current.CancellationToken);
+        using var corePicture = core.Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal(3, unsupported.Count);
+        Assert.All(unsupported, report => Assert.Equal(MathMlDiagnosticCodes.AttributeUnsupported, report.Feature));
+        Assert.Equal(["'bevelled'", "'numalign'", "'denomalign'"], unsupported.Select(report => report.Message.Split(' ')[2]));
+        Assert.True(MathMlTestHelpers.PixelsEqual(legacyPicture, corePicture));
     }
 
     /// <summary>

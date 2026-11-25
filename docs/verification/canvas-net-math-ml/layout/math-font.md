@@ -27,10 +27,13 @@ metric that differs from the expected value constitutes a failure.
 ##### CanvasNetMathMl-Layout-MathFont-Constants: The MATH Constants
 
 **Tests**: `MathFontTests.MathFont_Default_HasMathConstants`,
+`MathFontTests.MathFont_RawConstant_FractionAndRadicalConstants_MatchTheFont`,
 `MathFontTests.MathFont_Constructor_FontWithoutMathTable_ThrowsInvalidDataException`
 
 Asserts the raw constants of the font (for example AxisHeight 278 and ScriptPercentScaleDown 60) and their scaled
-values, and that a font without a `MATH` table throws `InvalidDataException`.
+values; for each of the 21 fraction, stack, and radical constants its value in Noto Sans Math (for example
+FractionNumeratorShiftUp 529, StackGapMin 178, RadicalKernAfterDegree -450, and RadicalDegreeBottomRaisePercent 56);
+and that a font without a `MATH` table throws `InvalidDataException`.
 
 ##### CanvasNetMathMl-Layout-MathFont-Fallback: Deterministic Fallback
 

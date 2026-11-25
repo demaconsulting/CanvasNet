@@ -76,5 +76,6 @@ The `MathFont` unit (glyphs, ink, advances, constructions, constants), the `Math
 
 #### Callers
 
-`TokenLayout` stretches operators along the block axis and finds the large variants; the under-over layout of a later
-stage will stretch along the inline axis.
+`TokenLayout` stretches operators along the block axis and finds the large variants; `RadicalLayout` stretches the
+radical symbol along the block axis and reads its preferred inline size; the under-over layout of a later stage will
+stretch along the inline axis.

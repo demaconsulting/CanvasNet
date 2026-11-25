@@ -5,8 +5,9 @@ using static DemaConsulting.CanvasNet.MathMl.Tests.MathMlTestHelpers;
 namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
-///     Subsystem tests for the <c>Layout</c> subsystem: a row of tokens laid out through the engine with the real math
-///     font, checked against the metrics of the font and the operator spacing.
+///     Subsystem tests for the <c>Layout</c> subsystem: rows of tokens, stretchy fences, fractions and radicals laid out
+///     through the engine with the real math font, checked against the metrics and constants of the font and the
+///     operator spacing, with the reports and bounds of the layout.
 /// </summary>
 public class LayoutTests
 {
@@ -84,6 +85,64 @@ public class LayoutTests
     }
 
     /// <summary>
+    ///     Validates a fraction and a square root through the subsystem with the real font: the numerator of
+    ///     <c>x/2</c> (at the script size of 60%) sits FractionNumeratorShiftUp above the baseline unless its gap to the
+    ///     bar is larger, the bar is centered on the math axis, and the square root of 2 rises by RadicalVerticalGap,
+    ///     RadicalRuleThickness and RadicalExtraAscender above its base.
+    /// </summary>
+    [Fact]
+    public void Layout_FractionsAndRadicals_MatchConstants()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        var axis = font.Constant(MathConstant.AxisHeight, 100);
+        var thickness = font.Constant(MathConstant.FractionRuleThickness, 100);
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math("<mfrac><mi>x</mi><mn>2</mn></mfrac><msqrt><mn>2</mn></msqrt>"));
+
+        // Assert: the fraction
+        var fraction = box.Children[0].Box;
+        var numerator = fraction.Children[0];
+        Assert.Equal(60, numerator.Box.Items.OfType<GlyphItem>().Single().Size, 9);
+        var expectedShift = System.Math.Max(font.Constant(MathConstant.FractionNumeratorShiftUp, 100), axis + (thickness / 2) + font.Constant(MathConstant.FractionNumeratorGapMin, 100) + numerator.Box.Descent);
+        Assert.Equal(-expectedShift, numerator.Y, 9);
+        var bar = Assert.IsType<RuleItem>(Assert.Single(fraction.Items));
+        Assert.Equal(-axis, bar.Rect.Y + (bar.Rect.Height / 2), 9);
+        Assert.Equal(thickness, bar.Rect.Height, 9);
+
+        // The square root
+        var sqrt = box.Children[1].Box;
+        var radicand = Assert.Single(sqrt.Children).Box;
+        var rise = font.Constant(MathConstant.RadicalVerticalGap, 100) + font.Constant(MathConstant.RadicalRuleThickness, 100) + font.Constant(MathConstant.RadicalExtraAscender, 100);
+        Assert.Equal(radicand.Ascent + rise, sqrt.Ascent, 9);
+    }
+
+    /// <summary>
+    ///     Validates through the subsystem that a fraction with three children is laid out as a row of them, side by side
+    ///     on its baseline, with a located <c>mathml-child-count</c> warning.
+    /// </summary>
+    [Fact]
+    public void Layout_WrongChildCount_IsRowWithWarning()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+
+        // Act
+        var box = LayoutText("<math>\n<mfrac><mi>a</mi><mi>b</mi><mi>c</mi></mfrac></math>", 100, sink);
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        var fraction = Assert.Single(box.Children).Box;
+        Assert.Equal(3, fraction.Children.Count);
+        Assert.All(fraction.Children, child => Assert.Equal(0, child.Y));
+        Assert.Empty(fraction.Items);
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MathMlDiagnosticCodes.ChildCount, new MathMlLocation(null, 2, 2)), (warning.Code, warning.Location));
+    }
+
+    /// <summary>
     ///     Validates that an element this version does not draw is laid out as a row of its children, and that the element,
     ///     an attribute without effect and an invalid attribute value are reported while the layout continues.
     /// </summary>
@@ -94,15 +153,15 @@ public class LayoutTests
         var sink = new MathMlReportSink(100, false);
 
         // Act
-        var box = LayoutText(MathMlTestHelpers.Math("<mfrac><mi>a</mi><mn>2</mn></mfrac><mi dir=\"rtl\">b</mi><mn mathcolor=\"bogus\">3</mn>"), 100, sink);
+        var box = LayoutText(MathMlTestHelpers.Math("<menclose><mi>a</mi><mn>2</mn></menclose><mi dir=\"rtl\">b</mi><mn mathcolor=\"bogus\">3</mn>"), 100, sink);
         var warnings = new List<MathMlDiagnostic>();
         var unsupported = new List<MathMlUnsupportedFeature>();
         sink.Deliver(warnings.Add, unsupported.Add);
 
-        // Assert: the fraction is a row (its children side by side on its baseline), and the three tokens follow it
-        var fraction = Flatten(box).Single(entry => entry.Box.Element?.Name == "mfrac").Box;
-        Assert.Equal([0, fraction.Children[0].Box.Width], fraction.Children.Select(child => child.X));
-        Assert.All(fraction.Children, child => Assert.Equal(0, child.Y));
+        // Assert: the enclosure is a row (its children side by side on its baseline), and the three tokens follow it
+        var enclosure = Flatten(box).Single(entry => entry.Box.Element?.Name == "menclose").Box;
+        Assert.Equal([0, enclosure.Children[0].Box.Width], enclosure.Children.Select(child => child.X));
+        Assert.All(enclosure.Children, child => Assert.Equal(0, child.Y));
         Assert.Equal(3, box.Children.Count);
         Assert.Equal([MathMlDiagnosticCodes.ElementUnsupported, MathMlDiagnosticCodes.AttributeUnsupported], unsupported.Select(report => report.Feature));
         Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, Assert.Single(warnings).Code);

@@ -29,6 +29,43 @@ public class MathFontTests
     }
 
     /// <summary>
+    ///     Validates the fraction, stack and radical constants of the MATH table of the bundled font (font design units, 1000
+    ///     per em; a percentage for RadicalDegreeBottomRaisePercent).
+    /// </summary>
+    /// <param name="constant">The name of the constant.</param>
+    /// <param name="expected">Its value in Noto Sans Math.</param>
+    [Theory]
+    [InlineData(nameof(MathConstant.FractionNumeratorShiftUp), 529)]
+    [InlineData(nameof(MathConstant.FractionNumeratorDisplayStyleShiftUp), 704)]
+    [InlineData(nameof(MathConstant.FractionDenominatorShiftDown), 320)]
+    [InlineData(nameof(MathConstant.FractionDenominatorDisplayStyleShiftDown), 673)]
+    [InlineData(nameof(MathConstant.FractionNumeratorGapMin), 71)]
+    [InlineData(nameof(MathConstant.FractionNumDisplayStyleGapMin), 150)]
+    [InlineData(nameof(MathConstant.FractionDenominatorGapMin), 71)]
+    [InlineData(nameof(MathConstant.FractionDenomDisplayStyleGapMin), 150)]
+    [InlineData(nameof(MathConstant.StackTopShiftUp), 529)]
+    [InlineData(nameof(MathConstant.StackTopDisplayStyleShiftUp), 704)]
+    [InlineData(nameof(MathConstant.StackBottomShiftDown), 320)]
+    [InlineData(nameof(MathConstant.StackBottomDisplayStyleShiftDown), 673)]
+    [InlineData(nameof(MathConstant.StackGapMin), 178)]
+    [InlineData(nameof(MathConstant.StackDisplayStyleGapMin), 336)]
+    [InlineData(nameof(MathConstant.RadicalVerticalGap), 89)]
+    [InlineData(nameof(MathConstant.RadicalDisplayStyleVerticalGap), 190)]
+    [InlineData(nameof(MathConstant.RadicalRuleThickness), 71)]
+    [InlineData(nameof(MathConstant.RadicalExtraAscender), 71)]
+    [InlineData(nameof(MathConstant.RadicalKernBeforeDegree), 51)]
+    [InlineData(nameof(MathConstant.RadicalKernAfterDegree), -450)]
+    [InlineData(nameof(MathConstant.RadicalDegreeBottomRaisePercent), 56)]
+    public void MathFont_RawConstant_FractionAndRadicalConstants_MatchTheFont(string constant, int expected)
+    {
+        // Act
+        var value = MathFont.Default.RawConstant(Enum.Parse<MathConstant>(constant));
+
+        // Assert
+        Assert.Equal(expected, value);
+    }
+
+    /// <summary>
     ///     Validates the constructions of the MATH table scaled to a font size: the vertical variants and assembly of the
     ///     parenthesis, the horizontal assembly of the right arrow, none for a fallback font or a letter, and the minimum
     ///     connector overlap and overbar thickness.

@@ -5,9 +5,10 @@ using static DemaConsulting.CanvasNet.MathMl.Tests.MathMlTestHelpers;
 namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
-///     Unit tests for <see cref="LayoutEngine"/>: the dispatch, the fallback of the elements this version does not draw,
-///     hidden elements, the first-child rule, attribute reports, the forms and stretching of embellished operators, and
-///     the depth, work and cancellation bounds.
+///     Unit tests for <see cref="LayoutEngine"/>: the dispatch (fractions and radicals included), the fallback of the
+///     elements this version does not draw, the child-count rule, hidden elements, the first-child rule, attribute
+///     reports, the forms and stretching of embellished operators (embellished fractions included), and the depth, work
+///     and cancellation bounds.
 /// </summary>
 public class LayoutEngineTests
 {
@@ -34,7 +35,7 @@ public class LayoutEngineTests
     public void LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport()
     {
         // Act
-        var (box, _, unsupported) = Run("<mfrac><mi>a</mi><mi>b</mi></mfrac><mfoo><mi>c</mi></mfoo>");
+        var (box, _, unsupported) = Run("<mtable><mi>a</mi><mi>b</mi></mtable><menclose><mi>c</mi></menclose>");
         var (row, _, _) = Run("<mrow><mi>a</mi><mi>b</mi></mrow><mrow><mi>c</mi></mrow>");
 
         // Assert
@@ -190,6 +191,93 @@ public class LayoutEngineTests
 
         // Assert: the parenthesis (one element, one character) is laid out a second time
         Assert.Equal(second.Work + 2, first.Work);
+    }
+
+    /// <summary>
+    ///     Validates the dispatch of fractions and radicals: none is reported, the numerator of a fraction is above its
+    ///     denominator with a bar between them, a square root paints its symbol and overbar around the row of its
+    ///     children, and a root places its index before its square root.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_FractionsAndRadicals_AreDispatched()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mfrac><mi>a</mi><mi>b</mi></mfrac><msqrt><mi>x</mi><mn>2</mn></msqrt><mroot><mi>y</mi><mn>3</mn></mroot>");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var fraction = box.Children[0].Box;
+        Assert.Equal("mfrac", fraction.Element!.Name);
+        Assert.True(fraction.Children[0].Y < 0 && fraction.Children[1].Y > 0);
+        Assert.IsType<RuleItem>(Assert.Single(fraction.Items));
+        var sqrt = box.Children[1].Box;
+        Assert.Equal(["mi", "mn"], Assert.Single(sqrt.Children).Box.Children.Select(child => child.Box.Element!.Name));
+        Assert.Equal((1, 1), (sqrt.Items.OfType<GlyphItem>().Count(), sqrt.Items.OfType<RuleItem>().Count()));
+        var root = box.Children[2].Box;
+        Assert.Equal("mn", root.Children[0].Box.Element!.Name);
+        Assert.Equal(50, root.Children[0].Box.Items.OfType<GlyphItem>().Single().Size, 9);
+    }
+
+    /// <summary>
+    ///     Validates that a fraction or a root without exactly two in-flow children is a row of its children with a located
+    ///     <see cref="MathMlDiagnosticCodes.ChildCount"/> warning (not an unsupported feature), its children still under the
+    ///     user agent rules of their positions.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_WrongChildCount_IsRowWithChildCountWarning()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mfrac><mi>a</mi></mfrac><mroot><mi>a</mi><mi>b</mi><mi>c</mi></mroot><mfrac><mi>a</mi><mi style=\"display: none\">h</mi><mi>b</mi></mfrac>");
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Equal(2, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal(MathMlDiagnosticCodes.ChildCount, warning.Code));
+        Assert.Contains("<mfrac> has 1 in-flow children", warnings[0].Message, StringComparison.Ordinal);
+        Assert.Contains("<mroot> has 3", warnings[1].Message, StringComparison.Ordinal);
+        Assert.All(box.Children.Take(2), child => Assert.All(child.Box.Children, grandChild => Assert.Equal(0, grandChild.Y)));
+        Assert.Equal(60, box.Children[0].Box.Children[0].Box.Items.OfType<GlyphItem>().Single().Size, 9);
+        Assert.IsType<RuleItem>(Assert.Single(box.Children[2].Box.Items));
+    }
+
+    /// <summary>
+    ///     Validates an embellished fraction (its numerator is an operator): it carries the operator, gets the form of its
+    ///     position from its row, and its row spaces it like the operator.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_EmbellishedFraction_CarriesItsOperator()
+    {
+        // Act
+        var (box, _, _) = Run("<mi>a</mi><mfrac><mo>=</mo><mi>b</mi></mfrac><mi>c</mi>");
+
+        // Assert
+        var fraction = box.Children[1];
+        Assert.Equal(("=", OperatorForm.Infix), (fraction.Box.Operator!.CoreText, fraction.Box.Operator.Form));
+        Assert.Equal(box.Children[0].Box.Width + fraction.Box.Operator.LeadingSpace, fraction.X, 9);
+        Assert.Equal(fraction.X + fraction.Box.Width + fraction.Box.Operator.TrailingSpace, box.Children[2].X, 9);
+    }
+
+    /// <summary>
+    ///     Validates the forms of the operators inside <c>msqrt</c>: the first and last of several children are prefix and
+    ///     postfix, and a lone operator is infix and keeps its spacing (the row of a square root is not an embellished
+    ///     operator).
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_SqrtChildren_InferForms()
+    {
+        // Act
+        var (box, _, _) = Run("<msqrt><mo>-</mo><mi>x</mi><mo>!</mo></msqrt><msqrt><mo>+</mo></msqrt>");
+
+        // Assert
+        var forms = Flatten(box.Children[0].Box).Where(entry => entry.Box.Element?.Name == "mo").Select(entry => entry.Box.Operator!.Form);
+        Assert.Equal([OperatorForm.Prefix, OperatorForm.Postfix], forms);
+        var lone = Assert.Single(box.Children[1].Box.Children).Box;
+        var plus = Assert.Single(lone.Children);
+        Assert.Equal(OperatorForm.Infix, plus.Box.Operator!.Form);
+        Assert.Equal(plus.Box.Operator.LeadingSpace, plus.X, 9);
+        Assert.Null(lone.Operator);
+        Assert.Null(box.Children[1].Box.Operator);
     }
 
     /// <summary>

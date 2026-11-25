@@ -1361,8 +1361,10 @@ words:
   # the OpenType tables and features that the layout does not apply (GPOS, ssty), the Letterlike Symbols block of
   # Unicode, and the deliberately unknown element and reference names of the tests (mfoo, notaname); the stretchy
   # operators of MathML Core: an operator laid out again with a stretch constraint (relayout), its size before it
-  # stretches (unstretched), and the scripts above a base (overscripts)
+  # stretches (unstretched), and the scripts above a base (overscripts); the legacy bevelled attribute of mfrac
+  # (MathML 3 spelling), which is reported as unsupported
   - mathml
+  - bevelled
   - alttext
   - largeop
   - movablelimits

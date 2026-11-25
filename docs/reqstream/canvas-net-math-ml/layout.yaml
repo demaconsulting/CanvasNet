@@ -4,8 +4,9 @@
 # These requirements decompose the CanvasNetMathMl system's layout responsibility into the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk and dispatch of the equation tree (LayoutEngine), the
 # computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), the layouts of tokens
-# (TokenLayout) and rows (RowLayout), the operator dictionary (OperatorDictionary), and the stretching of glyphs
-# (StretchyGlyphs). Each requirement here links down to the unit requirements that implement it.
+# (TokenLayout), rows (RowLayout), fractions (FractionLayout), and radicals (RadicalLayout), the operator dictionary
+# (OperatorDictionary), and the stretching of glyphs (StretchyGlyphs). Each requirement here links down to the unit
+# requirements that implement it.
 # See docs/verification/canvas-net-math-ml/layout.md for the test-evidence mapping.
 
 sections:
@@ -98,11 +99,66 @@ sections:
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
 
+          - id: CanvasNetMathMl-Layout-Fractions
+            title: >-
+              The Layout subsystem shall lay out mfrac as MathML Core 3.3.2 does: with a nonzero line thickness, the
+              numerator and denominator shifted by the fraction constants of the MATH table and kept their minimum gaps
+              from a bar centered on the math axis; with a zero thickness, as a stack with the stack constants; the
+              children centered and the box padded by 1px on each side; the children under the user agent rules of
+              their positions; and an embellished fraction spaced and stretched like its operator.
+            justification: |
+              The fraction layout decides where numerators, denominators, and bars are drawn, and must match a browser
+              that implements MathML Core.
+            children:
+              - CanvasNetMathMl-Layout-FractionLayout-Bar
+              - CanvasNetMathMl-Layout-FractionLayout-Stack
+              - CanvasNetMathMl-Layout-FractionLayout-LineThickness
+              - CanvasNetMathMl-Layout-FractionLayout-Placement
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-Embellishment
+              - CanvasNetMathMl-Layout-StyleResolver-ChildRules
+              - CanvasNetMathMl-Layout-MathFont-Constants
+            tests:
+              - Layout_FractionsAndRadicals_MatchConstants
+
+          - id: CanvasNetMathMl-Layout-Radicals
+            title: >-
+              The Layout subsystem shall lay out msqrt and mroot as MathML Core 3.3.3 does: the radical symbol stretched
+              over the base, the vertical gap, and the overbar, the metrics raised by the gap, the overbar, and the
+              extra ascender of the MATH table, the children of msqrt laid out as a row whose operators infer their
+              forms, and the index of mroot kerned and raised, under the user agent rule of its position.
+            justification: |
+              The radical layout decides the size of the radical symbol and where the base and the index are drawn.
+            children:
+              - CanvasNetMathMl-Layout-RadicalLayout-SquareRoot
+              - CanvasNetMathMl-Layout-RadicalLayout-Root
+              - CanvasNetMathMl-Layout-RadicalLayout-Limit
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-OperatorForms
+              - CanvasNetMathMl-Layout-StyleResolver-ChildRules
+              - CanvasNetMathMl-Layout-StyleResolver-MathShift
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Variants
+              - CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
+            tests:
+              - Layout_FractionsAndRadicals_MatchConstants
+
+          - id: CanvasNetMathMl-Layout-ChildCount
+            title: >-
+              The Layout subsystem shall lay out an mfrac or an mroot without exactly two in-flow children as a row of
+              its children and report a located mathml-child-count warning.
+            justification: |
+              MathML Core lays invalid markup out as an mrow, and the author must learn which element is invalid.
+            children:
+              - CanvasNetMathMl-Layout-LayoutEngine-ChildCount
+            tests:
+              - Layout_WrongChildCount_IsRowWithWarning
+
           - id: CanvasNetMathMl-Layout-Style
             title: >-
               The Layout subsystem shall compute the style of every element from its parent's as MathML Core does: the
               math style and math depth, the font size scaled by the script level with the MATH constants, the color
-              and background, the mathvariant, and the inline style subset, reporting invalid values.
+              and background, the mathvariant, the inline style subset, the user agent rules of the children of
+              fractions and radicals, and the math shift, reporting invalid values.
             justification: |
               Styles decide the size, the color, and the letters of every token.
             children:
@@ -112,8 +168,11 @@ sections:
               - CanvasNetMathMl-Layout-StyleResolver-Colors
               - CanvasNetMathMl-Layout-StyleResolver-Variant
               - CanvasNetMathMl-Layout-StyleResolver-InlineStyle
+              - CanvasNetMathMl-Layout-StyleResolver-ChildRules
+              - CanvasNetMathMl-Layout-StyleResolver-MathShift
             tests:
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
+              - Layout_FractionsAndRadicals_MatchConstants
 
           - id: CanvasNetMathMl-Layout-MathFont
             title: >-

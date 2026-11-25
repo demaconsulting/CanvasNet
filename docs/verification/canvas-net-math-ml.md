@@ -14,7 +14,8 @@ This document describes the system-level verification strategy for CanvasNetMath
   `MathMlOpenOptions`, `MathMlRenderOptions`, and `MathMlLimits`, and assert on observable outputs: the description
   properties, the exceptions with their codes, locations, and hints, the sizes, baselines, and pixels of rendered
   surfaces, and the reports delivered to the handlers. The system test classes are `MathMlSystemIntegrationTests`
-  (reading, description, rendering, limits, cancellation, determinism, reports, strict mode, offline, notices) and
+  (reading, description, rendering, fractions, radicals, limits, cancellation, determinism, reports, strict mode,
+  offline, notices) and
   `MathMlReferenceLayoutTests` (the layout of the original fixtures compared with the reference layouts that headless
   Chrome computes for them).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see *Syntax Subsystem
@@ -132,13 +133,48 @@ targets, `stretchy="false"`, an operator without a construction), `largeop-displ
 `minsize-maxsize` (lengths and percentages, all children stretchy, embellished operators in `mrow` and `mstyle`)
 match Chrome's boxes.
 
+### CanvasNetMathMl-Fractions: Fractions Are Drawn
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_FractionBar_PaintsExactPixels`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Fractions_LegacyAttributes_AreReported`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts at 32 px that a `linethickness="4px"` bar between two empty children is 4 px thick, 30 px wide after the 1 px
+padding, centered on the math axis, pure black in every pixel inside it, and transparent above, below, and in the
+padding; that `bevelled`, `numalign`, and `denomalign` are reported as three `mathml-attribute-unsupported` reports
+while the fraction renders pixel for pixel like the one without them; and that the fixtures `mfrac-basic` (inline and
+display style), `mfrac-linethickness` (`0`, `0px`, `200%`, `3px`, `0.2em`, and a negative value), `mfrac-nested`
+(continued fractions, inline and display, whose levels follow `math-depth: auto-add`), `mfrac-operators` (fractions
+between operators and an embellished fraction spaced as its operator), and `mfrac-fenced` (parentheses and brackets
+stretched around fractions) match Chrome's boxes.
+
+### CanvasNetMathMl-Radicals: Radicals Are Drawn
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_SquareRoot_PaintsSurdAndOverbar`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Asserts at 32 px that the overbar of a square root of an empty 40 px base is pure black along its middle row over the
+whole base, that nothing is painted over the empty base under it, and that the radical symbol is inked left of the base;
+and that the fixtures `msqrt-basic` (one and several children, operators that infer their forms), `msqrt-tall`
+(fractions and tall `mspace` bases that select size variants and the glyph assembly), and `mroot-index` (a cube root
+with a narrow index, a wide index, and nested roots in display style) match Chrome's boxes.
+
+### CanvasNetMathMl-ChildCount: Invalid Fractions And Roots
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow`
+
+Renders in strict mode an `mfrac` with one child and an `mroot` with three and asserts that no unsupported feature is
+reported and nothing throws, that two `mathml-child-count` warnings are delivered at lines 2 and 3, column 2, that the
+root is a row of its three children on its baseline, and that the picture has ink.
+
 ### CanvasNetMathMl-Style: Style Attributes Apply
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize`,
 `MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
 
 Asserts that `mathcolor="red"`, `mathbackground="lime"`, and `mathsize="200%"` give red ink, a lime background, no black
-pixel, and twice the width (within 2 pixels), and that the `mstyle-scriptlevel` fixture matches Chrome.
+pixel, and twice the width (within 2 pixels), and that the `mstyle-scriptlevel` fixture and the fraction and radical
+fixtures, whose children are drawn at the script levels of the user agent rules, match Chrome.
 
 ### CanvasNetMathMl-MathFont: The Bundled Math Font And Its Fallback
 
@@ -190,15 +226,15 @@ Renders the same document eight times in parallel and asserts that every surface
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_UnsupportedElements_AreDrawnAsRowsAndReported`
 
-Measures an equation with an `mfrac` and an `mfenced` and asserts the same size as the equivalent rows, with two
+Measures an equation with an `menclose` and an `mfenced` and asserts the same size as the equivalent rows, with two
 `mathml-element-unsupported` reports at lines 2 and 3, column 2.
 
 ### CanvasNetMathMl-StrictMode: The First Unsupported Feature Throws
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_StrictMode_FirstUnsupportedFeatureThrows`
 
-Renders an equation with an `msqrt` and an `mfenced` in strict mode and asserts a `MathMlUnsupportedFeatureException`
-for `<msqrt>` after exactly one report reached the handler.
+Renders an equation with an `menclose` and an `mfenced` in strict mode and asserts a `MathMlUnsupportedFeatureException`
+for `<menclose>` after exactly one report reached the handler.
 
 ### CanvasNetMathMl-Offline: Links Are Not Followed
 

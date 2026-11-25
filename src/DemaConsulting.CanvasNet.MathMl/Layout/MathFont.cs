@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 
 /// <summary>
 ///     The constants of the OpenType MATH table that the layout reads (a subset of the 56 of the table; the layouts of
-///     fractions, radicals and scripts add theirs).
+///     scripts add theirs).
 /// </summary>
 internal enum MathConstant
 {
@@ -29,6 +29,69 @@ internal enum MathConstant
 
     /// <summary>The thickness of an overbar, the thickness of the rule that draws a stretched line character.</summary>
     OverbarRuleThickness,
+
+    /// <summary>The standard shift up of the numerator of a fraction (compact style).</summary>
+    FractionNumeratorShiftUp,
+
+    /// <summary>The standard shift up of the numerator of a fraction in display style.</summary>
+    FractionNumeratorDisplayStyleShiftUp,
+
+    /// <summary>The standard shift down of the denominator of a fraction (compact style).</summary>
+    FractionDenominatorShiftDown,
+
+    /// <summary>The standard shift down of the denominator of a fraction in display style.</summary>
+    FractionDenominatorDisplayStyleShiftDown,
+
+    /// <summary>The minimum gap between the bottom of the numerator and the fraction bar (compact style).</summary>
+    FractionNumeratorGapMin,
+
+    /// <summary>The minimum gap between the bottom of the numerator and the fraction bar in display style.</summary>
+    FractionNumDisplayStyleGapMin,
+
+    /// <summary>The minimum gap between the fraction bar and the top of the denominator (compact style).</summary>
+    FractionDenominatorGapMin,
+
+    /// <summary>The minimum gap between the fraction bar and the top of the denominator in display style.</summary>
+    FractionDenomDisplayStyleGapMin,
+
+    /// <summary>The standard shift up of the top element of a stack (a fraction without a bar; compact style).</summary>
+    StackTopShiftUp,
+
+    /// <summary>The standard shift up of the top element of a stack in display style.</summary>
+    StackTopDisplayStyleShiftUp,
+
+    /// <summary>The standard shift down of the bottom element of a stack (compact style).</summary>
+    StackBottomShiftDown,
+
+    /// <summary>The standard shift down of the bottom element of a stack in display style.</summary>
+    StackBottomDisplayStyleShiftDown,
+
+    /// <summary>The minimum gap between the bottom of the top element and the top of the bottom element of a stack (compact style).</summary>
+    StackGapMin,
+
+    /// <summary>The minimum gap between the elements of a stack in display style.</summary>
+    StackDisplayStyleGapMin,
+
+    /// <summary>The space between the overbar of a radical and the top of its base (compact style).</summary>
+    RadicalVerticalGap,
+
+    /// <summary>The space between the overbar of a radical and the top of its base in display style.</summary>
+    RadicalDisplayStyleVerticalGap,
+
+    /// <summary>The thickness of the overbar of a radical.</summary>
+    RadicalRuleThickness,
+
+    /// <summary>The extra white space reserved above the overbar of a radical.</summary>
+    RadicalExtraAscender,
+
+    /// <summary>The extra horizontal kern before the index (degree) of a root.</summary>
+    RadicalKernBeforeDegree,
+
+    /// <summary>The horizontal kern after the index of a root (negative: the index overlaps the surd).</summary>
+    RadicalKernAfterDegree,
+
+    /// <summary>The height of the bottom of the index of a root, as a percentage of the height of the radical (a percentage, not a length).</summary>
+    RadicalDegreeBottomRaisePercent,
 }
 
 /// <summary>
@@ -147,6 +210,27 @@ internal sealed class MathFont
             MathConstant.DisplayOperatorMinHeight => constants.DisplayOperatorMinHeight,
             MathConstant.DelimitedSubFormulaMinHeight => constants.DelimitedSubFormulaMinHeight,
             MathConstant.OverbarRuleThickness => constants.OverbarRuleThickness,
+            MathConstant.FractionNumeratorShiftUp => constants.FractionNumeratorShiftUp,
+            MathConstant.FractionNumeratorDisplayStyleShiftUp => constants.FractionNumeratorDisplayStyleShiftUp,
+            MathConstant.FractionDenominatorShiftDown => constants.FractionDenominatorShiftDown,
+            MathConstant.FractionDenominatorDisplayStyleShiftDown => constants.FractionDenominatorDisplayStyleShiftDown,
+            MathConstant.FractionNumeratorGapMin => constants.FractionNumeratorGapMin,
+            MathConstant.FractionNumDisplayStyleGapMin => constants.FractionNumDisplayStyleGapMin,
+            MathConstant.FractionDenominatorGapMin => constants.FractionDenominatorGapMin,
+            MathConstant.FractionDenomDisplayStyleGapMin => constants.FractionDenomDisplayStyleGapMin,
+            MathConstant.StackTopShiftUp => constants.StackTopShiftUp,
+            MathConstant.StackTopDisplayStyleShiftUp => constants.StackTopDisplayStyleShiftUp,
+            MathConstant.StackBottomShiftDown => constants.StackBottomShiftDown,
+            MathConstant.StackBottomDisplayStyleShiftDown => constants.StackBottomDisplayStyleShiftDown,
+            MathConstant.StackGapMin => constants.StackGapMin,
+            MathConstant.StackDisplayStyleGapMin => constants.StackDisplayStyleGapMin,
+            MathConstant.RadicalVerticalGap => constants.RadicalVerticalGap,
+            MathConstant.RadicalDisplayStyleVerticalGap => constants.RadicalDisplayStyleVerticalGap,
+            MathConstant.RadicalRuleThickness => constants.RadicalRuleThickness,
+            MathConstant.RadicalExtraAscender => constants.RadicalExtraAscender,
+            MathConstant.RadicalKernBeforeDegree => constants.RadicalKernBeforeDegree,
+            MathConstant.RadicalKernAfterDegree => constants.RadicalKernAfterDegree,
+            MathConstant.RadicalDegreeBottomRaisePercent => constants.RadicalDegreeBottomRaisePercent,
             _ => throw new ArgumentOutOfRangeException(nameof(constant), constant, "Unknown math constant."),
         };
     }
