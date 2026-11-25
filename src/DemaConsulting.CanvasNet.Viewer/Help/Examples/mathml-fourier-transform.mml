@@ -1,7 +1,9 @@
 <math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
       alttext="the Fourier transform of f at xi equals the integral from minus infinity to infinity of f of x times e to the minus 2 pi i x xi, d x">
   <mi mathvariant="script">F</mi>
+  <mo>&ApplyFunction;</mo>
   <mrow><mo stretchy="false">{</mo><mi>f</mi><mo stretchy="false">}</mo></mrow>
+  <mo>&ApplyFunction;</mo>
   <mrow><mo stretchy="false">(</mo><mi>&xi;</mi><mo stretchy="false">)</mo></mrow>
   <mo>=</mo>
   <msubsup>
@@ -13,6 +15,7 @@
     <mi>&infin;</mi>
   </msubsup>
   <mi>f</mi>
+  <mo>&ApplyFunction;</mo>
   <mrow><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow>
   <mo>&InvisibleTimes;</mo>
   <msup>
