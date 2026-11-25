@@ -249,6 +249,7 @@ all of these commands too, and `inspect` accepts them as well.
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
 | Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, or git graph |
 | PlantUML | `.puml`, `.plantuml`, `.pu` | Sequence, activity, class, object, state, use case, component, deployment |
+| MathML | `.mml` | An equation of MathML Core, drawn at its laid-out size (`#display=inline` or `block`) |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -260,7 +261,7 @@ all of these commands too, and `inspect` accepts them as well.
 The format of an input is recognized from its content (signature bytes, or the document structure inside a ZIP
 package), and the extension is used only when the content is not conclusive. A model, a chart, and a diagram are text
 without a signature: a model is recognized by `.scad`, a Mermaid diagram by `.mmd` or `.mermaid`, a PlantUML diagram by
-`.puml`, `.plantuml`, or `.pu`, and a chart by the file name
+`.puml`, `.plantuml`, or `.pu`, a MathML equation by `.mml`, and a chart by the file name
 suffix `.vl.json` or `.vl`, or, for a `.json`
 file, by a top-level Vega-Lite `$schema` property (an address under `vega.github.io/schema/vega-lite/`) in the first
 4 KiB of the file; the address in any other property does not count. A
@@ -292,6 +293,7 @@ Input formats:
   vega-lite  chart     .vl.json .vl         single    yes       help vega-lite
   mermaid    diagram   .mmd .mermaid        single    yes       help mermaid
   plantuml   diagram   .puml .plantuml .pu  single    yes       help plantuml
+  mathml     equation  .mml                 single    yes       help mathml
 
 Output formats:
   Format  Extensions  Alpha  Quality
@@ -1095,6 +1097,7 @@ accepts):
 | Vega-Lite chart | `.vl.json`, `.vl` |
 | Mermaid diagram (`#theme=NAME` chooses the theme) | `.mmd`, `.mermaid` |
 | PlantUML diagram (no fragment parameters) | `.puml`, `.plantuml`, `.pu` |
+| MathML equation (`#display=inline` or `block` chooses the display mode) | `.mml` |
 | A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
 The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named
@@ -1807,10 +1810,11 @@ declaration when nothing uses it any more; a binding that fails keeps its attrib
 This list is also the *Reference* and *Command line* sections of `canvasnet help svg flatten`; a test keeps the two the
 same.
 
-- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid or PlantUML diagram, an OpenSCAD
-  model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (`#page=2`,
-  `#def.width=20`, `#param.t=5`, `#theme=dark`), and an SVG file that links such a file directly or through further SVG
-  files. Its `href` (or its `xlink:href` when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
+- **replaced**: An `image` whose link names a file only CanvasNet draws: a Mermaid or PlantUML diagram, a MathML
+  equation, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment
+  (`#page=2`, `#def.width=20`, `#param.t=5`, `#theme=dark`, `#display=inline`), and an SVG file that links such a file
+  directly or through further SVG files. Its `href` (or its `xlink:href` when it has no `href`) becomes a
+  `data:image/png;base64` URI of the picture.
 - **kept**: Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG
   files that link only rasters and SVG files, `data:` URIs (never followed), same-document `#` links, and network links.
 - **size**: Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox`
@@ -1949,6 +1953,8 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
   with the built-in policies.
 - **`inputs`**: The file that is rendered is never judged by the policy, only the files it references: images, pictures,
   data files, includes, and linked pages, at every level.
+- **`equations`**: A MathML equation reads no other file: its links (href) are reported and never followed, in every
+  mode.
 - **`never read`**: A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a
   device path, an alternate data stream, and anything that is not a regular file are never read.
 - **`letter case`**: The real path of an opened file is compared letter for letter, in the case its folders and its name
@@ -1995,7 +2001,7 @@ This list is also the `canvasnet help files` card, bullet by bullet; a test keep
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of seventeen help topics, which cover the input formats, how to make pictures look
+is a command (see *Commands*) or one of eighteen help topics, which cover the input formats, how to make pictures look
 good and compose them, and the subjects that apply to every command. A subject is matched in any letter case, and a
 topic may be named by an alias.
 
@@ -2005,6 +2011,7 @@ topic may be named by an alias.
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
 | `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet, git graphs, themes |
 | `plantuml` | `puml` | PlantUML sequence, activity, class, object, state, use case, component, deployment diagrams |
+| `mathml` | `mml`, `equation` | MathML Core equations: elements, attributes, worked formulas, and pitfalls |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size, and embedding with `<image href>` |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |

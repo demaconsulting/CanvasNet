@@ -1,0 +1,21 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <munder>
+    <mo movablelimits="true">lim</mo>
+    <mrow>
+      <mi>x</mi>
+      <mo>&rarr;</mo>
+      <mn>0</mn>
+    </mrow>
+  </munder>
+  <mfrac>
+    <mrow>
+      <mi>sin</mi>
+      <mo>&ApplyFunction;</mo>
+      <mspace width="0.1667em"/>
+      <mi>x</mi>
+    </mrow>
+    <mi>x</mi>
+  </mfrac>
+  <mo>=</mo>
+  <mn>1</mn>
+</math>

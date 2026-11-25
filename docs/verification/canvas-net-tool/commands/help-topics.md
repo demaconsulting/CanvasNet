@@ -48,7 +48,7 @@ they delete.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- Every merged card loads with a title, a summary, and a body; the roots are the seventeen topics in order, the catalog
+- Every merged card loads with a title, a summary, and a body; the roots are the eighteen topics in order, the catalog
   is depth first, and every root tree has an example.
 - The tool's card files are exactly its own cards (the `json` and `pandoc` trees) and overlays that extend the library
   card at their own path; the merged body of an overlaid card is the library body with its links written as commands
@@ -81,7 +81,7 @@ in `Roots`; every card comes after its parent; every card has a title, a summary
 root has an example.
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented root alias (`openscad`, `vegalite`, `vl`, `mmd`,
-`puml`,
+`puml`, `mml`, `equation`,
 `powerpoint`, `visio`, the raster extensions, `file-access`, `links`, `position`, and `filter`) resolves to its card in
 lower and upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and
 an unknown name and a card that is not a root (`gantt`) resolve to nothing.

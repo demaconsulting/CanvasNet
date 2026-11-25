@@ -24,8 +24,9 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 
 ### Data Model
 
-- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, nine
-  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, mermaid, and plantuml, in that order,
+- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, ten
+  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, mermaid, plantuml, and mathml, in that
+  order,
   with the
   names, extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union
   of their extensions, computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as
@@ -36,14 +37,16 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters of
   its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view`, `azimuth`,
   `elevation`, and `projection` (the model source only); the Mermaid source alone also accepts `theme`
-  (`MermaidImageSource.ThemeParameter`), and the PlantUML source accepts no parameter at all. It also declares the
-  prefix of the parameters whose names the link author
-  chooses (`FragmentParameterPrefixes`): `def.` for the model source and `param.` for the chart source (the constants of
-  `ScadImageSource` and `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format
-  packages cannot call `SourceLoader`, which depends on all of them. The package sources stay public stand-alone
-  providers with the same `page` support. It also holds the `SourceLoader.SourceLimits` (the limits of a chart and a
-  diagram, the library defaults for the shared instances) that it gives to `OpenInput` and to the `LoadContext` of
-  every file it draws; `WithLimits` creates a copy with other limits.
+  (`MermaidImageSource.ThemeParameter`), the MathML source alone accepts `display`
+  (`MathMlImageSource.DisplayParameter`, read by `ReadEquation` into an `EquationOptions`: `block` or `inline` in any
+  case, any other value refused with `image-fragment-invalid`), and the PlantUML source accepts no parameter at all. It
+  also declares the prefix of the parameters whose names the link author chooses (`FragmentParameterPrefixes`): `def.`
+  for the model source and `param.` for the chart source (the constants of `ScadImageSource` and `VegaLiteImageSource`),
+  none for the others. It cannot be the package source itself: the format packages cannot call `SourceLoader`, which
+  depends on all of them. The package sources stay public stand-alone providers with the same `page` support. It also
+  holds the `SourceLoader.SourceLimits` (the limits of a chart and a diagram, the library defaults for the shared
+  instances) that it gives to `OpenInput` and to the `LoadContext` of every file it draws; `WithLimits` creates a copy
+  with other limits.
 - **`DirectRenderOptions`** (internal sealed class, `IImageSourceOptions`) — the options of a direct render
   (the page, the resolution, the background, the model view options, the chart parameters, and `Positions`, the
   `PositionSelection` of the feature positions) and the output of the render
@@ -56,23 +59,22 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 - **`ViewerRenderOptions`** (immutable record) — `Width` and `Height` (nullable; none = natural size, one = keep the
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
   `Dpi` (nullable; none = 96), `Background` (nullable; none = the default of the `SourceLoader`, which the tool uses
-  too: `SourceLoader.DefaultVectorBackground`, opaque white, for a vector source, the own background of a PlantUML
-  diagram and a Vega-Lite chart, and no flattening for a raster; a color with zero alpha, set explicitly, keeps a vector
-  source transparent), `Scad` (a `ScadViewOptions`, nullable),
-  `VegaLite` (a `ChartOptions` with the values of the parameters of a chart, nullable; the option behind `--param`),
-  `Folder` (the base of the relative references of the rendered file, not a boundary; by default the folder of the file
-  for a render by path, none for a stream), `FileAccess` (the `FileAccessPolicy` of every file the rendered file
-  references, its pictures, a model's includes, a chart's data, and the files those read in turn;
-  `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; passed to the resolver as
-  `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels` (nullable; none = the
-  resolver default budget), `ExtraSources`, `Positions` (a core `PositionSelection`, nullable; none = no positions: the
-  selectors of the feature positions a Mermaid diagram or a Vega-Lite chart reports, ignored by every other kind of
-  file), `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` (the `VegaLiteLimits`, `MermaidLimits`, and
-  `PlantUmlLimits` of the format libraries, nullable; none = the library default; any value the type accepts, which
-  validates itself, so the viewer adds no check; they apply at every level of nesting, unlike `Page`, `Dpi`, `Scad`,
-  and `VegaLite`, which only the rendered file takes), and `CancellationToken`. There is deliberately no `Scale`,
-  `Filter` or `AutoOrient`: the size is
-  `Width`/`Height` (or `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
+  too: `SourceLoader.DefaultVectorBackground`, opaque white, for a vector source (a MathML equation included), the own
+  background of a PlantUML diagram and a Vega-Lite chart, and no flattening for a raster; a color with zero alpha, set
+  explicitly, keeps a vector source transparent), `Scad` (a `ScadViewOptions`, nullable), `VegaLite` (a `ChartOptions`
+  with the values of the parameters of a chart, nullable; the option behind `--param`), `Folder` (the base of the
+  relative references of the rendered file, not a boundary; by default the folder of the file for a render by path, none
+  for a stream), `FileAccess` (the `FileAccessPolicy` of every file the rendered file references, its pictures, a
+  model's includes, a chart's data, and the files those read in turn; `FileAccessPolicy.AllowAll` by default, `null`
+  refused with `ArgumentNullException`; passed to the resolver as `FolderImageResolverOptions.FileAccess`),
+  `ThrowOnUnsupportedFeature`, `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`,
+  `Positions` (a core `PositionSelection`, nullable; none = no positions: the selectors of the feature positions a
+  Mermaid diagram or a Vega-Lite chart reports, ignored by every other kind of file), `VegaLiteLimits`, `MermaidLimits`,
+  `PlantUmlLimits`, and `MathMlLimits` (the `VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, and `MathMlLimits` of
+  the format libraries, nullable; none = the library default; any value the type accepts, which validates itself, so the
+  viewer adds no check; they apply at every level of nesting, unlike `Page`, `Dpi`, `Scad`, and `VegaLite`, which only
+  the rendered file takes), and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the
+  size is `Width`/`Height` (or `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
 - **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Page`, `PageCount`, `Diagnostics`,
   `Echo`, `Anchors`, `Embedded`, and `Positions` (the feature positions the selection matched, in the pixels of the
   returned picture; empty when none were asked for and for every other kind of file)
@@ -146,7 +148,8 @@ the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` 
 **`Render(path, options)`**: validate the options (see *Error Handling*), resolve the base folder (`options.Folder`, or
 the folder of the file), and call `FolderImageResolver.Render(fullPath, width, height, directOptions)` on a resolver
 built from the built-in and extra sources, the strictness switch, the file-access policy, and the cancellation token
-(`CreateResolver`; when any of `VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` is set, the built-in sources of
+(`CreateResolver`; when any of `VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, and `MathMlLimits` is set, the
+built-in sources of
 the resolver are copies made by `LoaderImageSource.WithLimits` for this render, so the probe and the render of the file
 and of every file drawn through the resolver, at any level, use the limits; otherwise the shared instances are used);
 the file may lie anywhere, also outside the folder and behind a link, because it is the caller's choice and the resolver
@@ -237,9 +240,10 @@ and
 `ImagePipeline.MapAnchors` and `MapPositions`), the
 `Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), the core `Positions` subsystem
 (`PositionSelection`, `ImagePosition`), and the claims of the sources of the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, `CanvasNetMermaid`, and
-`CanvasNetPlantUml` systems
-(and, for the theme fragment, `MermaidImageSource.ThemeParameter` and `MermaidRenderOptions.ThemeNames`).
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, `CanvasNetMermaid`,
+`CanvasNetPlantUml`, and `CanvasNetMathMl` systems
+(and, for the theme fragment, `MermaidImageSource.ThemeParameter` and `MermaidRenderOptions.ThemeNames`; for the display
+fragment, `MathMlImageSource.DisplayParameter` and `MathMlDisplay`).
 
 ### Callers
 

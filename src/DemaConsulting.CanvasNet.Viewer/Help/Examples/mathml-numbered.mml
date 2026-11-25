@@ -1,0 +1,14 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left right" columnspacing="0 4em" displaystyle="true">
+    <mtr>
+      <mtd><mi mathvariant="bold">F</mi></mtd>
+      <mtd><mo>=</mo><mi>m</mi><mo>&InvisibleTimes;</mo><mi mathvariant="bold">a</mi></mtd>
+      <mtd><mtext>(1)</mtext></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mi>E</mi></mtd>
+      <mtd><mo>=</mo><mi>m</mi><mo>&InvisibleTimes;</mo><msup><mi>c</mi><mn>2</mn></msup></mtd>
+      <mtd><mtext>(2)</mtext></mtd>
+    </mtr>
+  </mtable>
+</math>

@@ -1,0 +1,17 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>f</mi>
+  <mo>&prime;</mo>
+  <mo stretchy="false">(</mo>
+  <mi>x</mi>
+  <mo stretchy="false">)</mo>
+  <mo>=</mo>
+  <mi>cos</mi>
+  <mo>&ApplyFunction;</mo>
+  <mspace width="0.1667em"/>
+  <mi>x</mi>
+  <mo>&minus;</mo>
+  <mi>sin</mi>
+  <mo>&ApplyFunction;</mo>
+  <mspace width="0.1667em"/>
+  <mi>x</mi>
+</math>

@@ -12,24 +12,22 @@ provides two commands, `formats` and `info`, implemented as the nested classes `
 #### Data Model
 
 **InputFormats** (`IReadOnlyList<InputFormat>`): one row per input format, in listing order - `png`, `jpeg`, `bmp`,
-`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, `plantuml`. A row
-(`InputFormat`) has
-`Name`, `Kind` (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages
-or slides rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart
-rendered at any requested size; `diagram`: a Mermaid or PlantUML diagram rendered at any requested size), `Extensions`
-(lower case,
-with the dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested
-size rather than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the
-six raster formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their
-extensions are those
-that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
-the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
-extension; the `mermaid` row, of the kind `diagram`, lists `.mmd` and `.mermaid`, is a vector format, is not multi-page,
-and has the help topic `mermaid`; the `plantuml` row, of the kind `diagram`, lists `.puml`, `.plantuml`, and `.pu`, is a
-vector format, is not multi-page, and has the help topic `plantuml`); a test keeps the table consistent with the
-enumeration and the
-loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
-the loader reads it.
+`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, `plantuml`, `mathml`. A row
+(`InputFormat`) has `Name`, `Kind` (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested
+size; `document`: pages or slides rendered at any requested size; `model`: a 3D model rendered from a viewpoint;
+`chart`: a Vega-Lite chart rendered at any requested size; `diagram`: a Mermaid or PlantUML diagram rendered at any
+requested size; `equation`: a MathML equation rendered at any requested size), `Extensions` (lower case, with the dot),
+`MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size rather
+than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the six raster
+formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their extensions are
+those that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
+the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an extension; the
+`mermaid` row, of the kind `diagram`, lists `.mmd` and `.mermaid`, is a vector format, is not multi-page, and has the
+help topic `mermaid`; the `plantuml` row, of the kind `diagram`, lists `.puml`, `.plantuml`, and `.pu`, is a vector
+format, is not multi-page, and has the help topic `plantuml`; the `mathml` row, of the kind `equation`, lists `.mml`, is
+a vector format, is not multi-page, and has the help topic `mathml`); a test keeps the table consistent with the
+enumeration and the loader, so a listed format is one the code knows, and a further test probes a file of every listed
+kind to prove that the loader reads it.
 
 **OutputFormats** (`IReadOnlyList<OutputFormatInfo>`): `png`, `jpeg`, `bmp`, `tiff`. A row has `Name` (also the value
 of the `--format` option), `Extensions`, `Alpha` (keeps transparency), and `Lossy` (takes a quality setting). The

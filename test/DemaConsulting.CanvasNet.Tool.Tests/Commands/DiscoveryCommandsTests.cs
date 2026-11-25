@@ -31,7 +31,8 @@ public class DiscoveryCommandsTests
         + "{\"format\":\"scad\",\"kind\":\"model\",\"extensions\":[\".scad\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"scad\"},"
         + "{\"format\":\"vega-lite\",\"kind\":\"chart\",\"extensions\":[\".vl.json\",\".vl\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"vega-lite\"},"
         + "{\"format\":\"mermaid\",\"kind\":\"diagram\",\"extensions\":[\".mmd\",\".mermaid\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"mermaid\"},"
-        + "{\"format\":\"plantuml\",\"kind\":\"diagram\",\"extensions\":[\".puml\",\".plantuml\",\".pu\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"plantuml\"}],"
+        + "{\"format\":\"plantuml\",\"kind\":\"diagram\",\"extensions\":[\".puml\",\".plantuml\",\".pu\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"plantuml\"},"
+        + "{\"format\":\"mathml\",\"kind\":\"equation\",\"extensions\":[\".mml\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"mathml\"}],"
         + "\"outputs\":["
         + "{\"format\":\"png\",\"extensions\":[\".png\"],\"alpha\":true,\"lossy\":false},"
         + "{\"format\":\"jpeg\",\"extensions\":[\".jpg\",\".jpeg\"],\"alpha\":false,\"lossy\":true},"
@@ -195,7 +196,7 @@ public class DiscoveryCommandsTests
             Assert.StartsWith(".", e);
             Assert.Equal(e.ToLowerInvariant(), e);
         });
-        Assert.All(DiscoveryCommands.InputFormats, f => Assert.Contains(f.Kind, new[] { "raster", "vector", "document", "model", "chart", "diagram" }));
+        Assert.All(DiscoveryCommands.InputFormats, f => Assert.Contains(f.Kind, new[] { "raster", "vector", "document", "model", "chart", "diagram", "equation" }));
     }
 
     /// <summary>

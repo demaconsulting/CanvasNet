@@ -1,0 +1,21 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow>
+    <mo stretchy="false">|</mo>
+    <mi>x</mi>
+    <mo stretchy="false">|</mo>
+  </mrow>
+  <mo>=</mo>
+  <mrow>
+    <mo>{</mo>
+    <mtable columnalign="left left">
+      <mtr>
+        <mtd><mi>x</mi></mtd>
+        <mtd><mtext>if</mtext><mspace width="0.5em"/><mi>x</mi><mo>&ge;</mo><mn>0</mn></mtd>
+      </mtr>
+      <mtr>
+        <mtd><mo>&minus;</mo><mi>x</mi></mtd>
+        <mtd><mtext>otherwise</mtext></mtd>
+      </mtr>
+    </mtable>
+  </mrow>
+</math>

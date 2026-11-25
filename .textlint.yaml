@@ -1364,7 +1364,9 @@ words:
   # stretches (unstretched), and the scripts above and below a base (overscript, underscript); the legacy bevelled
   # attribute of mfrac (MathML 3 spelling), which is reported as unsupported; the element of tensor indices and
   # prescripts (mmultiscripts); the legacy MathML 3 table attributes and element that are reported as unsupported
-  # (equalrows, equalcolumns, columnwidth, minlabelspacing, groupalign, alignmentscope, decimalpoint, mlabeledtr)
+  # (equalrows, equalcolumns, columnwidth, minlabelspacing, groupalign, alignmentscope, decimalpoint, mlabeledtr); the
+  # MathML 4 Full elements that the help cards list as unsupported (mglyph, mstack), the plural of overline that the
+  # accent card names, and the second probe of an equation in the display mode of an input fragment (reprobe)
   - mathml
   - bevelled
   - alttext
@@ -1401,6 +1403,10 @@ words:
   - alignmentscope
   - decimalpoint
   - mlabeledtr
+  - mglyph
+  - mstack
+  - overlines
+  - reprobe
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

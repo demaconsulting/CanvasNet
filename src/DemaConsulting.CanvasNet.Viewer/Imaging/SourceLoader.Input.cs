@@ -1,6 +1,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Scad;
@@ -206,22 +207,23 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     The resource limits of the chart and diagram libraries that a caller sets, each <see langword="null"/> for the
+    ///     The resource limits of the chart, diagram, and equation libraries that a caller sets, each <see langword="null"/> for the
     ///     library default.
     /// </summary>
     /// <param name="VegaLite">The limits of a Vega-Lite chart, or <see langword="null"/> for <see cref="VegaLiteLimits.Default"/>.</param>
     /// <param name="Mermaid">The limits of a Mermaid diagram, or <see langword="null"/> for <see cref="MermaidLimits.Default"/>.</param>
     /// <param name="PlantUml">The limits of a PlantUML diagram, or <see langword="null"/> for <see cref="PlantUmlLimits.Default"/>.</param>
+    /// <param name="MathMl">The limits of a MathML equation, or <see langword="null"/> for <see cref="MathMlLimits.Default"/>.</param>
     /// <remarks>
     ///     The probe and the render of a source both use them, so a raised limit is not refused by the probe and a lowered
     ///     one refuses the source before it is drawn. The tool always uses <see cref="Default"/>.
     /// </remarks>
-    internal sealed record SourceLimits(VegaLiteLimits? VegaLite, MermaidLimits? Mermaid, PlantUmlLimits? PlantUml)
+    internal sealed record SourceLimits(VegaLiteLimits? VegaLite, MermaidLimits? Mermaid, PlantUmlLimits? PlantUml, MathMlLimits? MathMl)
     {
         /// <summary>
         ///     Gets the limits that keep every library default.
         /// </summary>
-        public static SourceLimits Default { get; } = new(null, null, null);
+        public static SourceLimits Default { get; } = new(null, null, null, null);
     }
 
     /// <summary>
@@ -365,6 +367,11 @@ public static partial class SourceLoader
         if (options.Mermaid is { Theme: { } theme } && !MermaidRenderOptions.ThemeNames.Contains(theme, StringComparer.Ordinal))
         {
             return new OptionProblem($"'{theme}' is not a Mermaid theme.", $"The themes are: {string.Join(", ", MermaidRenderOptions.ThemeNames)}.");
+        }
+
+        if (options.MathMl is { Display: { } display } && !Enum.IsDefined(display))
+        {
+            return new OptionProblem($"The equation display {(int)display} is not valid.", "The display is block or inline.");
         }
 
         return options.VegaLite is { } chart ? FindChartProblem(chart) : null;

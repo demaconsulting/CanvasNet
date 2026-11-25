@@ -85,7 +85,9 @@ one row per `OutputFormat`, in order, with the
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
 listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
 multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden
-document includes the `vega-lite` and `mermaid` rows.
+document includes the `vega-lite`, `mermaid`, `plantuml`, and `mathml` rows (the last of the kind `equation`, listing
+`.mml`, with the help topic `mathml`), and every row has one of the kinds `raster`, `vector`, `document`, `model`,
+`chart`, `diagram`, and `equation`.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
 command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default

@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.PlantUml;
@@ -22,7 +23,7 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// <remarks>
 ///     <para>
 ///         <b>The built-in sources.</b> The <see cref="ImageSources"/> property lists one <see cref="IImageSource"/> per format:
-///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and PlantUML. The list is fixed
+///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML and MathML. The list is fixed
 ///         and explicit: there is no discovery, no reflection and no global registry that can be changed. To support
 ///         another format, or to replace how a built-in one is drawn, implement <see cref="IImageSource"/> and pass it
 ///         as an extra source; <b>an extra source that claims the same extension or URI scheme as a built-in one wins</b>
@@ -88,7 +89,8 @@ public static class CanvasNetViewer
         new LoaderImageSource(new ScadImageSource(), [SourceKind.Scad], [], true),
         new LoaderImageSource(new VegaLiteImageSource(), [SourceKind.VegaLite], [], false),
         new LoaderImageSource(new MermaidImageSource(), [SourceKind.Mermaid], [], false),
-        new LoaderImageSource(new PlantUmlImageSource(), [SourceKind.PlantUml], [], false)
+        new LoaderImageSource(new PlantUmlImageSource(), [SourceKind.PlantUml], [], false),
+        new LoaderImageSource(new MathMlImageSource(), [SourceKind.MathMl], [], false)
     ]);
 
     /// <summary>
@@ -109,7 +111,7 @@ public static class CanvasNetViewer
     }
 
     /// <summary>
-    ///     Gets the built-in image sources: raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and PlantUML. The instances are shared,
+    ///     Gets the built-in image sources: raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML and MathML. The instances are shared,
     ///     stateless and thread-safe; the list cannot be changed. To add your own, compose a new sequence:
     ///     <c>new ImageSourceSet(CanvasNetViewer.ImageSources).Add(mySource)</c> (later sources win).
     /// </summary>
@@ -210,14 +212,16 @@ public static class CanvasNetViewer
     ///     extension (the message lists the extensions); <c>input-unreadable</c> when the file is not a regular file, is
     ///     larger than 16 MiB, or cannot be read; <c>corrupt-input</c> for a damaged file (malformed SVG markup with its
     ///     line and column in <see cref="ViewerException.Location"/>); <c>scad-error</c>, <c>vega-lite-error</c>,
-    ///     <c>mermaid-error</c> and <c>plantuml-error</c> for an error in the source of a model, chart or diagram, with
+    ///     <c>mermaid-error</c>, <c>plantuml-error</c> and <c>mathml-error</c> for an error in the source of a model, chart,
+    ///     diagram or equation, with
     ///     <see cref="ViewerException.Location"/> (file, line, column, and for a chart the JSON pointer) and
     ///     <see cref="ViewerException.DetailCode"/> (the code of the library, such as <c>mermaid-syntax-error</c>; none for
     ///     a Vega-Lite specification or render error);
     ///     <c>file-access-denied</c> when <see cref="ViewerRenderOptions.FileAccess"/> denied an include or a data file
     ///     (and, with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>, a picture); <c>budget-exceeded</c> when
     ///     a limit of a format library is exceeded (see <see cref="ViewerRenderOptions.VegaLiteLimits"/>,
-    ///     <see cref="ViewerRenderOptions.MermaidLimits"/> and <see cref="ViewerRenderOptions.PlantUmlLimits"/>) or the
+    ///     <see cref="ViewerRenderOptions.MermaidLimits"/>, <see cref="ViewerRenderOptions.PlantUmlLimits"/> and
+    ///     <see cref="ViewerRenderOptions.MathMlLimits"/>) or the
     ///     picture, or the final picture of a render that is resized to the
     ///     requested size, does not fit in <see cref="ViewerRenderOptions.MaxDecodedPixels"/>; <c>page-out-of-range</c>
     ///     when <see cref="ViewerRenderOptions.Page"/> is not a page of the file (a single-image file has only page 1);
@@ -467,9 +471,10 @@ public static class CanvasNetViewer
         }
 
         IEnumerable<IImageSource> builtIn = BuiltInSources;
-        if (settings.VegaLiteLimits is not null || settings.MermaidLimits is not null || settings.PlantUmlLimits is not null)
+        if (settings.VegaLiteLimits is not null || settings.MermaidLimits is not null || settings.PlantUmlLimits is not null
+            || settings.MathMlLimits is not null)
         {
-            var sourceLimits = new SourceLoader.SourceLimits(settings.VegaLiteLimits, settings.MermaidLimits, settings.PlantUmlLimits);
+            var sourceLimits = new SourceLoader.SourceLimits(settings.VegaLiteLimits, settings.MermaidLimits, settings.PlantUmlLimits, settings.MathMlLimits);
             builtIn = BuiltInSources.Cast<LoaderImageSource>().Select(source => source.WithLimits(sourceLimits));
         }
 

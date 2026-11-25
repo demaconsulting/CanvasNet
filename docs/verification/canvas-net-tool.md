@@ -296,7 +296,9 @@ drawing, and a model are rendered twice to every output format at a given width;
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
 and garbage of every supported format (a model is only given garbage, because a truncated model is usually still a
-valid one, and its code is `scad-error`; a truncated or garbage chart has the code `vega-lite-error`) are rendered
+valid one, and its code is `scad-error`; a Mermaid or PlantUML diagram likewise, with `mermaid-error` or
+`plantuml-error`; a truncated or garbage chart has the code `vega-lite-error`, and a truncated or garbage MathML
+equation `mathml-error`) are rendered
 in-process; each returns exit code 1 (an unexpected exception
 would escape and fail the test) with the stable error code in the message and in the JSON document, and no output
 exists.

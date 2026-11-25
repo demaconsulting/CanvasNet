@@ -80,12 +80,27 @@ produces.
   side is size-limit unless a scale factor, a width, or a height makes it
   smaller.
 
-## Setting the chart and diagram limits
+## MathML equations
 
-- **Hosts**: A program sets the Vega-Lite, Mermaid, and PlantUML limits for one
-  render with `ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, and
-  `PlantUmlLimits`, lower or higher than the defaults, for the file and every
-  file it embeds. Raise a limit only for content you trust.
+- **Text**: At most {{mmlMaxTextSize}} characters; a longer text is
+  corrupt-input.
+- **Structure**: At most {{mmlMaxElements}} elements nested at most
+  {{mmlMaxNestingDepth}} deep, and at most {{mmlMaxTableCells}} cells in one
+  table; beyond that the equation fails with budget-exceeded
+  (mathml-limit-exceeded).
+- **Layout work**: At most {{mmlMaxLayoutWork}} units of layout work (each
+  element and character, again for a stretched operator); beyond that the
+  equation fails with budget-exceeded.
+- **Size**: An equation larger than {{maxDimension}} pixels on a side at its
+  natural size fails with budget-exceeded; a target size above it is
+  size-limit.
+
+## Setting the chart, diagram, and equation limits
+
+- **Hosts**: A program sets the Vega-Lite, Mermaid, PlantUML, and MathML limits
+  for one render with `ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`,
+  `PlantUmlLimits`, and `MathMlLimits`, lower or higher than the defaults, for
+  the file and every file it embeds. Raise a limit only for content you trust.
 
 ## SVG and documents
 

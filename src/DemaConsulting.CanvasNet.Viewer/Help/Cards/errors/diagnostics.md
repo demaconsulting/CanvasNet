@@ -17,8 +17,9 @@ see-also:
   channel): the note names the type Vega-Lite gave it.
 - A SCAD model's echo output is kept as the model printed it ('ECHO: <text>',
   `ViewerImage.Echo`).
-- Only SCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, PPTX
-  documents (skipped EMF and WMF pictures), VSDX documents, and SVG files (an
+- Only SCAD models, Vega-Lite charts, Mermaid and PlantUML diagrams, MathML
+  equations, PPTX documents (skipped EMF and WMF pictures), VSDX documents,
+  and SVG files (an
   image that was not drawn, text that is not drawn or lacks a feature,
   svg-text-not-drawn and svg-text-unsupported, a hand-drawn arrowhead, and the
   notes of the files it embeds) report diagnostics. PDF and raster images do
@@ -26,6 +27,7 @@ see-also:
 - The warning codes are scad-warning for a model, vega-lite-warning for a chart,
   mermaid-warning for a Mermaid diagram (the mermaid-* code is in detail),
   plantuml-warning for a PlantUML diagram (the plantuml-* code is in detail),
+  mathml-warning for a MathML equation (the mathml-* code is in detail),
   svg-image-unresolved for an SVG image that was not drawn, svg-image-too-large
   for an SVG image whose picture is over the pixel budget,
   image-access-denied for an image the file-access policy denies, and

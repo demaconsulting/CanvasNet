@@ -42,6 +42,10 @@ requirements in
 - `MathMlDiagnosticCodes` - `mathml-syntax-error`, `mathml-limit-exceeded`, `mathml-render-failed`,
   `mathml-element-unsupported`, `mathml-attribute-unsupported`, `mathml-attribute-invalid`, `mathml-css-unsupported`,
   `mathml-text-missing-glyph`, `mathml-stretch-unavailable`, `mathml-child-count`, and `mathml-diagnostics-suppressed`.
+  Every element of MathML Core is drawn: `mathml-element-unsupported` reports an element outside MathML Core (an
+  element of MathML 4 Full such as `mfenced`, `menclose`, or `mlabeledtr`, laid out as an `mrow` of its children as
+  MathML Core lays out an unknown element), an element of another namespace or inside a token (skipped with its
+  subtree), or text directly inside a layout element (drawn like an `mtext`).
 - `MathMlSyntaxException` (a `FormatException`), `MathMlRenderException` (an `InvalidOperationException`), and
   `MathMlUnsupportedFeatureException` (an `IOException`) - each with a code (`Feature` for the last), a `Location`, and
   a `Hint`; the standard constructors use the default code and an unknown location.
@@ -111,5 +115,7 @@ and the core `ImageSources` subsystem (`IImageSource`, `IFragmentImageSource`, `
 ### Callers
 
 Applications that render MathML, through the public API, and image resolvers (such as `FolderImageResolver`) that
-draw linked `.mml` files with `MathMlImageSource`. Within the repository, the test project; the Viewer and the tool
-register the image source and open `.mml` files in stage C (see *CanvasNetMathMl System Design*, Phase Plan).
+draw linked `.mml` files with `MathMlImageSource`. Within the repository, the test project (whose system tests also
+draw an equation through the image source with a pre-canceled request and from a request content alone), and the
+`CanvasNetViewer` system, whose `SourceLoader` opens, measures, and draws `.mml` files and whose built-in MathML image
+source draws a linked equation; the tool reaches the library through the Viewer and bundles it.

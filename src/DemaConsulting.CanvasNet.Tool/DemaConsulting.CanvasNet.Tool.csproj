@@ -15,7 +15,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML sequence, activity, class, object, state, use case, component, and deployment diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, PlantUML sequence, activity, class, object, state, use case, component, and deployment diagrams, and MathML equations) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -96,6 +96,7 @@
     <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.PlantUml\DemaConsulting.CanvasNet.PlantUml.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.MathMl\DemaConsulting.CanvasNet.MathMl.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" PrivateAssets="all" />
   </ItemGroup>
 
@@ -161,6 +162,17 @@
   <ItemGroup>
     <None Include="..\DemaConsulting.CanvasNet.PlantUml\third-party\LICENSE-plantuml.txt" Pack="true" PackagePath="licenses\" />
     <None Include="..\DemaConsulting.CanvasNet.PlantUml\third-party\README.md" Pack="true" PackagePath="licenses\PlantUml-third-party-README.md" />
+  </ItemGroup>
+
+  <!-- Third-party license notices of the bundled MathML library: the W3C Software and Document License (the operator
+       dictionary, the italic and alphanumeric mapping tables, and the entity names of MathML Core and the W3C entity
+       set) and the Unicode License v3 (the Unicode data it derives from) require the notices to be reproduced in binary
+       distributions, so they ship in the same licenses\ folder (no other notice has these names), with the provenance
+       README under a MathMl prefix. The bundled Noto Sans Math font ships with the core, under its own notice. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.MathMl\third-party\LICENSE-w3c.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="..\DemaConsulting.CanvasNet.MathMl\third-party\LICENSE-unicode.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="..\DemaConsulting.CanvasNet.MathMl\third-party\README.md" Pack="true" PackagePath="licenses\MathMl-third-party-README.md" />
   </ItemGroup>
 
 </Project>

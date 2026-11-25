@@ -69,10 +69,10 @@ Import-Module (Join-Path $PSScriptRoot 'scripts/ProjectScripts.psm1') -Force
 # project item), mapped to the test project that reads them. Keep in step with the tests: the help-card parity tests
 # read the user guides, and the Tool tests read the checked-in Pandoc filter.
 $RuntimeReads = [ordered]@{
-    '^docs/user_guide/canvas-net-tool\.md$'                = 'DemaConsulting.CanvasNet.Tool.Tests'
-    '^docs/user_guide/canvas-net-(mermaid|plant-uml)\.md$' = 'DemaConsulting.CanvasNet.Viewer.Tests'
-    '^docs/filters/canvasnet\.lua$'                        = 'DemaConsulting.CanvasNet.Tool.Tests'
-    '^docs/user_guide/canvas-net-viewer\.md$'              = 'DemaConsulting.CanvasNet.Viewer.Tests'
+    '^docs/user_guide/canvas-net-tool\.md$'                        = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/user_guide/canvas-net-(mermaid|plant-uml|math-ml)\.md$' = 'DemaConsulting.CanvasNet.Viewer.Tests'
+    '^docs/filters/canvasnet\.lua$'                                = 'DemaConsulting.CanvasNet.Tool.Tests'
+    '^docs/user_guide/canvas-net-viewer\.md$'                      = 'DemaConsulting.CanvasNet.Viewer.Tests'
 }
 
 # [PROJECT-SPECIFIC] Short -Project names that no resolution rule can derive (exact name, unique dot-segment suffix,

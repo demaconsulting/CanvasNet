@@ -1,0 +1,31 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <munderover>
+    <mo>&sum;</mo>
+    <mrow>
+      <mi>k</mi>
+      <mo>=</mo>
+      <mn>0</mn>
+    </mrow>
+    <mi>n</mi>
+  </munderover>
+  <mrow>
+    <mo>(</mo>
+    <mfrac linethickness="0">
+      <mi>n</mi>
+      <mi>k</mi>
+    </mfrac>
+    <mo>)</mo>
+  </mrow>
+  <msup><mi>x</mi><mi>k</mi></msup>
+  <mo>=</mo>
+  <msup>
+    <mrow>
+      <mo stretchy="false">(</mo>
+      <mn>1</mn>
+      <mo>+</mo>
+      <mi>x</mi>
+      <mo stretchy="false">)</mo>
+    </mrow>
+    <mi>n</mi>
+  </msup>
+</math>

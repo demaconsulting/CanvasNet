@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.PlantUml;
@@ -89,6 +90,9 @@ public class ImagingSubsystemTests
 
             case "plantuml":
                 return PlantUmlDocument.Open(path).Render(cancellationToken: TestContext.Current.CancellationToken);
+
+            case "mathml":
+                return MathMlDocument.Open(path).Render(new MathMlRenderOptions { Background = new Rgba32(255, 255, 255, 255) }, TestContext.Current.CancellationToken);
 
             case "vega-lite":
                 var chart = VegaLiteDocument.Open(path);
@@ -702,6 +706,46 @@ public class ImagingSubsystemTests
         Assert.Equal(2, text.Split("data:image/png;base64,").Length - 1);
         var info = SourceLoader.Probe(output);
         Assert.Equal((SourceKind.Svg, 200, 100), (info.Format, info.Width, info.Height));
+    }
+
+    /// <summary>
+    ///     Test that the loader draws an equation linked from an SVG drawing, a Mermaid node and a Vega-Lite image mark:
+    ///     each picture shows the equation's black ink, and each load lists the equation as an <c>embed</c> operation of
+    ///     the format <c>mathml</c>, with nothing reported.
+    /// </summary>
+    [Fact]
+    public void Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds()
+    {
+        // Arrange: the quadratic formula beside a drawing, a flowchart and a chart that link it
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")), directory.Combine("eq.mml"));
+        var drawing = FixtureFactory.WriteText(
+            directory.Path,
+            "figure.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'><image href='eq.mml' width='200' height='80'/></svg>");
+        var flow = FixtureFactory.WriteText(directory.Path, "flow.mmd", "flowchart LR\n    q@{ img: \"eq.mml\", w: 140, h: 50 }\n");
+        var chart = FixtureFactory.WriteText(
+            directory.Path,
+            "chart.vl.json",
+            "{ \"width\": 200, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+            + "\"mark\": { \"type\": \"image\", \"width\": 140, \"height\": 50 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+            + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+            + "\"url\": { \"value\": \"eq.mml\" } } }");
+        static bool IsInk(Rgba32 pixel) => pixel.A == 255 && pixel.R < 80 && pixel.G < 80 && pixel.B < 80;
+
+        foreach (var path in new[] { drawing, flow, chart })
+        {
+            // Act
+            using var loaded = SourceLoader.Load(path, new SourceOptions());
+
+            // Assert
+            var surface = loaded.Surface;
+            Assert.Contains(Enumerable.Range(0, surface.Height), y => Enumerable.Range(0, surface.Width).Any(x => IsInk(surface[x, y])));
+            var embed = Assert.Single(loaded.Operations, operation => operation.Op == "embed");
+            Assert.Equal("eq.mml", embed.Fields.Single(field => field.Key == "href").Value);
+            Assert.Equal("mathml", embed.Fields.Single(field => field.Key == "format").Value);
+            Assert.Empty(loaded.Diagnostics);
+        }
     }
 
     /// <summary>

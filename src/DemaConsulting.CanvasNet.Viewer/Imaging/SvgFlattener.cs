@@ -148,7 +148,7 @@ public sealed record FlattenResult(
 /// <remarks>
 ///     <para>
 ///         <b>What is replaced.</b> An <c>image</c> element whose link (<c>href</c>, or <c>xlink:href</c> when there is no
-///         <c>href</c>, as the SVG library reads it) names a Mermaid or PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, a PDF
+///         <c>href</c>, as the SVG library reads it) names a Mermaid or PlantUML diagram, a MathML equation, an OpenSCAD model, a Vega-Lite chart, a PDF
 ///         document, a PowerPoint presentation, or a Visio drawing, with or without a fragment (<c>#page=2</c>,
 ///         <c>#def.width=20</c>), and a nested SVG file that links such a file at any depth. Raster pictures, SVG files
 ///         that link only rasters and SVG files, <c>data:</c> URIs, same-document <c>#</c> links, and network links are
@@ -254,7 +254,7 @@ public static partial class SvgFlattener
     ///     too large; <c>unsupported-feature</c> when it declares an encoding other than UTF-8 and is not plain ASCII, or,
     ///     with <see cref="FlattenRequest.Strict"/>, when a link cannot be drawn; <c>size-limit</c> when the copy would
     ///     exceed <see cref="FlattenRequest.MaxOutputBytes"/>; and with the codes of <c>canvasnet render</c>
-    ///     (<c>scad-error</c>, <c>vega-lite-error</c>, <c>mermaid-error</c>, <c>plantuml-error</c>, <c>corrupt-input</c>, ...) naming both files
+    ///     (<c>scad-error</c>, <c>vega-lite-error</c>, <c>mermaid-error</c>, <c>plantuml-error</c>, <c>mathml-error</c>, <c>corrupt-input</c>, ...) naming both files
     ///     when a linked file is found but broken.
     /// </exception>
     public static FlattenResult Execute(SourceInfo info, FlattenRequest request)
@@ -590,11 +590,11 @@ public static partial class SvgFlattener
     ///     Tells whether a kind of file is one that only CanvasNet draws (a plain SVG reader shows nothing for it).
     /// </summary>
     /// <param name="kind">The kind of the linked file, or <see langword="null"/> when unknown.</param>
-    /// <returns><see langword="true"/> for documents, models, charts, and diagrams; <see langword="false"/> for rasters, SVG files, and unknown kinds.</returns>
+    /// <returns><see langword="true"/> for documents, models, charts, diagrams, and equations; <see langword="false"/> for rasters, SVG files, and unknown kinds.</returns>
     internal static bool IsCanvasNetOnly(SourceKind? kind)
     {
         return kind is SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite or SourceKind.Mermaid
-            or SourceKind.PlantUml;
+            or SourceKind.PlantUml or SourceKind.MathMl;
     }
 
     /// <summary>

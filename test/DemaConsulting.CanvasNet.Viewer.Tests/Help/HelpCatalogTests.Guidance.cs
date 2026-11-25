@@ -16,7 +16,7 @@ public partial class HelpCatalogTests
     /// <summary>
     ///     The drawing formats, which each have a style card and a composition card.
     /// </summary>
-    private static readonly string[] DrawingFormats = ["scad", "vega-lite", "mermaid", "plantuml", "svg"];
+    private static readonly string[] DrawingFormats = ["scad", "vega-lite", "mermaid", "plantuml", "mathml", "svg"];
 
     /// <summary>
     ///     The white background a picture is flattened over, as an image written by a host usually is.

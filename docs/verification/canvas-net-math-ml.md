@@ -314,10 +314,13 @@ successful render has the measured size.
 
 ### CanvasNetMathMl-Cancellation: A Canceled Token Stops The Work
 
-**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_PreCanceledToken_Throws`
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_PreCanceledToken_Throws`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_ImageSource_PreCanceledRequest_Throws`
 
 Asserts that `Measure`, `Render`, and `Render(width, height)` throw `OperationCanceledException` for a pre-canceled
-token. The cancellation of the image source is verified by the unit tests of `MathMlDocument`.
+token, and that a `FolderImageResolver` with a `MathMlImageSource` and a pre-canceled token throws it when it renders
+`table-matrix.mml`, so the cancellation reaches the image source through the composition hook (its unit detail is
+verified by the unit tests of `MathMlDocument`).
 
 ### CanvasNetMathMl-Determinism: Identical Pixels
 
@@ -342,12 +345,15 @@ for `<menclose>` after exactly one report reached the handler.
 ### CanvasNetMathMl-Offline: Links Are Not Followed
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Links_AreReportedNotFetched`,
-`MathMlSystemIntegrationTests.CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused`
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_ImageSource_ReadsOnlyTheRequestContent`
 
 Renders tokens with an `https` `href` and a `file` `xlink:href` and asserts two `mathml-attribute-unsupported` reports
-that say the links are not followed; a document type declaration (the vehicle of external entities) is refused. That
-the image source reads only the content of its request is verified by the unit tests of `MathMlDocument` (a refused
-link is never read).
+that say the links are not followed; a document type declaration (the vehicle of external entities) is refused. Through
+a `FolderImageResolver` with a `MathMlImageSource` and a file-access policy that records every file it is asked about,
+an equation in a temporary folder whose tokens link a file beside it (`decoy.mml`) and a web address is drawn, the
+policy is asked about the linked equation only (the other file is never opened), and the two links are reported as
+`mathml-attribute-unsupported`.
 
 ### CanvasNetMathMl-ThirdPartyNotices: The Notices Ship With The Package
 

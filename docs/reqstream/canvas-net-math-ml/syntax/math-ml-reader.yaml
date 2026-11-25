@@ -75,12 +75,14 @@ sections:
               - id: CanvasNetMathMl-Syntax-MathMlReader-Locations
                 title: >-
                   The MathMlReader unit shall locate every element and attribute, and every error of the XML reader, at
-                  its line and column in the original text.
+                  its line and column in the original text, and an error of a text with no markup at all (empty or
+                  blank) at line 1, column 1.
                 justification: |
                   Reports about invalid values and syntax errors must point at what the author wrote.
                 tests:
                   - MathMlReader_Read_Attributes_KeepLocationsAndReportLinks
                   - MathMlReader_Read_WrongRoot_FailsLocated
+                  - MathMlReader_Read_EmptyOrBlankText_FailsAtLineOneColumnOne
 
               - id: CanvasNetMathMl-Syntax-MathMlReader-Limits
                 title: >-

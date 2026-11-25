@@ -7,7 +7,7 @@
 OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `SourceLoaderMermaidTests.cs` and
 `SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes),
 `SourceLoaderPlantUmlTests.cs`
-(the PlantUML diagrams), and
+(the PlantUML diagrams), `SourceLoaderMathMlTests.cs` (the MathML equations), and
 `SourceLoaderPositionTests.cs` (the feature positions of diagrams and charts); the reading and the
 application of the EXIF orientation are core operations (`JpegCodec.ReadExifOrientation` and
 `Surface.ApplyExifOrientation`) verified in the core
@@ -33,7 +33,10 @@ are the colors of Mermaid's default and dark themes. PlantUML diagrams are the f
 diagram with an if/else), `class.pu` (a class diagram of two classes and one composition), `legacy.pu` (a legacy
 activity diagram, a type this version does not draw), and `included.puml` with
 `parts/people.iuml` (a diagram whose participants come from an include), plus PlantUML text written by the tests; the
-expected fills are the participant (`#E2E2F0`) and action (`#F1F1F1`) colors of PlantUML's default look. The other
+expected fills are the participant (`#E2E2F0`) and action (`#F1F1F1`) colors of PlantUML's default look. MathML
+equations are the fixture file `Fixtures/mathml/quadratic.mml` (the quadratic formula in display mode, with a text
+alternative) plus MathML text written by the tests; the expected sizes are those `MathMlDocument.Measure` gives, and the
+ink is counted as dark opaque pixels. The other
 fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
@@ -61,7 +64,8 @@ loaded, and the mapping of the library's failures is verified both with real fai
 the limit, a text longer than the limit, a diagram wider than the largest image) and directly, by handing
 `RenderDiagram` the library's exceptions. The PlantUML diagrams have the same kind of sweep in
 `SourceLoaderPlantUmlTests.cs` (every prefix of the activity fixture and 200 bytes of garbage), and `MapPlantUml` is
-handed the library's exceptions directly.
+handed the library's exceptions directly; the MathML equations likewise in `SourceLoaderMathMlTests.cs` (every prefix
+of the quadratic fixture and 200 bytes of garbage), with `MapMathMl` handed the library's exceptions directly.
 
 #### Test Environment
 
@@ -125,6 +129,17 @@ file-symbolic-link scenarios skip where file links cannot be created (Windows wi
   or, in strict mode, `unsupported-feature`; invalid text, an unknown `@start` tag, and a missing include are
   `plantuml-error` with the location, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`; a cut
   or damaged diagram is an expected error or a shorter diagram that loads.
+- A MathML equation (`.mml` in any case, never taken for an SVG, never recognized by its content, and `.mathml` not
+  recognized) is probed by parsing and measuring it (the laid-out size, four channels, and the display mode, the
+  element count, the text alternative, the annotation encodings, and the baseline); it is drawn at its natural size
+  times the scale or fitted into the size given, over white or the background given (transparent with a zero-alpha
+  one), in the display mode of the options or of the `display=` fragment of the input (`block` or `inline` in any case;
+  another value `image-fragment-invalid`, an undefined option value `usage-error`, a theme fragment an unknown
+  parameter), each warning a `mathml-warning` note with its detail and location and each construct it does not draw an
+  unsupported note, or, in strict mode, `unsupported-feature`; text that is not well-formed MathML (an empty or blank
+  text included, located at line 1) is `mathml-error` with the location, the detail code, and a hint, a limit of the
+  library `budget-exceeded`, an overlong text `corrupt-input`; a cut or damaged equation is an expected error or a
+  shorter equation that loads.
 - The pictures of the nodes of a diagram are drawn through the resolver of the folder of the diagram under the
   file-access policy of the load (a raster fills its box), listed once each as `embed` operations, a link the policy
   denies is one `image-access-denied` warning (`file-access-denied` in strict mode), an unresolvable link or a cycle is
@@ -185,7 +200,7 @@ an SVG element, named `flow.mmd` and `Flow.MERMAID`, is a Mermaid diagram, and s
 `.mmd`; a Markdown file (`flow.md`) that holds the text of a diagram is `unsupported-format` (no content sniffing); the
 kind is a vector kind and a diagram (`IsDiagram`), not a chart, and its format name is `mermaid`. The fallback theory
 (**SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension**) also maps unrecognized content named `.mmd` and
-`.MERMAID` to `mermaid`.
+`.MERMAID` to `mermaid`, and named `.mml` and `.MML` to `mathml`.
 
 **SourceLoader_Probe_EachKind_ReportsHeaderFacts**, **SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha**, and
 **SourceLoader_Probe_JpegWithExif_ReportsOrientation**: for each kind the format, path, byte count, size, decodability,
@@ -485,6 +500,63 @@ error: a.puml:2:3: plantuml-render-failed: the layout failed" without a hint.
 one included, either loads or is a `plantuml-error` or `corrupt-input`, never another exception, and 200 bytes of
 garbage named `.puml` are a `plantuml-error`.
 
+**SourceLoader_Detect_MathMlExtension_ReturnsMathMl**: an equation whose text holds an SVG element, named `eq.mml` and
+`Eq.MML`, is a MathML equation, and so is SVG content with the extension `.mml`; the same kind of text named
+`eq.mathml` is `unsupported-format` (no content sniffing and no long extension); the kind is a vector kind and an
+equation (`IsEquation`), not a diagram, a chart, or a document, a PlantUML diagram is not an equation, its format name
+is `mathml`, and the extension table maps `.mml` to it.
+
+**SourceLoader_Probe_MathMlEquation_ReportsEquationFacts**: `quadratic.mml` is probed as the `MathMl` kind with one
+page, four channels, and transparency, at exactly the size `MathMlDocument.Measure` gives, with the facts `block`, the
+element count of the document, the measured baseline, the text alternative ("x equals minus b ..."), no annotation
+encodings, and no diagram or chart facts; an equation in its own (inline) display mode with two annotations reports
+`inline`, the encodings `application/x-tex` and the empty one, and no text alternative.
+
+**SourceLoader_Load_MathMlEquation_DrawsAtTheNaturalSizeOverWhite**: `quadratic.mml` loaded in strict mode is a vector
+source of the probed size, with an opaque white corner, more than 100 ink pixels, no note, and the one operation
+`render` with only the width and the height.
+
+**SourceLoader_Load_MathMlSizeAndBackground_FollowTheOptions**: a scale of 3 gives exactly the size the library
+measures at that scale, with more ink; a box of 400 by 300 with a yellow background is exactly that size with yellow in
+the margin and the `background` field `#FFFF00` in its operation; a zero-alpha background leaves the corner
+transparent.
+
+**SourceLoader_ProbeInputReference_MathMlDisplayFragment_ChoosesTheDisplay**: a summation with limits, which is inline
+by default, is drawn at the probed size inline and taller with the display mode `block` (the operation names
+`display` `block` and the facts of the load say `block`); `#display=BLOCK` probes the input in block mode, at the size
+of the block render, with `MathMlDisplay.Block` in its selection; an undefined display value in the options is
+`usage-error`.
+
+**SourceLoader_Load_MathMl_MapsWarningsAndUnsupportedFeatures**: an equation with a length without a unit and an
+`mfenced` on line 2 has one warning (source `mathml`, code `mathml-warning`, detail `mathml-attribute-invalid`, the file
+and line 2) and one unsupported note (`mathml-element-unsupported`, line 2, naming `mfenced`), and is still drawn.
+
+**SourceLoader_Load_MathMlUnsupportedElementStrict_IsUnsupportedFeature**: the same `mfenced` loaded in strict mode is
+`unsupported-feature` with the detail code `mathml-element-unsupported`, the file and line 2, the library's
+`MathMlUnsupportedFeatureException` as its cause, and the strict-mode hint.
+
+**SourceLoader_Probe_MathMlInvalidText_IsMathMlError**: a mismatched end tag, an unknown entity on line 2, a root
+that is not `math`, an empty text, and a blank text are each a `mathml-error` with the detail code
+`mathml-syntax-error`, the file and the line (1, 2, 1, 1, 1), a message that starts with "MathML syntax error: ", a
+hint, and the library's `MathMlSyntaxException` as the cause.
+
+**SourceLoader_ProbeInputReference_MathMlInvalidDisplay_IsImageFragmentInvalid**: `#display=wide` is
+`image-fragment-invalid` naming the parameter and the value; `#theme=dark` is probed as the equation, with no display in
+the selection and the one warning `image-fragment-unknown-parameter`.
+
+**SourceLoader_Probe_MathMlLimits_AreBudgetExceededAndCorruptInput**: an equation nested 300 rows deep is
+`budget-exceeded` naming `mathml-limit-exceeded` and `MaxNestingDepth`, with a hint, and a text one character longer
+than the default text limit is `corrupt-input` naming the file and `MaxTextSize`.
+
+**SourceLoader_MapMathMl_MapsByCode**: a `MathMlRenderException` with the limit code is `budget-exceeded` with the
+library's hint (or "Simplify the equation." without one), the detail code, and the exception as its cause; one with the
+render-failed code is the `mathml-error` "MathML render error: a.mml:2:3: mathml-render-failed: the layout failed" with
+the location and without a hint.
+
+**SourceLoader_Load_MathMlTruncatedOrDamaged_IsExpectedErrorOrLoads**: every prefix of `quadratic.mml`, the empty one
+included, either loads or is a located `mathml-error`, never another exception; 200 bytes of garbage named `.mml` are
+a `mathml-error`, and the whole text loads.
+
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the
 rotation, the presentation two slides of 360x270 points, and the drawing the pages `First` and `Second` with their
@@ -757,10 +829,10 @@ whose rectangle operator has too few operands is `corrupt-input`, one that decla
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
 Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, and garbage or a truncation of a chart
 is a
-`vega-lite-error`, garbage in a file named `.mmd` a `mermaid-error`, and garbage in a file named `.puml` a
-`plantuml-error`, the kinds whose damage is a syntax error (a
-diagram is left out of the shared truncation sweep, as a model is, because a cut diagram is usually still valid; it has
-its own sweep);
+`vega-lite-error`, garbage in a file named `.mmd` a `mermaid-error`, garbage in a file named `.puml` a
+`plantuml-error`, and garbage in a file named `.mml` a `mathml-error`, the kinds whose damage is a syntax error (a
+diagram and an equation are left out of the shared truncation sweep, as a model is, because a cut one is usually still
+valid; each has its own sweep);
 **SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
@@ -830,11 +902,11 @@ and
 a document page comes back at its fitted size without the margin.
 
 **SourceLoader_Limits_ApplyToTheProbeAndTheLoad** (`SourceLoaderInputTests.cs`, for a Vega-Lite chart, a Mermaid
-diagram, and a PlantUML diagram): a small source that the default probe accepts is refused with `budget-exceeded` by a
-probe given a lower limit (`MaxDataRows` 2 for three rows, `MaxNodes` 2 for three nodes, `MaxNodes` 1 for two
-participants), and by a load whose `LoadContext.Limits` has that limit after a probe with the defaults, so each of the
-two uses the limits it is given; the default context keeps `SourceLimits.Default`, the defaults of the libraries that
-the command line uses.
+diagram, a PlantUML diagram, and a MathML equation): a small source that the default probe accepts is refused with
+`budget-exceeded` by a probe given a lower limit (`MaxDataRows` 2 for three rows, `MaxNodes` 2 for three nodes,
+`MaxNodes` 1 for two participants, `MaxElements` 2 for four elements), and by a load whose `LoadContext.Limits` has that
+limit after a probe with the defaults, so each of the two uses the limits it is given; the default context keeps
+`SourceLimits.Default`, the defaults of the libraries that the command line uses.
 
 **SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile**,
 **SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile**,
@@ -960,8 +1032,11 @@ value nested 40 levels deep and a null dictionary are
 **InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection**,
 **InputSelection_ApplyTo_Chart_MergesParametersByName**,
 **InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
-**SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter** (a `#theme=dark` on a PlantUML diagram is
-probed as the diagram, with no theme in the selection and the one warning `image-fragment-unknown-parameter`),
+**SourceLoader_ProbeInputReference_PlantUmlTheme_IsAnUnknownParameter** (a `#theme=dark` on a PlantUML diagram is probed
+as the diagram, with no theme in the selection and the one warning `image-fragment-unknown-parameter`),
+**SourceLoader_ProbeInputReference_MathMlDisplay_IsAppliedToTheRender** (`quadratic.mml`, which says `display="block"`,
+is probed in block mode without a fragment and in inline mode, lower, with `#display=inline`, which is in the selection,
+replaces the block display mode of a command's options, and is drawn at the probed inline size, with no note),
 **InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
 **SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw**,
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException**, and
@@ -980,27 +1055,26 @@ elevation -10 with no notes, `elevation=20` alone keeps the azimuth 30, and `vie
 the azimuth 10, and the elevation 5. `projection=ORTHO` over a perspective command gives an orthographic view,
 `projection=perspective` over an orthographic command (and over no model options) a perspective one with no notes and
 without making the view explicit, and a fragment without `projection` (`def.width=3`) keeps the perspective of the
-command. For a PDF `page=2` is the selection page
-(and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter) is the warning
-`image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `azimuth=abc`,
-`elevation=95`, `elevation=Infinity`, `projection=fisheye`, `projection=`, `def.2x=1`,
-`param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint, and so
-is `theme=midnight` on a diagram; a fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`;
-a missing file with a fragment is `input-not-found` that says a file of that name does not exist either, and without a
-fragment it says nothing of the kind. The notes: a model with `wide=1&def.width=1&def.width=2` has the unknown and the
-duplicate warning (source `input`, severity `warning`, in that order); a chart with `param.cutoff=2&param.nope=1` has
-one `vl-param-unknown` that lists `declared: cutoff` and a selection with only `cutoff`; a PDF with `extra=1` reports
-the warning with the first page that is read and not with the second. A chart parameter of the fragment is merged over
-those of the command by name (the fragment wins, the other one stays, `WarnOnUnknownParameters` stays false). For a
-diagram, `#theme=Dark&page=2` gives the selection theme `dark` (the canonical name) and no page, with the one warning
-`image-fragment-unknown-parameter` (a diagram takes no page); merged over the command theme `forest` it gives `dark`,
-while a fragment without a theme keeps `forest`; and loading the probed input draws in `dark` (the `render` operation
-lists `theme` `dark`) and reports the warning. A model probed with
-`view=top&def.width=20` and loaded into 64 by 64 pixels has exactly the pixels of the same model loaded with those
-options and no fragment. In `CanvasNetViewerParameterFragmentTests.cs` the same variables, as the fragment of a link
-in an SVG document, fix the camera: a red box of width 5 and one of width 20 drawn with `def.$vpd=200` are as tall as
-each other and four times as wide (within a pixel), the same two without it are not as tall as each other, and
-`def.$vpt=[10,0,0]` moves the box about 12 pixels to the left.
+command. For a PDF `page=2` is the selection page (and replaces a page of 7), `page=3` is `page-out-of-range`, and
+`slide=2` (a presentation parameter) is the warning `image-fragment-unknown-parameter` with no page. Each of
+`def.width=[1,2`, `view=sideways`, `azimuth=abc`, `elevation=95`, `elevation=Infinity`, `projection=fisheye`,
+`projection=`, `def.2x=1`, `param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment
+and that has a hint, and so is `theme=midnight` on a diagram and `display=sideways` on an equation; a fragment of 2,049
+characters and one of 33 parameters are `image-fragment-invalid`; a missing file with a fragment is `input-not-found`
+that says a file of that name does not exist either, and without a fragment it says nothing of the kind. The notes: a
+model with `wide=1&def.width=1&def.width=2` has the unknown and the duplicate warning (source `input`, severity
+`warning`, in that order); a chart with `param.cutoff=2&param.nope=1` has one `vl-param-unknown` that lists
+`declared: cutoff` and a selection with only `cutoff`; a PDF with `extra=1` reports the warning with the first page that
+is read and not with the second. A chart parameter of the fragment is merged over those of the command by name (the
+fragment wins, the other one stays, `WarnOnUnknownParameters` stays false). For a diagram, `#theme=Dark&page=2` gives
+the selection theme `dark` (the canonical name) and no page, with the one warning `image-fragment-unknown-parameter` (a
+diagram takes no page); merged over the command theme `forest` it gives `dark`, while a fragment without a theme keeps
+`forest`; and loading the probed input draws in `dark` (the `render` operation lists `theme` `dark`) and reports the
+warning. A model probed with `view=top&def.width=20` and loaded into 64 by 64 pixels has exactly the pixels of the same
+model loaded with those options and no fragment. In `CanvasNetViewerParameterFragmentTests.cs` the same variables, as
+the fragment of a link in an SVG document, fix the camera: a red box of width 5 and one of width 20 drawn with
+`def.$vpd=200` are as tall as each other and four times as wide (within a pixel), the same two without it are not as
+tall as each other, and `def.$vpt=[10,0,0]` moves the box about 12 pixels to the left.
 
 **SourceLoader_Load_MermaidWithPositions_ReportsMatchingPositions**,
 **SourceLoader_Load_ChartOverTheCap_FiltersFirstThenCaps**,

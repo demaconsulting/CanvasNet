@@ -25,7 +25,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a card may cite.
     /// </summary>
     private static readonly Regex DiagnosticIdentifier =
-        new(@"\b(?:scad|vl|mermaid|plantuml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|plantuml|mathml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Test that every embedded card file of the tool is an overlay that extends the library card at its own path, or

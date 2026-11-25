@@ -63,10 +63,12 @@ nothing about them is reported.
 ##### CanvasNetMathMl-Syntax-MathMlReader-Links And Locations: Attributes
 
 **Tests**: `MathMlReaderTests.MathMlReader_Read_Attributes_KeepLocationsAndReportLinks`,
-`MathMlReaderTests.MathMlReader_Read_WrongRoot_FailsLocated`
+`MathMlReaderTests.MathMlReader_Read_WrongRoot_FailsLocated`,
+`MathMlReaderTests.MathMlReader_Read_EmptyOrBlankText_FailsAtLineOneColumnOne`
 
 Asserts that `href` and `xlink:href` are reported and not kept, that the other attributes of other namespaces are
-ignored, that the kept attributes have their own locations, and that a refusal is located in the original text.
+ignored, that the kept attributes have their own locations, and that a refusal is located in the original text; an
+empty text and a text of only white space are each a `mathml-syntax-error` located at line 1, column 1, with a hint.
 
 ##### CanvasNetMathMl-Syntax-MathMlReader-Limits: Elements, Depth, And Token Length
 

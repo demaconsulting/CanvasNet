@@ -26,7 +26,8 @@ internal static class DiscoveryCommands
     ///     <c>Kind</c> is <c>raster</c> (decoded at its own size), <c>vector</c> (a drawing rendered at any
     ///     requested size), <c>document</c> (pages or slides rendered at any requested size), <c>model</c>
     ///     (a 3D model rendered from a viewpoint), <c>chart</c> (a Vega-Lite chart rendered at any requested size), or
-    ///     <c>diagram</c> (a Mermaid or PlantUML diagram rendered at any requested size).
+    ///     <c>diagram</c> (a Mermaid or PlantUML diagram rendered at any requested size), or <c>equation</c> (a MathML
+    ///     equation laid out at any requested size).
     /// </remarks>
     internal static readonly IReadOnlyList<InputFormat> InputFormats =
     [
@@ -43,7 +44,8 @@ internal static class DiscoveryCommands
         new("scad", "model", [".scad"], false, true, "scad"),
         new("vega-lite", "chart", [".vl.json", ".vl"], false, true, "vega-lite"),
         new("mermaid", "diagram", [".mmd", ".mermaid"], false, true, "mermaid"),
-        new("plantuml", "diagram", [".puml", ".plantuml", ".pu"], false, true, "plantuml")
+        new("plantuml", "diagram", [".puml", ".plantuml", ".pu"], false, true, "plantuml"),
+        new("mathml", "equation", [".mml"], false, true, "mathml")
     ];
 
     /// <summary>
@@ -61,7 +63,7 @@ internal static class DiscoveryCommands
     ///     Describes an input format.
     /// </summary>
     /// <param name="Name">The format name, which is also its name in JSON output.</param>
-    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, <c>model</c>, <c>chart</c>, or <c>diagram</c>.</param>
+    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, <c>model</c>, <c>chart</c>, <c>diagram</c>, or <c>equation</c>.</param>
     /// <param name="Extensions">The file name extensions, including the dot, in lower case.</param>
     /// <param name="MultiPage"><see langword="true"/> when one file holds several pages or slides that can be chosen.</param>
     /// <param name="Vector"><see langword="true"/> when the content is rendered at the requested size rather than decoded at its own size.</param>

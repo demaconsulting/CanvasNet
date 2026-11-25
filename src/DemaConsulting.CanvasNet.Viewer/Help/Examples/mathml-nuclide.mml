@@ -1,0 +1,22 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mmultiscripts>
+    <mi mathvariant="normal">U</mi>
+    <mprescripts/>
+    <mn>92</mn>
+    <mn>238</mn>
+  </mmultiscripts>
+  <mo>&rarr;</mo>
+  <mmultiscripts>
+    <mi>Th</mi>
+    <mprescripts/>
+    <mn>90</mn>
+    <mn>234</mn>
+  </mmultiscripts>
+  <mo>+</mo>
+  <mmultiscripts>
+    <mi>He</mi>
+    <mprescripts/>
+    <mn>2</mn>
+    <mn>4</mn>
+  </mmultiscripts>
+</math>

@@ -80,8 +80,14 @@ internal static partial class MathMlReader
         }
         catch (XmlException ex)
         {
-            // The refusal of a document type has no position of its own: it is located at the declaration
-            var location = ex.LineNumber == 0 && prePass.DoctypeLocation is { } doctype ? doctype : prePass.Map.MapBack(ex.LineNumber, ex.LinePosition);
+            // The refusal of a document type has no position of its own: it is located at the declaration; a text with no
+            // markup at all (empty or blank) has none either, and is located at its start
+            var location = ex.LineNumber switch
+            {
+                0 when prePass.DoctypeLocation is { } doctype => doctype,
+                0 => new MathMlLocation(sourceName, 1, 1),
+                _ => prePass.Map.MapBack(ex.LineNumber, ex.LinePosition),
+            };
             var hint = prePass.DoctypeLocation is not null
                 ? "remove the document type declaration: document types are not allowed, and the named character references of the W3C HTML+MathML set are built in"
                 : "check that every element is closed and that a literal '&' or '<' in text is written as &amp; or &lt;";

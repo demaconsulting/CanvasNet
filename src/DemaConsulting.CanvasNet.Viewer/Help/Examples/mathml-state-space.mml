@@ -1,0 +1,12 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left" columnspacing="0">
+    <mtr>
+      <mtd><mover accent="true"><mi mathvariant="bold">x</mi><mo>&#x2D9;</mo></mover><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></mtd>
+      <mtd><mo>=</mo><mi mathvariant="bold">A</mi><mo>&InvisibleTimes;</mo><mi mathvariant="bold">x</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><mo>+</mo><mi mathvariant="bold">B</mi><mo>&InvisibleTimes;</mo><mi mathvariant="bold">u</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mi mathvariant="bold">y</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></mtd>
+      <mtd><mo>=</mo><mi mathvariant="bold">C</mi><mo>&InvisibleTimes;</mo><mi mathvariant="bold">x</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><mo>+</mo><mi mathvariant="bold">D</mi><mo>&InvisibleTimes;</mo><mi mathvariant="bold">u</mi><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow></mtd>
+    </mtr>
+  </mtable>
+</math>

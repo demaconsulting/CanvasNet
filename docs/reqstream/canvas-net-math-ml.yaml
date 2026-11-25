@@ -402,6 +402,7 @@ sections:
           - CanvasNetMathMl-MathMlDocument-ImageSource
         tests:
           - CanvasNetMathMl_Render_PreCanceledToken_Throws
+          - CanvasNetMathMl_ImageSource_PreCanceledRequest_Throws
 
       - id: CanvasNetMathMl-Determinism
         title: >-
@@ -463,6 +464,7 @@ sections:
         tests:
           - CanvasNetMathMl_Links_AreReportedNotFetched
           - CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused
+          - CanvasNetMathMl_ImageSource_ReadsOnlyTheRequestContent
 
       - id: CanvasNetMathMl-ThirdPartyNotices
         title: >-

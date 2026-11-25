@@ -282,6 +282,26 @@ public sealed record ViewerRenderOptions
     public DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits? PlantUmlLimits { get; init; }
 
     /// <summary>
+    ///     Gets the resource limits of a MathML equation (text size, elements, nesting, token length, table cells, layout
+    ///     work, painted glyphs, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default"/>. They apply to the rendered equation and to
+    ///     every equation the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the nesting depth
+    ///         that bounds recursion at 1,024. <b>Raise a limit only for content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         An equation over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>mathml-limit-exceeded</c>, or <c>corrupt-input</c>
+    ///         for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.MathMl.MathMlLimits? MathMlLimits { get; init; }
+
+    /// <summary>
     ///     Gets the token that cancels the render. The default is <see cref="CancellationToken.None"/>.
     /// </summary>
     public CancellationToken CancellationToken { get; init; }

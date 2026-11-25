@@ -40,9 +40,9 @@ embedded image record, a wrong exception type, or a disposed surface that is sti
 **Tests**: `CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion`,
 `CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly`, `CanvasNetViewer_Collections_AreReadOnly`
 
-Asserts that the list is the same read-only list on every call (not an `IList` that can be modified), has eight sources,
+Asserts that the list is the same read-only list on every call (not an `IList` that can be modified), has ten sources,
 and that `Extensions` is sorted, has no duplicate, has `.vl.json` but not `.json`, and equals the union of the claims of
-the sources. A theory over the eight built-in sources asserts that each source's `Extensions` and `Schemes` are
+the sources. A theory over the ten built-in sources asserts that each source's `Extensions` and `Schemes` are
 read-only: not a `string[]` or `List<string>`, and when cast to `IList<string>` they report read-only and throw
 `NotSupportedException` on `Add`. A further scenario asserts the same for `ImageSources`, `Extensions`, the extension
 and scheme lists of a created resolver, and the `Diagnostics`, `Echo`, and `Embedded` lists of a rendered `ViewerImage`.
@@ -139,6 +139,7 @@ throws `ArgumentOutOfRangeException` without the stream being read.
 
 **Tests**: `CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode`,
 `CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode`,
+`CanvasNetViewer_Render_MathMlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode`,
 `CanvasNetViewer_Render_ScadSyntaxError_ThrowsViewerExceptionWithLocation`,
 `CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation`,
 `CanvasNetViewer_Render_MalformedSvg_ThrowsCorruptInputWithXmlLineAndColumn`,
@@ -156,7 +157,9 @@ throws `ArgumentOutOfRangeException` without the stream being read.
 Asserts the rows of issue #166 through `Render(stream, fileName)` and `Render(path)`: a Mermaid syntax error is
 `mermaid-error` with the detail code `mermaid-syntax-error`, the location `diagram.mmd` line 2 column 5, and the
 `MermaidSyntaxException` inside; a PlantUML message without a target is `plantuml-error` with `plantuml-syntax-error` at
-line 3; an OpenSCAD syntax error is `scad-error` with `scad-syntax-error` at line 2 column 1; a truncated chart is
+line 3; a MathML element closed by the wrong end tag is `mathml-error` with `mathml-syntax-error` at `eq.mml` line 2
+with a column and the `MathMlSyntaxException` inside, and an empty `.mml` stream is the same error located at line 1,
+column 1; an OpenSCAD syntax error is `scad-error` with `scad-syntax-error` at line 2 column 1; a truncated chart is
 `vega-lite-error` located in its text and not a depth error, and an invalid `type` is located at line 4 and the pointer
 `/encoding/x/type` (neither has a detail code: the library gives a chart error none); malformed SVG markup
 is `corrupt-input` with the line and column of the XML error and no detail code; under `UnderRoots(site)` a chart's
@@ -286,24 +289,24 @@ and `ViewerImage.Page` and `PageCount` report the page drawn and the number of p
 `ViewerException` with the code `page-out-of-range`; that a page of 0, a `Dpi` of 0, NaN or 2401, a width of 0, and a
 bad model option each throw `ArgumentOutOfRangeException` before the stream is read; that a fractional `Dpi` for a Visio
 drawing is a `usage-error`; that `Background` flattens a transparent PDF page and SVG file; that without a background an
-SVG file, a PDF page, a Mermaid diagram, a PlantUML diagram, and a model come back over opaque white, as the tool draws
-them, while an explicit fully transparent background keeps them transparent (and a chart keeps its own); that a raster
-with transparency keeps its alpha by default, also with a transparent margin in a box, while a vector page in a box gets
-a white margin; that a model and a diagram an SVG file embeds are drawn transparent, so only the rendered file gets the
-background; that a model gets its view and variables, reports its anchors, echo, and notes with `Detail` and `Location`;
-that the pixels, format, and notes equal those of `SourceLoader.Load` with the default options of both, for every kind
-including the diagrams, which proves the shared default background; and that a raster in a box is fitted and charged. A
-link of an SVG file that is not drawn (a page that does not exist, an invalid fragment, a missing file, a picture over
-the budget) is a note with its code without `ThrowOnUnsupportedFeature` and an `unsupported-feature` error naming the
-file and the link with it, by path and by stream, also inside a nested SVG file (the message names the nested file) and
-through `SourceLoader` in strict mode; strict mode with only warnings (an unknown fragment parameter) succeeds and draws
-both links. A picture or a PDF page fitted into a box has the chosen `Background` in its margin (transparent for a
-raster without one), a position follows the fit (a resize then a pad, the mapped point where the same pixel lands, a
-lost one stays lost), and a model rendered into a box of another shape reports its anchor inside the returned picture.
-The tool side of the shared default is verified by
-`CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent` (`CanvasNetTool-System-Defaults`).
+SVG file, a PDF page, a Mermaid diagram, a PlantUML diagram, a MathML equation, and a model come back over opaque white,
+as the tool draws them, while an explicit fully transparent background keeps them transparent (and a chart keeps its
+own); that a raster with transparency keeps its alpha by default, also with a transparent margin in a box, while a
+vector page in a box gets a white margin; that a model, a diagram, and an equation an SVG file embeds are drawn
+transparent, so only the rendered file gets the background; that a model gets its view and variables, reports its
+anchors, echo, and notes with `Detail` and `Location`; that the pixels, format, and notes equal those of
+`SourceLoader.Load` with the default options of both, for every kind including the diagrams, which proves the shared
+default background; and that a raster in a box is fitted and charged. A link of an SVG file that is not drawn (a page
+that does not exist, an invalid fragment, a missing file, a picture over the budget) is a note with its code without
+`ThrowOnUnsupportedFeature` and an `unsupported-feature` error naming the file and the link with it, by path and by
+stream, also inside a nested SVG file (the message names the nested file) and through `SourceLoader` in strict mode;
+strict mode with only warnings (an unknown fragment parameter) succeeds and draws both links. A picture or a PDF page
+fitted into a box has the chosen `Background` in its margin (transparent for a raster without one), a position follows
+the fit (a resize then a pad, the mapped point where the same pixel lands, a lost one stays lost), and a model rendered
+into a box of another shape reports its anchor inside the returned picture. The tool side of the shared default is
+verified by `CanvasNetTool_Defaults_ModelAndDiagramBackground_WhiteUnlessTransparent` (`CanvasNetTool-System-Defaults`).
 
-#### CanvasNetViewer-CanvasNetViewer-ResourceLimits: Limits Of Charts And Diagrams Set By The Host
+#### CanvasNetViewer-CanvasNetViewer-ResourceLimits: Limits Of Charts, Diagrams, And Equations Set By The Host
 
 **Tests**: `CanvasNetViewer_Render_LimitsNotSet_AreTheLibraryDefaults`,
 `CanvasNetViewer_Render_LowerVegaLiteLimits_ThrowBudgetExceeded`,
@@ -312,20 +315,25 @@ The tool side of the shared default is verified by
 `CanvasNetViewer_Render_RaisedMermaidLimits_AdmitALargerDiagram`,
 `CanvasNetViewer_Render_LowerPlantUmlLimits_ThrowBudgetExceeded`,
 `CanvasNetViewer_Render_RaisedPlantUmlLimits_AdmitALargerDiagram`,
+`CanvasNetViewer_Render_LowerMathMlLimits_ThrowBudgetExceeded`,
+`CanvasNetViewer_Render_RaisedMathMlLimits_AdmitALargerEquation`,
 `CanvasNetViewer_Render_Limits_ApplyToEmbeddedChartsAndDiagrams` (`CanvasNetViewerRenderOptionsTests.cs`)
 
-Asserts that the three limits are null by default and that a render with them unset draws the same pixels as one with
-the default limits of each library, for a chart, a Mermaid diagram, and a PlantUML diagram. For each format, a source
-that renders by default fails under a lower limit (`MaxDataRows` 2 for a chart of three rows, `MaxNodes` 2 for a
-flowchart of three nodes, `MaxNodes` 1 for a sequence diagram of two participants) with a `ViewerException` of the code
-`budget-exceeded` whose message names the limit (with the detail code `mermaid-limit-exceeded` or
-`plantuml-limit-exceeded` for a diagram), and a source that the default refuses (a chart row of 1,100 fields over
-`MaxFieldCount` 1,024, a Mermaid text over `MaxTextSize` 50,000, a PlantUML diagram of 70 includes over `MaxIncludes`
-64) is refused without the option (with the code and the limit named) and drawn with a raised limit, which proves that
-the probe of the file uses the limit as well as its render. For embedded files, an SVG file that embeds the three-node
-flowchart renders by default and fails with `budget-exceeded` under `MaxNodes` 2 with a message that names both files
-and the limit, and an SVG file that embeds the wide chart fails by default and is drawn without a warning under a
-raised `MaxFieldCount`. The bounds are proved by the specific limit error, never by time.
+Asserts that the four limits are null by default and that a render with them unset draws the same pixels as one with the
+default limits of each library, for a chart, a Mermaid diagram, a PlantUML diagram, and a MathML equation. For each
+format, a source that renders by default fails under a lower limit (`MaxDataRows` 2 for a chart of three rows,
+`MaxNodes` 2 for a flowchart of three nodes, `MaxNodes` 1 for a sequence diagram of two participants) with a
+`ViewerException` of the code `budget-exceeded` whose message names the limit (with the detail code
+`mermaid-limit-exceeded` or `plantuml-limit-exceeded` for a diagram), and a source that the default refuses (a chart row
+of 1,100 fields over `MaxFieldCount` 1,024, a Mermaid text over `MaxTextSize` 50,000, a PlantUML diagram of 70 includes
+over `MaxIncludes` 64) is refused without the option (with the code and the limit named) and drawn with a raised limit,
+which proves that the probe of the file uses the limit as well as its render. For an equation, the quadratic formula
+fails under `MaxElements` 3 with `budget-exceeded`, the detail code `mathml-limit-exceeded`, and the limit named, and an
+equation nested 300 rows deep, refused by default with `MaxNestingDepth` named, is drawn under `MaxNestingDepth` 400.
+For embedded files, an SVG file that embeds the three-node flowchart renders by default and fails with `budget-exceeded`
+under `MaxNodes` 2 with a message that names both files and the limit, and an SVG file that embeds the wide chart fails
+by default and is drawn without a warning under a raised `MaxFieldCount`. The bounds are proved by the specific limit
+error, never by time.
 
 #### CanvasNetViewer-CanvasNetViewer-ExtraSources: Your Own Sources
 

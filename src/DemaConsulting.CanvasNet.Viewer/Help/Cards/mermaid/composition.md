@@ -12,6 +12,7 @@ see-also:
   - svg/composition
   - svg/embedding
   - svg/fragments
+  - mathml/composition
 examples:
   - name: pictures
     kind: snippet
@@ -29,6 +30,9 @@ diagram, or a document page that lies beside the diagram. See the pattern in
 - Write `id@{ img: "part.scad", label: "Part", w: 120, h: 120 }` in a
   flowchart. Give every picture node its `w` and `h`: they keep the layout
   stable, and a probe lays the diagram out without the pictures.
+- An equation is a picture too: `eq@{ img: "quadratic.mml", w: 206, h: 66 }`
+  shows a MathML equation in a node; size it from its natural size (see
+  [[mathml/composition]]).
 - Pick the view or the variant per node with a fragment:
   `img: "part.scad#view=front"`, `img: "chart.vl.json#param.year=2024"`,
   `img: "report.pdf#page=2"` (see [[svg/fragments]]).
@@ -59,7 +63,8 @@ diagram, or a document page that lies beside the diagram. See the pattern in
 - Pictures: an @{ img: "part.png", label, pos, w, h, constraint } node, or an
   `<img src="part.png">` in a label of a flowchart, class, state, or entity
   relationship diagram, shows a raster, an SVG file, an OpenSCAD model, a
-  Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram
+  Vega-Lite chart, a MathML equation, a page of a PDF, PPTX, or VSDX document,
+  or another diagram
   that lies beside the diagram; a link takes the fragments of an SVG link
   (part.scad#def.width=20, flow.mmd#theme=dark; see [[svg]] and the
   pictures example). Give a picture node its w and h, because a probe lays the

@@ -1790,6 +1790,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/mermaid/**"  # original Mermaid fixtures
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/plantuml/**"  # original PlantUML fixtures
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/mathml/**"    # original MathML fixtures
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
 
   # CanvasNetViewer-Imaging-ImageWriter Review (one per unit)

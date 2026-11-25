@@ -55,7 +55,10 @@ public enum SourceKind
     Mermaid,
 
     /// <summary>A PlantUML diagram (<c>.puml</c>, <c>.plantuml</c>, <c>.pu</c>).</summary>
-    PlantUml
+    PlantUml,
+
+    /// <summary>A MathML equation (<c>.mml</c>).</summary>
+    MathMl
 }
 
 /// <summary>
@@ -127,11 +130,22 @@ public static class SourceKindExtensions
     ///     being resampled from pixels.
     /// </summary>
     /// <param name="kind">The kind.</param>
-    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML.</returns>
+    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML.</returns>
     public static bool IsVector(this SourceKind kind)
     {
         return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite
-            or SourceKind.Mermaid or SourceKind.PlantUml;
+            or SourceKind.Mermaid or SourceKind.PlantUml or SourceKind.MathMl;
+    }
+
+    /// <summary>
+    ///     Determines whether a source kind is an equation written as markup, which is described by an
+    ///     <see cref="EquationFacts"/>.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for a MathML equation.</returns>
+    public static bool IsEquation(this SourceKind kind)
+    {
+        return kind == SourceKind.MathMl;
     }
 
     /// <summary>
@@ -315,6 +329,12 @@ public sealed record SourceInfo(
     public DiagramFacts? Diagram { get; init; }
 
     /// <summary>
+    ///     Gets what a MathML equation declares (its display mode, the number of its elements, its text alternative and
+    ///     annotations, and its baseline), or <see langword="null"/> for every other kind.
+    /// </summary>
+    public EquationFacts? Equation { get; init; }
+
+    /// <summary>
     ///     Gets what the fragment of the input chose (<c>part.scad#def.width=20</c>), or <see langword="null"/> when the input
     ///     had none; set by <see cref="SourceLoader.Probe(InputReference)"/>. Every operation that loads the source applies it
     ///     over its options (see <see cref="InputSelection.ApplyTo(SourceOptions)"/>), and <see cref="Path"/> is still the file.
@@ -402,6 +422,27 @@ public sealed record DiagramFacts(
     int NodeCount,
     int EdgeCount,
     int SubgraphCount);
+
+/// <summary>
+///     What a MathML equation declares, read by parsing it (the equation is laid out for its size but not drawn).
+/// </summary>
+/// <remarks>
+///     The facts describe the equation as the probe laid it out: in the display mode the fragment of the input names
+///     (<c>eq.mml#display=inline</c>), or else its own (the <c>display</c> attribute of its <c>math</c> element), at the
+///     natural font size of 16 pixels and scale 1. The width and height of the <see cref="SourceInfo"/> are the natural
+///     size of the same layout.
+/// </remarks>
+/// <param name="Display">The display mode the equation is laid out in: <c>block</c> or <c>inline</c>.</param>
+/// <param name="ElementCount">The number of MathML elements, the <c>math</c> element included (the content of annotations excluded).</param>
+/// <param name="AltText">The text alternative (the <c>alttext</c> attribute of the <c>math</c> element), or <see langword="null"/> when there is none.</param>
+/// <param name="AnnotationEncodings">The <c>encoding</c> of each annotation in document order (for example <c>application/x-tex</c>; an empty string for an annotation without one); empty when there is none.</param>
+/// <param name="Baseline">The row of the alphabetic baseline in the natural picture, in pixels from the top.</param>
+public sealed record EquationFacts(
+    string Display,
+    int ElementCount,
+    string? AltText,
+    IReadOnlyList<string> AnnotationEncodings,
+    int Baseline);
 
 /// <summary>
 ///     A data source named by a Vega-Lite chart.
@@ -609,8 +650,8 @@ public sealed record SourceOptions
     ///         </item>
     ///         <item>
     ///             <description>
-    ///                 An OpenSCAD model is framed to the box (not stretched), and a Vega-Lite chart or a Mermaid diagram
-    ///                 is scaled uniformly and centered over its background.
+    ///                 An OpenSCAD model is framed to the box (not stretched), and a Vega-Lite chart, a Mermaid or PlantUML
+    ///                 diagram, or a MathML equation is scaled uniformly and centered over its background.
     ///             </description>
     ///         </item>
     ///     </list>
@@ -667,6 +708,12 @@ public sealed record SourceOptions
     public DiagramOptions? Mermaid { get; init; }
 
     /// <summary>
+    ///     Gets how a MathML equation is laid out (its display mode), or <see langword="null"/> for the equation's own. The
+    ///     other kinds ignore it.
+    /// </summary>
+    public EquationOptions? MathMl { get; init; }
+
+    /// <summary>
     ///     Gets the selectors of the feature positions to report (<c>--positions</c> of the tool), or
     ///     <see langword="null"/> (default) to report none. A Mermaid diagram and a Vega-Lite chart report the positions
     ///     that match into <see cref="LoadedSource.Positions"/>, at most <see cref="PositionCollector.MaxPositions"/>;
@@ -691,6 +738,21 @@ public sealed record DiagramOptions
     ///     directive still wins. Any other name is refused (<c>usage-error</c>, or <c>image-fragment-invalid</c> in a fragment).
     /// </summary>
     public string? Theme { get; init; }
+}
+
+/// <summary>
+///     How a MathML equation is laid out: what the <c>display=</c> fragment of a link or an input
+///     (<c>eq.mml#display=inline</c>) sets.
+/// </summary>
+public sealed record EquationOptions
+{
+    /// <summary>
+    ///     Gets the display mode - <see cref="DemaConsulting.CanvasNet.MathMl.MathMlDisplay.Block"/> (display style: limits
+    ///     under and over, large operators, full-size fractions) or <see cref="DemaConsulting.CanvasNet.MathMl.MathMlDisplay.Inline"/>
+    ///     (compact) - or <see langword="null"/> for the equation's own (the <c>display</c> attribute of its <c>math</c>
+    ///     element). A value outside the enumeration is refused (<c>usage-error</c>).
+    /// </summary>
+    public DemaConsulting.CanvasNet.MathMl.MathMlDisplay? Display { get; init; }
 }
 
 /// <summary>

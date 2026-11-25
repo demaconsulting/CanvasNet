@@ -105,7 +105,8 @@ software items, specifically:
   allocate, forwards notes, and
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
   ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
-  `PlantUmlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that
+  `PlantUmlImageSource`, `MathMlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the
+  direct unit of that
   package
 - **Positions (Subsystem)** — Feature positions of a rendered picture (where a node, an edge, a bar, or an axis is, so
   that a caller can place a callout without probing pixels), depending only on `ImageSources` (the bare selector values
@@ -463,7 +464,8 @@ software items, specifically:
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
   units and two subsystems. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
-  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML) and the
+  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML) and
+  the
   extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that
   an SVG document can embed every format, renders any file by path or from a stream, returns the feature positions that
   the selectors of its options match for a Mermaid diagram or a Vega-Lite chart (through the core `Positions`
@@ -471,7 +473,8 @@ software items, specifically:
   of their own (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every
   expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which
   recognizes, probes, and loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX
-  documents, views of OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML diagrams, the `ImagePipeline`
+  documents, views of OpenSCAD models, Vega-Lite charts, Mermaid diagrams, PlantUML diagrams, and MathML equations, the
+  `ImagePipeline`
   unit, which crops,
   resizes, fits, rotates by any angle, flips, pads, adjusts, deskews, trims, and grids pixels in the order the
   operations are given, the `GridOverlay` unit, which does the grid work for it (the flip, pad, trim, tone, rotation,
@@ -481,7 +484,8 @@ software items, specifically:
   operation units that chain them: `ImageRenderer` (render the pages of a source), `ImageInspector` (colors and pixels),
   `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
   that other SVG readers can show). It references the core package and the
-  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, Mermaid, and PlantUml packages, is referenced only by the tool, and
+  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, Mermaid, PlantUml, and MathMl packages, is referenced only by the
+  tool, and
   has no plug-in mechanism of its own — see *CanvasNetViewer System Design* (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
@@ -762,40 +766,35 @@ offline renderer of MathML Core equations: its direct unit `MathMlDocument` (nam
 `DemaConsulting.CanvasNet.MathMl`) is the public API, its direct unit `MathMlPainter` paints the laid-out boxes, its
 internal `Syntax` subsystem holds the `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues` units,
 and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`,
-`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`,
-`OperatorDictionary`, and `StretchyGlyphs` units (each in the
-sub-namespace and the sub-folder of its
-name). In the SysML2 model the system is
+`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, `OperatorDictionary`,
+and `StretchyGlyphs` units (each in the sub-namespace and the sub-folder of its name). In the SysML2 model the system is
 `CanvasNetMathMlSystem` and its subsystem and unit `part def` names carry the prefix `MathMl` (`MathMlSyntax`,
 `MathMlReader`, `MathMlCharacterReferences`, `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`,
 `MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`,
 `MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlTableLayout`,
-`MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units
-are `MathMlDocument` and `MathMlPainter`),
-because part def names stay unique across
-the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Packaging`, and
-`ImageSources` subsystems,
-through their public API and, for the OpenType `MATH` table reader and the cached bundled font, through internal friend
-access. See the Folder Layout section below and *CanvasNetMathMl System Design* (`canvas-net-math-ml.md`). A further
-sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet
-package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of
-the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in
-sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML), creates the `FolderImageResolver` of
-the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
-a picture (with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match);
-its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its
-`Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`,
-`ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels
-(grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn
-pixels into files, check the comparison of two images against thresholds, and compose a contact sheet, and the
-`ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the
-render, inspect, compare, montage, and flatten operations; and its `Help` subsystem (namespace
-`DemaConsulting.CanvasNet.Viewer.Help`) holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help
-cards about the formats that a host reads programmatically and extends with its own cards, and the `HelpFrontMatter`
-unit, the parser of a card's front matter. It references the core package and the `CanvasNetSvg`, `CanvasNetPdf`,
-`CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, `CanvasNetMermaid`, and
-`CanvasNetPlantUml` packages; the tool references it. See the Folder Layout section below and *CanvasNetViewer System
-Design* (`canvas-net-viewer.md`).
+`MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units are `MathMlDocument` and `MathMlPainter`),
+because part def names stay unique across the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+`Drawing`, `Fonts`, `Packaging`, and `ImageSources` subsystems, through their public API and, for the OpenType `MATH`
+table reader and the cached bundled font, through internal friend access. See the Folder Layout section below and
+*CanvasNetMathMl System Design* (`canvas-net-math-ml.md`). A further sibling top-level system, `CanvasNetViewer`,
+likewise lives in this same repository and is distributed as its own NuGet package (`DemaConsulting.CanvasNet.Viewer`).
+It aggregates the image sources of every format and is the library form of the `canvasnet` tool: its direct unit
+`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in sources (raster, SVG, PDF, PPTX,
+VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML), creates the `FolderImageResolver` of the core `ImageSources`
+subsystem for one render so that an SVG document can embed all of them, and renders any file as a picture (with the
+feature positions of a diagram or a chart that the core `Positions` selectors of its options match); its direct unit
+`ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its `Imaging` subsystem
+(namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`,
+`ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels (grid, and the
+ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn pixels into
+files, check the comparison of two images against thresholds, and compose a contact sheet, and the `ImageRenderer`,
+`ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the render, inspect,
+compare, montage, and flatten operations; and its `Help` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Help`)
+holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help cards about the formats that a host reads
+programmatically and extends with its own cards, and the `HelpFrontMatter` unit, the parser of a card's front matter. It
+references the core package and the `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`,
+`CanvasNetRender3D`, `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` packages; the
+tool references it. See the Folder Layout section below and *CanvasNetViewer System Design* (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -812,7 +811,7 @@ process for the Lua shim `docs/filters/canvasnet.lua`. It is a thin shell: the c
 `Imaging` subsystem of the `CanvasNetViewer` system with request records built from the command line, and print the
 results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetViewer` systems
+`CanvasNetMermaid`, `CanvasNetPlantUml`, `CanvasNetMathMl`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and *CanvasNetTool System Design* (`canvas-net-tool.md`).
 
@@ -2004,6 +2003,7 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
     ├── SourceLoader.Mermaid.cs    — SourceLoader: Mermaid diagrams
     ├── SourceLoader.PlantUml.cs   — SourceLoader: PlantUML diagrams
+    ├── SourceLoader.MathMl.cs     — SourceLoader: MathML equations
     ├── SourceLoader.Positions.cs  — SourceLoader: the collector of the feature positions and the unmatched selectors
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
@@ -2033,12 +2033,13 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── HelpFrontMatter.cs         — HelpFrontMatter: the strict parser of the YAML front matter of a card
     ├── Cards/                     — HelpCatalog: the embedded library cards, one Markdown file each, in folders that
     │                                mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
-    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, and SVG)
+    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, MathML, SVG)
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, and `CanvasNetPlantUml` packages for the image source each one supplies, the operations of
+`CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` packages for the image source each one supplies, the
+operations of
 `Imaging`, and the limits that the help cards quote; no package references it except the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate

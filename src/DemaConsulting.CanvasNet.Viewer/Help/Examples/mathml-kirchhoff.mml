@@ -1,0 +1,23 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <munderover>
+    <mo>&sum;</mo>
+    <mrow>
+      <mi>k</mi>
+      <mo>=</mo>
+      <mn>1</mn>
+    </mrow>
+    <mi>n</mi>
+  </munderover>
+  <msub><mi>I</mi><mi>k</mi></msub>
+  <mo>=</mo>
+  <mn>0</mn>
+  <mo>,</mo>
+  <mspace width="3em"/>
+  <munder>
+    <mo>&sum;</mo>
+    <mtext>loop</mtext>
+  </munder>
+  <msub><mi>V</mi><mi>k</mi></msub>
+  <mo>=</mo>
+  <mn>0</mn>
+</math>

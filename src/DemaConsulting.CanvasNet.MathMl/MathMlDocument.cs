@@ -20,12 +20,14 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///         reported, not followed.
 ///     </para>
 ///     <para>
-///         <b>Elements.</b> This version draws the token elements (<c>mi</c>, <c>mn</c>, <c>mo</c>, <c>mtext</c>,
-///         <c>ms</c>, <c>mspace</c>), <c>mrow</c> and the grouping elements (<c>mstyle</c>, <c>mpadded</c>,
-///         <c>mphantom</c>, <c>merror</c>, <c>semantics</c>, <c>maction</c>), with the automatic italic of a
-///         single-character <c>mi</c> and every <c>mathvariant</c>. Every other element is laid out as a row of its
-///         children, as MathML Core lays out an unknown element, and reported as
-///         <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>.
+///         <b>Elements.</b> Every element of MathML Core is drawn: the token elements (<c>mi</c>, <c>mn</c>, <c>mo</c>,
+///         <c>mtext</c>, <c>ms</c>, <c>mspace</c>), <c>mrow</c> and the grouping elements (<c>mstyle</c>, <c>mpadded</c>,
+///         <c>mphantom</c>, <c>merror</c>, <c>semantics</c>, <c>maction</c>), fractions and radicals (<c>mfrac</c>,
+///         <c>msqrt</c>, <c>mroot</c>), scripts and limits (<c>msub</c>, <c>msup</c>, <c>msubsup</c>, <c>munder</c>,
+///         <c>mover</c>, <c>munderover</c>, <c>mmultiscripts</c>) and tables (<c>mtable</c>, <c>mtr</c>, <c>mtd</c>), with
+///         the automatic italic of a single-character <c>mi</c> and every <c>mathvariant</c>. An element outside MathML
+///         Core (such as <c>mfenced</c>) is laid out as a row of its children, as MathML Core lays out an unknown element,
+///         and reported as <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety.</b> A document is immutable and safe for concurrent use: it can be measured and rendered from

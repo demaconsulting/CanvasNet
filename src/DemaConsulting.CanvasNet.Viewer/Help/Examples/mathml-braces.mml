@@ -1,0 +1,33 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <munder>
+    <munder>
+      <mrow>
+        <mi>a</mi>
+        <mo>+</mo>
+        <mi>a</mi>
+        <mo>+</mo>
+        <mi>&ctdot;</mi>
+        <mo>+</mo>
+        <mi>a</mi>
+      </mrow>
+      <mo>&#x23DF;</mo>
+    </munder>
+    <mrow>
+      <mi>n</mi>
+      <mspace width="0.25em"/>
+      <mtext>terms</mtext>
+    </mrow>
+  </munder>
+  <mo>=</mo>
+  <mover>
+    <mover>
+      <mrow>
+        <mi>n</mi>
+        <mo>&InvisibleTimes;</mo>
+        <mi>a</mi>
+      </mrow>
+      <mo>&#x23DE;</mo>
+    </mover>
+    <mtext>product</mtext>
+  </mover>
+</math>

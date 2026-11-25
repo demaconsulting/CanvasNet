@@ -15,12 +15,12 @@ and the analysis of colors are core `Surface` operations verified in the `Canvas
 *SurfaceComparison*, and *SurfaceAnalysis Unit Verification Design*). The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 operation uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
-SCAD, Vega-Lite, Mermaid, and PlantUML) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an
-input-by-output matrix of 56 cases -
+SCAD, Vega-Lite, Mermaid, PlantUML, and MathML) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) -
+an input-by-output matrix of 60 cases -
 and the output is decoded with the codec of its format and compared with the pixels the codec or the document library
 decodes or renders from the source (or, for the SVG, with the drawing flattened over white, and for the model, the
 library's orthographic isometric render at 800x800, for the chart, the library's render at its laid-out size, and for
-the diagrams, the library's render at its natural size over white):
+the diagrams and the equation, the library's render at its natural size over white):
 exactly for a lossless
 output, on average for JPEG. Every named view of a model is also written as every output format and compared with the
 library's render for that view (28 cases). The tests generate their inputs in a temporary directory (see
@@ -29,7 +29,11 @@ for the fixture files and for how the PDF, PPTX, and VSDX documents and the mode
 pictures that a chart or a diagram shows (the requirements of the Imaging subsystem for chart and diagram images) are
 verified by the tests of the pictures of the `SourceLoader` unit (`SourceLoaderVegaLiteImageTests.cs` and
 `SourceLoaderMermaidImageTests.cs`; see *SourceLoader Unit Verification Design*), which load real files of every
-linked kind through the resolver of the loader. The file-access policy that every operation passes on
+linked kind through the resolver of the loader. The subsystem test
+`Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds` loads an SVG drawing, a Mermaid
+flowchart, and a Vega-Lite chart that each link the quadratic formula (`eq.mml`) and asserts that each picture shows the
+equation's black ink and that each load lists the equation once as an `embed` operation with the href `eq.mml` and the
+format `mathml`, with nothing reported. The file-access policy that every operation passes on
 (`SourceOptions.FileAccess`, `FlattenRequest.FileAccess`, and `MontageRequest.FileAccess`, by default `AllowAll`) is
 verified at the unit tier: under the default policy the pictures, includes, and data files of the parent folder are
 read, and under `UnderRoots` they are access-denied warnings or `file-access-denied` errors (see the `FileAccess`
@@ -51,10 +55,11 @@ N/A - standard test environment; the tests write only to temporary directories t
 - Sources of several kinds are composed one at a time into a contact sheet with the documented layout and written.
 - The render, inspect, compare, and montage operations chain the loader, the pipeline, and the writer on sources of
   several kinds with the documented results.
+- An equation linked from an SVG drawing, a Mermaid node, or a Vega-Lite image mark is drawn and listed as embedded.
 
 ### Test Scenarios
 
-**Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels**: for each of the 52 combinations the output decodes
+**Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels**: for each of the 60 combinations the output decodes
 to the source pixels - exactly for PNG, BMP, and TIFF outputs, within a mean channel difference of 8 for JPEG (for the
 GIF fixture, a pixel-by-pixel pattern of saturated colors that JPEG's chroma subsampling cannot reproduce, only the
 size is checked).
@@ -129,6 +134,11 @@ layout.
 **Imaging_Flatten_ComposedSvg_ReplacesOnlyCanvasNetImages**: `SvgFlattener` flattens a drawing that links a Mermaid
 diagram, an OpenSCAD model, and a PNG: the diagram and the model (formats `mermaid` and `scad`) become the two PNG data
 URIs of the copy, the PNG link stays, and the copy is an SVG file the loader probes at the size of the drawing.
+
+**Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds**: an SVG drawing, a Mermaid flowchart
+whose node shows the equation, and a Vega-Lite chart whose image mark shows it, each linking the quadratic formula
+`eq.mml`, are loaded with the default options; each picture holds the equation's black ink, each load lists one `embed`
+operation with the href `eq.mml` and the format `mathml`, and nothing is reported.
 
 **Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults**: a `CompareRequest` built from its two
 inputs alone has no resize, the contain fit, the automatic filter, an opaque white background, the default tolerance,

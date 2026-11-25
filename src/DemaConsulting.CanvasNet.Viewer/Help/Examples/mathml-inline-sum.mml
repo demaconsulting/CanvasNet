@@ -1,0 +1,28 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML"
+      alttext="the sum of k for k from 1 to n equals n times n plus 1, over 2">
+  <munderover>
+    <mo>&sum;</mo>
+    <mrow>
+      <mi>k</mi>
+      <mo>=</mo>
+      <mn>1</mn>
+    </mrow>
+    <mi>n</mi>
+  </munderover>
+  <mi>k</mi>
+  <mo>=</mo>
+  <mfrac>
+    <mrow>
+      <mi>n</mi>
+      <mo>&InvisibleTimes;</mo>
+      <mrow>
+        <mo stretchy="false">(</mo>
+        <mi>n</mi>
+        <mo>+</mo>
+        <mn>1</mn>
+        <mo stretchy="false">)</mo>
+      </mrow>
+    </mrow>
+    <mn>2</mn>
+  </mfrac>
+</math>

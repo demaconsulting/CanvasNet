@@ -26,9 +26,9 @@ public class CanvasNetViewerSystemIntegrationTests
         var sources = CanvasNetViewer.ImageSources;
 
         // Assert: one source per format, and the extensions are exactly the union of what they claim
-        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml"], sources.Select(s => s.Name));
+        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml", "mathml"], sources.Select(s => s.Name));
         Assert.Equal(
-            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".mermaid", ".mmd", ".pdf", ".plantuml", ".png", ".pptx", ".pu", ".puml", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
+            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".mermaid", ".mmd", ".mml", ".pdf", ".plantuml", ".png", ".pptx", ".pu", ".puml", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
             CanvasNetViewer.Extensions);
         Assert.Equal(sources.SelectMany(s => s.Extensions).Order(StringComparer.Ordinal), CanvasNetViewer.Extensions);
         Assert.All(sources, s => Assert.Empty(s.Schemes));
@@ -153,6 +153,70 @@ public class CanvasNetViewerSystemIntegrationTests
             y => Enumerable.Range(0, inMermaid.Surface.Width).Any(x => inMermaid.Surface[x, y] == participantFill));
         Assert.Empty(inMermaid.Diagnostics);
         Assert.Equal("seq.puml", Assert.Single(inMermaid.Embedded).Href);
+    }
+
+    /// <summary>
+    ///     Proves that a MathML equation is drawn by the viewer directly (over white by default, in black ink), as the
+    ///     picture of an SVG <c>image</c> (transparent, so the gray of the document shows around it), of a Mermaid node and
+    ///     of a Vega-Lite <c>image</c> mark, that the <c>display</c> fragment of an input chooses the display mode (the
+    ///     inline form of the quadratic formula is smaller), and that a display mode that does not exist refuses the link
+    ///     with <c>image-fragment-invalid</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_MathMlEquation_RendersDirectlyAndEmbeddedInSvgMermaidAndVegaLite()
+    {
+        // Arrange: the quadratic formula, an SVG document that shows it twice (once with a display mode that does not
+        // exist), a Mermaid flowchart whose node shows it, and a Vega-Lite chart whose image mark shows it
+        using var folder = new ViewerTestFolder();
+        var equation = folder.Combine("eq.mml");
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")), equation);
+        folder.WriteText("flow.mmd", "flowchart LR\n    q@{ img: \"eq.mml\", w: 140, h: 50 }\n");
+        var chart = folder.WriteText(
+            "chart.vl.json",
+            "{ \"width\": 200, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+            + "\"mark\": { \"type\": \"image\", \"width\": 140, \"height\": 50 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+            + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+            + "\"url\": { \"value\": \"eq.mml\" } } }");
+        var svg = ViewerFixtures.Svg(ViewerFixtures.Cell("eq.mml", 0) + ViewerFixtures.Cell("eq.mml#display=sideways", 1));
+        var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
+        static bool IsInk(Rgba32 pixel) => pixel.A == 255 && pixel.R < 80 && pixel.G < 80 && pixel.B < 80;
+
+        // Act
+        using var direct = CanvasNetViewer.Render(equation);
+        var block = SourceLoader.Probe(InputReference.Parse(equation));
+        var inline = SourceLoader.Probe(InputReference.Parse(equation + "#display=inline"));
+        using var embedded = ViewerFixtures.RenderSvg(svg, resolver);
+        using var inMermaid = CanvasNetViewer.Render(Path.Combine(folder.Path, "flow.mmd"));
+        using var inChart = CanvasNetViewer.Render(chart);
+
+        // Assert: the direct render is the equation in black over white at its natural size, with no note
+        Assert.Equal("mathml", direct.Format);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), direct.Surface[0, 0]);
+        Assert.Equal((block.Width, block.Height), (direct.Surface.Width, direct.Surface.Height));
+        Assert.Contains(Enumerable.Range(0, direct.Surface.Height), y => Enumerable.Range(0, direct.Surface.Width).Any(x => IsInk(direct.Surface[x, y])));
+        Assert.Empty(direct.Diagnostics);
+
+        // Assert: the display fragment of an input lays the equation out inline, which is smaller
+        Assert.Equal(("block", "inline"), (block.Equation?.Display, inline.Equation?.Display));
+        Assert.True(inline.Height < block.Height);
+
+        // Assert: the first cell shows the equation over the gray of the document, and the second link is refused
+        Assert.Equal(ViewerFixtures.Gray, embedded[2, 2]);
+        Assert.Contains(Enumerable.Range(0, 100), y => Enumerable.Range(0, 100).Any(x => IsInk(embedded[x, y])));
+        Assert.Equal("eq.mml", Assert.Single(resolver.Embedded).Href);
+        var refused = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.FragmentInvalidCode, refused.Code);
+        Assert.Contains("display", refused.Message, StringComparison.Ordinal);
+
+        // Assert: the Mermaid node and the image mark of the chart show the equation, each listed once
+        Assert.Contains(
+            Enumerable.Range(0, inMermaid.Surface.Height),
+            y => Enumerable.Range(0, inMermaid.Surface.Width).Any(x => IsInk(inMermaid.Surface[x, y])));
+        Assert.Equal("eq.mml", Assert.Single(inMermaid.Embedded).Href);
+        Assert.Empty(inMermaid.Diagnostics);
+        Assert.Equal("eq.mml", Assert.Single(inChart.Embedded).Href);
+        Assert.Equal("mathml", Assert.Single(inChart.Embedded).Format);
+        Assert.Empty(inChart.Diagnostics);
     }
 
     /// <summary>

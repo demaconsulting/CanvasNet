@@ -6,12 +6,12 @@
 # package (namespace DemaConsulting.CanvasNet.Viewer) from the perspective of its consumers, without
 # specifying implementation details.
 #
-# CanvasNetViewer is an independent software system, distributed as its own NuGet package. It
-# aggregates the image sources of every CanvasNet format package (CanvasNetSvg, CanvasNetPdf,
-# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite, CanvasNetMermaid, CanvasNetPlantUml) and of the core
-# ImageSources subsystem (the raster source and the folder resolver), so that one call renders any file the
-# library can read and one call creates the resolver that lets an SVG document embed all of them -
-# see docs/design/canvas-net-viewer.md's Dependencies section for details.
+# CanvasNetViewer is an independent software system, distributed as its own NuGet package. It aggregates the image
+# sources of every CanvasNet format package (CanvasNetSvg, CanvasNetPdf, CanvasNetPptx, CanvasNetVsdx, CanvasNetScad,
+# CanvasNetVegaLite, CanvasNetMermaid, CanvasNetPlantUml, CanvasNetMathMl) and of the core ImageSources subsystem (the
+# raster source and the folder resolver), so that one call renders any file the library can read and one call creates
+# the resolver that lets an SVG document embed all of them - see docs/design/canvas-net-viewer.md's Dependencies section
+# for details.
 #
 # The system also contains the Imaging subsystem (namespace DemaConsulting.CanvasNet.Viewer.Imaging), the library
 # form of everything the canvasnet command-line tool does with images (probe, render with transformations, inspect,
@@ -24,9 +24,9 @@ sections:
     requirements:
       - id: CanvasNetViewer-Sources
         title: >-
-          The library shall list the image sources it supports, one for each of the raster, SVG, PDF,
-          PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML formats, in a fixed order that an application
-          cannot change, and the file name extensions they claim as one sorted list.
+          The library shall list the image sources it supports, one for each of the raster, SVG, PDF, PowerPoint, Visio,
+          OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML formats, in a fixed order that an application cannot
+          change, and the file name extensions they claim as one sorted list.
         tags: [system]
         justification: |
           An application, a document, and the command-line tool must agree on which file types can be linked
@@ -106,6 +106,29 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
         tests:
           - CanvasNetViewer_SystemIntegration_PlantUmlDiagram_RendersDirectlyAndEmbeddedInSvgAndMermaid
+
+      - id: CanvasNetViewer-MathMlEquations
+        title: >-
+          The library shall render a MathML Core equation (a .mml file) directly, at its natural size at the default
+          font size of 16 pixels and with the math font bundled with the library, over white unless another background
+          is given, and as a transparent picture of an SVG document, a Mermaid node, or a Vega-Lite image mark, where
+          the display fragment of a link or an input (eq.mml#display=inline) chooses the display mode and any value but
+          block or inline refuses the link with image-fragment-invalid; shall report what an equation declares (its
+          display mode, number of elements, text alternative, annotation encodings, and baseline) without drawing it;
+          and shall report an equation that is not valid as the error mathml-error with its location and library code.
+        tags: [system]
+        justification: |
+          Engineering documents are full of equations; an application that already shows SVG documents, models,
+          charts, and diagrams must show an equation, alone or inside a figure, a diagram, or a chart, with nothing but
+          its file or its link, the same picture on every machine, and with no browser, TeX, or network.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlRender
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlErrors
+          - CanvasNetViewer-Imaging-EquationImages
+        tests:
+          - CanvasNetViewer_SystemIntegration_MathMlEquation_RendersDirectlyAndEmbeddedInSvgMermaidAndVegaLite
 
       - id: CanvasNetViewer-Render
         title: >-

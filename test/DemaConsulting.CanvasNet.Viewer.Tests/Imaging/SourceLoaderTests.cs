@@ -26,7 +26,7 @@ public class SourceLoaderTests
         get
         {
             var data = new TheoryData<string, string>();
-            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid" and not "plantuml"))
+            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid" and not "plantuml" and not "mathml"))
             {
                 foreach (var damage in new[] { "empty", "garbage", "one-byte", "header-only", "half", "missing-last-byte" })
                 {
@@ -34,8 +34,8 @@ public class SourceLoaderTests
                 }
             }
 
-            // A model or a diagram is text, so cutting it often leaves a valid (shorter) one: SourceLoaderScadTests and
-            // SourceLoaderMermaidTests do their own sweeps
+            // A model, a diagram or an equation is text, so cutting it often leaves a valid (shorter) one: SourceLoaderScadTests,
+            // SourceLoaderMermaidTests and SourceLoaderMathMlTests do their own sweeps
             return data;
         }
     }
@@ -184,6 +184,8 @@ public class SourceLoaderTests
     [InlineData(".puml", "plantuml")]
     [InlineData(".PlantUML", "plantuml")]
     [InlineData(".pu", "plantuml")]
+    [InlineData(".mml", "mathml")]
+    [InlineData(".MML", "mathml")]
     public void SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension(string extension, string expected)
     {
         // Arrange: a file with content no signature matches
@@ -332,7 +334,7 @@ public class SourceLoaderTests
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
-            "vega-lite" or "mermaid" or "plantuml" => (info.Width, info.Height),
+            "vega-lite" or "mermaid" or "plantuml" or "mathml" => (info.Width, info.Height),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -904,6 +906,7 @@ public class SourceLoaderTests
             "vega-lite" => ErrorCodes.VegaLiteError,
             "mermaid" => ErrorCodes.MermaidError,
             "plantuml" => ErrorCodes.PlantUmlError,
+            "mathml" => ErrorCodes.MathMlError,
             _ => ErrorCodes.CorruptInput
         };
         Assert.Equal(expectedCode, exception.Code);

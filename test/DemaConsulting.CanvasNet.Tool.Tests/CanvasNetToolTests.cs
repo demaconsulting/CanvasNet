@@ -968,19 +968,20 @@ public partial class CanvasNetToolTests
         cases.Add((text, "unsupported-format"));
         foreach (var (key, extension) in FixtureFactory.Sources)
         {
-            // A model or a diagram is text: a truncated one is usually still valid, so only the garbage case applies to it
+            // A model or a diagram is text: a truncated one is usually still valid, so only the garbage case applies to it; a
+            // truncated equation is unclosed XML, a MathML error
             if (key is not "scad" and not "mermaid" and not "plantuml")
             {
                 var truncated = FixtureFactory.WriteSource(directory.Path, key);
                 File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
                 var renamed = directory.Combine($"truncated-{key}{extension}");
                 File.Move(truncated, renamed);
-                cases.Add((renamed, key == "vega-lite" ? "vega-lite-error" : "corrupt-input"));
+                cases.Add((renamed, key switch { "vega-lite" => "vega-lite-error", "mathml" => "mathml-error", _ => "corrupt-input" }));
             }
 
             var garbage = directory.Combine($"garbage-{key}{extension}");
             File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(200));
-            cases.Add((garbage, key switch { "scad" => "scad-error", "vega-lite" => "vega-lite-error", "mermaid" => "mermaid-error", "plantuml" => "plantuml-error", _ => "corrupt-input" }));
+            cases.Add((garbage, key switch { "scad" => "scad-error", "vega-lite" => "vega-lite-error", "mermaid" => "mermaid-error", "plantuml" => "plantuml-error", "mathml" => "mathml-error", _ => "corrupt-input" }));
         }
 
         foreach (var (input, code) in cases)

@@ -2,6 +2,7 @@ using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Positions;
@@ -29,7 +30,7 @@ public class CanvasNetViewerTests
         var extensions = CanvasNetViewer.Extensions;
 
         // Assert
-        Assert.Equal(9, sources.Count);
+        Assert.Equal(10, sources.Count);
         Assert.Same(sources, CanvasNetViewer.ImageSources);
         Assert.False(sources is IList<IImageSource> { IsReadOnly: false });
         Assert.Equal(extensions.Order(StringComparer.Ordinal), extensions);
@@ -53,6 +54,8 @@ public class CanvasNetViewerTests
     [InlineData(5)]
     [InlineData(6)]
     [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
     public void CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly(int index)
     {
         // Arrange
@@ -761,6 +764,33 @@ public class CanvasNetViewerTests
         Assert.Equal((ErrorCodes.PlantUmlError, inner.Code), (ex.Code, ex.DetailCode));
         Assert.Equal("plantuml-syntax-error", ex.DetailCode);
         Assert.Equal(("flow.puml", 3), (ex.Location?.File, ex.Location?.Line));
+    }
+
+    /// <summary>
+    ///     Test that a MathML syntax error is a <see cref="ViewerException"/> with the code of the tool, the line and column
+    ///     in <see cref="ViewerException.Location"/>, the library's code in <see cref="ViewerException.DetailCode"/>, and the
+    ///     library exception inside, and that an empty equation file is the same error located at line 1, column 1.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MathMlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode()
+    {
+        // Arrange: an mi that is never closed, on the second line, and an empty file
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("<math>\n  <mi>x</mo>\n</math>\n"));
+        using var empty = new MemoryStream();
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(stream, "eq.mml"));
+        var emptyEx = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(empty, "empty.mml"));
+
+        // Assert
+        var inner = Assert.IsType<MathMlSyntaxException>(ex.InnerException);
+        Assert.Equal((ErrorCodes.MathMlError, inner.Code), (ex.Code, ex.DetailCode));
+        Assert.Equal("mathml-syntax-error", ex.DetailCode);
+        Assert.Equal(("eq.mml", 2), (ex.Location?.File, ex.Location?.Line));
+        Assert.NotNull(ex.Location?.Column);
+        Assert.Contains("MathML syntax error: eq.mml:2:", ex.Message, StringComparison.Ordinal);
+        Assert.Equal((ErrorCodes.MathMlError, "mathml-syntax-error"), (emptyEx.Code, emptyEx.DetailCode));
+        Assert.Equal(new ImageDiagnosticLocation("empty.mml", 1, 1, null), emptyEx.Location);
     }
 
     /// <summary>

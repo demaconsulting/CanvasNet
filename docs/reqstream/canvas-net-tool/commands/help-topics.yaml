@@ -17,8 +17,9 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
           The HelpTopics class shall provide a tree of help cards made of the library help catalog of the Viewer, the
-          tool's own cards, and the tool's command-line sections of library cards, whose root cards are the seventeen
-          topics scad, vega-lite, mermaid, plantuml, svg, pdf, pptx, vsdx, raster, style, composition, positions, json,
+          tool's own cards, and the tool's command-line sections of library cards, whose root cards are the eighteen
+          topics scad, vega-lite, mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster, style, composition,
+          positions, json,
           errors, limits, files, and pandoc, in that fixed order, each card with a title, a one-line summary, tags, and
           a body, shall resolve a card by a path of names or aliases (a root, then a card below each previous one,
           ignoring case, with the words separate or joined by a slash), and shall give no root a name or alias that is
@@ -94,7 +95,8 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-FormatContent
         title: >-
-          The HelpTopics class shall give the cards of each input format (scad, vega-lite, mermaid, plantuml, svg, pdf,
+          The HelpTopics class shall give the cards of each input format (scad, vega-lite, mermaid, plantuml, mathml,
+          svg, pdf,
           pptx, vsdx, and raster) the sections of what is supported, what is not supported, the options that apply,
           the diagnostics and how the strict option treats them, and the known differences from the original program,
           and at least two examples, command examples included.

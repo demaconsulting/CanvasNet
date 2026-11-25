@@ -1,0 +1,24 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msubsup>
+    <mo>&int;</mo>
+    <mrow>
+      <mo>&minus;</mo>
+      <mi>&infin;</mi>
+    </mrow>
+    <mi>&infin;</mi>
+  </msubsup>
+  <msup>
+    <mi>e</mi>
+    <mrow>
+      <mo>&minus;</mo>
+      <msup><mi>x</mi><mn>2</mn></msup>
+    </mrow>
+  </msup>
+  <mspace width="0.1667em"/>
+  <mi mathvariant="normal">d</mi>
+  <mi>x</mi>
+  <mo>=</mo>
+  <msqrt>
+    <mi>&pi;</mi>
+  </msqrt>
+</math>

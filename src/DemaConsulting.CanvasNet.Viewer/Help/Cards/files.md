@@ -51,6 +51,8 @@ the diagnostics of a denial.
 - `inputs`: The file that is rendered is never judged by the policy, only the
   files it references: images, pictures, data files, includes, and linked pages,
   at every level.
+- `equations`: A MathML equation reads no other file: its links (href) are
+  reported and never followed, in every mode.
 - `never read`: A network URL (http:, https:, and other schemes), a UNC or
   network path, a file: URI with a host, a device path, an alternate data
   stream, and anything that is not a regular file are never read.

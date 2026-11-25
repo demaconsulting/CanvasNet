@@ -25,8 +25,8 @@ see-also:
 ---
 
 A common subset of SVG, drawn sharply at the target size. An image can embed a
-picture, another SVG file, a model, a chart, a Mermaid or PlantUML diagram, or a
-document page, named relative to the SVG file.
+picture, another SVG file, a model, a chart, a Mermaid or PlantUML diagram, a
+MathML equation, or a document page, named relative to the SVG file.
 
 Use an SVG file as the layout of a page: draw titles, captions, and frames in
 SVG, and place every diagram, chart, model, or document page with

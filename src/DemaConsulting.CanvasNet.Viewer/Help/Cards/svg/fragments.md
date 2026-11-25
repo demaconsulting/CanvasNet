@@ -27,11 +27,12 @@ examples:
   named view, iso without one), and projection=ortho|orthographic|perspective
   chooses the projection like `ScadViewOptions.Perspective`. A Mermaid diagram
   takes theme=default|base|dark|forest|neutral (flow.mmd#theme=dark), like
-  `DiagramOptions.Theme`. A raster, an SVG file, and a PlantUML diagram take no
-  parameter. A model and a chart also take the prefixed parameters of variable
-  fragment below. If a name is given twice with different values the last one
-  wins, with a warning. A fragment is at most {{fragmentMaxLength}} characters
-  and {{fragmentMaxParameters}} parameters.
+  `DiagramOptions.Theme`. A MathML equation takes display=block|inline
+  (eq.mml#display=inline), like `EquationOptions.Display`. A raster, an SVG
+  file, and a PlantUML diagram take no parameter. A model and a chart also take
+  the prefixed parameters of variable fragment below. If a name is given twice
+  with different values the last one wins, with a warning. A fragment is at most
+  {{fragmentMaxLength}} characters and {{fragmentMaxParameters}} parameters.
 - **variable fragment**: A model and a chart take parameters whose name starts
   with a prefix, so they never collide with the names above. A model:
   def.<name>=<value> sets the variable <name> of the model exactly like an entry
@@ -61,9 +62,10 @@ examples:
 - **input fragment**: The path of an input takes the same fragment when it is
   named with `InputReference.Parse` for the operations of the Imaging namespace
   (report.pdf#page=3, chart.vl.json#param.t=5, flow.mmd#theme=dark,
-  part.scad#def.explode=0), with the same parameters and values as a link; it
-  overrides the page, the view, the angles, the projection, the theme, the
-  variables, and the parameters of the options for that input (a variable or a
+  part.scad#def.explode=0, eq.mml#display=inline), with the same parameters
+  and values as a link; it overrides the page, the view, the angles, the
+  projection, the theme, the display mode, the variables, and the parameters
+  of the options for that input (a variable or a
   param by name). The # starts a fragment only when no file has that exact name
   (a file called chart#2.png keeps working); when the name before the # is a
   file, the longest such name is used. A value that cannot be used (the same

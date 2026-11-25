@@ -1,5 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.MathMl.Layout;
 
@@ -896,6 +897,66 @@ public class MathMlSystemIntegrationTests
         Assert.Equal(2, unsupported.Count);
         Assert.All(unsupported, report => Assert.Equal(MathMlDiagnosticCodes.AttributeUnsupported, report.Feature));
         Assert.All(unsupported, report => Assert.Contains("not followed", report.Message, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates the cancellation requirement through the composition hook: a folder resolver whose token is canceled
+    ///     before the render stops the MathML image source before any work, with an <see cref="OperationCanceledException"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_ImageSource_PreCanceledRequest_Throws()
+    {
+        // Arrange
+        var folder = Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference");
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        var resolver = new FolderImageResolver(
+            folder,
+            [new MathMlImageSource()],
+            new FolderImageResolverOptions { CancellationToken = canceled.Token });
+
+        // Act / Assert
+        Assert.ThrowsAny<OperationCanceledException>(() => resolver.Render("table-matrix.mml"));
+    }
+
+    /// <summary>
+    ///     Validates the offline requirement through the composition hook: an equation whose tokens link to another file
+    ///     and to a web address is drawn by the MathML image source from the content of its request alone, so the
+    ///     file-access policy of the folder resolver is asked about the linked equation only, the other file is never
+    ///     opened, and the links are reported.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_ImageSource_ReadsOnlyTheRequestContent()
+    {
+        // Arrange: an equation that links a file beside it and a web address, and a policy that records every file
+        var folder = Directory.CreateTempSubdirectory("canvasnet-mathml-");
+        try
+        {
+            File.WriteAllText(Path.Combine(folder.FullName, "decoy.mml"), "<math><mi>d</mi></math>");
+            File.WriteAllText(
+                Path.Combine(folder.FullName, "linked.mml"),
+                "<math xmlns:xlink=\"http://www.w3.org/1999/xlink\"><mi href=\"decoy.mml\">x</mi><mi xlink:href=\"https://example.invalid/y\">y</mi></math>");
+            var asked = new System.Collections.Concurrent.ConcurrentBag<string>();
+            var policy = FileAccessPolicy.FromDelegate("record", request =>
+            {
+                asked.Add(Path.GetFileName(request.RealPath));
+                return FileAccessDecision.Allow;
+            });
+            var resolver = new FolderImageResolver(folder.FullName, [new MathMlImageSource()], new FolderImageResolverOptions { FileAccess = policy });
+
+            // Act
+            using var surface = resolver.Resolve("linked.mml", 100, 40);
+
+            // Assert
+            Assert.NotNull(surface);
+            Assert.NotEmpty(asked);
+            Assert.All(asked, name => Assert.Equal("linked.mml", name));
+            Assert.Equal(2, resolver.Diagnostics.Count(note => note.Code == MathMlDiagnosticCodes.AttributeUnsupported));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
     }
 
     /// <summary>

@@ -38,10 +38,9 @@ a video frame: it is a plain class in the test project that returns a differentl
 
 **Test**: `CanvasNetViewer_SystemIntegration_ImageSources_ListEveryFormat`
 
-Asserts that the list holds the nine sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`,
-`mermaid`, `plantuml`), that `Extensions` is exactly the sorted union of their claims (the twenty-two extensions,
-`.mmd`,
-`.mermaid`, `.puml`, `.plantuml`, and `.pu` included), and that no built-in source
+Asserts that the list holds the ten sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`,
+`mermaid`, `plantuml`, `mathml`), that `Extensions` is exactly the sorted union of their claims (the twenty-three
+extensions, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, and `.mml` included), and that no built-in source
 claims a URI scheme (so `http` and `https` links stay unresolved). Serves as the shared platform-proof test referenced
 by every `CanvasNetViewer-Platform-*` requirement.
 
@@ -96,6 +95,21 @@ of the format `plantuml`, and the theme of the second link is the one warning `i
 PlantUML source takes no fragment parameter); and that the Mermaid flowchart shows the participant fill in its node
 with no note and lists the diagram once among its embedded images (the flowchart measures the picture before drawing
 it, and only the draw is listed).
+
+### Integration: MathML Equation Renders Directly And Embedded In SVG, Mermaid, And Vega-Lite
+
+**Test**: `CanvasNetViewer_SystemIntegration_MathMlEquation_RendersDirectlyAndEmbeddedInSvgMermaidAndVegaLite`
+
+Copies the quadratic formula (`eq.mml`, which says `display="block"`) beside a Mermaid flowchart whose one node shows it
+(`q@{ img: "eq.mml", w: 140, h: 50 }`), a Vega-Lite chart whose `image` mark shows it, and an SVG document that links it
+as `eq.mml` and as `eq.mml#display=sideways`. Renders the equation with `Render` by path, probes it with and without
+`#display=inline`, renders the SVG document with the resolver of `CreateImageResolver`, and renders the flowchart and
+the chart with `Render` by path. Asserts that the direct render has the format `mathml`, an opaque white corner, the
+probed size, black ink, and no note; that the inline probe reports `inline` and is lower than the block probe; that the
+first cell of the SVG document shows the ink over the gray of the document (the embedded equation is transparent), it is
+the one embedded image, and the second link is refused with the one note `image-fragment-invalid` naming `display`; and
+that the Mermaid node and the chart's image mark each show the ink with no note and list the equation once among their
+embedded images, with the format `mathml`.
 
 ### Integration: Custom Source For New Extension Is Embedded
 

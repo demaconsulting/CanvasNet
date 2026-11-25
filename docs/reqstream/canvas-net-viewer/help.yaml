@@ -120,6 +120,9 @@ sections:
           - CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
           - CanvasNetViewer-Help-HelpCatalog-PlantUml
           - CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-MathMl
+          - CanvasNetViewer-Help-HelpCatalog-MathMlGuideParity
+          - CanvasNetViewer-Help-HelpCatalog-MathMlEquations
           - CanvasNetViewer-Help-HelpCatalog-Positions
           - CanvasNetViewer-Help-HelpCatalog-Bindings
         tests:

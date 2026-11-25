@@ -93,6 +93,8 @@ public partial class HelpTopicsTests
             ["vl"] = "vega-lite",
             ["mmd"] = "mermaid",
             ["puml"] = "plantuml",
+            ["mml"] = "mathml",
+            ["equation"] = "mathml",
             ["powerpoint"] = "pptx",
             ["visio"] = "vsdx",
             ["png"] = "raster",

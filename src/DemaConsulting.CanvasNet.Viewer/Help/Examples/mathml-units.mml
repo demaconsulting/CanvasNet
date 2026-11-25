@@ -1,0 +1,35 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>g</mi>
+  <mo>=</mo>
+  <mn>9.81</mn>
+  <mspace width="0.1667em"/>
+  <mi mathvariant="normal">m</mi>
+  <mo>/</mo>
+  <msup><mi mathvariant="normal">s</mi><mn>2</mn></msup>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>T</mi>
+  <mo>=</mo>
+  <mrow>
+    <mo>&minus;</mo>
+    <mn>40</mn>
+  </mrow>
+  <mspace width="0.1667em"/>
+  <mi>&deg;C</mi>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>R</mi>
+  <mo>=</mo>
+  <mn>4.7</mn>
+  <mspace width="0.1667em"/>
+  <mi>k&Omega;</mi>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>E</mi>
+  <mo>=</mo>
+  <mn>2.1</mn>
+  <mo>&times;</mo>
+  <msup><mn>10</mn><mn>11</mn></msup>
+  <mspace width="0.1667em"/>
+  <mi>Pa</mi>
+</math>

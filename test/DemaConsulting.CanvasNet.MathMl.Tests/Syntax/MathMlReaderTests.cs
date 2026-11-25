@@ -41,6 +41,25 @@ public class MathMlReaderTests
     }
 
     /// <summary>
+    ///     Validates that a text with no markup at all (empty, or only white space) is a syntax error located at line 1,
+    ///     column 1, so that every reading failure points at a place in the file.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_EmptyOrBlankText_FailsAtLineOneColumnOne()
+    {
+        // Act
+        var empty = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(string.Empty, "empty.mml", MathMlLimits.Default));
+        var blank = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read("  \n\t\n", "blank.mml", MathMlLimits.Default));
+
+        // Assert
+        Assert.Equal(new MathMlLocation("empty.mml", 1, 1), empty.Location);
+        Assert.Equal(new MathMlLocation("blank.mml", 1, 1), blank.Location);
+        Assert.Equal(MathMlDiagnosticCodes.SyntaxError, empty.Code);
+        Assert.StartsWith("blank.mml:1:1: mathml-syntax-error", blank.Message, StringComparison.Ordinal);
+        Assert.NotNull(blank.Hint);
+    }
+
+    /// <summary>
     ///     Validates that an element of another namespace and markup inside a token are skipped with their subtrees and
     ///     reported at their locations.
     /// </summary>

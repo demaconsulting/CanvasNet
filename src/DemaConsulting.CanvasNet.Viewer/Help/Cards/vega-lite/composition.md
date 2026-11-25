@@ -13,6 +13,7 @@ see-also:
   - svg/composition
   - svg/embedding
   - svg/fragments
+  - mathml/composition
 ---
 
 Choose where the charts meet: in one Vega-Lite specification when they share
@@ -44,7 +45,8 @@ pages, and text.
 - Pictures: the image mark shows the files named by its url channel (a field, a
   datum, or a value) or its url property: a raster (PNG, JPEG, and the other
   formats), an SVG file, a .scad model, a page of a document
-  ("report.pdf#page=2"), a Mermaid diagram, or another chart. Files are named
+  ("report.pdf#page=2"), a Mermaid diagram, a MathML equation (see
+  [[mathml/composition]]), or another chart. Files are named
   relative to the folder of the chart, and nothing is fetched from the network.
   The position, width, height, aspect (true by default), align, baseline,
   smooth, and opacity of the mark follow Vega-Lite; see [[svg]] for

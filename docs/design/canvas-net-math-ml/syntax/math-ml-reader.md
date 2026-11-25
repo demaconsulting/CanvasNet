@@ -29,7 +29,8 @@ The unit's behavior is specified by the `CanvasNetMathMl-Syntax-MathMlReader-*` 
   cap)` where the cap is the length of the rewritten text plus one (at most 9/4 of the original, which was already
   checked against `MaxTextSize`), and runs the state over every node. An `XmlException` is mapped to a
   `mathml-syntax-error` at its position mapped back (or at the document type declaration the pre-pass recorded, when the
-  reader refused it without a line), with the position suffix of its message removed and a hint (for a document type:
+  reader refused it without a line, or at line 1, column 1 for a text with no markup at all, empty or blank, which the
+  reader refuses without a line too), with the position suffix of its message removed and a hint (for a document type:
   remove the declaration, because the W3C named references are built in; otherwise: close every element and escape a
   literal `&` or `<`).
 - Start of an element - the first element must be `math` in the MathML namespace or in no namespace, else a located

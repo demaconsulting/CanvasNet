@@ -3,7 +3,8 @@
 #### Verification Approach
 
 `HelpCatalog` is verified with unit tests in `HelpCatalogTests.cs` and its partial files (`HelpCatalogTests.Content.cs`,
-`.Library.cs`, `.Guidance.cs`, `.Positions.cs`, `.Triggers.cs`, and `.Bindings.cs`) in the Viewer test project, at two
+`.Library.cs`, `.Guidance.cs`, `.Positions.cs`, `.Triggers.cs`, `.Bindings.cs`, and `.MathMl.cs`) in the Viewer test
+project, at two
 levels:
 
 - **The mechanics** (`HelpCatalogTests.cs`): small in-memory catalogs built through the internal seams
@@ -15,11 +16,11 @@ levels:
   (the tokens are the constants, the error codes are those of `ErrorCodes`, the cited diagnostic identifiers exist, the
   extensions are those of `CanvasNetViewer`, the position limits are those of the `Positions` subsystem), against the
   renderer (every source example and snippet renders in strict mode without a diagnostic, and the advice of the style,
-  composition, framed-figure, arrows, positions, and bindings cards is checked by rendering), and against the Mermaid
-  and PlantUML user guides (row for row). The examples are rendered through the public API: `CanvasNetViewer.Render`
-  with `ViewerRenderOptions.ThrowOnUnsupportedFeature`, and, where the test needs the operations the tool uses (the
-  embed operations of a snippet, the strict failure with the code `unsupported-feature`, a theme), `SourceLoader.Load`
-  with `SourceOptions.Strict`.
+  composition, framed-figure, arrows, positions, and bindings cards is checked by rendering), and against the Mermaid,
+  PlantUML, and MathML user guides (row for row). The examples are rendered through the public API:
+  `CanvasNetViewer.Render` with `ViewerRenderOptions.ThrowOnUnsupportedFeature`, and, where the test needs the
+  operations the tool uses (the embed operations of a snippet, the strict failure with the code `unsupported-feature`, a
+  theme), `SourceLoader.Load` with `SourceOptions.Strict`.
 
 `HelpCardText.cs` is a test helper that reads the `Markdown` of a library card, its bullets and sections, and saves an
 example and its sibling files into a temporary folder. Nothing is mocked: the libraries the examples use are the real
@@ -27,10 +28,10 @@ format packages.
 
 #### Test Environment
 
-The guide-parity tests read `docs/user_guide/canvas-net-mermaid.md` and `docs/user_guide/canvas-net-plant-uml.md`,
-found by walking up from the test output folder to the folder that holds `CanvasNet.slnx` (`build.ps1 -Changed`
-selects the Viewer tests when either guide changes). The rendering tests write the examples and their sibling files
-to temporary folders that each test deletes.
+The guide-parity tests read `docs/user_guide/canvas-net-mermaid.md`, `docs/user_guide/canvas-net-plant-uml.md`, and
+`docs/user_guide/canvas-net-math-ml.md`, found by walking up from the test output folder to the folder that holds
+`CanvasNet.slnx` (`build.ps1 -Changed` selects the Viewer tests when any of these guides changes). The rendering tests
+write the examples and their sibling files to temporary folders that each test deletes.
 
 #### Acceptance Criteria
 
@@ -195,6 +196,28 @@ bullets, and the code lists, equal the user guides item for item and in order, c
 eight for states, six for use cases and components, and four for deployments) are the `## Supported` bullets of
 `plantuml/sequence`, `plantuml/activity`, `plantuml/class`, `plantuml/object`, `plantuml/state`, `plantuml/usecase`,
 `plantuml/component`, and `plantuml/deployment`.
+
+**MathML.** **HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics** and
+**HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics**: every whole equation (a fenced `xml` block
+that starts with `<math`) of the MathML cards and of the MathML user guide renders through `CanvasNetViewer.Render` in
+strict mode with a picture and without a diagnostic (fragments of single elements are not rendered).
+**HelpCatalog_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation**: the SVG figure, the Mermaid flowchart, and
+the Vega-Lite chart of `mathml/composition` render in strict mode beside the quadratic example without a diagnostic,
+each drawing the equation once, and the natural size the card quotes is the size a probe reports.
+**HelpCatalog_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers**: every `mathml-*` code that `mathml/diagnostics`
+and `mathml/unsupported` list is reported by a trigger written in the test - as a warning note with the code as its
+detail, as an unsupported note, or as the error the card names with the code as its detail code; only the generic
+warning code and the code of an internal layout failure have no trigger.
+**HelpCatalog_MathMlPitfalls_StretchyFalseParentheses_AreNarrower**: on the real layout, `f(x)` with `stretchy="false"`
+parentheses is narrower than with stretchy ones, and `= -40` with the negative number in its own row is narrower than
+with the minus spaced as a binary operator, as `mathml/pitfalls` says.
+**HelpCatalog_MathMlCards_CoverTheAuthoringTasks**: each authoring-task card (basics, fractions, scripts,
+large-operators, fences, matrices, aligned, units, symbols, accents, formulas, style, and pitfalls) exists below
+`mathml` with at least one source example, the root links the pitfalls and composition cards, the format cards have
+their five sections, and every example of the tree is a source example in a `.mml` file.
+**HelpCatalog_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide**: the `## Supported` bullets of `mathml/elements`
+and `mathml/attributes` equal the items of the guide's element and attribute lists, item for item and in order, code
+spans included, and every item of the guide's code list is a bullet of `mathml/unsupported` or `mathml/diagnostics`.
 
 **Positions and bindings.** **HelpCatalog_PositionsCard_IsInTheTreeAndLinked**,
 **HelpCatalog_PositionsLimits_AreTheLimitsOfTheCode**,

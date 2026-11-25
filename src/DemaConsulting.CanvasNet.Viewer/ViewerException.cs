@@ -65,6 +65,9 @@ public static class ErrorCodes
     /// <summary>A PlantUML diagram has a syntax error, an include that cannot be read, or cannot be laid out or drawn.</summary>
     public const string PlantUmlError = "plantuml-error";
 
+    /// <summary>A MathML equation has a syntax error or cannot be laid out or drawn.</summary>
+    public const string MathMlError = "mathml-error";
+
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
 
@@ -151,7 +154,8 @@ public class ViewerException : InvalidOperationException
     /// <remarks>
     ///     Set for a failure of the source of a file: a syntax or evaluation error of an OpenSCAD model, an error of a
     ///     Vega-Lite chart (with the JSON pointer of the property when the library knows it), an error of a Mermaid or a
-    ///     PlantUML diagram, an unsupported feature the library located, and malformed XML of an SVG file. The file is the
+    ///     PlantUML diagram or of a MathML equation, an unsupported feature the library located, and malformed XML of an
+    ///     SVG file. The file is the
     ///     name the library reports (the file name for a stream), and the line and column count from 1; any part the
     ///     library does not know is <see langword="null"/>. A failure that has no place in a source (a missing file, a
     ///     size or pixel limit) has no location.
@@ -164,7 +168,7 @@ public class ViewerException : InvalidOperationException
     /// <remarks>
     ///     <see cref="Code"/> is the stable code that is the same for every format (<c>mermaid-error</c>); this is the
     ///     finer code of the library: for example <c>mermaid-syntax-error</c>, <c>plantuml-syntax-error</c>,
-    ///     <c>scad-syntax-error</c>, or the name of the feature of an <c>unsupported-feature</c> failure (a <c>vl-*</c>
+    ///     <c>mathml-syntax-error</c>, <c>scad-syntax-error</c>, or the name of the feature of an <c>unsupported-feature</c> failure (a <c>vl-*</c>
     ///     identifier for a chart). A Vega-Lite specification or render error, malformed SVG markup, and the failures
     ///     that do not come from a format library have none.
     /// </remarks>

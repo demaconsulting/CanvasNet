@@ -38,10 +38,12 @@ public static class MathMlDiagnosticCodes
     public const string RenderFailed = "mathml-render-failed";
 
     /// <summary>
-    ///     An element is not drawn by this version (an element of MathML Core that a later version draws, such as a
-    ///     script or a table, an element of full MathML that MathML Core does not define, or an element of another
-    ///     namespace): it is laid out as an <c>mrow</c> of its children, or skipped when it belongs to another namespace
-    ///     (<see cref="MathMlUnsupportedFeature"/>).
+    ///     An element is outside MathML Core (an element of MathML 4 Full that MathML Core does not define, such as
+    ///     <c>mfenced</c>, <c>menclose</c> or <c>mlabeledtr</c>, an element of another namespace, or an element inside a
+    ///     token), or text stands directly inside a layout element: the element is laid out as an <c>mrow</c> of its
+    ///     children, as MathML Core lays out an unknown element, an element of another namespace or inside a token is
+    ///     skipped with its subtree, and stray text is drawn like an <c>mtext</c> (<see cref="MathMlUnsupportedFeature"/>).
+    ///     Every element of MathML Core is drawn.
     /// </summary>
     public const string ElementUnsupported = "mathml-element-unsupported";
 
