@@ -909,6 +909,7 @@ sections:
         tests:
           - CanvasNetTool_MathMl_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_MathMl_SyntaxError_IsMathMlErrorWithLocation
+          - CanvasNetTool_MathMl_ToolGuideBlocks_RenderStrictWithoutDiagnostics
           - CanvasNetTool_RenderMathMl
 
       - id: CanvasNetTool-System-SvgEmbed

@@ -1,8 +1,7 @@
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
-  <mover accent="true">
-    <mi>f</mi>
-    <mo>&#x2C6;</mo>
-  </mover>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="the Fourier transform of f at xi equals the integral from minus infinity to infinity of f of x times e to the minus 2 pi i x xi, d x">
+  <mi mathvariant="script">F</mi>
+  <mrow><mo stretchy="false">{</mo><mi>f</mi><mo stretchy="false">}</mo></mrow>
   <mrow><mo stretchy="false">(</mo><mi>&xi;</mi><mo stretchy="false">)</mo></mrow>
   <mo>=</mo>
   <msubsup>

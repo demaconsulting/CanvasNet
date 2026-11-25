@@ -106,10 +106,15 @@ and that no element of MathML Core is reported.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-HiddenElements: No Box
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_HiddenElements_GetNoBox`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_HiddenElements_GetNoBox`,
+`LayoutEngineTests.LayoutEngine_Layout_HiddenChild_KeepsTheEmbellishedOperator`,
+`LayoutEngineTests.LayoutEngine_Layout_HiddenGrandchild_KeepsTheRowSpaceLike`
 
 Asserts that an element with `display: none` and the annotations get no box, and that `semantics` and `maction` lay out
-their first child only.
+their first child only. Asserts that a hidden third child of an `msup` or `mfrac` whose first child is `+` leaves the
+element an embellished operator, infix in its row, as wide as without the hidden child, and that a hidden grandchild
+leaves a row of an `mspace` space-like, so the minus sign after it is a prefix operator and the equation is as wide as
+without the hidden grandchild; neither reports a warning or an unsupported feature.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Phantom: mphantom
 

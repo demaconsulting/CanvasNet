@@ -118,7 +118,8 @@ internal sealed partial class LayoutEngine
 
     /// <summary>
     ///     Predicts from the tree whether an element with a fixed structure (<c>mfrac</c>, <c>mroot</c>, a scripted element)
-    ///     has the in-flow children that MathML Core requires (an element hidden by <c>display: none</c> is counted).
+    ///     has the in-flow children that MathML Core requires (an element hidden by <c>display: none</c> is not counted,
+    ///     as the layout and its <see cref="MathMlDiagnosticCodes.ChildCount"/> report do not count it).
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>True when its children are valid; false for every other element.</returns>

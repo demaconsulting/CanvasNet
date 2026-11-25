@@ -479,14 +479,17 @@ sections:
 
       - id: CanvasNetViewer-Help-HelpCatalog-MathMlEquations
         title: >-
-          The HelpCatalog class shall show, in the mathml cards and in the MathML user guide, only whole equations that
-          render under strict mode without a diagnostic.
+          The HelpCatalog class shall show, in the mathml cards and in the MathML user guide, only whole equations (in
+          xml code blocks and in Pandoc mathml code blocks) that render under strict mode without a diagnostic, and
+          shall state in the guide's rendering example the element count and the sizes the library reports.
         justification: |
           An equation an agent copies from the help or a person copies from the guide must draw as shown; an example
-          that warns or fails would teach the mistake it was meant to prevent.
+          that warns or fails would teach the mistake it was meant to prevent, and a number the guide states must be
+          the number the library gives.
         tests:
           - HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics
           - HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
+          - HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
 
       - id: CanvasNetViewer-Help-HelpCatalog-Positions
         title: >-

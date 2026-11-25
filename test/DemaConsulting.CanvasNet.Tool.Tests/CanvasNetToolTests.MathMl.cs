@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -85,5 +86,57 @@ public partial class CanvasNetToolTests
         Assert.Contains("\"ok\":false", json, StringComparison.Ordinal);
         Assert.Contains("\"code\":\"mathml-error\"", json, StringComparison.Ordinal);
         Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that every MathML equation the tool guide writes in a Pandoc code block of class <c>mathml</c> (the copy
+    ///     shown inside a <c>markdown</c> block included) renders through the tool, run as a real process, in strict mode
+    ///     without a diagnostic.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_MathMl_ToolGuideBlocks_RenderStrictWithoutDiagnostics()
+    {
+        // Arrange: the mathml blocks of the tool guide
+        var guide = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        var equations = Regex.Matches(
+                guide,
+                @"^```\{\.mathml(?:[ \t][^\n]*)?\}\n(?<content>.*?)\n```$",
+                RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.Singleline,
+                TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups["content"].Value)
+            .ToList();
+        using var directory = new TempDirectory();
+
+        // Act / Assert: there is one at least, and each renders strictly without a diagnostic
+        Assert.NotEmpty(equations);
+        for (var i = 0; i < equations.Count; i++)
+        {
+            var input = FixtureFactory.WriteText(directory.Path, $"equation{i}.mml", equations[i]);
+            var output = directory.Combine($"equation{i}.png");
+            var exitCode = Runner.Run(out var render, "dotnet", _dllPath, "render", input, "-o", output, "--strict", "--json");
+            Assert.True(exitCode == 0, $"Equation {i} of the tool guide failed to render: {render}");
+            using var document = JsonDocument.Parse(render);
+            Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+            Assert.True(File.Exists(output), $"Equation {i} of the tool guide wrote no image.");
+        }
+    }
+
+    /// <summary>
+    ///     Finds the root of the repository: the first folder above the test assembly that holds <c>CanvasNet.slnx</c>.
+    /// </summary>
+    /// <returns>The full path of the repository root.</returns>
+    private static string FindRepositoryRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder != null; folder = folder.Parent)
+        {
+            if (File.Exists(Path.Combine(folder.FullName, "CanvasNet.slnx")))
+            {
+                return folder.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The repository root (the folder with CanvasNet.slnx) was not found above {AppContext.BaseDirectory}.");
     }
 }

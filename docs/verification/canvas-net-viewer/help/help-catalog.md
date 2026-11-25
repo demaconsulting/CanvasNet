@@ -199,8 +199,13 @@ eight for states, six for use cases and components, and four for deployments) ar
 
 **MathML.** **HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics** and
 **HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics**: every whole equation (a fenced `xml` block
-that starts with `<math`) of the MathML cards and of the MathML user guide renders through `CanvasNetViewer.Render` in
-strict mode with a picture and without a diagnostic (fragments of single elements are not rendered).
+or a Pandoc `{.mathml …}` block, including the copies shown inside a `markdown` block, that starts with `<math`) of the
+MathML cards and of the MathML user guide renders through `CanvasNetViewer.Render` in strict mode with a picture and
+without a diagnostic (fragments of single elements are not rendered), and the guide's Pandoc blocks are found.
+**HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers**: the equation of the guide's rendering example
+(Example 78), read from the guide, is parsed and measured, and the guide states what the library reports: the display
+and element count (`Block, 22 elements`), the natural size and baseline (`137x44, baseline 32`), the pixel size at
+scale 3 (`410x131 pixels`), and the inline size (`95x32`) in the library block and in the Viewer block.
 **HelpCatalog_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation**: the SVG figure, the Mermaid flowchart, and
 the Vega-Lite chart of `mathml/composition` render in strict mode beside the quadratic example without a diagnostic,
 each drawing the equation once, and the natural size the card quotes is the size a probe reports.

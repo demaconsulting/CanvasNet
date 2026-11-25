@@ -197,6 +197,51 @@ public class LayoutEngineTests
     }
 
     /// <summary>
+    ///     Validates that a child hidden by <c>display: none</c> does not change the prediction of an embellished
+    ///     operator: an <c>msup</c> or <c>mfrac</c> whose first child is an operator and whose hidden third child is left
+    ///     out stays an embellished operator, infix in its row, as wide as without the hidden child.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_HiddenChild_KeepsTheEmbellishedOperator()
+    {
+        foreach (var name in new[] { "msup", "mfrac" })
+        {
+            // Act
+            var (hidden, warnings, unsupported) = Run($"<mi>a</mi><{name}><mo>+</mo><mn>2</mn><mi style=\"display:none\">q</mi></{name}><mi>b</mi>");
+            var (shown, _, _) = Run($"<mi>a</mi><{name}><mo>+</mo><mn>2</mn></{name}><mi>b</mi>");
+
+            // Assert
+            Assert.Empty(warnings);
+            Assert.Empty(unsupported);
+            Assert.Equal(shown.Width, hidden.Width, 6);
+            var element = hidden.Children[1].Box;
+            Assert.Equal(name, element.Element!.Name);
+            Assert.Equal(("+", OperatorForm.Infix), (element.Operator!.CoreText, element.Operator.Form));
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a grandchild hidden by <c>display: none</c> does not change the prediction of a space-like row:
+    ///     a row of an <c>mspace</c> and a hidden <c>mi</c> stays space-like, so the minus sign after it is the first
+    ///     child that is not space-like, a prefix operator, and the row is as wide as without the hidden grandchild.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_HiddenGrandchild_KeepsTheRowSpaceLike()
+    {
+        // Act
+        var (hidden, warnings, unsupported) = Run("<mrow><mspace width=\"1em\"/><mi style=\"display:none\">q</mi></mrow><mo>&#x2212;</mo><mi>b</mi>");
+        var (shown, _, _) = Run("<mrow><mspace width=\"1em\"/></mrow><mo>&#x2212;</mo><mi>b</mi>");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(shown.Width, hidden.Width, 6);
+        var minus = hidden.Children[1].Box;
+        Assert.Equal("mo", minus.Element!.Name);
+        Assert.Equal(OperatorForm.Prefix, minus.Operator!.Form);
+    }
+
+    /// <summary>
     ///     Validates that <c>mphantom</c> is marked as a phantom and keeps its size.
     /// </summary>
     [Fact]

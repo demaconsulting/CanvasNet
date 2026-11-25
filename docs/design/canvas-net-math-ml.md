@@ -240,13 +240,6 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   glyph assemblies of MathML Core Appendix B.4 (which the specification allows) and a rule for the line characters
   (low line, macron, combining low line, horizontal bar, overline); Chrome uses neither, so these are not compared with
   it.
-- **Form inference** - the forms of the operators of a row are inferred before the row is laid out, from the tree;
-  an element hidden by a `display: none` declaration below a child of the row is not seen when the space-like children
-  are counted. The same prediction still counts a child that is itself hidden by `display: none` when it checks whether
-  a fraction, a root, or a scripted element has the children MathML Core requires (which decides whether the element
-  is an embellished operator or space-like), while the layout of the element and its `mathml-child-count` report leave
-  the hidden child out; an operator beside such an element may therefore take another form than in a browser. This
-  rare case is deferred: fixing it needs a second, non-reporting style resolution in the prediction.
 - **Style** - only the inline `style` attribute styles an equation (there are no style sheets), and only its
   supported subset; `dir="rtl"` is reported and the equation is laid out left to right.
 - **Fractions** - the legacy `bevelled`, `numalign`, and `denomalign` attributes of MathML 3 are reported as

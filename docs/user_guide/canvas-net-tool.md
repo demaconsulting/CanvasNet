@@ -2625,8 +2625,11 @@ shows the natural width). The added width is not part of the hash, so it never d
   <mi>x</mi><mo>=</mo>
   <mfrac>
     <mrow><mo>&minus;</mo><mi>b</mi><mo>&PlusMinus;</mo>
-      <msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&minus;</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow>
-    <mrow><mn>2</mn><mi>a</mi></mrow>
+      <msqrt>
+        <msup><mi>b</mi><mn>2</mn></msup><mo>&minus;</mo>
+        <mn>4</mn><mo>&InvisibleTimes;</mo><mi>a</mi><mo>&InvisibleTimes;</mo><mi>c</mi>
+      </msqrt></mrow>
+    <mrow><mn>2</mn><mo>&InvisibleTimes;</mo><mi>a</mi></mrow>
   </mfrac>
 </math>
 ```

@@ -49,8 +49,8 @@ time, and no test reads a clock.
   `Fixtures/reference/` and `Fixtures/reference-firefox/`, the gallery equations, and the third-party notices copied to
   the test output; no network, no browser
 - **Mocking**: None
-- **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and`
-  `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`carry`[Trait("Category", "Platform")]` and are the
+- **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and
+  `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels` carry `[Trait("Category", "Platform")]` and are the
   evidence of the platform requirements on every operating system and runtime
 
 ## Acceptance Criteria

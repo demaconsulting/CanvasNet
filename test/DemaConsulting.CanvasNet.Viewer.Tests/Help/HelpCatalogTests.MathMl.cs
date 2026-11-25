@@ -31,9 +31,24 @@ public partial class HelpCatalogTests
         new(@"^```(?<language>[a-z-]+)\n(?<content>.*?)\n```$", RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.Singleline, TimeSpan.FromSeconds(5));
 
     /// <summary>
-    ///     Test that every whole equation (a fenced <c>xml</c> block that starts with <c>&lt;math</c>) of a MathML card
-    ///     renders through <see cref="CanvasNetViewer.Render(Stream, string, ViewerRenderOptions?)"/> in strict mode without
-    ///     a diagnostic; fragments of single elements are not equations and are not rendered.
+    ///     Matches a Pandoc code block of class <c>mathml</c> (<c>```{.mathml ...}</c>) of a guide, the live block and the
+    ///     copy shown inside a <c>markdown</c> block alike: its content.
+    /// </summary>
+    private static readonly Regex PandocMathMlBlock =
+        new(@"^```\{\.mathml(?:[ \t][^\n]*)?\}\n(?<content>.*?)\n```$", RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Matches the equation of the rendering example of the MathML guide: the C# raw string passed to
+    ///     <c>MathMlDocument.Parse</c>.
+    /// </summary>
+    private static readonly Regex RawStringEquation =
+        new(@"MathMlDocument\.Parse\(""""""\n(?<text>.*?)\n[ ]*""""""\)", RegexOptions.CultureInvariant | RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Test that every whole equation (a fenced <c>xml</c> block or a Pandoc <c>{.mathml}</c> block that starts with
+    ///     <c>&lt;math</c>) of a MathML card renders through
+    ///     <see cref="CanvasNetViewer.Render(Stream, string, ViewerRenderOptions?)"/> in strict mode without a diagnostic;
+    ///     fragments of single elements are not equations and are not rendered.
     /// </summary>
     [Fact]
     public void HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics()
@@ -52,8 +67,9 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
-    ///     Test that every whole equation (a fenced <c>xml</c> block that starts with <c>&lt;math</c>) of the MathML user
-    ///     guide renders in strict mode without a diagnostic.
+    ///     Test that every whole equation (a fenced <c>xml</c> block or a Pandoc <c>{.mathml}</c> block, including the copy
+    ///     shown inside a <c>markdown</c> block, that starts with <c>&lt;math</c>) of the MathML user guide renders in
+    ///     strict mode without a diagnostic.
     /// </summary>
     [Fact]
     public void HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics()
@@ -62,12 +78,52 @@ public partial class HelpCatalogTests
         var guide = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-math-ml.md")).Replace("\r\n", "\n", StringComparison.Ordinal);
         var equations = MathMlEquations(guide).ToList();
 
-        // Act / Assert: there are some, and each renders strictly without a diagnostic
+        // Act / Assert: there are some, the Pandoc blocks among them, and each renders strictly without a diagnostic
         Assert.True(equations.Count >= 3, $"Only {equations.Count} fenced equations were found in the MathML guide.");
+        Assert.True(PandocMathMlBlock.Matches(guide).Count >= 2, "The Pandoc mathml blocks of the MathML guide were not found.");
         foreach (var equation in equations)
         {
             AssertRendersStrictlyWithoutDiagnostics("canvas-net-math-ml.md", equation);
         }
+    }
+
+    /// <summary>
+    ///     Test that the rendering example of the MathML user guide (Example 78) states the numbers the library reports for
+    ///     its equation: the display and the element count, the natural size and baseline, the pixel size at scale 3, and
+    ///     the inline size, in the library block and in the Viewer block.
+    /// </summary>
+    [Fact]
+    public void HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers()
+    {
+        // Arrange: the section of Example 78 and the equation it parses (its raw string without the indentation)
+        var guide = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-math-ml.md")).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var start = guide.IndexOf("### Example 78", StringComparison.Ordinal);
+        var end = guide.IndexOf("### Example 79", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "The section of Example 78 was not found in the MathML guide.");
+        var section = guide[start..end];
+        var raw = RawStringEquation.Match(section);
+        Assert.True(raw.Success, "The equation of Example 78 was not found.");
+        var text = string.Join("\n", raw.Groups["text"].Value.Split('\n').Select(line => line.StartsWith("    ", StringComparison.Ordinal) ? line[4..] : line));
+
+        // Act: the numbers the library reports
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var equation = MathMlDocument.Parse(text);
+        var natural = equation.Measure(cancellationToken: cancellationToken);
+        using var picture = equation.Render(new MathMlRenderOptions { Scale = 3 }, cancellationToken);
+        var inline = equation.Measure(new MathMlRenderOptions { Display = MathMlDisplay.Inline }, cancellationToken);
+
+        // Assert: the guide states them
+        Assert.Contains($"// Output: {equation.Display}, {equation.ElementCount} elements", section, StringComparison.Ordinal);
+        Assert.Contains($"// Output: {natural.Width}x{natural.Height}, baseline {natural.Baseline}", section, StringComparison.Ordinal);
+        Assert.Contains($"// {picture.Width}x{picture.Height} pixels", section, StringComparison.Ordinal);
+        Assert.Contains($"// Output: {inline.Width}x{inline.Height}\n", section, StringComparison.Ordinal);
+        Assert.Contains($"// Output: inline, {inline.Width}x{inline.Height}", section, StringComparison.Ordinal);
+
+        // Assert: the numbers the guide's text and the size of the quadratic placements are written with
+        Assert.Equal((MathMlDisplay.Block, 22), (equation.Display, equation.ElementCount));
+        Assert.Equal(new MathMlSize(137, 44, 32), natural);
+        Assert.Equal((410, 131), (picture.Width, picture.Height));
+        Assert.Equal((95, 32), (inline.Width, inline.Height));
     }
 
     /// <summary>
@@ -253,15 +309,18 @@ public partial class HelpCatalogTests
 
     /// <summary>
     ///     Gets the whole equations of a Markdown text: the fenced <c>xml</c> blocks whose content starts with
-    ///     <c>&lt;math</c>.
+    ///     <c>&lt;math</c>, then the Pandoc <c>{.mathml}</c> blocks whose content starts with <c>&lt;math</c> (a copy
+    ///     shown inside a <c>markdown</c> block included).
     /// </summary>
     /// <param name="markdown">The Markdown text, with line feeds.</param>
     /// <returns>The content of each such block, in order.</returns>
     private static IEnumerable<string> MathMlEquations(string markdown)
     {
-        return FencedBlock.Matches(markdown)
-            .Where(m => m.Groups["language"].Value == "xml" && m.Groups["content"].Value.StartsWith("<math", StringComparison.Ordinal))
+        var xml = FencedBlock.Matches(markdown)
+            .Where(m => m.Groups["language"].Value == "xml")
             .Select(m => m.Groups["content"].Value);
+        var pandoc = PandocMathMlBlock.Matches(markdown).Select(m => m.Groups["content"].Value);
+        return xml.Concat(pandoc).Where(content => content.StartsWith("<math", StringComparison.Ordinal));
     }
 
     /// <summary>

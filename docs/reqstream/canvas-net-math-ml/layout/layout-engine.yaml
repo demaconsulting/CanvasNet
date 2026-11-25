@@ -113,11 +113,15 @@ sections:
               - id: CanvasNetMathMl-Layout-LayoutEngine-HiddenElements
                 title: >-
                   The LayoutEngine unit shall give no box to an element with display: none and to the annotations, and
-                  lay out only the first child of semantics and maction.
+                  lay out only the first child of semantics and maction, and shall leave such elements out when it
+                  predicts the forms of operators and the children of a fraction, root, or scripted element.
                 justification: |
-                  The user agent stylesheet of MathML Core hides these elements.
+                  The user agent stylesheet of MathML Core hides these elements, and an element without a box is not in
+                  flow, so it cannot change the form of an operator beside it.
                 tests:
                   - LayoutEngine_Layout_HiddenElements_GetNoBox
+                  - LayoutEngine_Layout_HiddenChild_KeepsTheEmbellishedOperator
+                  - LayoutEngine_Layout_HiddenGrandchild_KeepsTheRowSpaceLike
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-Phantom
                 title: >-

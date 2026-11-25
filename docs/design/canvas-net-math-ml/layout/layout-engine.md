@@ -102,8 +102,10 @@ behavior is specified by the `CanvasNetMathMl-Layout-LayoutEngine-*` requirement
   (`mo`, an `mfrac` or a scripted element with valid children whose first is one, and row-like elements of one
   embellished operator and space-like children, 3.2.4.1; never `msqrt`, a table element, nor an `mroot` with valid
   children); an element with invalid children is
-  predicted as the row it becomes; cached per element, so the predictions cost linear work. An element hidden by a
-  `display: none` declaration below the child is not seen; the boxes, built bottom-up, decide the spacing.
+  predicted as the row it becomes; cached per element, so the predictions cost linear work. The predictions leave out
+  the annotations and the children hidden by `display: none` in their inline `style` (read with the pure
+  `StyleDeclarations.Parse`, which reports nothing), the children the layout leaves out, so a hidden child changes
+  neither the form of an operator nor the count of the children; the boxes, built bottom-up, decide the spacing.
 - `CheckAttributes` - reports, as `mathml-attribute-unsupported` at the attribute, an attribute that is neither global
   nor defined for the element, and `dir="rtl"` (the equation is laid out left to right).
 

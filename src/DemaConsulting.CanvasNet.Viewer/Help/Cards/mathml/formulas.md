@@ -23,7 +23,7 @@ examples:
     kind: source
     language: xml
     file: fourier-transform.mml
-    description: The Fourier transform - a hat accent, an integral with limits, and an upright e, i, and d.
+    description: The Fourier transform - a script F, an integral with limits, and an upright e, i, and d.
   - name: maxwell
     kind: source
     language: xml
@@ -47,9 +47,10 @@ example ohm and the quadratic formula the fractions example quadratic.
   `<mi>H</mi><mo>&ApplyFunction;</mo>` and `stretchy="false"` parentheses; ω
   with the subscript n and the square 2 is
   `<msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup>`.
-- Fourier transform ([[#fourier-transform]]): the hat is `<mover
-  accent="true"><mi>f</mi><mo>&#x2C6;</mo></mover>`; the constants e and i and
-  the d of dx are upright with `mathvariant="normal"`.
+- Fourier transform ([[#fourier-transform]]): the transform is
+  `<mi mathvariant="script">F</mi>` applied to `{f}` in `stretchy="false"`
+  braces (the hat accent is in [[mathml/accents]]); the
+  constants e and i and the d of dx are upright with `mathvariant="normal"`.
 - Maxwell ([[#maxwell]]): one aligned table (see
   [[mathml/aligned]]), vectors in `mathvariant="bold"`, the
   divergence and the curl as `<mo>&nabla;</mo><mo>&sdot;</mo>` and

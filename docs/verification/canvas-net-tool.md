@@ -480,6 +480,10 @@ is rendered by a real process: it returns exit code 1 with an `Error: mathml-err
 names `broken.mml:3:` and a `Hint:` line, with `--json` a failure document with the code `mathml-error`, and no output
 file is written.
 
+**CanvasNetTool_MathMl_ToolGuideBlocks_RenderStrictWithoutDiagnostics**: every equation that the tool guide writes in
+a Pandoc code block of class `mathml` (the copy shown inside a `markdown` block included; there is at least one) is
+rendered by a real process with `render --strict --json`: it exits with 0, reports no diagnostic, and writes the PNG.
+
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`
 true, RMSE 0, SSIM 1, PSNR null); exit code 0.

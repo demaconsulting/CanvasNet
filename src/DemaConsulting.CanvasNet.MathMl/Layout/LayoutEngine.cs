@@ -48,7 +48,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         its operators stretchy along the inline axis with an inline stretch size constraint (3.4.2.2,
 ///         <see cref="UnderOverLayout.StretchInline"/>); an embellished element with a constraint passes it to its
 ///         operator. Whether a child is space-like or an embellished operator is predicted from the tree before it is
-///         laid out (an element hidden by a <c>display: none</c> declaration below the child is not seen).
+///         laid out; the prediction leaves out the annotations and the elements hidden by <c>display: none</c>, the
+///         children the layout leaves out.
 ///     </para>
 ///     <para>
 ///         <b>Attributes.</b> An attribute that has no effect in this version on an element it draws (a legacy MathML 3
@@ -468,12 +469,25 @@ internal sealed partial class LayoutEngine
     }
 
     /// <summary>
-    ///     Gets the in-flow children of an element as the tree shows them: the children it lays out, annotations excluded.
+    ///     Gets the in-flow children of an element as the tree shows them: the children it lays out, without the
+    ///     annotations and the elements hidden by <c>display: none</c> - the same set the layout leaves in flow.
     /// </summary>
     /// <param name="element">The element.</param>
     /// <returns>The children.</returns>
     private static IEnumerable<MathNode> InFlowChildren(MathElement element) =>
-        RowChildren(element).Where(child => child is not MathElement { Name: "annotation" or "annotation-xml" });
+        RowChildren(element).Where(child => child is not MathElement childElement ||
+            (childElement.Name is not ("annotation" or "annotation-xml") && !IsHiddenByStyle(childElement)));
+
+    /// <summary>
+    ///     Predicts from the tree whether an element is hidden by a <c>display: none</c> declaration in its inline
+    ///     <c>style</c> attribute, the only source of <c>display: none</c>. The declarations are read with the pure
+    ///     <see cref="StyleDeclarations.Parse"/>, which reports nothing; the style resolver reports their issues when
+    ///     the element is resolved.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    /// <returns>True when it is hidden.</returns>
+    private static bool IsHiddenByStyle(MathElement element) =>
+        element.Attributes.TryGetValue("style", out var style) && StyleDeclarations.Parse(style.Value).DisplayNone;
 
     /// <summary>
     ///     Completes the box of an element: its background, its element, and whether it is a phantom.
