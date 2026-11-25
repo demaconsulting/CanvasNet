@@ -1,5 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.MathMl.Layout;
 
 namespace DemaConsulting.CanvasNet.MathMl.Tests;
@@ -515,8 +516,8 @@ public class MathMlSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that elements this version does not draw are laid out as rows of their children and reported with
-    ///     their locations, and that the rendering continues.
+    ///     Validates that elements MathML Core does not define (every element of MathML Core is drawn) are laid out as rows
+    ///     of their children and reported with their locations, and that the rendering continues.
     /// </summary>
     [Fact]
     public void CanvasNetMathMl_UnsupportedElements_AreDrawnAsRowsAndReported()
@@ -656,6 +657,76 @@ public class MathMlSystemIntegrationTests
         Assert.Equal(3, mroot.Children.Count);
         Assert.All(mroot.Children, child => Assert.Equal(0, child.Y));
         Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0);
+    }
+
+    /// <summary>
+    ///     Validates a matrix end to end: the table is centered on the math axis of its row (its ascent exceeds its descent
+    ///     by twice AxisHeight), its cells are padded by 0.4em, its frame is painted along its left edge, and the inside of
+    ///     an empty cell is transparent; nothing is reported.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Render_Matrix_CenteredOnTheAxis()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse(MathMlTestHelpers.Math(
+            "<mi>A</mi><mo>=</mo><mtable frame=\"solid\"><mtr><mtd><mspace width=\"20px\" height=\"10px\" depth=\"5px\"/></mtd><mtd/></mtr>" +
+            "<mtr><mtd/><mtd><mspace width=\"20px\" height=\"10px\" depth=\"5px\"/></mtd></mtr></mtable>"));
+        var (options, warnings, unsupported) = MathMlTestHelpers.Collecting(fontSize: 32);
+        var root = document.LayoutBox(new MathMlRenderOptions { FontSize = 32 }, TestContext.Current.CancellationToken);
+        var extent = MathMlDocument.PictureExtent(root);
+        var originX = -Math.Floor(extent.X + 1e-6);
+        var originY = -Math.Floor(extent.Y + 1e-6);
+        var (table, tableX, tableY) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "mtable");
+        var cell = table.Children[0].Box.Children[0];
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(2 * 0.278 * 32, table.Ascent - table.Descent, 9);
+        Assert.Equal(0.4 * 32, Assert.Single(cell.Box.Children).X, 9);
+        var frameX = (int)Math.Floor(originX + tableX);
+        var top = (int)Math.Ceiling(originY + tableY - table.Ascent);
+        var bottom = (int)Math.Floor(originY + tableY + table.Descent);
+        Assert.True(Enumerable.Range(top + 1, bottom - top - 2).All(y => surface[frameX, y].A != 0));
+        var emptyCell = table.Children[0].Box.Children[1];
+        var emptyX = (int)(originX + tableX + table.Children[0].X + emptyCell.X + (emptyCell.Box.Width / 2));
+        Assert.Equal(0, surface[emptyX, (int)(originY + tableY - table.Ascent + 8)].A);
+    }
+
+    /// <summary>
+    ///     Validates the composition hook: a folder resolver with the MathML image source draws a linked equation at its
+    ///     natural size and fitted into a requested size, passes the <c>display</c> fragment of a link to the source, and
+    ///     reports a link with an invalid <c>display</c> value instead of drawing it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_ImageSource_DrawsALinkedEquation()
+    {
+        // Arrange
+        var folder = Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference");
+        var resolver = new FolderImageResolver(folder, [new MathMlImageSource()]);
+        var expected = MathMlDocument.Open(Path.Combine(folder, "table-matrix.mml")).Measure(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Act
+        var result = resolver.Render("table-matrix.mml");
+        using var natural = result.Surface;
+        using var fitted = resolver.Resolve("table-fenced-matrix.mml", 100, 100);
+        using var displayed = resolver.Resolve("largeop-inline.mml#display=block", 100, 100);
+        var clean = resolver.Diagnostics.Count;
+        using var refused = resolver.Resolve("largeop-inline.mml#display=wide", 100, 100);
+
+        // Assert
+        Assert.Equal((expected.Width, expected.Height), (natural.Width, natural.Height));
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(fitted);
+        Assert.True(fitted.Width <= 100 && fitted.Height <= 100);
+        Assert.NotNull(displayed);
+        Assert.Equal(0, clean);
+        Assert.Null(refused);
+        Assert.Contains(resolver.Diagnostics, note => note.Code == FolderImageResolver.FragmentInvalidCode);
+        Assert.Contains(".mml", resolver.Extensions);
     }
 
     /// <summary>

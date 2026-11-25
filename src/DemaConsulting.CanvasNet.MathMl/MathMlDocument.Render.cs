@@ -128,6 +128,28 @@ public sealed partial class MathMlDocument
     }
 
     /// <summary>
+    ///     Computes the natural size of the picture without the <see cref="Surface.MaxDimension"/> check (internal; the
+    ///     image source scales a picture larger than a surface down to the size it is placed at, and only its aspect ratio
+    ///     matters then). The reports are delivered as for <see cref="Measure"/>.
+    /// </summary>
+    /// <param name="options">Optional render options; <see langword="null"/> uses the defaults.</param>
+    /// <param name="cancellationToken">A token that stops the work.</param>
+    /// <returns>The size in pixels at <see cref="MathMlRenderOptions.Scale"/>, rounded out, each side at least 1 and at most <see cref="int.MaxValue"/>.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled before or during the work.</exception>
+    /// <exception cref="MathMlRenderException">Thrown, located, when a limit is exceeded, the layout fails, or the size is not finite.</exception>
+    /// <exception cref="MathMlUnsupportedFeatureException">Thrown when <see cref="MathMlRenderOptions.ThrowOnUnsupportedFeature"/> is set and the equation uses an unsupported feature.</exception>
+    internal (int Width, int Height) MeasureNatural(MathMlRenderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var effective = options ?? new MathMlRenderOptions();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Run(effective, cancellationToken, box =>
+        {
+            var (_, _, width, height) = RoundedExtent(box, effective.Scale);
+            return ((int)Math.Min(width, int.MaxValue), (int)Math.Min(height, int.MaxValue));
+        });
+    }
+
+    /// <summary>
     ///     Lays the equation out under options and returns its box tree without drawing it (internal; the model the tests
     ///     and the reference comparison read). The reports are delivered as for <see cref="Measure"/>.
     /// </summary>
@@ -180,7 +202,29 @@ public sealed partial class MathMlDocument
     /// <exception cref="MathMlRenderException">Thrown when the picture has no finite size or is larger than a surface can be.</exception>
     private PictureFrame Frame(MathBox box, double scale)
     {
-        // Round the extent out to whole pixels around the origin
+        var (left, top, width, height) = RoundedExtent(box, scale);
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new MathMlRenderException(
+                MathMlDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"the equation measures {width} by {height} pixels; each side must be at most {Surface.MaxDimension} (Surface.MaxDimension)"),
+                Root.Location,
+                "reduce MathMlRenderOptions.Scale or FontSize, or the lengths of the equation");
+        }
+
+        var baseline = (int)Math.Clamp(-top, 0, height);
+        return new PictureFrame((int)width, (int)height, -left, -top, baseline);
+    }
+
+    /// <summary>
+    ///     Rounds the extent of the picture of a box at a scale out to whole pixels around the origin.
+    /// </summary>
+    /// <param name="box">The box of the <c>math</c> element.</param>
+    /// <param name="scale">The scale.</param>
+    /// <returns>The left and top edges and the size, each side at least 1.</returns>
+    /// <exception cref="MathMlRenderException">Thrown when the picture has no finite size.</exception>
+    private (double Left, double Top, double Width, double Height) RoundedExtent(MathBox box, double scale)
+    {
         var extent = PictureExtent(box);
         var left = Math.Floor((extent.X * scale) + RoundingTolerance);
         var top = Math.Floor((extent.Y * scale) + RoundingTolerance);
@@ -193,17 +237,7 @@ public sealed partial class MathMlDocument
             throw new MathMlRenderException(MathMlDiagnosticCodes.RenderFailed, "the equation has no finite size", Root.Location);
         }
 
-        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
-        {
-            throw new MathMlRenderException(
-                MathMlDiagnosticCodes.LimitExceeded,
-                string.Create(CultureInfo.InvariantCulture, $"the equation measures {width} by {height} pixels; each side must be at most {Surface.MaxDimension} (Surface.MaxDimension)"),
-                Root.Location,
-                "reduce MathMlRenderOptions.Scale or FontSize, or the lengths of the equation");
-        }
-
-        var baseline = (int)Math.Clamp(-top, 0, height);
-        return new PictureFrame((int)width, (int)height, -left, -top, baseline);
+        return (left, top, width, height);
     }
 
     /// <summary>

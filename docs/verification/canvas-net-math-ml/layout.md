@@ -2,8 +2,8 @@
 
 This document describes the subsystem-level verification strategy for the `Layout` subsystem of CanvasNetMathMl
 (namespace `DemaConsulting.CanvasNet.MathMl.Layout`): the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`,
-`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`,
-and `StretchyGlyphs` units working together as the document uses them.
+`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`,
+`OperatorDictionary`, and `StretchyGlyphs` units working together as the document uses them.
 
 ### Verification Approach
 
@@ -69,6 +69,16 @@ SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base, with th
 SpaceAfterScript; that the bottom of the upper limit is the larger of UpperLimitGapMin and UpperLimitBaselineRiseMin −
 its descent above the summation; and that the hat keeps the font size of its base (100 px).
 
+#### CanvasNetMathMl-Layout-Tables And TableExtensions: A Table
+
+**Tests**: `LayoutTests.Layout_Tables_CenterOnAxisWithCorePadding`
+
+Lays out a 2 by 2 table of `mspace` contents (one cell empty) at 100 px and asserts that its height is the padded
+heights of its rows (0.5ex of the font above and below each content), that its ascent is half its height plus
+AxisHeight, that its columns are their widest content plus 80 px, that the first row's baseline lies its padded ascent
+below its top, and that the contents start 0.4em into their cells. The MathML 3 table attributes are exercised through
+the subsystem by the unit tests of `TableLayout` and compared with Firefox at the system level.
+
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 
 **Tests**: `LayoutTests.Layout_WrongChildCount_IsRowWithWarning`
@@ -84,10 +94,11 @@ Lays out an `menclose`, an `mi` with `dir="rtl"`, and an `mn` with an invalid `m
 enclosure is a row of its two children on its baseline, that the three boxes follow each other, and the reports
 `mathml-element-unsupported` and `mathml-attribute-unsupported`, in order, with one `mathml-attribute-invalid` warning.
 
-#### CanvasNetMathMl-Layout-Bounds: Work And Cancellation
+#### CanvasNetMathMl-Layout-Bounds: Work, Table Slots, And Cancellation
 
 **Tests**: `LayoutTests.Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout`
 
 Asserts that a work limit of 3 fails the layout of a row of three tokens with `mathml-limit-exceeded` naming
-`MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws `OperationCanceledException`, and that the same equation
-lays out within the default limits.
+`MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws `OperationCanceledException`, that a table whose cell
+spans 20 columns over two rows (40 slots) fails under 39 table cells with `mathml-limit-exceeded` naming
+`MathMlLimits.MaxTableCells`, and that the same equation lays out within the default limits.

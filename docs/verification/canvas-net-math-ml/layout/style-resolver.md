@@ -27,10 +27,13 @@ the expected one constitutes a failure.
 ##### CanvasNetMathMl-Layout-StyleResolver-MathStyle: Display And displaystyle
 
 **Tests**: `StyleResolverTests.StyleResolver_ResolveRoot_Display_SetsMathStyle`,
-`StyleResolverTests.StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle`
+`StyleResolverTests.StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle`,
+`StyleResolverTests.StyleResolver_Resolve_Mtable_IsCompact`
 
 Asserts the normal math style of a block equation and the compact style of an inline one, the override of the option,
-the warning of an invalid `display`, and the effect of `displaystyle`.
+the warning of an invalid `display`, and the effect of `displaystyle`; and that an `mtable` in a display style is
+compact without a change of math depth or font size, while an `mrow` stays normal and `displaystyle="true"` on the
+`mtable` overrides the rule.
 
 ##### CanvasNetMathMl-Layout-StyleResolver-MathDepth: scriptlevel And Clamping
 

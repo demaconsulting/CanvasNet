@@ -2,15 +2,17 @@
 
 This document describes the unit-level verification strategy for the `MathMlDocument` unit in the
 `DemaConsulting.CanvasNet.MathMl` namespace: the entry points, the description, measuring and rendering, the options and
-limits, the records and exceptions, and the report sink.
+limits, the records and exceptions, the report sink, and the image source.
 
 ### Verification Approach
 
 The unit is verified through its public API and, for the internal report sink and the defect classification, through
 the test assembly's `InternalsVisibleTo` access. The Syntax and Layout subsystems, the painter, and the bundled font are
 used as is; no mocking is required. The handler tests use collecting and throwing handlers; the limit tests use small
-limits instead of large inputs. Unit tests reside in `MathMlDocumentTests.cs`, `MathMlRenderOptionsTests.cs`,
-`MathMlLimitsTests.cs`, `MathMlRecordsAndExceptionsTests.cs`, and `MathMlReportSinkTests.cs`.
+limits instead of large inputs. The image source is verified with in-memory `ImageSourceRequest`s (content bytes, a
+fragment, a requested size, a pixel budget, and a cancellation token), as the image sources of the other formats are.
+Unit tests reside in `MathMlDocumentTests.cs`, `MathMlRenderOptionsTests.cs`, `MathMlLimitsTests.cs`,
+`MathMlRecordsAndExceptionsTests.cs`, `MathMlReportSinkTests.cs`, and `MathMlImageSourceTests.cs`.
 
 ### Test Environment
 
@@ -72,8 +74,8 @@ that a whitespace source name throws while no limits mean the defaults.
 `MathMlLimitsTests.MathMlLimits_MaxNestingDepth_OutsideRange_Throws`,
 `MathMlDocumentTests.MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException`
 
-Asserts every documented default (`MaxAssemblyParts` 1,000 among them), that zero throws for every limit (with the
-property name), that a nesting depth of 0
+Asserts every documented default (`MaxAssemblyParts` 1,000 and `MaxTableCells` 100,000 among them), that zero throws
+for every limit (with the property name, `MaxTableCells` included, which accepts 1), that a nesting depth of 0
 or 1,025 throws, and that a small `MaxLayoutWork` fails a render with a located `mathml-limit-exceeded` naming the
 property.
 
@@ -119,3 +121,29 @@ Asserts that in strict mode the first unsupported feature is recorded, even beyo
 Asserts that malformed font data and the runtime's programming-error exceptions are classified as defects (which become
 located `mathml-render-failed` errors), and that `MathMlRenderException`, `MathMlUnsupportedFeatureException`,
 `OperationCanceledException`, and `ObjectDisposedException` are not.
+
+#### CanvasNetMathMl-MathMlDocument-ImageSource: The Image Source Of .mml Links
+
+**Tests**: `MathMlImageSourceTests.MathMlImageSource_Properties_ClaimMmlAndTheDisplayFragment`,
+`MathMlImageSourceTests.MathMlImageSource_Render_DrawsTheEquationOnTransparent`,
+`MathMlImageSourceTests.MathMlImageSource_Render_DisplayFragment_SetsBlockOrInline`,
+`MathMlImageSourceTests.MathMlImageSource_Render_InvalidDisplay_IsRefused`,
+`MathMlImageSourceTests.MathMlImageSource_Render_ReportsNotesAndStrictMode`,
+`MathMlImageSourceTests.MathMlImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth`,
+`MathMlImageSourceTests.MathMlImageSource_Render_InvalidText_ThrowsSyntaxException`,
+`MathMlImageSourceTests.MathMlImageSource_Render_NullRequest_Throws`,
+`MathMlImageSourceTests.MathMlImageSource_Render_PreCanceled_Throws`,
+`MathMlImageSourceTests.MathMlImageSource_Render_OverBudget_IsRefused`,
+`MathMlDocumentTests.MathMlDocument_MeasureNatural_BeyondSurface_ReturnsTheSize`
+
+Asserts that the source is named `mathml`, claims `.mml` only, no scheme, and the `display` parameter; that a summation
+is drawn at the size `Measure` gives, with a transparent corner and ink, and at a requested 120 by 90; that
+`#display=block` and `#display=BLOCK` draw it at the measured block size and `#display=inline` at the inline size of a
+`display="block"` document; that `#display=wide` is refused with the invalid-fragment code before text that is not
+MathML is read; that a child-count warning becomes a `mathml-warning` note with the code in `Detail` at line 2, column 2
+and an unsupported attribute a note under its own code at line 3, and that a strict request throws
+`MathMlUnsupportedFeatureException`; that a space wider than a surface, which `Measure` refuses, is drawn 200 pixels
+wide with the height of its aspect ratio; that invalid XML throws a `MathMlSyntaxException` named after the file; that a
+null request throws `ArgumentNullException`, a pre-canceled one `OperationCanceledException`, and a size over the pixel
+budget `ImageSourceBudgetException`; and that `MeasureNatural` equals `Measure` for a small equation at scale 2 and
+returns 100,000 by 10 pixels for a space wider than a surface.

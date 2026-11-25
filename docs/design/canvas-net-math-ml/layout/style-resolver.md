@@ -51,7 +51,8 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml`.
 - `Resolve(element, parent)` and `ResolveChild(child, parent, rule)` - in the order of the CSS cascade: the user agent
   rules (the parent's inherited values; the rule of the child's position, when given: the math style, the math depth
   from the parent's math style and depth, the math shift, and an inherited font size; the light yellow background of
-  `merror`; `math-shift: compact` for `msqrt` and `mroot`); the presentational hints, which replace the user agent
+  `merror`; `math-shift: compact` for `msqrt` and `mroot`; `math-style: compact` for `mtable`); the presentational
+  hints, which replace the user agent
   values (`displaystyle`; `scriptlevel` setting the depth or changing the depth of the parent, so `scriptlevel="+1"` on
   a numerator is one level more than the fraction's, as `math-depth: add(1)` computes from the inherited depth;
   `mathsize` as a length or a percentage of the inherited size, not negative; `mathcolor`; `mathbackground`;

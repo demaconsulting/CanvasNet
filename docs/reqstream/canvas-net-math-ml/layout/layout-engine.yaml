@@ -3,8 +3,8 @@
 #
 # These requirements describe the design-level behavior of the LayoutEngine unit of the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk of the equation tree, the dispatch of each element, the
-# elements without a box, the child-count rules, embellished operators, scripts and movablelimits, the reports of the
-# elements and attributes this version does not draw, and the bounds. See
+# elements without a box, the child-count rules, embellished operators, scripts and movablelimits, the structure of
+# tables, the reports of the elements outside MathML Core and of the attributes without effect, and the bounds. See
 # docs/verification/canvas-net-math-ml/layout/layout-engine.md for the test-evidence mapping.
 
 sections:
@@ -19,9 +19,11 @@ sections:
                   The LayoutEngine unit shall lay out the token elements with the token layout, math, mrow, mstyle,
                   mphantom, merror, mpadded, mprescripts and none with the row layout, mfrac with the fraction layout,
                   msqrt (the row of its children) and mroot with the radical layout, msub, msup, msubsup and
-                  mmultiscripts with the script layout, and munder, mover and munderover with the under- and overscript
-                  layout, with the computed style of each element (the children of mfrac, mroot and the scripted
-                  elements under the user agent rules of their positions), and keep the element of every box.
+                  mmultiscripts with the script layout, munder, mover and munderover with the under- and overscript
+                  layout, and mtable (its mtr and mtd, each mtd as the row of its children) with the table layout, so
+                  that every element of MathML Core is drawn, with the computed style of each element (the children of
+                  mfrac, mroot and the scripted elements under the user agent rules of their positions), and keep the
+                  element of every box.
                 justification: |
                   Each element has its own layout, and the painter and the reports need the element of a box.
                 tests:
@@ -29,6 +31,23 @@ sections:
                   - LayoutEngine_Layout_FractionsAndRadicals_AreDispatched
                   - LayoutEngine_Layout_ScriptsAndUnderOver_AreDispatched
                   - LayoutEngine_Layout_NoneAndPrescripts_AreNotReported
+                  - LayoutEngine_Layout_Tables_AreDispatched
+                  - LayoutEngine_Layout_EveryCoreElement_IsDrawn
+                  - LayoutEngine_Layout_Table_IsCompact
+
+              - id: CanvasNetMathMl-Layout-LayoutEngine-TableStructure
+                title: >-
+                  The LayoutEngine unit shall wrap consecutive children of mtable that are not mtr in one anonymous row,
+                  and consecutive children of an mtr that are not mtd in one anonymous cell, as CSS wraps the children
+                  of a table, lay out an mtr or mtd outside a table as a row of its children, report each as a
+                  mathml-child-count warning at its first child or the element, and treat tables, rows and cells as
+                  neither space-like nor embellished operators.
+                justification: |
+                  Browsers draw stray table children in anonymous table objects; the author must learn that the
+                  markup is not a valid table. MathML Core 3.2.4.1 lists no table element as an embellished operator.
+                tests:
+                  - LayoutEngine_Layout_TableStructure_AnonymousRowsAndCellsWarn
+                  - LayoutEngine_Layout_CellOutsideTable_IsRowWithWarning
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-ChildCount
                 title: >-
@@ -81,14 +100,15 @@ sections:
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements
                 title: >-
-                  The LayoutEngine unit shall lay out an element of MathML Core that a later version draws (a table
-                  element), and an element outside MathML Core, as a row of its children and report it as
-                  mathml-element-unsupported at its location.
+                  The LayoutEngine unit shall lay out an element outside MathML Core as a row of its children and report
+                  it as mathml-element-unsupported at its location, with a hint (for mfenced, how to write it with mo
+                  elements).
                 justification: |
                   MathML Core lays an unknown element out as a row; the caller must learn that it was not drawn as
                   written.
                 tests:
-                  - LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport
+                  - LayoutEngine_Layout_NonCoreElement_FallsBackToRowWithReport
+                  - LayoutEngine_Layout_EveryCoreElement_IsDrawn
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-HiddenElements
                 title: >-
@@ -155,10 +175,12 @@ sections:
               - id: CanvasNetMathMl-Layout-LayoutEngine-Bounds
                 title: >-
                   The LayoutEngine unit shall refuse a nesting deeper than the limit and a layout whose elements and
-                  characters (charged again when an operator is laid out again to stretch) exceed the work limit with
-                  located mathml-limit-exceeded render errors, and stop when the token of the call is canceled.
+                  characters (charged again when an operator is laid out again to stretch, and every slot of a table
+                  grid) exceed the work limit with located mathml-limit-exceeded render errors, and stop when the token
+                  of the call is canceled.
                 justification: |
                   The layout must stay bounded for every equation the reader accepts.
                 tests:
                   - LayoutEngine_Layout_Bounds_AreEnforced
                   - LayoutEngine_Layout_StretchRelayout_IsCharged
+                  - LayoutEngine_Layout_Table_ChargesGridSlots

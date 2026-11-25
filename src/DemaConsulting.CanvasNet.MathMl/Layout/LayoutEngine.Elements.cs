@@ -4,9 +4,9 @@ using DemaConsulting.CanvasNet.MathMl.Syntax;
 namespace DemaConsulting.CanvasNet.MathMl.Layout;
 
 /// <summary>
-///     The element walk of the layout engine for the layout elements beyond rows: fractions, radicals, scripts and under-
-///     and overscripts, their in-flow children with the user agent rules of their positions, and the child-count rules of
-///     MathML Core.
+///     The element walk of the layout engine for the layout elements beyond rows: fractions, radicals, scripts, under- and
+///     overscripts and tables, their in-flow children with the user agent rules of their positions, and the child-count
+///     rules of MathML Core.
 /// </summary>
 internal sealed partial class LayoutEngine
 {
@@ -375,6 +375,150 @@ internal sealed partial class LayoutEngine
 
         return StyleResolver.IsTrue(element, name);
     }
+
+    /// <summary>
+    ///     Lays out an <c>mtable</c> (MathML Core 3.5): its <c>mtr</c> children as rows and the other in-flow children,
+    ///     consecutive ones together, in anonymous rows (reported as <see cref="MathMlDiagnosticCodes.ChildCount"/>); then
+    ///     the grid with <see cref="TableLayout"/>, which charges its slots.
+    /// </summary>
+    /// <param name="element">The <c>mtable</c> element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <returns>The box.</returns>
+    private MathBox LayoutTable(MathElement element, MathStyle style, int depth)
+    {
+        var rows = new List<TableRowInput>();
+        var stray = new List<(MathNode Node, MathStyle Style)>();
+        foreach (var entry in FlowChildren(element, style, depth, null))
+        {
+            if (entry.Node is MathElement { Name: "mtr" } row)
+            {
+                AddStrayRow(element, style, depth, stray, rows);
+                rows.Add(LayoutTableRow(row, entry.Style, depth + 1));
+            }
+            else
+            {
+                stray.Add(entry);
+            }
+        }
+
+        AddStrayRow(element, style, depth, stray, rows);
+        return _tables.Layout(new TableInput(element, style, rows), (amount, location) =>
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            Charge(amount, location);
+        });
+    }
+
+    /// <summary>
+    ///     Lays out consecutive in-flow children of a table that are not rows in one anonymous row (a CSS anonymous table
+    ///     row), with a <see cref="MathMlDiagnosticCodes.ChildCount"/> warning, and empties the list.
+    /// </summary>
+    /// <param name="table">The <c>mtable</c> element.</param>
+    /// <param name="style">Its computed style (the style of the anonymous row).</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <param name="stray">The children that are not rows.</param>
+    /// <param name="rows">The rows, which the anonymous row is added to.</param>
+    private void AddStrayRow(MathElement table, MathStyle style, int depth, List<(MathNode Node, MathStyle Style)> stray, List<TableRowInput> rows)
+    {
+        if (stray.Count == 0)
+        {
+            return;
+        }
+
+        _sink.Warn(
+            MathMlDiagnosticCodes.ChildCount,
+            $"the {Describe(stray[0].Node)} inside <mtable> is not an <mtr>; it is laid out in an anonymous row, as CSS lays out a table",
+            stray[0].Node.Location,
+            "put every row of a table in an <mtr> and every cell in an <mtd>");
+        rows.Add(new TableRowInput(null, style, LayoutTableCells(table, style, depth, stray, reportStray: false)));
+        stray.Clear();
+    }
+
+    /// <summary>
+    ///     Lays out an <c>mtr</c> of a table: checks its bounds and attributes, then its cells.
+    /// </summary>
+    /// <param name="row">The <c>mtr</c> element.</param>
+    /// <param name="style">Its computed style.</param>
+    /// <param name="depth">Its nesting depth.</param>
+    /// <returns>The row to lay out.</returns>
+    private TableRowInput LayoutTableRow(MathElement row, MathStyle style, int depth)
+    {
+        Enter(row, depth);
+        CheckAttributes(row);
+        return new TableRowInput(row, style, LayoutTableCells(row, style, depth, FlowChildren(row, style, depth, null), reportStray: true));
+    }
+
+    /// <summary>
+    ///     Lays out the cells of a row: each <c>mtd</c> as the anonymous row of its children, the other children,
+    ///     consecutive ones together, in an anonymous cell (a CSS anonymous table cell).
+    /// </summary>
+    /// <param name="parent">The <c>mtr</c>, or the <c>mtable</c> of an anonymous row.</param>
+    /// <param name="style">The computed style of the row.</param>
+    /// <param name="depth">The nesting depth of the parent.</param>
+    /// <param name="flow">The in-flow children of the row.</param>
+    /// <param name="reportStray">Whether a child that is not an <c>mtd</c> is reported (the anonymous row of a table is reported already).</param>
+    /// <returns>The cells.</returns>
+    private List<TableCellInput> LayoutTableCells(MathElement parent, MathStyle style, int depth, List<(MathNode Node, MathStyle Style)> flow, bool reportStray)
+    {
+        var cells = new List<TableCellInput>();
+        var stray = new List<(MathNode Node, MathStyle Style)>();
+        void AddStrayCell()
+        {
+            if (stray.Count == 0)
+            {
+                return;
+            }
+
+            if (reportStray)
+            {
+                _sink.Warn(
+                    MathMlDiagnosticCodes.ChildCount,
+                    $"the {Describe(stray[0].Node)} inside <mtr> is not an <mtd>; it is laid out in an anonymous cell, as CSS lays out a table",
+                    stray[0].Node.Location,
+                    "put every cell of a table in an <mtd>");
+            }
+
+            cells.Add(new TableCellInput(null, style, LayoutRowLike(parent, style, depth, default, [.. stray])));
+            stray.Clear();
+        }
+
+        foreach (var entry in flow)
+        {
+            if (entry.Node is MathElement { Name: "mtd" } cell)
+            {
+                AddStrayCell();
+                Enter(cell, depth + 1);
+                CheckAttributes(cell);
+                cells.Add(new TableCellInput(cell, entry.Style, LayoutRowLike(cell, entry.Style, depth + 1, default)));
+            }
+            else
+            {
+                stray.Add(entry);
+            }
+        }
+
+        AddStrayCell();
+        return cells;
+    }
+
+    /// <summary>
+    ///     Reports an <c>mtr</c> or <c>mtd</c> outside a table; it is laid out as a row of its children.
+    /// </summary>
+    /// <param name="element">The element.</param>
+    private void ReportOutsideTable(MathElement element) =>
+        _sink.Warn(
+            MathMlDiagnosticCodes.ChildCount,
+            $"the element <{element.Name}> is not inside {(element.Name == "mtr" ? "an <mtable>" : "an <mtr>")}; it is laid out as a row of its children",
+            element.Location,
+            "put every <mtd> in an <mtr> and every <mtr> in an <mtable>");
+
+    /// <summary>
+    ///     Describes a child for a report: its element name, or text.
+    /// </summary>
+    /// <param name="node">The child.</param>
+    /// <returns>The description.</returns>
+    private static string Describe(MathNode node) => node is MathElement element ? $"element <{element.Name}>" : "text";
 
     /// <summary>The context of a script: the postfix form (MathML Core 3.2.4.2), no stretch constraint.</summary>
     private static OperatorContext ScriptContext => new(OperatorForm.Postfix, null);

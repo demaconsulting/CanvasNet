@@ -54,6 +54,9 @@ public sealed class MathMlLimits
     /// <summary>The backing field of <see cref="MaxAssemblyParts"/>.</summary>
     private readonly int _maxAssemblyParts = 1_000;
 
+    /// <summary>The backing field of <see cref="MaxTableCells"/>.</summary>
+    private readonly int _maxTableCells = 100_000;
+
     /// <summary>
     ///     Gets the shared instance that holds the default limits.
     /// </summary>
@@ -165,6 +168,22 @@ public sealed class MathMlLimits
     {
         get => _maxAssemblyParts;
         init => _maxAssemblyParts = (int)RequireAtLeastOne(value);
+    }
+
+    /// <summary>
+    ///     Gets the maximum number of grid slots of one table (<c>mtable</c>): its rows times its columns after the
+    ///     <c>rowspan</c> and <c>columnspan</c> of its cells are applied; 100,000 by default.
+    /// </summary>
+    /// <remarks>
+    ///     A few cells with large spans make a large grid, so the number of slots is checked as the columns grow, before
+    ///     the grid is allocated, and a table that needs more fails with a located <see cref="MathMlRenderException"/>.
+    ///     Every slot is also charged to <see cref="MaxLayoutWork"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
+    public int MaxTableCells
+    {
+        get => _maxTableCells;
+        init => _maxTableCells = (int)RequireAtLeastOne(value);
     }
 
     /// <summary>

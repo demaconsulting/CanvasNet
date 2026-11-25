@@ -185,6 +185,28 @@ public class StyleResolverTests
     }
 
     /// <summary>
+    ///     Validates the user agent style of <c>mtable</c> (<c>math-style: compact</c>, without a change of math depth)
+    ///     and that its <c>displaystyle</c> attribute overrides it.
+    /// </summary>
+    [Fact]
+    public void StyleResolver_Resolve_Mtable_IsCompact()
+    {
+        // Arrange
+        var display = Parent with { DisplayStyle = true };
+
+        // Act
+        var table = Styles().Resolve(Node("mtable", []), display);
+        var row = Styles().Resolve(Node("mrow", []), display);
+        var explicitDisplay = Styles().Resolve(Node("mtable", [], ("displaystyle", "true")), display);
+
+        // Assert
+        Assert.False(table.DisplayStyle);
+        Assert.Equal((display.MathDepth, display.FontSize), (table.MathDepth, table.FontSize));
+        Assert.True(row.DisplayStyle);
+        Assert.True(explicitDisplay.DisplayStyle);
+    }
+
+    /// <summary>
     ///     Validates the clamping of the math depth, which keeps the font size finite.
     /// </summary>
     [Fact]

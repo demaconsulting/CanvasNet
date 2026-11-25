@@ -17,12 +17,15 @@ sections:
                 title: >-
                   The StyleResolver unit shall give the math element the normal math style in block display and the
                   compact math style in inline display, with the display option overriding the attribute and an invalid
-                  display value reported as a warning, and shall apply displaystyle to the other elements.
+                  display value reported as a warning, shall give mtable the compact math style of the user agent
+                  stylesheet, and shall apply displaystyle to the other elements and over that rule.
                 justification: |
-                  The math style decides how large operators and scripts are drawn.
+                  The math style decides how large operators and scripts are drawn; MathML Core draws the cells of a
+                  table in compact style even in a displayed equation.
                 tests:
                   - StyleResolver_ResolveRoot_Display_SetsMathStyle
                   - StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle
+                  - StyleResolver_Resolve_Mtable_IsCompact
 
               - id: CanvasNetMathMl-Layout-StyleResolver-MathDepth
                 title: >-

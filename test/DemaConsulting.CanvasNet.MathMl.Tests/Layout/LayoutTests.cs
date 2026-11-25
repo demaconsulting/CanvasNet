@@ -5,9 +5,9 @@ using static DemaConsulting.CanvasNet.MathMl.Tests.MathMlTestHelpers;
 namespace DemaConsulting.CanvasNet.MathMl.Tests.Layout;
 
 /// <summary>
-///     Subsystem tests for the <c>Layout</c> subsystem: rows of tokens, stretchy fences, fractions, radicals, scripts and
-///     limits laid out through the engine with the real math font, checked against the metrics and constants of the font
-///     and the operator spacing, with the reports and bounds of the layout.
+///     Subsystem tests for the <c>Layout</c> subsystem: rows of tokens, stretchy fences, fractions, radicals, scripts,
+///     limits and tables laid out through the engine with the real math font, checked against the metrics and constants
+///     of the font and the operator spacing, with the reports and bounds of the layout.
 /// </summary>
 public class LayoutTests
 {
@@ -181,7 +181,7 @@ public class LayoutTests
     }
 
     /// <summary>
-    ///     Validates that an element this version does not draw is laid out as a row of its children, and that the element,
+    ///     Validates that an element MathML Core does not define is laid out as a row of its children, and that the element,
     ///     an attribute without effect and an invalid attribute value are reported while the layout continues.
     /// </summary>
     [Fact]
@@ -206,8 +206,38 @@ public class LayoutTests
     }
 
     /// <summary>
+    ///     Validates a table through the subsystem: its cells are padded by 0.4em and 0.5ex (the x-height of the font) as
+    ///     the user agent stylesheet of MathML Core asks, its rows hold their baselines, and the table is centered on the
+    ///     math axis (AxisHeight of the MATH table) of the row it is in.
+    /// </summary>
+    [Fact]
+    public void Layout_Tables_CenterOnAxisWithCorePadding()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        var axis = font.Constant(MathConstant.AxisHeight, 100);
+        var blockPad = font.XHeight(100) / 2;
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math(
+            "<mtable><mtr><mtd><mspace width=\"1em\" height=\"0.5em\" depth=\"0.25em\"/></mtd><mtd><mspace width=\"2em\" height=\"1em\" depth=\"0\"/></mtd></mtr>" +
+            "<mtr><mtd><mspace width=\"0.5em\" height=\"0.5em\" depth=\"0.5em\"/></mtd><mtd/></mtr></mtable>"));
+
+        // Assert
+        var table = Assert.Single(box.Children).Box;
+        var height = (100 + 25 + (2 * blockPad)) + (50 + 50 + (2 * blockPad));
+        Assert.Equal(height, table.Ascent + table.Descent, 9);
+        Assert.Equal((height / 2) + axis, table.Ascent, 9);
+        Assert.Equal(100 + 80 + 200 + 80, table.Width, 9);
+        var first = table.Children[0].Box;
+        Assert.Equal(blockPad + 100, first.Ascent, 9);
+        Assert.Equal([40.0, 40.0], first.Children.Select(cell => System.Math.Round(Assert.Single(cell.Box.Children).X, 9)));
+    }
+
+    /// <summary>
     ///     Validates the bounds of a layout through the subsystem: a work budget smaller than the equation and a canceled
-    ///     token stop it, and the same equation lays out within the default limits.
+    ///     token stop it, a table with more grid slots than the limit fails, and the same equation lays out within the
+    ///     default limits.
     /// </summary>
     [Fact]
     public void Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout()
@@ -226,10 +256,15 @@ public class LayoutTests
         var cancellation = Assert.ThrowsAny<OperationCanceledException>(() => canceled.Layout(root, RootStyle(canceled)));
         var normal = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
         var box = normal.Layout(root, RootStyle(normal));
+        var table = Tree(MathMlTestHelpers.Math("<mtable><mtr><mtd columnspan=\"20\"/></mtr><mtr/></mtable>"));
+        var cells = Engine(new MathMlLimits { MaxTableCells = 39 }, TestContext.Current.CancellationToken);
+        var slots = Assert.Throws<MathMlRenderException>(() => cells.Layout(table, cells.Styles.ResolveRoot(table, 16, new Rgba32(0, 0, 0, 255), null)));
 
         // Assert
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, work.Code);
         Assert.Contains("MathMlLimits.MaxLayoutWork", work.Message, StringComparison.Ordinal);
+        Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, slots.Code);
+        Assert.Contains("MathMlLimits.MaxTableCells", slots.Message, StringComparison.Ordinal);
         Assert.NotNull(cancellation);
         Assert.True(box.Width > 0);
     }

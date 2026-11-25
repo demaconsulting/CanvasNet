@@ -300,6 +300,7 @@ input-files:
   - docs/design/canvas-net-math-ml/layout/radical-layout.md
   - docs/design/canvas-net-math-ml/layout/script-layout.md
   - docs/design/canvas-net-math-ml/layout/under-over-layout.md
+  - docs/design/canvas-net-math-ml/layout/table-layout.md
   - docs/design/canvas-net-math-ml/layout/operator-dictionary.md
   - docs/design/canvas-net-math-ml/layout/stretchy-glyphs.md
   - docs/design/canvas-net-viewer.md

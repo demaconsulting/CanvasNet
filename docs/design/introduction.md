@@ -421,14 +421,16 @@ software items, specifically:
   `Measure`, and `Render` API with `MathMlDisplay`, `MathMlAnnotation`, `MathMlOpenOptions`, `MathMlRenderOptions`,
   `MathMlLimits`, `MathMlLocation`, `MathMlDiagnostic`, `MathMlUnsupportedFeature`, `MathMlSize`,
   `MathMlDiagnosticCodes`, `MathMlSyntaxException`, `MathMlRenderException`, `MathMlUnsupportedFeatureException`, and
-  the internal report sink) and `MathMlPainter` (the painter of the laid-out boxes), and the internal subsystems
-  `Syntax` (`MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues`) and `Layout` (`LayoutEngine`,
-  `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`,
-  `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`, and `StretchyGlyphs`). The token elements, the rows, the
-  operator dictionary, stretchy and large operators, fractions, radicals, scripts, and under- and overscripts are drawn;
-  every other element is laid out as a row of its children and reported as unsupported — see *CanvasNetMathMl System
-  Design* (`canvas-net-math-ml.md`) for the known differences from browsers and its Phase Plan. `CanvasNetMathMl`
-  depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems through
+  the internal report sink, and the image source `MathMlImageSource` for `.mml` links) and `MathMlPainter` (the painter
+  of the laid-out boxes), and the internal subsystems `Syntax` (`MathMlReader`, `CharacterReferences`, `MathTree`, and
+  `AttributeValues`) and `Layout` (`LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`,
+  `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, `OperatorDictionary`, and
+  `StretchyGlyphs`). Every element of MathML Core is drawn (the token elements, the rows, the operator dictionary,
+  stretchy and large operators, fractions, radicals, scripts, under- and overscripts, and tables, with the MathML 3
+  table attributes as Firefox draws them); every other element is laid out as a row of its children and reported as
+  unsupported — see *CanvasNetMathMl System Design* (`canvas-net-math-ml.md`) for the known differences from browsers
+  and its Phase Plan. `CanvasNetMathMl` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`,
+  `Packaging`, and `ImageSources` subsystems through
   their public API and, for the `MATH` table reader and the cached bundled font, through internal friend access
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
@@ -760,18 +762,19 @@ offline renderer of MathML Core equations: its direct unit `MathMlDocument` (nam
 `DemaConsulting.CanvasNet.MathMl`) is the public API, its direct unit `MathMlPainter` paints the laid-out boxes, its
 internal `Syntax` subsystem holds the `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues` units,
 and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`,
-`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `OperatorDictionary`, and
-`StretchyGlyphs` units (each in the
+`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`,
+`OperatorDictionary`, and `StretchyGlyphs` units (each in the
 sub-namespace and the sub-folder of its
 name). In the SysML2 model the system is
 `CanvasNetMathMlSystem` and its subsystem and unit `part def` names carry the prefix `MathMl` (`MathMlSyntax`,
 `MathMlReader`, `MathMlCharacterReferences`, `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`,
 `MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`,
-`MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`,
+`MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlTableLayout`,
 `MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units
 are `MathMlDocument` and `MathMlPainter`),
 because part def names stay unique across
-the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Packaging` subsystems,
+the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Packaging`, and
+`ImageSources` subsystems,
 through their public API and, for the OpenType `MATH` table reader and the cached bundled font, through internal friend
 access. See the Folder Layout section below and *CanvasNetMathMl System Design* (`canvas-net-math-ml.md`). A further
 sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet
@@ -1937,6 +1940,7 @@ src/DemaConsulting.CanvasNet.MathMl/
 ├── MathMlRenderException.cs       — MathMlDocument: located render exception
 ├── MathMlUnsupportedFeatureException.cs — MathMlDocument: strict-mode exception
 ├── MathMlReportSink.cs            — MathMlDocument: ordered, de-duplicated, capped reports and pending reports
+├── MathMlImageSource.cs           — MathMlDocument: the image source of .mml links with the display fragment
 ├── MathMlPainter.cs               — MathMlPainter: the placement and the painting of the boxes
 ├── third-party/                   — The W3C and Unicode license texts and the provenance table
 ├── Syntax/                        — Syntax subsystem
@@ -1948,7 +1952,7 @@ src/DemaConsulting.CanvasNet.MathMl/
 │   └── StyleDeclarations.cs       — AttributeValues: the supported subset of the inline style attribute
 └── Layout/                        — Layout subsystem
     ├── LayoutEngine.cs            — LayoutEngine: the walk, the dispatch, the reports, and the bounds
-    ├── LayoutEngine.Elements.cs   — LayoutEngine: fractions, radicals, scripts, in-flow children, and child counts
+    ├── LayoutEngine.Elements.cs   — LayoutEngine: fractions, radicals, scripts, tables, in-flow children, child counts
     ├── StyleResolver.cs           — StyleResolver: the computed styles
     ├── MathFont.cs                — MathFont: the bundled Noto Sans Math and its MATH data
     ├── MathBox.cs                 — MathBox: the boxes and the paint items
@@ -1960,6 +1964,7 @@ src/DemaConsulting.CanvasNet.MathMl/
     ├── RadicalLayout.cs           — RadicalLayout: msqrt and mroot
     ├── ScriptLayout.cs            — ScriptLayout: msub, msup, msubsup, mmultiscripts, and movable limits
     ├── UnderOverLayout.cs         — UnderOverLayout: munder, mover, munderover, and inline stretching
+    ├── TableLayout.cs             — TableLayout: mtable, mtr, mtd, spans, and the MathML 3 table attributes
     ├── OperatorDictionary.cs      — OperatorDictionary: categories, forms, and the stretch axis
     ├── OperatorDictionary.Data.cs — OperatorDictionary: the generated MathML Core B.1 tables (data)
     ├── StretchyGlyphs.cs          — StretchyGlyphs: size variants, glyph assemblies, and the rule fallback
@@ -2298,10 +2303,12 @@ and tests `test/DemaConsulting.CanvasNet.MathMl.Tests/Syntax/CharacterReferences
 `SyntaxTests.cs` and `LayoutTests.cs` in the test folders of the subsystems, the direct units `MathMlDocument` and
 `MathMlPainter` have no subsystem folder (`docs/design/canvas-net-math-ml/math-ml-document.md` and
 `math-ml-painter.md`), and the system itself is `docs/design/canvas-net-math-ml.md` with
-`docs/sysml2/model/canvas-net-math-ml.sysml`; its system tests are `MathMlSystemIntegrationTests.cs` and
-`MathMlReferenceLayoutTests.cs` in the root of its test project, with the shared `MathMlTestHelpers.cs`. The original
-fixtures and their Chrome reference layouts, with their provenance README, are in `Fixtures/reference/`; they are
-generated by `tools/visual-diff/update-mathml-goldens.ps1` (run by hand, never in CI). The generated data tables are
+`docs/sysml2/model/canvas-net-math-ml.sysml`; its system tests are `MathMlSystemIntegrationTests.cs`,
+`MathMlReferenceLayoutTests.cs`, and `MathMlHardeningTests.cs` in the root of its test project, with the shared
+`MathMlTestHelpers.cs`. The original fixtures and their Chrome reference layouts, with their provenance README, are in
+`Fixtures/reference/`, and the fixtures of the MathML 3 table attributes with their Firefox reference layouts in
+`Fixtures/reference-firefox/`; they are generated by `tools/visual-diff/update-mathml-goldens.ps1` (run by hand, never
+in CI; `-Browser Firefox` for the second folder). The generated data tables are
 written by `tools/mathml-data/update-mathml-tables.ps1` (run by hand, never in CI), and the attribution record and
 license texts are in `src/DemaConsulting.CanvasNet.MathMl/third-party/`.
 

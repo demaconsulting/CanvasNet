@@ -1363,7 +1363,8 @@ words:
   # operators of MathML Core: an operator laid out again with a stretch constraint (relayout), its size before it
   # stretches (unstretched), and the scripts above and below a base (overscript, underscript); the legacy bevelled
   # attribute of mfrac (MathML 3 spelling), which is reported as unsupported; the element of tensor indices and
-  # prescripts (mmultiscripts)
+  # prescripts (mmultiscripts); the legacy MathML 3 table attributes and element that are reported as unsupported
+  # (equalrows, equalcolumns, columnwidth, minlabelspacing, groupalign, alignmentscope, decimalpoint, mlabeledtr)
   - mathml
   - bevelled
   - alttext
@@ -1392,6 +1393,14 @@ words:
   - ssty
   - letterlike
   - notaname
+  - equalrows
+  - equalcolumns
+  - columnwidth
+  - minlabelspacing
+  - groupalign
+  - alignmentscope
+  - decimalpoint
+  - mlabeledtr
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

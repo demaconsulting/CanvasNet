@@ -17,10 +17,11 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         of its children) and <c>mroot</c> to <see cref="RadicalLayout"/>; <c>msub</c>, <c>msup</c>, <c>msubsup</c> and
 ///         <c>mmultiscripts</c> to <see cref="ScriptLayout"/>; <c>munder</c>, <c>mover</c> and <c>munderover</c> to
 ///         <see cref="UnderOverLayout"/>, or to <see cref="ScriptLayout"/> when their base is an embellished operator with
-///         <c>movablelimits</c> and their math style is compact (MathML Core 3.4.2.1). Every other element (an element of
-///         MathML Core that a later version draws, such as <c>mtable</c>, or an element that MathML Core does not define,
-///         such as <c>mfenced</c>) is laid out as a row of its children, as MathML Core lays out an unknown element, and
-///         reported as <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>. Annotations and elements with
+///         <c>movablelimits</c> and their math style is compact (MathML Core 3.4.2.1); <c>mtable</c> with its <c>mtr</c>
+///         and <c>mtd</c> to <see cref="TableLayout"/>. Every element of MathML Core is drawn. Every other element (an
+///         element that MathML Core does not define, such as <c>mfenced</c>) is laid out as a row of its children, as
+///         MathML Core lays out an unknown element, and reported as
+///         <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>. Annotations and elements with
 ///         <c>display: none</c> get no box. Text written directly inside a layout element is laid out like an
 ///         <c>mtext</c>.
 ///     </para>
@@ -31,7 +32,10 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         <c>msup</c>, <c>munder</c> and <c>mover</c>, three for <c>msubsup</c> and <c>munderover</c>, a base and pairs
 ///         of scripts around at most one <c>mprescripts</c> for <c>mmultiscripts</c>) is laid out as a row of its
 ///         children, as MathML Core lays out invalid markup, and reported as the
-///         <see cref="MathMlDiagnosticCodes.ChildCount"/> warning.
+///         <see cref="MathMlDiagnosticCodes.ChildCount"/> warning. A child of <c>mtable</c> that is not an <c>mtr</c>, and
+///         a child of <c>mtr</c> that is not an <c>mtd</c>, are wrapped in an anonymous row or cell, as CSS wraps the
+///         children of a table, and an <c>mtr</c> or <c>mtd</c> outside a table is laid out as a row of its children;
+///         both are reported as the <see cref="MathMlDiagnosticCodes.ChildCount"/> warning.
 ///     </para>
 ///     <para>
 ///         <b>Operators.</b> Each embellished operator child of a row gets its form from its position among the children
@@ -56,7 +60,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         <b>Bounds.</b> The walk is recursive; its depth is bounded by <see cref="MathMlLimits.MaxNestingDepth"/>, which
 ///         the reader already enforced, and checked again here. Every element and every character of a token is charged
 ///         to <see cref="MathMlLimits.MaxLayoutWork"/>, and the cancellation token is checked at every element; an operator
-///         laid out again to stretch is charged again. An instance serves one call on one thread.
+///         laid out again to stretch is charged again, and a table charges every slot of its grid (whose size
+///         <see cref="MathMlLimits.MaxTableCells"/> bounds). An instance serves one call on one thread.
 ///     </para>
 /// </remarks>
 internal sealed partial class LayoutEngine
@@ -73,9 +78,6 @@ internal sealed partial class LayoutEngine
     /// <summary>The scripted elements: their children but the first are scripts (MathML Core 3.4).</summary>
     private static readonly FrozenSet<string> ScriptedNames = new[] { "msub", "msup", "msubsup", "munder", "mover", "munderover", "mmultiscripts" }.ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>The elements of MathML Core that this version lays out as rows (a later version draws them).</summary>
-    private static readonly FrozenSet<string> LaterCoreNames = new[] { "mtable", "mtr", "mtd" }.ToFrozenSet(StringComparer.Ordinal);
-
     /// <summary>The attributes every element accepts (MathML Core 2.1.3); those with no effect on a picture are accepted silently.</summary>
     private static readonly FrozenSet<string> GlobalAttributes = new[]
     {
@@ -91,6 +93,9 @@ internal sealed partial class LayoutEngine
         ["munder"] = new[] { "accentunder" }.ToFrozenSet(StringComparer.Ordinal),
         ["mover"] = new[] { "accent" }.ToFrozenSet(StringComparer.Ordinal),
         ["munderover"] = new[] { "accent", "accentunder" }.ToFrozenSet(StringComparer.Ordinal),
+        ["mtable"] = new[] { "columnalign", "rowalign", "columnspacing", "rowspacing", "framespacing", "columnlines", "rowlines", "frame" }.ToFrozenSet(StringComparer.Ordinal),
+        ["mtr"] = new[] { "columnalign", "rowalign" }.ToFrozenSet(StringComparer.Ordinal),
+        ["mtd"] = new[] { "rowspan", "columnspan", "columnalign", "rowalign" }.ToFrozenSet(StringComparer.Ordinal),
         ["mo"] = new[] { "form", "fence", "separator", "lspace", "rspace", "stretchy", "symmetric", "maxsize", "minsize", "largeop", "movablelimits", "accent" }.ToFrozenSet(StringComparer.Ordinal),
         ["mspace"] = new[] { "width", "height", "depth" }.ToFrozenSet(StringComparer.Ordinal),
         ["mpadded"] = new[] { "width", "height", "depth", "lspace", "voffset" }.ToFrozenSet(StringComparer.Ordinal),
@@ -128,6 +133,9 @@ internal sealed partial class LayoutEngine
     /// <summary>The under- and overscript layout of the call.</summary>
     private readonly UnderOverLayout _underOver;
 
+    /// <summary>The table layout of the call.</summary>
+    private readonly TableLayout _tables;
+
     /// <summary>The work charged so far.</summary>
     private long _work;
 
@@ -156,6 +164,7 @@ internal sealed partial class LayoutEngine
         _radicals = new RadicalLayout(font, limits);
         _scripts = new ScriptLayout(font);
         _underOver = new UnderOverLayout(font);
+        _tables = new TableLayout(font, sink, limits);
     }
 
     /// <summary>
@@ -238,6 +247,18 @@ internal sealed partial class LayoutEngine
             CheckAttributes(element);
             box = LayoutMultiscripts(element, style, depth, context);
         }
+        else if (element.Name is "mtable")
+        {
+            CheckAttributes(element);
+            box = LayoutTable(element, style, depth);
+        }
+        else if (element.Name is "mtr" or "mtd")
+        {
+            // A row or a cell outside a table is a row of its children (browsers wrap it in an anonymous table)
+            CheckAttributes(element);
+            ReportOutsideTable(element);
+            box = LayoutRowLike(element, style, depth, context);
+        }
         else
         {
             // An element this version does not draw is a row of its children, as MathML Core lays out an unknown element
@@ -294,7 +315,7 @@ internal sealed partial class LayoutEngine
     {
         // The form of each embellished operator from its position among the children that are not space-like; the
         // inferred rows of math and msqrt are never embellished operators themselves (they always add operator spacing)
-        var opaque = element.Name is "math" or "msqrt";
+        var opaque = element.Name is "math" or "msqrt" or "mtable" or "mtr" or "mtd";
         var spaceLike = flow.Select(entry => entry.Node is not MathElement child || IsSpaceLike(child)).ToArray();
         var count = spaceLike.Count(value => !value);
         var passThrough = !opaque && (context.Form is not null || context.HasStretch) && IsEmbellishedOperator(element);
@@ -386,7 +407,7 @@ internal sealed partial class LayoutEngine
         var result = element.Name switch
         {
             "mtext" or "mspace" => true,
-            "mi" or "mn" or "mo" or "ms" or "msqrt" => false,
+            "mi" or "mn" or "mo" or "ms" or "msqrt" or "mtable" or "mtr" or "mtd" => false,
             _ when HasValidChildren(element) => false,
             _ => InFlowChildren(element).All(child => child is not MathElement childElement || IsSpaceLike(childElement)),
         };
@@ -414,7 +435,7 @@ internal sealed partial class LayoutEngine
         {
             result = true;
         }
-        else if (TokenNames.Contains(element.Name) || element.Name is "math" or "msqrt" || (element.Name == "mroot" && HasValidChildren(element)))
+        else if (TokenNames.Contains(element.Name) || element.Name is "math" or "msqrt" or "mtable" or "mtr" or "mtd" || (element.Name == "mroot" && HasValidChildren(element)))
         {
             result = false;
         }
@@ -514,23 +535,12 @@ internal sealed partial class LayoutEngine
     ///     Reports an element that is laid out as a row of its children.
     /// </summary>
     /// <param name="element">The element.</param>
-    private void ReportUnsupportedElement(MathElement element)
-    {
-        string message;
-        string hint;
-        if (LaterCoreNames.Contains(element.Name))
-        {
-            message = $"the element <{element.Name}> is not drawn by this version; it is laid out as a row of its children";
-            hint = "the element is part of MathML Core and a later version draws it";
-        }
-        else
-        {
-            message = $"the element <{element.Name}> is not part of MathML Core; it is laid out as a row of its children, as MathML Core lays out an unknown element";
-            hint = element.Name == "mfenced" ? "write the fences and separators as <mo> elements inside an <mrow>" : "use the elements of MathML Core";
-        }
-
-        _sink.Unsupported(MathMlDiagnosticCodes.ElementUnsupported, message, element.Location, hint);
-    }
+    private void ReportUnsupportedElement(MathElement element) =>
+        _sink.Unsupported(
+            MathMlDiagnosticCodes.ElementUnsupported,
+            $"the element <{element.Name}> is not part of MathML Core; it is laid out as a row of its children, as MathML Core lays out an unknown element",
+            element.Location,
+            element.Name == "mfenced" ? "write the fences and separators as <mo> elements inside an <mrow>" : "use the elements of MathML Core");
 
     /// <summary>
     ///     Charges work to the budget of the call.

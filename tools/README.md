@@ -39,7 +39,8 @@ reference layout goldens and `mermaid/gen-*.mjs` the upstream parser, shape, cur
 `update-plantuml-goldens.ps1` regenerates the PlantUML reference pictures from the MIT-licensed PlantUML jar (Java
 17 or later). `update-mathml-goldens.ps1` (with `render-mathml.mjs`)
 regenerates the MathML reference layouts with MathML Core in the headless Chrome of the pinned mermaid-cli (Node.js 20
-or later). See [its README](visual-diff/README.md).
+or later), and with `-Browser Firefox` the Firefox reference layouts of the MathML 3 table attributes (after a one-time
+`npx puppeteer browsers install firefox` outside the repository). See [its README](visual-diff/README.md).
 
 ## mathml-data
 

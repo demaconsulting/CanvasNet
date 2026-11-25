@@ -9,14 +9,21 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///         <see cref="MathMlDocument"/> parses a text (<c>Parse</c>, <c>Open</c>), describes it without drawing it
 ///         (<see cref="MathMlDocument.Display"/>, <see cref="MathMlDocument.ElementCount"/>,
 ///         <see cref="MathMlDocument.AltText"/>, <see cref="MathMlDocument.Annotations"/>), measures it with its baseline
-///         and renders it. The token elements, <c>mrow</c> and the grouping elements, stretchy and large operators,
-///         fractions (<c>mfrac</c>), radicals (<c>msqrt</c>, <c>mroot</c>), scripts (<c>msub</c>, <c>msup</c>,
-///         <c>msubsup</c>, <c>mmultiscripts</c>) and under- and overscripts (<c>munder</c>, <c>mover</c>,
-///         <c>munderover</c>, with accents, limits and horizontally stretched operators) are drawn, with the automatic
-///         italic of a single-character <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not
+///         and renders it. Every element of MathML Core is drawn: the token elements, <c>mrow</c> and the grouping
+///         elements, stretchy and large operators, fractions (<c>mfrac</c>), radicals (<c>msqrt</c>, <c>mroot</c>),
+///         scripts (<c>msub</c>, <c>msup</c>, <c>msubsup</c>, <c>mmultiscripts</c>), under- and overscripts
+///         (<c>munder</c>, <c>mover</c>, <c>munderover</c>, with accents, limits and horizontally stretched operators) and
+///         tables (<c>mtable</c>, <c>mtr</c>, <c>mtd</c> with row and column spans, and the MathML 3 attributes
+///         <c>columnalign</c>, <c>rowalign</c>, <c>columnspacing</c>, <c>rowspacing</c>, <c>framespacing</c>,
+///         <c>columnlines</c>, <c>rowlines</c> and <c>frame</c>), with the automatic italic of a single-character
+///         <c>mi</c> and every <c>mathvariant</c>; every construct that is recognized but not
 ///         drawn is reported with a stable <c>mathml-*</c> code and a location (<see cref="MathMlUnsupportedFeature"/>),
 ///         and strict mode (<see cref="MathMlRenderOptions.ThrowOnUnsupportedFeature"/>) turns the first one into an
 ///         exception. Untrusted text is bounded by <see cref="MathMlLimits"/>.
+///     </para>
+///     <para>
+///         <see cref="MathMlImageSource"/> draws a <c>.mml</c> file that another document links to (an SVG
+///         <c>image</c>, a picture of a diagram), with the fragment <c>#display=block</c> or <c>#display=inline</c>.
 ///     </para>
 ///     <para>
 ///         The layout follows MathML Core over the OpenType MATH table of the bundled Noto Sans Math font, so a rendering is

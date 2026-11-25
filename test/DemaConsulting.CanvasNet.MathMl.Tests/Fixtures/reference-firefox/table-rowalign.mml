@@ -1,0 +1,28 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mtable rowalign="top bottom center baseline axis" frame="solid">
+    <mtr>
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr rowalign="top">
+      <mtd><mspace width="1em" height="2.5em" depth="1em"/></mtd>
+      <mtd rowalign="bottom"><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+  </mtable>
+</math>

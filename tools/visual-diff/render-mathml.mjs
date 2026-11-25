@@ -1,11 +1,12 @@
-// render-mathml.mjs - lays MathML equations out with the reference implementation (MathML Core in headless Chrome,
-// through the puppeteer that the repository's pinned @mermaid-js/mermaid-cli brings) and writes, for each equation,
-// the boxes of its elements (a .layout.json file) and optionally its picture (PNG).
+// render-mathml.mjs - lays MathML equations out with a reference implementation (MathML Core in headless Chrome, or
+// headless Firefox for the MathML 3 table attributes that Chrome ignores, through the puppeteer that the repository's
+// pinned @mermaid-js/mermaid-cli brings) and writes, for each equation, the boxes of its elements (a .layout.json file)
+// and optionally its picture (PNG).
 //
 // Developer tooling of tools/visual-diff; see the README there. Usage (from anywhere, after "npm install" in the
-// repository root):
+// repository root; Firefox also needs the one-time "npx puppeteer browsers install firefox"):
 //
-//     node render-mathml.mjs [--font-size N] [--png-dir DIR] [--layout-dir DIR] <equation.mml>...
+//     node render-mathml.mjs [--browser chrome|firefox] [--font-size N] [--png-dir DIR] [--layout-dir DIR] <equation.mml>...
 //
 // For each <name>.mml it writes <name>.layout.json into --layout-dir and <name>.png into --png-dir (either may be left
 // out; at least one is needed). The page uses the Noto Sans Math font that CanvasNet bundles (an @font-face of the file
@@ -15,7 +16,7 @@
 // baseline.
 //
 // The layout file holds, rounded to 0.001 CSS pixels:
-//   - chrome: the browser version; fontSize: the font size;
+//   - chrome (or firefox): the browser version; fontSize: the font size;
 //   - math: width, height and baseline (from the top) of the math element;
 //   - elements: in document order, every element inside math with its path (the indices of the element children from
 //     math, joined with "/"), its tag, and its box [x, y, width, height] from getBoundingClientRect, relative to the
@@ -36,8 +37,11 @@ const files = [];
 let fontSize = 100;
 let pngDir;
 let layoutDir;
+let browserName = 'chrome';
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--font-size') {
+  if (args[i] === '--browser') {
+    browserName = args[++i];
+  } else if (args[i] === '--font-size') {
     fontSize = Number(args[++i]);
   } else if (args[i] === '--png-dir') {
     pngDir = args[++i];
@@ -54,9 +58,13 @@ if (files.length === 0 || (!pngDir && !layoutDir) || !(fontSize > 0)) {
   usage('give at least one equation and --png-dir or --layout-dir');
 }
 
+if (browserName !== 'chrome' && browserName !== 'firefox') {
+  usage(`unknown browser ${browserName} (chrome or firefox)`);
+}
+
 function usage(message) {
   console.error(`render-mathml.mjs: ${message}`);
-  console.error('usage: node render-mathml.mjs [--font-size N] [--png-dir DIR] [--layout-dir DIR] <equation.mml>...');
+  console.error('usage: node render-mathml.mjs [--browser chrome|firefox] [--font-size N] [--png-dir DIR] [--layout-dir DIR] <equation.mml>...');
   process.exit(2);
 }
 
@@ -64,7 +72,7 @@ function usage(message) {
 const resolver = createRequire(join(repoRoot, 'noop.js'));
 const puppeteer = (await import(pathToFileURL(resolver.resolve('puppeteer')).href)).default;
 const font = readFileSync(fontPath).toString('base64');
-const browser = await puppeteer.launch({ headless: true });
+const browser = await puppeteer.launch({ browser: browserName, headless: true });
 const version = await browser.version();
 
 const round = (value) => Math.round(value * 1000) / 1000;
@@ -107,7 +115,7 @@ try {
     if (layoutDir) {
       mkdirSync(layoutDir, { recursive: true });
       const result = {
-        chrome: version,
+        [browserName]: version,
         fontSize,
         math: { width: round(layout.math.width), height: round(layout.math.height), baseline: round(layout.math.baseline) },
         elements: layout.elements.map((element) => ({ path: element.path, tag: element.tag, box: element.box.map(round) })),
@@ -118,7 +126,8 @@ try {
     if (pngDir) {
       mkdirSync(pngDir, { recursive: true });
       const math = await page.$('math');
-      await math.screenshot({ path: join(pngDir, `${name}.png`), omitBackground: true });
+      // WebDriver BiDi (Firefox) cannot omit the background, so the Firefox picture is on white
+      await math.screenshot({ path: join(pngDir, `${name}.png`), omitBackground: browserName === 'chrome' });
     }
 
     await page.close();

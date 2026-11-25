@@ -6069,6 +6069,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-math-ml.sysml"                 # system SysML2 model
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlSystemIntegrationTests.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlReferenceLayoutTests.cs"  # reference layout tests
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlHardeningTests.cs"  # hardening tests (limits, fuzzer)
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Fixtures/**"  # original fixtures and reference goldens
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/DemaConsulting.CanvasNet.MathMl.Tests.csproj"  # test project
@@ -6135,11 +6136,13 @@ reviews:
       - "src/DemaConsulting.CanvasNet.MathMl/MathMlRenderException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.MathMl/MathMlUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.MathMl/MathMlReportSink.cs"  # unit source (internal report sink)
+      - "src/DemaConsulting.CanvasNet.MathMl/MathMlImageSource.cs"  # unit source (image source)
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlRenderOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlLimitsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlRecordsAndExceptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlReportSinkTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/MathMlImageSourceTests.cs"  # unit tests (image source)
 
   # CanvasNetMathMl-MathMlPainter Review (one per direct unit)
   - id: CanvasNetMathMl-MathMlPainter
@@ -6411,6 +6414,22 @@ reviews:
       - "docs/sysml2/model/canvas-net-math-ml/layout/under-over-layout.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.MathMl/Layout/UnderOverLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/UnderOverLayoutTests.cs"  # unit tests
+
+  # CanvasNetMathMl-Layout-TableLayout Review (one per unit)
+  - id: CanvasNetMathMl-Layout-TableLayout
+    title: Review that CanvasNetMathMl Layout TableLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-math-ml.md"
+      - "docs/reqstream/canvas-net-math-ml.yaml"
+      - "docs/design/canvas-net-math-ml/layout.md"
+      - "docs/reqstream/canvas-net-math-ml/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-math-ml/layout/table-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-math-ml/layout/table-layout.md"  # unit design
+      - "docs/verification/canvas-net-math-ml/layout/table-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-math-ml/layout/table-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.MathMl/Layout/TableLayout.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.MathMl.Tests/Layout/TableLayoutTests.cs"  # unit tests
 
   # CanvasNetMathMl-Layout-OperatorDictionary Review (one per unit)
   - id: CanvasNetMathMl-Layout-OperatorDictionary

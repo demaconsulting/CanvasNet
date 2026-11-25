@@ -41,6 +41,10 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
   `munderover` written `TRUE`, an accent underline, and an overscript that is not an accent), `overbrace-underbrace`
   (braces stretched over and under rows, a labeled brace, and a brace base with a label), and `arrow-over` (arrows as
   bases with labels at the stretch stack gaps, a non-stretchy arrow over a wide label, and an arrow overscript).
+- **Tables**: `table-matrix` (a 3 by 3 matrix of letters and digits), `table-spans` (`columnspan`, `rowspan`, and
+  `rowspan="0"`, with `mspace` contents), `table-fenced-matrix` (a matrix in stretched parentheses after `A =` and
+  before a fraction, in a display equation), and `table-cell-baselines` (fractions, scripts, a radical, and a deep
+  `mspace` in the cells of an inline table, followed by an operator and a letter).
 
 ## Behaviors Matched
 
@@ -70,6 +74,9 @@ pin them:
   centered on it (`mover-accents`, `overbrace-underbrace`).
 - The ascent and the descent of a row, a scripted element, and an under- and overscript element are at least zero (the
   brace base of `overbrace-underbrace` reaches down to the baseline).
+- A cell spanning several columns or rows spreads the room it lacks over them in proportion to their sizes, and a
+  row-spanning cell is aligned on the baseline of its first row (`table-spans`); the boxes of `mtr` and `mtd` are the
+  whole row and cell rectangles, padding and spans included.
 
 ## Fixture Notes
 
@@ -93,6 +100,11 @@ pin them:
   (its box is then wider than its content), so `mmultiscripts-prescripts` uses script pairs of one width.
 - The U+02D9 dot above has no glyph in Noto Sans Math; Chrome draws it with a system font and CanvasNet with the bundled
   Noto Sans, so `mover-accents` uses the ring above (U+02DA) and the combining low line (U+0332) instead.
+- A table centered on the math axis puts its rows, and the equation after it, on a baseline at a fraction of a pixel,
+  where Chrome's pixel-snapped glyph bounds of the letters with ascenders (`b`, `d`, `t`) and of the plus sign are a
+  pixel taller than their outlines rounded out; carried through two rows or onto the baseline of the equation, that
+  pixel goes just beyond the tolerance, so `table-fenced-matrix` and `table-cell-baselines` use x-height letters and the
+  minus sign.
 
 ## Fixtures Not Compared With Chrome
 
@@ -102,6 +114,9 @@ pin them:
   tests of `TokenLayout`.
 - **The stretch fallbacks**: Chrome stretches only what the font constructs, so the Unicode-based glyph assemblies of
   MathML Core B.4 and the rule of a line character are verified by the unit tests of `StretchyGlyphs`.
+- **The MathML 3 table attributes**: Chrome ignores `columnalign`, `rowalign`, `columnspacing`, `rowspacing`,
+  `framespacing`, `columnlines`, `rowlines`, and `frame`; their fixtures and Firefox reference layouts are in
+  `../reference-firefox/` (see the README there).
 - **Stretched arrows**: Chrome does not stretch the right and left arrows of Noto Sans Math (their assembly connectors
   are shorter than MinConnectorOverlap), which CanvasNet assembles; `arrow-over` compares their boxes (the box keeps the
   inline size of the unstretched arrow in both), and the stretching is verified by the unit tests of `TokenLayout`.

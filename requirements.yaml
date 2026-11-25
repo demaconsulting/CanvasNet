@@ -312,6 +312,7 @@ includes:
   - docs/reqstream/canvas-net-math-ml/layout/radical-layout.yaml
   - docs/reqstream/canvas-net-math-ml/layout/script-layout.yaml
   - docs/reqstream/canvas-net-math-ml/layout/under-over-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/table-layout.yaml
   - docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.yaml
   - docs/reqstream/canvas-net-math-ml/layout/stretchy-glyphs.yaml
   - docs/reqstream/canvas-net-viewer.yaml

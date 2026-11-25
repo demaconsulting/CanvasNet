@@ -11,13 +11,13 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.MathMl renders equations written in MathML Core onto a CanvasNet Surface (MathMlDocument.Render): a bounded, deterministic, offline reader with line/column diagnostics, hints and resource limits, the full W3C HTML+MathML set of named character references, and layout over the OpenType MATH table of the bundled Noto Sans Math font, using only managed code. Tokens, rows and the grouping elements are drawn, with automatic italic and every mathvariant; every construct that is recognized but not drawn is reported with a stable identifier, never silently skipped. Not affiliated with the W3C.</Description>
+    <Description>DemaConsulting.CanvasNet.MathMl renders equations written in MathML Core onto a CanvasNet Surface (MathMlDocument.Render): a bounded, deterministic, offline reader with line/column diagnostics, hints and resource limits, the full W3C HTML+MathML set of named character references, and layout over the OpenType MATH table of the bundled Noto Sans Math font, using only managed code. Every MathML Core element is drawn: tokens with automatic italic and every mathvariant, rows and the grouping elements, stretchy and large operators, fractions, radicals, scripts, under- and overscripts, mmultiscripts and tables (mtable, mtr, mtd with spans, and the MathML 3 alignment, spacing and line attributes). MathMlImageSource draws .mml files that other documents link to. Every construct that is recognized but not drawn is reported with a stable identifier, never silently skipped. Not affiliated with the W3C.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library;mathml;math;equations;opentype-math;rendering</PackageTags>
+    <PackageTags>canvas;dotnet-library;mathml;math;equations;opentype-math;fractions;matrices;image-source;rendering</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet.MathMl</Title>
     <Product>DemaConsulting.CanvasNet.MathMl</Product>

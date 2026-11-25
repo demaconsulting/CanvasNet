@@ -167,6 +167,28 @@ public class MathMlDocumentTests
     }
 
     /// <summary>
+    ///     Validates that the natural size (for the image source) is the picture rounded out at the scale, without the
+    ///     limit of a surface: it equals the measured size of a small equation and exceeds a surface for a huge one.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_MeasureNatural_BeyondSurface_ReturnsTheSize()
+    {
+        // Arrange
+        var small = MathMlDocument.Parse(MathMlTestHelpers.Math("<mi>x</mi><mo>+</mo><mn>1</mn>"));
+        var huge = MathMlDocument.Parse(MathMlTestHelpers.Math("<mspace width=\"100000px\" height=\"10px\"/>"));
+        var options = new MathMlRenderOptions { Scale = 2 };
+
+        // Act
+        var measured = small.Measure(options, TestContext.Current.CancellationToken);
+        var natural = small.MeasureNatural(options, TestContext.Current.CancellationToken);
+        var beyond = huge.MeasureNatural(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((measured.Width, measured.Height), natural);
+        Assert.Equal((100_000, 10), beyond);
+    }
+
+    /// <summary>
     ///     Validates that a handler that throws after a successful call propagates its exception, and that the reports
     ///     are delivered after a failed call although the handler throws.
     /// </summary>

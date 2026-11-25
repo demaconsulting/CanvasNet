@@ -20,18 +20,23 @@ through friend access.
 The goal is **fidelity to MathML Core as browsers implement it**: an equation must have the boxes that Chrome computes
 for it with the same font. The layout is therefore implemented from the MathML Core specification and checked against
 reference layouts that headless Chrome computes for original fixtures (see *Known Differences* for where CanvasNet
-follows Chrome rather than a literal reading of the specification). This version draws the token elements, the rows,
-the operator dictionary with its spacing, stretchy and large operators, fractions, radicals, scripts, and under- and
-overscripts; every other element is laid out as a row of its children, as MathML Core lays out an unknown element, and
-is **reported with a stable `mathml-*` code and the exact location, never skipped silently** (see *Phase Plan*). A
-fraction, a root, or a scripted element without the children MathML Core requires is laid out as a row too, and
-reported as the `mathml-child-count` warning.
+follows Chrome rather than a literal reading of the specification). Every element of MathML Core is drawn: the token
+elements, the rows, the operator dictionary with its spacing, stretchy and large operators, fractions, radicals,
+scripts, under- and overscripts, and tables. The MathML 3 table attributes that MathML Core dropped and Chrome ignores
+(`columnalign`, `rowalign`, `columnspacing`, `rowspacing`, `framespacing`, `columnlines`, `rowlines`, `frame`) are
+drawn as Firefox draws them, checked against reference layouts that headless Firefox computes. Every element outside
+MathML Core is laid out as a row of its children, as MathML Core lays out an unknown element, and is **reported with a
+stable `mathml-*` code and the exact location, never skipped silently**. A fraction, a root, or a scripted element
+without the children MathML Core requires is laid out as a row too, stray children of a table are wrapped in anonymous
+rows and cells, and both are reported as the `mathml-child-count` warning. The `MathMlImageSource` draws `.mml` files
+that other documents link to.
 
 The system is decomposed into two direct units and two internal subsystems:
 
 - **MathMlDocument** (direct unit, public API) - the entry points `Parse`, `Open(path)`, and `Open(stream)`, the
-  description properties, `Measure` and `Render`, the options, limits, records, codes, and exceptions, and the internal
-  report sink with the pending reports that reading keeps for every call; see *MathMlDocument Unit Design*.
+  description properties, `Measure` and `Render`, the options, limits, records, codes, and exceptions, the internal
+  report sink with the pending reports that reading keeps for every call, and the image source `MathMlImageSource`;
+  see *MathMlDocument Unit Design*.
 - **MathMlPainter** (direct unit) - the painter of a laid-out equation: backgrounds, glyph outlines, rules, and
   borders, bounded and cancelable; see *MathMlPainter Unit Design*.
 - **Syntax** (subsystem) - the `CharacterReferences` unit (the named character references and the location map), the
@@ -42,7 +47,8 @@ The system is decomposed into two direct units and two internal subsystems:
   `TokenLayout` unit (the token elements, the properties of operators, and the `mathvariant` tables), the `RowLayout`
   unit (rows, their stretchy operators, and grouping elements), the `FractionLayout` unit (`mfrac`), the
   `RadicalLayout` unit (`msqrt` and `mroot`), the `ScriptLayout` unit (`msub`, `msup`, `msubsup`, and
-  `mmultiscripts`), the `UnderOverLayout` unit (`munder`, `mover`, and `munderover`), the `OperatorDictionary` unit
+  `mmultiscripts`), the `UnderOverLayout` unit (`munder`, `mover`, and `munderover`), the `TableLayout` unit (`mtable`,
+  `mtr`, and `mtd`), the `OperatorDictionary` unit
   (the operator dictionary of MathML Core), and the `StretchyGlyphs` unit (size variants, glyph assemblies, and their
   fallbacks); see *Layout Subsystem Design*.
 
@@ -50,8 +56,8 @@ The SysML2 model names the system `CanvasNetMathMlSystem` and prefixes the names
 `MathMl` (`MathMlDocument`, `MathMlPainter`, `MathMlSyntax`, `MathMlReader`, `MathMlCharacterReferences`,
 `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`, `MathMlLayoutEngine`, `MathMlStyleResolver`,
 `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`, `MathMlFractionLayout`,
-`MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlOperatorDictionary`, and
-`MathMlStretchyGlyphs`), because part def names stay unique
+`MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlTableLayout`, `MathMlOperatorDictionary`,
+and `MathMlStretchyGlyphs`), because part def names stay unique
 across the model and the other systems already use
 `Syntax`, `Layout`, and similar short names.
 
@@ -92,13 +98,21 @@ flowchart LR
 - **`MathMlRenderException`** (out, exception) - a limit exceeded while laying out or painting, a picture larger than a
   surface can be, or a layout defect.
 - **`InvalidDataException`** (out, exception) - a text over the size limit.
+- **`MathMlImageSource`** (in, `ImageSourceRequest`; out, `ImageSourceResult`) - the `IImageSource` and
+  `IFragmentImageSource` named `mathml` for `.mml` files (no scheme): the fragment `#display=block` or
+  `#display=inline` sets the display mode (any other value is refused with `FolderImageResolver.FragmentInvalidCode`
+  before the file is read); the equation is drawn on a transparent background at its natural size at 16 CSS pixels
+  (which may exceed a surface) or fitted into the requested size within the pixel budget; warnings are returned as
+  `mathml-warning` notes with the specific code in `Detail`, unsupported features under their own codes, both with
+  their locations; strict mode and cancellation come from the request, and only the request's content is read.
 
 ## Dependencies
 
 CanvasNetMathMl references the sibling `CanvasNet` system: its `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`),
 `Geometry` (paths), `Drawing` (path filling), `Fonts` (the bundled Noto Sans Math through the shared cache of
 `SystemFontCatalog`, its `MATH` table through `TrueTypeFont.TryGetMathTable`, the glyph outlines, and the bundled
-`GlyphFallback`), and `Packaging` (the hardened XML reader `SafeXml`). The `MATH` table reader and the bundled-font
+`GlyphFallback`), `Packaging` (the hardened XML reader `SafeXml`), and `ImageSources` (the image-source contract that
+`MathMlImageSource` implements). The `MATH` table reader and the bundled-font
 cache are internal to the core and reached through friend access (`InternalsVisibleTo`), so that the SFNT data is parsed
 once, by the core that owns SFNT parsing. It has no OTS runtime dependency and references no other format package of the
 repository. See *CanvasNet System Design* for the referenced subsystems.
@@ -118,12 +132,15 @@ MathML text is untrusted input. The design segregates the risk as follows:
   overflow; the layout recursion is bounded by the nesting limit, which the reader enforced.
 - **Bounded layout and painting** - every element and character is charged to `MaxLayoutWork`, again when a stretchy
   operator is laid out a second time; a stretched operator or radical symbol is refused above `MaxAssemblyParts` glyphs
-  before any glyph is placed; lengths are clamped to a finite magnitude and the math depth to plus or minus 64; the
+  before any glyph is placed; a table is refused above `MaxTableCells` grid slots (rows times columns after the spans,
+  which are clamped to the HTML maximums) before its grid is allocated, and every slot is charged to `MaxLayoutWork`;
+  lengths are clamped to a finite magnitude and the math depth to plus or minus 64; the
   picture is refused above `Surface.MaxDimension`; the painter counts the glyphs against `MaxPaintedGlyphs` before it
   paints; every call can be canceled.
 - **Fail closed** - every refusal is a documented exception with a stable code; an unsupported construct is reported,
   never silently ignored, and strict mode turns it into an exception; an exception that the layout does not document
-  becomes a located `mathml-render-failed` error.
+  becomes a located `mathml-render-failed` error. A seeded mutation fuzzer over every reference fixture checks that
+  only the documented exceptions occur.
 
 ## Data Flow
 
@@ -144,7 +161,9 @@ scripts of a scripted element are postfix operators one script level smaller (an
 the script layout shifts subscripts and superscripts by the script constants, and the under- and overscript layout
 places limits, accents, and other scripts around their base after the operators stretchy along the inline axis are laid
 out again to the width of the widest other child; outside display style, the limits of an operator with
-`movablelimits` are laid out as scripts.
+`movablelimits` are laid out as scripts. The cells of a table are laid out as rows of their children in compact math
+style; the table layout places them on the grid of their spans, pads them, aligns them on the baselines of their rows,
+and centers the table on the math axis.
 The picture is the content box of the `math` element united with the ink of every painted item, rounded out to whole
 pixels at the scale, with the baseline on a whole row; `Measure` returns its size and `Render` has the painter draw the
 boxes onto a new surface. The reports are delivered once, on the calling thread, after the work.
@@ -168,7 +187,8 @@ document holds no mutable state, so it can be measured and rendered from several
 `MathMlLimits` bounds the text size (`MaxTextSize`, 1,048,576 characters), the elements (`MaxElements`, 100,000), the
 nesting (`MaxNestingDepth`, 256, at most 1,024), the token length (`MaxTokenLength`, 10,000), the layout work
 (`MaxLayoutWork`, 10,000,000), the painted glyphs (`MaxPaintedGlyphs`, 1,000,000), the reports of a call
-(`MaxDiagnostics`, 1,000), and the glyphs of one stretched operator (`MaxAssemblyParts`, 1,000).
+(`MaxDiagnostics`, 1,000), the glyphs of one stretched operator (`MaxAssemblyParts`, 1,000), and the grid slots of one
+table (`MaxTableCells`, 100,000).
 
 ### Third-Party Provenance and Attribution
 
@@ -260,6 +280,23 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   `MinConnectorOverlap`), which CanvasNet stretches as it does vertically. The bundled font has no horizontal
   construction for `^` and `~`; they keep their glyphs, as in Chrome, and are reported as `mathml-stretch-unavailable`
   only when the author wrote `stretchy="true"` (reporting every accent would be noise).
+- **Tables** - a cell spanning several columns or rows spreads the room it lacks over them in proportion to their
+  sizes, and a row-spanning cell is aligned on the baseline of its first row, as Chrome does (CSS leaves both to the
+  browser); a rowspan past the last row ends there, as browsers end it. Stray children of `mtable` and `mtr` are wrapped
+  in anonymous rows and cells, as CSS wraps them, and an `mtr` or `mtd` outside a table is laid out as a row of its
+  children, which browsers wrap in an anonymous table; both are reported as `mathml-child-count`, which browsers do not
+  report. The legacy `mtable` attributes other than the D2 set (`align`, `equalrows`, `equalcolumns`, `width`,
+  `columnwidth`, `side`, `minlabelspacing`, `groupalign`, `alignmentscope`, and `decimalpoint` alignment) and
+  `mlabeledtr` are reported as unsupported.
+- **Table extensions (D2)** - `columnalign`, `rowalign`, `columnspacing`, `rowspacing`, `framespacing`, `columnlines`,
+  `rowlines`, and `frame` are drawn as Firefox draws them (Chrome ignores them): the spacing attributes put their gaps
+  between the cells instead of the inner padding, a frame adds the frame spacing, and lines are one CSS pixel wide in
+  the middle of their gaps. CanvasNet keeps the outer padding of MathML Core in every table, while Firefox drops it from
+  a table without a frame; Firefox counts the pixel of a line in the cell after it and resolves `ex` in these
+  attributes with its default font; and Firefox puts a line box (with the strut of the font) in every cell, which
+  CanvasNet does not, as Chrome does not. The Firefox reference fixtures therefore have frames, `em` lengths, and
+  `mspace` contents taller than a line, and compare only the boxes of the tables, rows, cells, and contents relative to
+  their table.
 - **Rounding** - Chrome rounds to its layout unit (1/64 pixel; it floors the `MATH` constants to it) and glyph bounds
   to whole pixels; the reference tests allow 1 CSS pixel plus one layout unit. Chrome's glyph bounds also follow the
   hinting of the font (the digits are a pixel shorter at 50 px than their outlines rounded out, some letters at 60 px,
@@ -275,10 +312,10 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   in rows with the `MATH` variants and glyph assemblies, the B.4 and rule fallbacks, `symmetric`, `minsize`, `maxsize`,
   and large operators in display style, with the `mathml-stretch-unavailable` report and the `MaxAssemblyParts`
   limit).
-- **Stage B, in progress** - done in this version: fractions (`mfrac` with `linethickness`), radicals (`msqrt`,
-  `mroot`), scripts (`msub`, `msup`, `msubsup`, `mmultiscripts` with `mprescripts` and `none`), under and over scripts
-  (`munder`, `mover`, `munderover` with accents, limits, `movablelimits`, and the horizontal stretching of their
-  operators), the user agent rules of their children, and the `mathml-child-count` report. Next: tables (`mtable`,
-  `mtr`, `mtd`, with the `MaxTableCells` limit), the image source of `.mml` files for the other formats, and a
-  hardening fuzzer. Until then the table elements are laid out as rows and reported as `mathml-element-unsupported`.
+- **Stage B, done** - fractions (`mfrac` with `linethickness`), radicals (`msqrt`, `mroot`), scripts (`msub`, `msup`,
+  `msubsup`, `mmultiscripts` with `mprescripts` and `none`), under and over scripts (`munder`, `mover`, `munderover`
+  with accents, limits, `movablelimits`, and the horizontal stretching of their operators), the user agent rules of
+  their children, the `mathml-child-count` report, tables (`mtable`, `mtr`, `mtd` with spans and the D2 attributes,
+  with the `MaxTableCells` limit and the Firefox reference layouts), the image source of `.mml` files
+  (`MathMlImageSource`), and the hardening tests with a seeded fuzzer. Every element of MathML Core is drawn.
 - **Stage C** - the Viewer, the `canvasnet` tool, the Pandoc filter, and the user guide open `.mml` files.

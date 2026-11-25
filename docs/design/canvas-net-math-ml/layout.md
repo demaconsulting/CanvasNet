@@ -7,11 +7,12 @@
 The `Layout` subsystem (namespace `DemaConsulting.CanvasNet.MathMl.Layout`, folder
 `src/DemaConsulting.CanvasNet.MathMl/Layout/`) lays the equation tree out into a tree of boxes as MathML Core does, in
 CSS pixels at the font size of the call, over the bundled math font. It is **internal**: its types are visible only to
-the other parts of the system and, through `InternalsVisibleTo`, to the test assembly. It contains twelve units:
+the other parts of the system and, through `InternalsVisibleTo`, to the test assembly. It contains thirteen units:
 
 - **LayoutEngine** - the internal `LayoutEngine` (`LayoutEngine.cs` and `LayoutEngine.Elements.cs`): the walk of the
-  tree, the dispatch of each element, the elements without a box, the child-count rules, `movablelimits`, the reports
-  of the elements and attributes this version does not draw, and the bounds; see *LayoutEngine Unit Design*
+  tree, the dispatch of each element, the elements without a box, the child-count rules, `movablelimits`, the
+  structure of tables, the reports of the elements outside MathML Core and of the attributes without effect, and the
+  bounds; see *LayoutEngine Unit Design*
 - **StyleResolver** - the internal `StyleResolver` with the records `MathStyle` and `ChildStyleRule` and the enum
   `MathDepthRule` (`StyleResolver.cs`): the computed style of each element and the user agent rules of the children of
   layout elements (fractions, radicals, and scripted elements); see *StyleResolver Unit Design*
@@ -34,6 +35,10 @@ the other parts of the system and, through `InternalsVisibleTo`, to the test ass
   Design*
 - **UnderOverLayout** - the internal `UnderOverLayout` (`UnderOverLayout.cs`): `munder`, `mover`, and `munderover`,
   and the inline stretching of their operators; see *UnderOverLayout Unit Design*
+- **TableLayout** - the internal `TableLayout` with the records `TableInput`, `TableRowInput`, and `TableCellInput` and
+  the enums `TableColumnAlign`, `TableRowAlign`, and `TableLine` (`TableLayout.cs`): `mtable`, `mtr`, and `mtd` with the
+  HTML spans, the MathML Core padding and axis centering, and the MathML 3 alignment, spacing, line, and frame
+  attributes; see *TableLayout Unit Design*
 - **OperatorDictionary** - the internal `OperatorDictionary` with the enums `OperatorForm`, `StretchAxis`, and
   `OperatorCategory` and the record `OperatorProperties` (`OperatorDictionary.cs` and the generated
   `OperatorDictionary.Data.cs`): the operator dictionary of MathML Core; see *OperatorDictionary Unit Design*
@@ -55,12 +60,13 @@ metrics, and constructions; the `MathBox` tree with its `ContentRect` and `InkBo
 `Transform`; `MathVariants.TryParse`, `Map`, and `AutoItalic`; `RowLayout.LayoutRow`, `Stretch`, `LayoutPadded`, and
 `LayoutError`; `FractionLayout.ResolveThickness` and `Layout`; `RadicalLayout.LayoutSquareRoot` and `LayoutRoot`;
 `ScriptLayout.Layout`, `LayoutMultiscripts`, and `ItalicCorrections`; `UnderOverLayout.StretchInline` and `Layout`;
+`TableLayout.Layout`;
 `OperatorDictionary.Category`, `Lookup`, `Properties`, `IsFence`, `IsSeparator`, `Axis`, `InferForm`, and
 `TryParseForm`; `StretchyGlyphs.Stretch` (both axes), `Glyph`, `LargeVariant`, `PreferredInlineSize`, `SolveAssembly`,
 and `UnicodeAssembly`.
 
 **Consumed**: the `MathTree` and `AttributeValues` units of the Syntax subsystem; the public `MathMlLimits`
-(`MaxNestingDepth`, `MaxLayoutWork`, `MaxAssemblyParts`), `MathMlLocation`, `MathMlRenderException`,
+(`MaxNestingDepth`, `MaxLayoutWork`, `MaxAssemblyParts`, `MaxTableCells`), `MathMlLocation`, `MathMlRenderException`,
 `MathMlDiagnosticCodes`, and the internal `MathMlReportSink` of the root namespace; the core `Fonts` subsystem
 (`TrueTypeFont` with its internal `TryGetMathTable`, `SystemFontCatalog.LoadBundledFallbackCore`, and `GlyphFallback`),
 `Geometry` (the outlines whose bounds are the ink), and `Canvas` (`Rgba32`).
@@ -71,13 +77,16 @@ element, lays the tree out, and frames the picture from the box; `MathMlPainter`
 ### Design
 
 The document creates a `LayoutEngine` per call, which creates the `StyleResolver`, `TokenLayout`, `RowLayout`,
-`FractionLayout`, `RadicalLayout`, `ScriptLayout`, and `UnderOverLayout` of the call over the shared `MathFont.Default`
+`FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, and `TableLayout` of the call over the shared
+`MathFont.Default`
 and the report sink of the call. The engine walks the tree depth-first: for each element it computes the style from the
 parent's (with the user agent rule of its position under a fraction, a root, or a scripted element), skips the elements
 without a box, and lays the element out with the token layout, as a row of its laid-out children with the row layout,
-or from the boxes of its children with the fraction, radical, script, or under- and overscript layout, which build
-`MathBox`es bottom-up. A fraction, a root, or a scripted element without the in-flow children MathML Core requires is a
-row with a `mathml-child-count` warning. Before
+or from the boxes of its children with the fraction, radical, script, under- and overscript, or table layout, which
+build `MathBox`es bottom-up. A fraction, a root, or a scripted element without the in-flow children MathML Core
+requires is a row with a `mathml-child-count` warning. For a table, the engine walks its rows and cells (wrapping stray
+children in anonymous rows and cells with the same warning), lays the content of each cell out as a row, and the table
+layout places the cells on the grid of their spans, charging every grid slot through the engine. Before
 the children of a row are laid out, the engine infers the form of each embellished operator from its position among
 the children that are not space-like (MathML Core 3.2.4.2); the token layout resolves the properties of an `mo` from
 the operator dictionary and its attributes. After the children are laid out, the row layout asks the engine to lay its

@@ -30,21 +30,155 @@ public class LayoutEngineTests
     }
 
     /// <summary>
-    ///     Validates that an element of a later version and an unknown element are rows of their children, reported.
+    ///     Validates that elements MathML Core does not define are rows of their children, reported.
     /// </summary>
     [Fact]
-    public void LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport()
+    public void LayoutEngine_Layout_NonCoreElement_FallsBackToRowWithReport()
     {
         // Act
-        var (box, _, unsupported) = Run("<mtable><mi>a</mi><mi>b</mi></mtable><menclose><mi>c</mi></menclose>");
+        var (box, _, unsupported) = Run("<mfenced><mi>a</mi><mi>b</mi></mfenced><menclose><mi>c</mi></menclose>");
         var (row, _, _) = Run("<mrow><mi>a</mi><mi>b</mi></mrow><mrow><mi>c</mi></mrow>");
 
         // Assert
         Assert.Equal(row.Width, box.Width);
         Assert.Equal([2, 1], box.Children.Select(child => child.Box.Children.Count));
         Assert.Equal(2, unsupported.Count);
-        Assert.Contains("later version", unsupported[0].Hint, StringComparison.Ordinal);
-        Assert.Contains("not part of MathML Core", unsupported[1].Message, StringComparison.Ordinal);
+        Assert.All(unsupported, report => Assert.Contains("not part of MathML Core", report.Message, StringComparison.Ordinal));
+        Assert.Contains("<mo>", unsupported[0].Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that every element of MathML Core is drawn: none is reported as unsupported.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_EveryCoreElement_IsDrawn()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run(
+            "<mrow><mi>a</mi><mn>1</mn><mo>+</mo><mtext>t</mtext><ms>s</ms><mspace width=\"1em\"/></mrow>" +
+            "<mstyle><merror><mi>e</mi></merror><mphantom><mi>p</mi></mphantom><mpadded><mi>q</mi></mpadded></mstyle>" +
+            "<mfrac><mi>a</mi><mi>b</mi></mfrac><msqrt><mi>c</mi></msqrt><mroot><mi>d</mi><mn>3</mn></mroot>" +
+            "<msub><mi>x</mi><mn>1</mn></msub><msup><mi>x</mi><mn>2</mn></msup><msubsup><mi>x</mi><mn>1</mn><mn>2</mn></msubsup>" +
+            "<munder><mi>x</mi><mo>_</mo></munder><mover><mi>x</mi><mo>^</mo></mover><munderover><mo>&#x2211;</mo><mi>i</mi><mi>n</mi></munderover>" +
+            "<mmultiscripts><mi>R</mi><mi>i</mi><none/><mprescripts/><mi>j</mi><none/></mmultiscripts>" +
+            "<mtable><mtr><mtd><mi>a</mi></mtd></mtr></mtable>" +
+            "<semantics><mi>s</mi><annotation encoding=\"text/plain\">s</annotation><annotation-xml encoding=\"MathML-Content\"><ci>s</ci></annotation-xml></semantics>" +
+            "<maction actiontype=\"toggle\"><mi>m</mi><mi>n</mi></maction>");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(15, box.Children.Count);
+    }
+
+    /// <summary>
+    ///     Validates the dispatch of tables: an <c>mtable</c> holds its rows, which hold their cells, which hold the row of
+    ///     their content; the boxes keep their elements.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_Tables_AreDispatched()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mtable><mtr><mtd><mi>a</mi><mi>b</mi></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr></mtable>");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        var table = Assert.Single(box.Children).Box;
+        Assert.Equal("mtable", table.Element!.Name);
+        Assert.Equal(["mtr", "mtr"], table.Children.Select(child => child.Box.Element!.Name));
+        var cells = table.Children[0].Box.Children;
+        Assert.Equal(["mtd", "mtd"], cells.Select(child => child.Box.Element!.Name));
+        var content = Assert.Single(cells[0].Box.Children).Box;
+        Assert.Null(content.Element);
+        Assert.Equal(["mi", "mi"], content.Children.Select(child => child.Box.Element!.Name));
+    }
+
+    /// <summary>
+    ///     Validates the anonymous table objects: children of <c>mtable</c> that are not rows are wrapped in one
+    ///     anonymous row, and children of <c>mtr</c> that are not cells in one anonymous cell, each run reported once.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_TableStructure_AnonymousRowsAndCellsWarn()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mtable><mi>a</mi><mi>b</mi><mtr><mtd><mi>c</mi></mtd><mi>d</mi><mi>e</mi></mtr><mtd><mi>f</mi></mtd></mtable>");
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Equal(3, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal(MathMlDiagnosticCodes.ChildCount, warning.Code));
+        Assert.Contains("<mi> inside <mtable> is not an <mtr>", warnings[0].Message, StringComparison.Ordinal);
+        Assert.Contains("<mi> inside <mtr> is not an <mtd>", warnings[1].Message, StringComparison.Ordinal);
+        Assert.Contains("<mtd> inside <mtable> is not an <mtr>", warnings[2].Message, StringComparison.Ordinal);
+        var rows = Assert.Single(box.Children).Box.Children.Select(child => child.Box).ToList();
+        Assert.Equal(3, rows.Count);
+        Assert.Null(rows[0].Element);
+        Assert.Equal(2, Assert.Single(Assert.Single(rows[0].Children).Box.Children).Box.Children.Count);
+        Assert.Equal("mtr", rows[1].Element!.Name);
+        Assert.Equal(2, rows[1].Children.Count);
+        Assert.Null(rows[1].Children[1].Box.Element);
+        Assert.Null(rows[2].Element);
+        Assert.Equal("mtd", Assert.Single(rows[2].Children).Box.Element!.Name);
+    }
+
+    /// <summary>
+    ///     Validates that an <c>mtr</c> or <c>mtd</c> outside a table is a row of its children with a child-count warning.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_CellOutsideTable_IsRowWithWarning()
+    {
+        // Act
+        var (box, warnings, unsupported) = Run("<mtd><mi>a</mi><mi>b</mi></mtd><mtr><mi>c</mi></mtr>");
+        var (row, _, _) = Run("<mrow><mi>a</mi><mi>b</mi></mrow><mrow><mi>c</mi></mrow>");
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Equal(row.Width, box.Width);
+        Assert.Equal(2, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal(MathMlDiagnosticCodes.ChildCount, warning.Code));
+        Assert.Contains("<mtd> is not inside an <mtr>", warnings[0].Message, StringComparison.Ordinal);
+        Assert.Contains("<mtr> is not inside an <mtable>", warnings[1].Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a table charges every slot of its grid to the work budget.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_Table_ChargesGridSlots()
+    {
+        // Arrange
+        var small = Tree(MathMlTestHelpers.Math("<mtable><mtr><mtd/></mtr></mtable>"));
+        var spanned = Tree(MathMlTestHelpers.Math("<mtable><mtr><mtd columnspan=\"50\" rowspan=\"0\"/></mtr><mtr/><mtr/></mtable>"));
+        var engine = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
+        var other = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
+
+        // Act
+        engine.Layout(small, RootStyle(small));
+        other.Layout(spanned, RootStyle(spanned));
+
+        // Assert: the 150 slots of the grid (one more than the single slot) and the 50 columns of the span are charged
+        Assert.True(other.Work - engine.Work >= 149 + 49);
+    }
+
+    /// <summary>
+    ///     Validates that <c>mtable</c> gets <c>math-style: compact</c>: a fraction in a cell of a display equation is in
+    ///     text style.
+    /// </summary>
+    [Fact]
+    public void LayoutEngine_Layout_Table_IsCompact()
+    {
+        // Act
+        var (table, _, _) = Run("<mstyle displaystyle=\"true\"><mtable><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd></mtr></mtable></mstyle>");
+        var (inline, _, _) = Run("<mfrac><mi>a</mi><mi>b</mi></mfrac>");
+        var (display, _, _) = Run("<mstyle displaystyle=\"true\"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle>");
+
+        // Assert
+        var fraction = Flatten(table).Single(entry => entry.Box.Element?.Name == "mfrac").Box;
+        var compact = Flatten(inline).Single(entry => entry.Box.Element?.Name == "mfrac").Box;
+        var normal = Flatten(display).Single(entry => entry.Box.Element?.Name == "mfrac").Box;
+        Assert.Equal(compact.Ascent + compact.Descent, fraction.Ascent + fraction.Descent, 6);
+        Assert.NotEqual(normal.Ascent + normal.Descent, fraction.Ascent + fraction.Descent, 3);
     }
 
     /// <summary>

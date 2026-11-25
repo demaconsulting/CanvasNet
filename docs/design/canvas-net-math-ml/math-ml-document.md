@@ -8,13 +8,15 @@ The `MathMlDocument` unit is the public API of CanvasNetMathMl, a direct unit of
 `MathMlOpenOptions.cs`, `MathMlRenderOptions.cs`, `MathMlLimits.cs`, `MathMlLocation.cs`, `MathMlDiagnostic.cs`,
 `MathMlUnsupportedFeature.cs`, `MathMlSize.cs`, `MathMlDiagnosticCodes.cs`, `MathMlSyntaxException.cs`,
 `MathMlRenderException.cs`, `MathMlUnsupportedFeatureException.cs`, `MathMlReportSink.cs` (with
-`MathMlPendingReport`), and `NamespaceDoc.cs`.
+`MathMlPendingReport`), `MathMlImageSource.cs` (the image source), and `NamespaceDoc.cs`.
 
 ### Purpose
 
-`MathMlDocument` is the only entry point of the package: it reads an equation, describes it, and measures and renders
-it, with options, limits, records, codes, and exceptions shaped like those of the other format packages of the
-repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocument-*` requirements in
+`MathMlDocument` is the entry point of the package: it reads an equation, describes it, and measures and renders it,
+with options, limits, records, codes, and exceptions shaped like those of the other format packages of the
+repository. `MathMlImageSource` is the composition hook: it draws a `.mml` file that another document links to, as the
+image sources of the other formats do. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocument-*`
+requirements in
 `docs/reqstream/canvas-net-math-ml/math-ml-document.yaml`.
 
 ### Data Model
@@ -30,8 +32,9 @@ repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocum
   `ThrowOnUnsupportedFeature`.
 - `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000), `MaxNestingDepth` (256; 1 to 1,024, which bounds
   the recursion of the layout), `MaxTokenLength` (10,000), `MaxLayoutWork` (10,000,000), `MaxPaintedGlyphs`
-  (1,000,000), `MaxDiagnostics` (1,000), and `MaxAssemblyParts` (1,000, the glyphs of one stretched operator); every
-  value is at least one, validated when set.
+  (1,000,000), `MaxDiagnostics` (1,000), `MaxAssemblyParts` (1,000, the glyphs of one stretched operator), and
+  `MaxTableCells` (100,000, the grid slots of one table, rows times columns after the spans); every value is at least
+  one, validated when set.
 - `MathMlLocation(SourceName, Line, Column)` - one-based, `IsKnown` when the line is not zero, printed as
   `name:line:column`. `MathMlDiagnostic(Code, Message, Location) { Hint }` and
   `MathMlUnsupportedFeature(Feature, Message, Location) { Hint }` - the reports, printed with a known location as a
@@ -45,6 +48,9 @@ repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocum
 - `MathMlReportSink` (internal, one per call) - the ordered reports, the sets that de-duplicate them, the cap, the
   strict flag, and whether the suppression notice was recorded. `MathMlPendingReport(IsWarning, Code, Message,
   Location, Hint)` - a report of reading, replayed into every call.
+- `MathMlImageSource` (sealed, stateless, thread-safe) - `Name` `mathml`, `Extensions` `[".mml"]` (decision D4: the
+  `.mml` extension only), no `Schemes`, `FragmentParameters` `["display"]`, and the constants `DisplayParameter`
+  (`display`) and `WarningCode` (`mathml-warning`).
 
 ### Key Methods
 
@@ -60,6 +66,19 @@ repository. The unit's behavior is specified by the `CanvasNetMathMl-MathMlDocum
 - `Render(options, token)` - the same frame, painted with `MathMlPainter` at the scale of the options.
 - `Render(width, height, options, token)` - validates the size first, then fits the picture extent into the size with
   the smaller of the two ratios, centered (an empty picture keeps scale 1).
+- `MeasureNatural(options, token)` (internal) - the size of the picture at the scale, rounded out like `Measure` but
+  without the `Surface.MaxDimension` check (each side at most `int.MaxValue`), for the image source, which only needs
+  the aspect ratio of a picture larger than a surface.
+- `MathMlImageSource.Render(request)` - checks the request and its cancellation; reads the `display` fragment
+  parameter (`block` or `inline`, ASCII case-insensitive, trimmed) and refuses any other value with an
+  `ImageSourceRefusedException` carrying `FolderImageResolver.FragmentInvalidCode` before the content is read; opens
+  the document from `request.OpenContent()` with the file name as the source name; measures the natural size with
+  `MeasureNatural` (without handlers, so that every report is delivered once, by the render); asks the request for the
+  size to draw (`SizeFor`) and checks it against the pixel budget (`EnsureWithinBudget`) before allocating; and renders
+  with `Render(width, height, ...)` on a transparent background with the display mode, the strict flag of the request,
+  and handlers that turn a warning into an `ImageSourceDiagnostic` with the code `mathml-warning` and the specific code
+  in `Detail`, and an unsupported feature into one with its feature code, each on one line and with its location. MathML
+  Core has no external references, so the request's resolver and file access are never used.
 - `Run` (the pipeline) - creates a `MathMlReportSink`, replays the pending reports of reading, creates a
   `LayoutEngine` over `MathFont.Default`, resolves the style of `math` from the options, lays the tree out, and finishes
   (measure or paint). The reports are delivered after the work; see *Error Handling*.
@@ -85,10 +104,12 @@ propagates.
 ### Dependencies
 
 The `MathMlReader` and `MathTree` units of the Syntax subsystem, the `LayoutEngine`, `StyleResolver`, `MathFont`, and
-`MathBox` units of the Layout subsystem, the `MathMlPainter` unit, and the core `Canvas` subsystem (`Surface`,
-`Rgba32`).
+`MathBox` units of the Layout subsystem, the `MathMlPainter` unit, the core `Canvas` subsystem (`Surface`, `Rgba32`),
+and the core `ImageSources` subsystem (`IImageSource`, `IFragmentImageSource`, `ImageSourceRequest`,
+`ImageSourceResult`, `ImageSourceDiagnostic`, `ImageSourceRefusedException`, and `FolderImageResolver`'s codes).
 
 ### Callers
 
-Applications that render MathML, through the public API. Within the repository, the test project; the Viewer, the tool,
-and the image source of the other formats call it from stage C (see *CanvasNetMathMl System Design*, Phase Plan).
+Applications that render MathML, through the public API, and image resolvers (such as `FolderImageResolver`) that
+draw linked `.mml` files with `MathMlImageSource`. Within the repository, the test project; the Viewer and the tool
+register the image source and open `.mml` files in stage C (see *CanvasNetMathMl System Design*, Phase Plan).

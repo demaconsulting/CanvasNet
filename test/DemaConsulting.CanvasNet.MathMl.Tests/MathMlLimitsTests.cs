@@ -17,6 +17,7 @@ public class MathMlLimitsTests
         // Assert
         Assert.Equal((1_048_576, 100_000, 256, 10_000), (limits.MaxTextSize, limits.MaxElements, limits.MaxNestingDepth, limits.MaxTokenLength));
         Assert.Equal((10_000_000L, 1_000_000, 1_000, 1_000), (limits.MaxLayoutWork, limits.MaxPaintedGlyphs, limits.MaxDiagnostics, limits.MaxAssemblyParts));
+        Assert.Equal(100_000, limits.MaxTableCells);
     }
 
     /// <summary>
@@ -33,6 +34,8 @@ public class MathMlLimitsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new MathMlLimits { MaxPaintedGlyphs = 0 });
         Assert.Throws<ArgumentOutOfRangeException>(() => new MathMlLimits { MaxDiagnostics = -1 });
         Assert.Equal("MaxAssemblyParts", Assert.Throws<ArgumentOutOfRangeException>(() => new MathMlLimits { MaxAssemblyParts = 0 }).ParamName);
+        Assert.Equal("MaxTableCells", Assert.Throws<ArgumentOutOfRangeException>(() => new MathMlLimits { MaxTableCells = 0 }).ParamName);
+        Assert.Equal(1, new MathMlLimits { MaxTableCells = 1 }.MaxTableCells);
     }
 
     /// <summary>

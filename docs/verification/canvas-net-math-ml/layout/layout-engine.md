@@ -31,15 +31,32 @@ exception that differs from the expected one constitutes a failure.
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_Dispatch_LaysOutTokensAndRows`,
 `LayoutEngineTests.LayoutEngine_Layout_FractionsAndRadicals_AreDispatched`,
 `LayoutEngineTests.LayoutEngine_Layout_ScriptsAndUnderOver_AreDispatched`,
-`LayoutEngineTests.LayoutEngine_Layout_NoneAndPrescripts_AreNotReported`
+`LayoutEngineTests.LayoutEngine_Layout_NoneAndPrescripts_AreNotReported`,
+`LayoutEngineTests.LayoutEngine_Layout_Tables_AreDispatched`,
+`LayoutEngineTests.LayoutEngine_Layout_EveryCoreElement_IsDrawn`,
+`LayoutEngineTests.LayoutEngine_Layout_Table_IsCompact`
 
 Asserts that tokens paint glyphs, that rows place their children, and that every box keeps its element; that a
 fraction, a square root, and a root are drawn without reports: the numerator above and the denominator below the
 baseline with a bar, the radical symbol and the overbar around the row of the children of `msqrt`, and the index of
 `mroot` first at the 50 px of its two added script levels; that the seven scripted elements are drawn without reports,
 their subscripts and underscripts below and their superscripts and overscripts above the baseline, every script at the
-60 px of its added script level; and that `none` and `mprescripts`, inside and outside `mmultiscripts`, are empty boxes
-without reports.
+60 px of its added script level; that `none` and `mprescripts`, inside and outside `mmultiscripts`, are empty boxes
+without reports; that a table holds its rows, which hold their cells (with their elements), which hold the anonymous
+row of their content; that an equation with every element of MathML Core (the 31 elements with `maction`, the
+annotations, and `mprescripts` and `none`) is laid out without a warning or an unsupported report; and that a fraction
+in a cell of a display equation has the height of an inline fraction (the table is compact).
+
+##### CanvasNetMathMl-Layout-LayoutEngine-TableStructure: Anonymous Rows And Cells
+
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_TableStructure_AnonymousRowsAndCellsWarn`,
+`LayoutEngineTests.LayoutEngine_Layout_CellOutsideTable_IsRowWithWarning`
+
+Asserts that two `mi` before an `mtr` become one anonymous row with one anonymous cell of both, that two `mi` after the
+`mtd` of an `mtr` become one anonymous cell of that row, and that an `mtd` directly in the table becomes an anonymous
+row holding that cell, with one `mathml-child-count` warning per run naming the element and what it is not; and that an
+`mtd` and an `mtr` outside a table are rows of their children, as wide as the equivalent `mrow`s, with one
+`mathml-child-count` warning each.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-ChildCount: Invalid Fractions And Roots
 
@@ -78,12 +95,14 @@ a script at 60 px; and that `accent` on `munder` is reported as `mathml-attribut
 Asserts that the limits of an inline summation start at its right edge, as scripts, while in display style and with
 `movablelimits="false"` they are centered within its width, and that the scripted element carries the operator.
 
-##### CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements: Later And Unknown Elements
+##### CanvasNetMathMl-Layout-LayoutEngine-UnsupportedElements: Elements Outside MathML Core
 
-**Tests**: `LayoutEngineTests.LayoutEngine_Layout_StageBElement_FallsBackToRowWithReport`
+**Tests**: `LayoutEngineTests.LayoutEngine_Layout_NonCoreElement_FallsBackToRowWithReport`,
+`LayoutEngineTests.LayoutEngine_Layout_EveryCoreElement_IsDrawn`
 
-Asserts that an element of a later version (`mtable`) and an unknown element (`menclose`) are laid out as rows of their
-children and reported as `mathml-element-unsupported` at their locations.
+Asserts that `mfenced` and `menclose` are laid out as rows of their children, as wide as the equivalent `mrow`s, and
+reported as `mathml-element-unsupported` as elements outside MathML Core, the first with a hint to write `mo` elements;
+and that no element of MathML Core is reported.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-HiddenElements: No Box
 
@@ -134,9 +153,11 @@ the extents of its operator; that the parenthesis at the base of an `msup` stret
 ##### CanvasNetMathMl-Layout-LayoutEngine-Bounds: Depth, Work, And Cancellation
 
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_Bounds_AreEnforced`,
-`LayoutEngineTests.LayoutEngine_Layout_StretchRelayout_IsCharged`
+`LayoutEngineTests.LayoutEngine_Layout_StretchRelayout_IsCharged`,
+`LayoutEngineTests.LayoutEngine_Layout_Table_ChargesGridSlots`
 
 Asserts that a nesting limit of 2 and a work limit of 5 fail with messages naming `MathMlLimits.MaxNestingDepth` and
 `MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws, that the work of the equation is 7 (four elements
-and three characters), and that a stretchy parenthesis laid out again to stretch is charged twice (two more units than
-the same row with `stretchy="false"`).
+and three characters), that a stretchy parenthesis laid out again to stretch is charged twice (two more units than
+the same row with `stretchy="false"`), and that a table whose cell spans 50 columns and all three rows costs at least
+the 149 further grid slots and 49 further columns of its span more than a table of one cell.

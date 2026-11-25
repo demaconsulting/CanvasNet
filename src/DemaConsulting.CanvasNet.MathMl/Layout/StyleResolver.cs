@@ -87,7 +87,8 @@ internal readonly record struct ChildStyleRule(bool Compact, MathDepthRule Depth
 ///         the declarations of the inline <c>style</c> attribute override both, as in CSS. The <c>math</c> element takes
 ///         its math style from its display mode (the <c>display</c> attribute or the render option), and resets the math
 ///         depth to zero and the math shift to normal; <c>merror</c> gets its light yellow background; <c>msqrt</c> and
-///         <c>mroot</c> get <c>math-shift: compact</c>. The rules that a layout element applies to its children by
+///         <c>mroot</c> get <c>math-shift: compact</c>; <c>mtable</c> gets <c>math-style: compact</c>. The rules that a
+///         layout element applies to its children by
 ///         position (<see cref="ChildStyleRule"/>: the numerator and denominator of <c>mfrac</c>, the index of
 ///         <c>mroot</c>, the scripts of the scripted elements with the <c>font-size: inherit</c> of an accent and the
 ///         <c>math-shift: compact</c> of a subscript or of the base of an accent) are user agent rules too, so a hint of
@@ -349,7 +350,7 @@ internal sealed class StyleResolver
     private MathStyle Resolve(MathElement element, MathStyle parent, bool isRoot, ChildStyleRule rule)
     {
         // The user agent rules: of the position in the parent, then of the element itself
-        var displayStyle = !rule.Compact && parent.DisplayStyle;
+        var displayStyle = !rule.Compact && parent.DisplayStyle && element.Name != "mtable";
         var inheritedDepth = isRoot ? 0 : parent.MathDepth;
         var depth = rule.Depth switch
         {

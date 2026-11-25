@@ -8,10 +8,9 @@
 # CanvasNetMathMl is an independent software system distributed as its own NuGet package. It reads MathML equations
 # and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public CanvasNet
 # APIs (and the internal OpenType MATH table reader of the core, through friend access), and the fonts bundled with
-# CanvasNet: there is no browser and no network access. The elements this version does not draw (in this version the
-# scripts, under-overs, and tables of MathML Core) are laid out as rows of their children and reported with a stable
-# mathml-* identifier instead of failing (see
-# docs/design/canvas-net-math-ml.md, Known Differences, and the Phase Plan). The data tables derived from W3C and
+# CanvasNet: there is no browser and no network access. Every element of MathML Core is drawn; the elements outside
+# MathML Core are laid out as rows of their children and reported with a stable mathml-* identifier instead of failing
+# (see docs/design/canvas-net-math-ml.md, Known Differences, and the Phase Plan). The data tables derived from W3C and
 # Unicode data files are attributed in the package's third-party notice (src/DemaConsulting.CanvasNet.MathMl/
 # third-party).
 #
@@ -231,13 +230,65 @@ sections:
           - CanvasNetMathMl_Render_Overbrace_StretchesHorizontally
           - CanvasNetMathMl_ReferenceLayout_MatchesChrome
 
+      - id: CanvasNetMathMl-Tables
+        title: >-
+          The library shall draw mtable, mtr and mtd as MathML Core lays them out: a grid of cells placed with the
+          rowspan and columnspan of HTML, each cell padded by 0.4em and 0.5ex with its content centered, the cells of a
+          row on a shared baseline, a spanning cell spreading the room it needs over the rows or columns it spans, and
+          the table centered on the math axis in compact math style.
+        tags: [system]
+        justification: |
+          Matrices, determinants, case distinctions, and aligned systems of equations are written as tables; they must
+          be drawn with the cell positions a browser computes.
+        children:
+          - CanvasNetMathMl-Layout-Tables
+        tests:
+          - CanvasNetMathMl_Render_Matrix_CenteredOnTheAxis
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-TableExtensions
+        title: >-
+          The library shall apply the MathML 3 table attributes columnalign, rowalign, columnspacing, rowspacing,
+          framespacing, columnlines, rowlines, and frame as Firefox draws them (Chrome ignores them), shall report an
+          invalid value of them as mathml-attribute-invalid, and shall report the other legacy table attributes as
+          mathml-attribute-unsupported.
+        tags: [system]
+        justification: |
+          Aligned equations, augmented matrices, and framed tables are written with these attributes by authors and
+          tools; MathML Core dropped them, but Firefox still draws them, so they are drawn as Firefox draws them
+          rather than ignored.
+        children:
+          - CanvasNetMathMl-Layout-TableExtensions
+          - CanvasNetMathMl-Layout-UnsupportedFeatures
+        tests:
+          - CanvasNetMathMl_ReferenceLayout_MatchesFirefox
+          - CanvasNetMathMl_ReferenceGoldens_CoverEveryFixture
+
+      - id: CanvasNetMathMl-ImageSource
+        title: >-
+          The library shall provide an image source that draws a .mml file linked from another document at its
+          natural size or fitted into the requested size on a transparent background, with the display mode of a
+          #display=block or #display=inline fragment (refusing any other value before the file is read), returning the
+          warnings and unsupported features as notes with their mathml-* codes and locations, honoring strict mode, the
+          pixel budget, and the cancellation token of the request.
+        tags: [system]
+        justification: |
+          Equations are embedded in SVG pictures and diagrams through image links; the link must draw the equation as
+          sharply as its placement allows, let the author choose the display mode, and report problems to the
+          document that embeds it.
+        children:
+          - CanvasNetMathMl-MathMlDocument-ImageSource
+        tests:
+          - CanvasNetMathMl_ImageSource_DrawsALinkedEquation
+
       - id: CanvasNetMathMl-ChildCount
         title: >-
           The library shall lay out an mfrac, mroot, msub, msup, munder or mover that does not have exactly two in-flow
           children, an msubsup or munderover that does not have exactly three, and an mmultiscripts that is not a base
           followed by pairs of scripts around at most one mprescripts, as a row of its children, as MathML Core lays
-          out invalid markup, and shall report it as a mathml-child-count warning at its location that does not stop a
-          strict rendering.
+          out invalid markup; shall wrap a child of mtable that is not an mtr, and a child of mtr that is not an mtd, in
+          an anonymous row or cell, and lay out an mtr or mtd outside a table as a row of its children; and shall report
+          each as a mathml-child-count warning at its location that does not stop a strict rendering.
         tags: [system]
         justification: |
           Invalid markup must still produce the picture a browser draws, and the author must learn which element is
@@ -248,6 +299,7 @@ sections:
           - CanvasNetMathMl-MathMlDocument-Records
         tests:
           - CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow
+          - CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetMathMl-Style
         title: >-
@@ -310,9 +362,10 @@ sections:
       - id: CanvasNetMathMl-Limits
         title: >-
           The library shall bound the resources that reading and rendering an untrusted equation can consume, refusing
-          a text longer than the size limit with an InvalidDataException and a structural, layout, stretching, or
-          painting limit with a located exception whose code is mathml-limit-exceeded, and shall refuse deeply nested
-          text without exhausting the stack.
+          a text longer than the size limit with an InvalidDataException and a structural, layout, stretching, table
+          (grid slots checked before the grid is allocated), or painting limit with a located exception whose code is
+          mathml-limit-exceeded, shall refuse deeply nested text without exhausting the stack, and shall throw only
+          these documented exceptions for any mutated text.
         tags: [system, security]
         justification: |
           Equations come from untrusted documents; a hostile one must fail with a clear error instead of exhausting
@@ -327,17 +380,26 @@ sections:
           - CanvasNetMathMl_Limits_OversizedText_IsRefused
           - CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow
           - CanvasNetMathMl_Limits_HugeStretch_IsRefused
+          - CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMathMl_Hardening_TableCells_AreLimited
+          - CanvasNetMathMl_Hardening_HugeSpans_FailBeforeAllocation
+          - CanvasNetMathMl_Hardening_LayoutWork_ChargesTableSlots
+          - CanvasNetMathMl_Hardening_HorizontalStretch_IsLimited
+          - CanvasNetMathMl_Hardening_DeepFractions_AreBounded
+          - CanvasNetMathMl_Hardening_HugeLengths_AreRefused
+          - CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render
 
       - id: CanvasNetMathMl-Cancellation
         title: >-
-          The library shall stop measuring and rendering with an OperationCanceledException when the caller's
-          cancellation token is canceled.
+          The library shall stop measuring and rendering, directly or through its image source, with an
+          OperationCanceledException when the caller's cancellation token is canceled.
         tags: [system]
         justification: |
           A host that renders many equations, or a large one, must be able to stop the work it no longer needs.
         children:
           - CanvasNetMathMl-Layout-Bounds
           - CanvasNetMathMl-MathMlPainter-Cancellation
+          - CanvasNetMathMl-MathMlDocument-ImageSource
         tests:
           - CanvasNetMathMl_Render_PreCanceledToken_Throws
 
@@ -357,8 +419,8 @@ sections:
 
       - id: CanvasNetMathMl-UnsupportedFeatures
         title: >-
-          The library shall lay out every element this version does not draw (the table elements of MathML Core, and
-          every element outside MathML Core) as a row of its children, and shall report
+          The library shall draw every element of MathML Core, shall lay out every element outside MathML Core as a row
+          of its children, and shall report
           it, an element of another namespace, an attribute without effect, and a style declaration outside the
           supported subset to the caller's handler with a stable mathml-* code and its location, once, in document
           order, on the calling thread.
@@ -388,14 +450,16 @@ sections:
 
       - id: CanvasNetMathMl-Offline
         title: >-
-          The library shall read no file other than the one the caller opens and shall never use the network: a
-          document type declaration is refused, and the href and xlink link attributes are reported and never followed.
+          The library shall read no file other than the one the caller opens (its image source only the content of
+          the request) and shall never use the network: a document type declaration is refused, and the href and xlink
+          link attributes are reported and never followed.
         tags: [system, security]
         justification: |
           A renderer of untrusted documents must not leak local files or reach remote content that a document names.
         children:
           - CanvasNetMathMl-Syntax-Links
           - CanvasNetMathMl-Syntax-CharacterReferences
+          - CanvasNetMathMl-MathMlDocument-ImageSource
         tests:
           - CanvasNetMathMl_Links_AreReportedNotFetched
           - CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused

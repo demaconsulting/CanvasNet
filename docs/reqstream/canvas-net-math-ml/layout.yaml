@@ -4,8 +4,9 @@
 # These requirements decompose the CanvasNetMathMl system's layout responsibility into the Layout subsystem (internal
 # namespace DemaConsulting.CanvasNet.MathMl.Layout): the walk and dispatch of the equation tree (LayoutEngine), the
 # computed styles (StyleResolver), the math font (MathFont), the box model (MathBox), the layouts of tokens
-# (TokenLayout), rows (RowLayout), fractions (FractionLayout), radicals (RadicalLayout), scripts (ScriptLayout), and
-# under- and overscripts (UnderOverLayout), the operator dictionary (OperatorDictionary), and the stretching of glyphs
+# (TokenLayout), rows (RowLayout), fractions (FractionLayout), radicals (RadicalLayout), scripts (ScriptLayout),
+# under- and overscripts (UnderOverLayout), and tables (TableLayout), the operator dictionary (OperatorDictionary), and
+# the stretching of glyphs
 # (StretchyGlyphs). Each requirement here links down to the unit
 # requirements that implement it.
 # See docs/verification/canvas-net-math-ml/layout.md for the test-evidence mapping.
@@ -198,15 +199,53 @@ sections:
             tests:
               - Layout_ScriptsAndLimits_MatchConstants
 
+          - id: CanvasNetMathMl-Layout-Tables
+            title: >-
+              The Layout subsystem shall lay out mtable, mtr and mtd as MathML Core 3.5 does: the cells placed on a grid
+              with the HTML row and column spans (bounded by the table cell limit), padded by 0.4em and 0.5ex, centered,
+              on the baselines of their rows, the excess of spanning cells spread over the rows and columns they span,
+              the table in compact math style centered on the math axis, and the boxes of the rows and cells as a
+              browser gives them.
+            justification: |
+              Matrices and aligned equations must match a browser that implements MathML Core.
+            children:
+              - CanvasNetMathMl-Layout-TableLayout-Grid
+              - CanvasNetMathMl-Layout-TableLayout-Spans
+              - CanvasNetMathMl-Layout-TableLayout-Axis
+              - CanvasNetMathMl-Layout-TableLayout-Limit
+              - CanvasNetMathMl-Layout-LayoutEngine-Dispatch
+              - CanvasNetMathMl-Layout-LayoutEngine-TableStructure
+              - CanvasNetMathMl-Layout-StyleResolver-MathStyle
+            tests:
+              - Layout_Tables_CenterOnAxisWithCorePadding
+
+          - id: CanvasNetMathMl-Layout-TableExtensions
+            title: >-
+              The Layout subsystem shall apply the MathML 3 attributes columnalign, rowalign, columnspacing, rowspacing,
+              framespacing, columnlines, rowlines and frame as Firefox draws them, and report their invalid values.
+            justification: |
+              MathML Core dropped these attributes and Chrome ignores them, but authors use them and Firefox draws them;
+              Firefox is the reference.
+            children:
+              - CanvasNetMathMl-Layout-TableLayout-Alignment
+              - CanvasNetMathMl-Layout-TableLayout-Spacing
+              - CanvasNetMathMl-Layout-TableLayout-Lines
+              - CanvasNetMathMl-Layout-TableLayout-InvalidValues
+            tests:
+              - Layout_Tables_CenterOnAxisWithCorePadding
+
           - id: CanvasNetMathMl-Layout-ChildCount
             title: >-
               The Layout subsystem shall lay out an mfrac, mroot, msub, msup, munder or mover without exactly two
               in-flow children, an msubsup or munderover without exactly three, and an invalid mmultiscripts as a row of
-              its children and report a located mathml-child-count warning.
+              its children, wrap the children of mtable and mtr that are not rows or cells in anonymous rows and cells,
+              lay out an mtr or mtd outside a table as a row, and report each as a located mathml-child-count warning.
             justification: |
-              MathML Core lays invalid markup out as an mrow, and the author must learn which element is invalid.
+              MathML Core lays invalid markup out as an mrow, CSS wraps stray table children in anonymous table
+              objects, and the author must learn which element is invalid.
             children:
               - CanvasNetMathMl-Layout-LayoutEngine-ChildCount
+              - CanvasNetMathMl-Layout-LayoutEngine-TableStructure
             tests:
               - Layout_WrongChildCount_IsRowWithWarning
 
@@ -252,8 +291,9 @@ sections:
 
           - id: CanvasNetMathMl-Layout-UnsupportedFeatures
             title: >-
-              The Layout subsystem shall lay out every element this version does not draw as a row of its children and
-              report it, and shall report the attributes without effect on the elements it draws.
+              The Layout subsystem shall lay out every element outside MathML Core as a row of its children and report
+              it, and shall report the attributes without effect on the elements it draws (the legacy table attributes
+              included).
             justification: |
               An equation with a construct that is not drawn must still produce a picture, and the caller must learn
               what was not drawn.
@@ -265,11 +305,13 @@ sections:
 
           - id: CanvasNetMathMl-Layout-Bounds
             title: >-
-              The Layout subsystem shall bound the nesting depth and the work of a layout with located
-              mathml-limit-exceeded errors and stop when the call is canceled.
+              The Layout subsystem shall bound the nesting depth, the work of a layout (every slot of a table grid
+              charged), and the grid slots of a table with located mathml-limit-exceeded errors and stop when the call
+              is canceled.
             justification: |
-              A hostile equation must not exhaust the stack or time while it is laid out.
+              A hostile equation must not exhaust the stack, memory, or time while it is laid out.
             children:
               - CanvasNetMathMl-Layout-LayoutEngine-Bounds
+              - CanvasNetMathMl-Layout-TableLayout-Limit
             tests:
               - Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout

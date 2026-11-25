@@ -1,0 +1,19 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mtable columnalign="left right" frame="solid">
+    <mtr>
+      <mtd><mspace width="2em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="2em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="2em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr columnalign="center">
+      <mtd><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd columnalign="left"><mspace width="0.5em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+  </mtable>
+</math>

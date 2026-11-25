@@ -297,6 +297,7 @@ input-files:
   - docs/verification/canvas-net-math-ml/layout/radical-layout.md
   - docs/verification/canvas-net-math-ml/layout/script-layout.md
   - docs/verification/canvas-net-math-ml/layout/under-over-layout.md
+  - docs/verification/canvas-net-math-ml/layout/table-layout.md
   - docs/verification/canvas-net-math-ml/layout/operator-dictionary.md
   - docs/verification/canvas-net-math-ml/layout/stretchy-glyphs.md
   - docs/verification/canvas-net-viewer.md

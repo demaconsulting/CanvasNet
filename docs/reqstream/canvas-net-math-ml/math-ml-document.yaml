@@ -3,7 +3,7 @@
 #
 # These requirements describe the design-level behavior of the MathMlDocument unit (the public API of the root
 # namespace DemaConsulting.CanvasNet.MathMl): the reading entry points, the description of a document, measuring and
-# rendering, the options and limits, the records, codes, and exceptions, and the report sink. See
+# rendering, the options and limits, the records, codes, and exceptions, the report sink, and the image source. See
 # docs/verification/canvas-net-math-ml/math-ml-document.md for the test-evidence mapping.
 
 sections:
@@ -69,9 +69,9 @@ sections:
           - id: CanvasNetMathMl-MathMlDocument-Limits
             title: >-
               The MathMlDocument unit shall provide resource limits with documented defaults (text size, elements,
-              nesting depth from 1 to 1,024, token length, layout work, painted glyphs, reports, and the glyphs of a
-              stretched operator), refuse values below one, and fail a call that exceeds the layout work with a located
-              render exception that names the limit.
+              nesting depth from 1 to 1,024, token length, layout work, painted glyphs, reports, the glyphs of a
+              stretched operator, and the grid slots of a table), refuse values below one, and fail a call that exceeds
+              the layout work with a located render exception that names the limit.
             justification: |
               The caller tunes the bounds of untrusted input, and an exceeded bound must name the setting to change.
             tests:
@@ -132,3 +132,29 @@ sections:
               A defect must surface as a documented, located failure instead of an undocumented exception type.
             tests:
               - MathMlDocument_IsLayoutDefect_ClassifiesExceptions
+
+          - id: CanvasNetMathMl-MathMlDocument-ImageSource
+            title: >-
+              The MathMlDocument unit shall provide MathMlImageSource, an image source named mathml that claims the
+              .mml extension and no scheme and declares the display fragment parameter: it shall refuse a display value
+              other than block or inline (ASCII case-insensitive) with the invalid-fragment code before reading the
+              file, read only the content of the request, draw the equation with that display mode on a transparent
+              background at its natural size (which may be larger than a surface) or fitted into the requested size
+              within the pixel budget, return warnings as mathml-warning notes with the specific code in the detail and
+              unsupported features under their own codes, both located, throw in strict mode, and stop when the request
+              is canceled.
+            justification: |
+              Documents embed equations through image links; the source is the composition hook, so it must behave
+              like the other image sources of CanvasNet and never touch files or the network beyond the request.
+            tests:
+              - MathMlImageSource_Properties_ClaimMmlAndTheDisplayFragment
+              - MathMlImageSource_Render_DrawsTheEquationOnTransparent
+              - MathMlImageSource_Render_DisplayFragment_SetsBlockOrInline
+              - MathMlImageSource_Render_InvalidDisplay_IsRefused
+              - MathMlImageSource_Render_ReportsNotesAndStrictMode
+              - MathMlImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth
+              - MathMlImageSource_Render_InvalidText_ThrowsSyntaxException
+              - MathMlImageSource_Render_NullRequest_Throws
+              - MathMlImageSource_Render_PreCanceled_Throws
+              - MathMlImageSource_Render_OverBudget_IsRefused
+              - MathMlDocument_MeasureNatural_BeyondSurface_ReturnsTheSize

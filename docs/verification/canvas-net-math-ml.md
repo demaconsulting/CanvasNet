@@ -15,9 +15,11 @@ This document describes the system-level verification strategy for CanvasNetMath
   properties, the exceptions with their codes, locations, and hints, the sizes, baselines, and pixels of rendered
   surfaces, and the reports delivered to the handlers. The system test classes are `MathMlSystemIntegrationTests`
   (reading, description, rendering, fractions, radicals, scripts, under- and overscripts, horizontal stretching,
-  limits, cancellation, determinism, reports, strict mode, offline, notices) and
+  tables, the image source, limits, cancellation, determinism, reports, strict mode, offline, notices),
   `MathMlReferenceLayoutTests` (the layout of the original fixtures compared with the reference layouts that headless
-  Chrome computes for them).
+  Chrome computes for them, and the MathML 3 table attributes compared with headless Firefox), and
+  `MathMlHardeningTests` (table, span, stretch, nesting, and length limits with deterministic work measures, and a
+  seeded mutation fuzzer).
 - **Subsystem tests** exercise each internal subsystem through its own entry points (see *Syntax Subsystem
   Verification Design* and *Layout Subsystem Verification Design*).
 - **Unit tests** exercise each unit in isolation (see the unit verification documents).
@@ -30,7 +32,12 @@ The **Chrome reference layouts** are made offline by the developer script `tools
 (headless Chrome through the puppeteer of the repository's pinned mermaid-cli, with the bundled Noto Sans Math font, at
 100 CSS pixels) and committed next to their fixtures as `*.layout.json`; no browser runs at test time. The tolerance
 (1 CSS pixel plus Chrome's layout unit of 1/64 pixel), the Chrome version, the behaviors matched, and the documented
-exceptions are recorded in `Fixtures/reference/README.md`.
+exceptions are recorded in `Fixtures/reference/README.md`. The **Firefox reference layouts** of the MathML 3 table
+attributes (which Chrome ignores) are made by the same script with `-Browser Firefox` (headless Firefox through the same
+puppeteer, after a one-time `npx puppeteer browsers install firefox`) into `Fixtures/reference-firefox/`; they compare
+only the boxes of the tables, rows, cells, and `mspace` contents relative to their table, within 1 CSS pixel plus
+Firefox's layout unit of 1/60 pixel, as recorded in `Fixtures/reference-firefox/README.md`. Neither browser runs at test
+time, and no test reads a clock.
 
 ## Test Environment
 
@@ -38,7 +45,8 @@ exceptions are recorded in `Fixtures/reference/README.md`.
   net11.0
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Files**: temporary files written and deleted by the tests, the fixtures and reference layouts of
-  `Fixtures/reference/`, and the third-party notices copied to the test output; no network, no browser
+  `Fixtures/reference/` and `Fixtures/reference-firefox/`, and the third-party notices copied to the test output; no
+  network, no browser
 - **Mocking**: None
 - **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and`
   `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels`carry`[Trait("Category", "Platform")]` and are the
@@ -195,13 +203,51 @@ under rows, a labeled brace, and a brace base with a label), and `arrow-over` (a
 stretch stack gaps and as an overscript) match Chrome's boxes, the arrow values and the height of the under brace within
 the documented exceptions.
 
-### CanvasNetMathMl-ChildCount: Invalid Fractions And Roots
+### CanvasNetMathMl-Tables: Tables Are Drawn
 
-**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow`
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_Matrix_CenteredOnTheAxis`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesChrome`
+
+Renders at 32 px a framed 2 by 2 table after `A =` and asserts that nothing is reported, that the table's ascent exceeds
+its descent by twice AxisHeight (the table is centered on the math axis), that a cell's content starts 0.4em into the
+cell, that the frame is inked along the left edge of the table, and that the inside of an empty cell is transparent; and
+that the fixtures `table-matrix` (a 3 by 3 matrix of letters and digits), `table-spans` (`columnspan`, `rowspan`, and
+`rowspan="0"`, whose excess Chrome spreads in proportion), `table-fenced-matrix` (a matrix in stretched parentheses next
+to a fraction in a display equation), and `table-cell-baselines` (fractions, scripts, a radical, and a deep `mspace` in
+cells, compact in a table) match Chrome's boxes.
+
+### CanvasNetMathMl-TableExtensions: The MathML 3 Table Attributes
+
+**Tests**: `MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceLayout_MatchesFirefox`,
+`MathMlReferenceLayoutTests.CanvasNetMathMl_ReferenceGoldens_CoverEveryFixture`
+
+Asserts that the boxes of the tables, rows, cells, and `mspace` contents of the Firefox fixtures, relative to their
+table, match headless Firefox within 1 pixel plus 1/60 pixel: `table-columnalign` (`columnalign="left right"` with the
+last value repeated, an `mtr` and an `mtd` override), `table-rowalign` (`top`, `bottom`, `center`, `baseline`, and
+`axis` rows, an `mtr` and an `mtd` override), `table-spacing` (`columnspacing`, `rowspacing`, and `framespacing` lists
+with a frame, and zero spacing with a dashed frame), and `table-lines-frame` (`columnlines`, `rowlines`, and a solid and
+a dashed `frame`); and that every fixture of both reference folders has its golden. The reports of invalid values and of
+the other legacy attributes are verified by the unit tests of `TableLayout`.
+
+### CanvasNetMathMl-ImageSource: Linked Equations Are Drawn
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ImageSource_DrawsALinkedEquation`
+
+Through a `FolderImageResolver` over the reference fixtures with a `MathMlImageSource`, asserts that `table-matrix.mml`
+is drawn at the size `Measure` gives without notes, that `table-fenced-matrix.mml` is fitted into 100 by 100 pixels,
+that a link with `#display=block` is drawn without notes, that a link with `#display=wide` is not drawn and is reported
+with the invalid-fragment code, and that the resolver claims `.mml`.
+
+### CanvasNetMathMl-ChildCount: Invalid Fractions, Roots, And Tables
+
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
 
 Renders in strict mode an `mfrac` with one child and an `mroot` with three and asserts that no unsupported feature is
 reported and nothing throws, that two `mathml-child-count` warnings are delivered at lines 2 and 3, column 2, that the
-root is a row of its three children on its baseline, and that the picture has ink.
+root is a row of its three children on its baseline, and that the picture has ink; the fuzzer, which inserts stray table
+elements, fractions, and scripts into every fixture, asserts that such markup never throws beyond the documented
+exceptions. The anonymous rows and cells of stray table children are verified by the unit tests of `LayoutEngine`.
 
 ### CanvasNetMathMl-Style: Style Attributes Apply
 
@@ -238,20 +284,40 @@ the red border, the black operator) at positions derived from the layout.
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_OversizedText_IsRefused`,
 `MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow`,
-`MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_HugeStretch_IsRefused`
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Limits_HugeStretch_IsRefused`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_TableCells_AreLimited`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_HugeSpans_FailBeforeAllocation`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_LayoutWork_ChargesTableSlots`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_HorizontalStretch_IsLimited`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_DeepFractions_AreBounded`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_HugeLengths_AreRefused`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render`
 
 Asserts that a text and a stream over a size limit of 100 throw `InvalidDataException` naming
 `MathMlLimits.MaxTextSize`, that 10,000 nested rows fail with `mathml-limit-exceeded` naming
 `MathMlLimits.MaxNestingDepth` instead of a stack overflow, and that a parenthesis beside an `mspace` of 50 em fails
 with `mathml-limit-exceeded` at the operator, naming `MathMlLimits.MaxAssemblyParts`, when the limit is 20 glyphs, and
-renders within the default limits.
+renders within the default limits. The hardening tests measure work and limits, never time: a 20 by 20 table fails
+under 399 table cells with a located, hinted error naming `MathMlLimits.MaxTableCells` and renders under the defaults;
+a cell spanning 1,000 columns and 200 rows fails on `MaxTableCells`, not on a work budget of 5,000, so the grid was
+neither allocated nor charged; spans that make 50,000 grid slots exceed a work budget of 20,000 that the same elements
+without spans fit in; an arrow stretched under a 400 em script fails on 20 assembly parts; fractions nested 300 deep
+fail while read on `MaxNestingDepth`, and 100 deep fail a work budget of 200 and render under the defaults; a
+`linethickness` and a `columnspacing` of 99,999,999 em fail on `Surface.MaxDimension`; and a 40 by 40 table with spans,
+lines, and a frame renders identically twice. A seeded fuzzer (`Random(20261125)`, 24 mutations of every reference
+fixture: truncations, deletions, inserted MathML elements, attributes, and references, swapped lines, and flipped
+characters, every third run in strict mode) opens, measures, and renders each text and asserts that only
+`MathMlSyntaxException` and `MathMlRenderException` with a `mathml-*` code and a location (a text without markup has no
+location), `MathMlUnsupportedFeatureException` in strict mode, and `InvalidDataException` occur, and that every
+successful render has the measured size.
 
 ### CanvasNetMathMl-Cancellation: A Canceled Token Stops The Work
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Render_PreCanceledToken_Throws`
 
 Asserts that `Measure`, `Render`, and `Render(width, height)` throw `OperationCanceledException` for a pre-canceled
-token.
+token. The cancellation of the image source is verified by the unit tests of `MathMlDocument`.
 
 ### CanvasNetMathMl-Determinism: Identical Pixels
 
@@ -259,7 +325,7 @@ token.
 
 Renders the same document eight times in parallel and asserts that every surface equals the reference pixel for pixel.
 
-### CanvasNetMathMl-UnsupportedFeatures: Elements Not Drawn Are Rows With Reports
+### CanvasNetMathMl-UnsupportedFeatures: Elements Outside MathML Core Are Rows With Reports
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_UnsupportedElements_AreDrawnAsRowsAndReported`
 
@@ -279,7 +345,9 @@ for `<menclose>` after exactly one report reached the handler.
 `MathMlSystemIntegrationTests.CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused`
 
 Renders tokens with an `https` `href` and a `file` `xlink:href` and asserts two `mathml-attribute-unsupported` reports
-that say the links are not followed; a document type declaration (the vehicle of external entities) is refused.
+that say the links are not followed; a document type declaration (the vehicle of external entities) is refused. That
+the image source reads only the content of its request is verified by the unit tests of `MathMlDocument` (a refused
+link is never read).
 
 ### CanvasNetMathMl-ThirdPartyNotices: The Notices Ship With The Package
 
