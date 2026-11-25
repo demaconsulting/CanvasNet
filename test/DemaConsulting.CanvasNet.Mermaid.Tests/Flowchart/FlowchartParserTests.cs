@@ -329,6 +329,39 @@ public class FlowchartParserTests
     }
 
     /// <summary>
+    ///     Validates that a run of 20,000 spaces that the lexer consumes one character at a time (between statements, in
+    ///     the text of a link of each stroke, and in an ellipse label) gives one token per space, as Mermaid's lexer does,
+    ///     while the white-space scans of the link rules, tried at every space, pass the run once instead of once per
+    ///     space.
+    /// </summary>
+    /// <param name="before">The text before the run.</param>
+    /// <param name="after">The text after the run.</param>
+    /// <param name="kind">The kind of the token of each space.</param>
+    [Theory]
+    [InlineData("flowchart LR\n  A --> B\n", "\n", FlowchartTokens.Space)]
+    [InlineData("flowchart LR\n  A -- a", "b --> B\n", FlowchartTokens.EdgeText)]
+    [InlineData("flowchart LR\n  A == a", "b ==> B\n", FlowchartTokens.EdgeText)]
+    [InlineData("flowchart LR\n  A -. a", "b .-> B\n", FlowchartTokens.EdgeText)]
+    [InlineData("flowchart LR\n  A(-a", "b-)\n", FlowchartTokens.Text)]
+    public void FlowchartParser_Tokenize_LongSpaceRun_ScansTheRunOnce(string before, string after, string kind)
+    {
+        // Arrange
+        const int RunLength = 20_000;
+        var text = before + new string(' ', RunLength) + after;
+
+        // Act
+        var (tokens, spaceSteps) = FlowchartParser.Tokenize(MermaidTestHelpers.Mapped(text));
+
+        // Assert: one token per space at its position; scanning the rest of the run at every space would take hundreds
+        // of millions of steps, the cached scans take at most two per character of the text
+        var run = tokens.Where(t => t.Start >= before.Length && t.End <= before.Length + RunLength).ToList();
+        Assert.Equal(RunLength, run.Count);
+        Assert.All(run, t => Assert.Equal((kind, " ", 1), (t.Kind, t.Text, t.End - t.Start)));
+        Assert.Equal(SourceScanner.EndOfInput, tokens[^1].Kind);
+        Assert.InRange(spaceSteps, RunLength, 2L * text.Length);
+    }
+
+    /// <summary>
     ///     Parses a flowchart text into its model.
     /// </summary>
     /// <param name="text">The text.</param>
