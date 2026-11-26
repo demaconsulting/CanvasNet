@@ -10,21 +10,21 @@
   </style>
   <rect width="2496" height="1576" fill="#e5e7eb"/>
   <rect class="cell" x="24" y="24" width="1212" height="300"/>
-  <image href="quadratic.mml" x="356" y="86" width="548" height="176"/>
+  <image href="quadratic.mml" x="354" y="86" width="552" height="176"/>
   <text class="label" x="630" y="366">Quadratic formula</text>
   <rect class="cell" x="1260" y="24" width="1212" height="300"/>
-  <image href="binomial-theorem.mml" x="1518" y="86" width="696" height="176"/>
+  <image href="binomial-theorem.mml" x="1512" y="86" width="708" height="176"/>
   <text class="label" x="1866" y="366">Binomial theorem</text>
   <rect class="cell" x="24" y="388" width="1212" height="300"/>
-  <image href="fourier-transform.mml" x="246" y="452" width="768" height="172"/>
+  <image href="fourier-transform.mml" x="230" y="450" width="800" height="176"/>
   <text class="label" x="630" y="730">Fourier transform</text>
   <rect class="cell" x="1260" y="388" width="1212" height="300"/>
-  <image href="transfer-function.mml" x="1462" y="454" width="808" height="168"/>
+  <image href="transfer-function.mml" x="1454" y="454" width="824" height="168"/>
   <text class="label" x="1866" y="730">Transfer function</text>
   <rect class="cell" x="24" y="752" width="1212" height="760"/>
   <image href="maxwell.mml" x="304" y="810" width="652" height="644"/>
   <text class="label" x="630" y="1554">Maxwell's equations</text>
   <rect class="cell" x="1260" y="752" width="1212" height="760"/>
-  <image href="state-space.mml" x="1414" y="938" width="904" height="388"/>
+  <image href="state-space.mml" x="1410" y="938" width="912" height="388"/>
   <text class="label" x="1866" y="1554">State-space model</text>
 </svg>
