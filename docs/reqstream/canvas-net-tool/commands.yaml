@@ -5,7 +5,7 @@
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering), the HelpTopics unit (the command-line layer of the help
-#   cards: the tool's own cards and command-line sections over the help catalog of the Viewer library, which holds
+#   cards: the tool's own cards and command-line sections over the help cards of the Viewer library, which holds
 #   the cards about the input formats, style and composition, errors, limits, and file access), and the
 #   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
 #   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
@@ -62,13 +62,14 @@ sections:
           People and AI agents must be able to learn what the tool supports, and to get a working first example, from
           the tool itself, offline and in the version installed; a format is not a command, so the help takes both,
           and short linked cards let an agent read only what it needs. The cards about the formats are the help
-          catalog of the Viewer library; the tool adds its own cards and its command-line sections.
+          cards of the Viewer library; the tool adds its own cards and its command-line sections.
         children:
           - CanvasNetTool-Commands-HelpTopics-Catalog
           - CanvasNetTool-Commands-HelpTopics-Overlays
           - CanvasNetTool-Commands-HelpTopics-CommandLineLinks
           - CanvasNetTool-Commands-HelpTopics-TreeIntegrity
           - CanvasNetTool-Commands-HelpTopics-SizeBudget
+          - CanvasNetTool-Commands-HelpTopics-CommandExamplesParse
           - CanvasNetTool-Commands-HelpTopics-FormatContent
           - CanvasNetTool-Commands-HelpTopics-Examples
           - CanvasNetTool-Commands-HelpTopics-Rendering
@@ -78,19 +79,19 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-CommandLineGuidance
           - CanvasNetTool-Commands-HelpTopics-FileAccess
           - CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
-          - CanvasNetViewer-Help-HelpCatalog-CardFormat
-          - CanvasNetViewer-Help-HelpCatalog-StyleGuidance
-          - CanvasNetViewer-Help-HelpCatalog-CompositionGuidance
-          - CanvasNetViewer-Help-HelpCatalog-SvgArrows
-          - CanvasNetViewer-Help-HelpCatalog-SvgImageLinks
-          - CanvasNetViewer-Help-HelpCatalog-Mermaid
-          - CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
-          - CanvasNetViewer-Help-HelpCatalog-PlantUml
-          - CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
-          - CanvasNetViewer-Help-HelpCatalog-MathMl
-          - CanvasNetViewer-Help-HelpCatalog-MathMlGuideParity
+          - CanvasNetViewer-Help-CanvasNetHelp-StyleGuidance
+          - CanvasNetViewer-Help-CanvasNetHelp-CompositionGuidance
+          - CanvasNetViewer-Help-CanvasNetHelp-SvgArrows
+          - CanvasNetViewer-Help-CanvasNetHelp-SvgImageLinks
+          - CanvasNetViewer-Help-CanvasNetHelp-Mermaid
+          - CanvasNetViewer-Help-CanvasNetHelp-MermaidGuideParity
+          - CanvasNetViewer-Help-CanvasNetHelp-PlantUml
+          - CanvasNetViewer-Help-CanvasNetHelp-PlantUmlGuideParity
+          - CanvasNetViewer-Help-CanvasNetHelp-MathMl
+          - CanvasNetViewer-Help-CanvasNetHelp-MathMlGuideParity
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
+          - CanvasNetTool-Commands-CommandRegistry-HelpSearch
         tests:
           - CommandsSubsystem_HelpTopics_SubjectsResolve_ByNameAliasAndFlag
           - CommandsSubsystem_HelpTopics_CardPath_ResolvesByNamesAndAliases

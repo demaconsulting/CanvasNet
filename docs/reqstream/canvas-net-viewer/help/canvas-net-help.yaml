@@ -1,217 +1,113 @@
 ---
-# Software Unit Requirements for the HelpCatalog Class
+# Software Unit Requirements for the CanvasNetHelp Class
 #
-# The HelpCatalog class is the catalog of the help cards of the library: short Markdown cards with YAML front matter,
-# one per subject, under fifteen root cards - the quick reference for each format the library reads (what is supported
-# and what is not, the library options that apply, the diagnostics and what strict mode does with them, and the known
-# differences from the original program), guidance on making pictures look good, on composing them, and on the
-# positions of their features, the errors, the limits, and the files a document may read - with tiny examples that are
-# verified to render without a diagnostic. The cards ship inside the library, so they work offline, and they are
-# verified against the code so that they cannot drift from what the library does. The class resolves a card by its
-# path, gives views of the cards with some tags, writes the links of a card in library terms or in a host's own words,
-# layers a host's cards on the library cards, and renders a card as plain text or JSON. The class includes the
-# HelpCard, HelpExample, HelpLink, and HelpTags types of its public surface.
-
+# The CanvasNetHelp class is the public entry point of the help cards of the library: short Markdown cards with YAML
+# front matter, one per subject, under sixteen root cards - the quick reference for each format the library reads
+# (what is supported and what is not, the library options that apply, the diagnostics and what strict mode does with
+# them, and the known differences from the original program), guidance on making pictures look good, on composing them,
+# and on the positions of their features, the errors, the limits, and the files a document may read - with tiny
+# examples that are verified to render without a diagnostic. The cards ship inside the library, so they work offline,
+# and they are verified against the code so that they cannot drift from what the library does. The class names the
+# cards (the library source), fills in the live limits, gives the closed tag vocabulary of HelpTags, and builds the
+# library catalog; reading, linking, filtering, extending, and rendering the cards is done by the OTS item
+# DemaConsulting.HelpCards (docs/reqstream/ots/help-cards.yaml). The requirements below state what the library cards
+# are and say; the rules beyond those of HelpCards (the budgets, the column limits, the folders, the example names,
+# and the absence of command-line text) are CanvasNet's own.
 sections:
-  - title: HelpCatalog Unit Requirements
+  - title: CanvasNetHelp Unit Requirements
     requirements:
-      - id: CanvasNetViewer-Help-HelpCatalog-Catalog
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Catalog
         title: >-
-          The HelpCatalog class shall provide the library catalog, loaded once on first use from content shipped inside
-          the library, whose root cards are scad, vega-lite, mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster,
-          style, composition, positions, errors, limits, and files in that order, shall list its cards depth first and
-          give each card its identifier (its path), name, parent, title, summary, tags, aliases, body, the cards below
-          it, related cards, and examples as lists that cannot be changed, and shall resolve a card by a path of names
-          or aliases (segments separated by a slash or white space, matched ignoring case), returning nothing for a path
-          that names no card.
+          The CanvasNetHelp class shall provide the library catalog, built once on first use from content shipped
+          inside the library and the same for every caller on every thread, whose root cards are scad, vega-lite,
+          mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster, style, composition, positions, errors, limits, and
+          files in that order, shall provide the library cards as a named source that a host can import into its own,
+          and shall resolve a card by a path of names or aliases ignoring case.
         justification: |
-          A host must find a card by the same paths a person types, without an exception for a path that does not
-          exist; a fixed order of the roots makes the tree read the same way every time, and lists that cannot be
-          changed keep the shared catalog intact.
+          A host must find a card by the same paths a person types; a fixed order of the roots makes the tree read the
+          same way every time, one shared catalog is not built twice under concurrent readers, and a named source lets
+          a host layer its own cards on the library's.
+        children:
+          - CanvasNet-OTS-HelpCards-Load
         tests:
-          - CanvasNetHelp_Create_ValidCards_BuildsTheTree
-          - CanvasNetHelp_Find_PathsAndAliases_ResolveOrGiveNull
+          - CanvasNetHelp_Source_LoadsTheEmbeddedCardsAndExamples
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Catalog_IsThreadSafe_AndReturnsTheSameInstance
           - CanvasNetHelp_Default_EveryCardLoads_WithTitleSummaryAndBody
           - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
-          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
-          - CanvasNetHelp_Default_IsThreadSafe_AndReturnsTheSameInstance
+          - CanvasNetHelp_Default_ConcurrentReads_GiveTheSameResults
 
-      - id: CanvasNetViewer-Help-HelpCatalog-CardFormat
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Tokens
         title: >-
-          The HelpCatalog class shall read each card from one Markdown file whose identifier is its path, with front
-          matter of the keys title, summary, tags, aliases, children, see-also, and examples, shall replace the tokens
-          of the live limits in the text with the values of the code, and shall report an unknown key, a missing title,
-          summary, or tags, a malformed alias or example, a missing example file, an unknown token, or a badly named
-          file as an error that names the file and, where there is one, the line.
+          The CanvasNetHelp class shall state the limits in the text of the library cards with the values of the code
+          (the image size, resolution, and quality limits, the resource limits of each format, and the limits of
+          fragments and positions), formatted without a thousands separator, and shall leave no unresolved token in
+          any card.
         justification: |
-          A card is edited by people and agents as ordinary Markdown; an error that says where a card is wrong fails
-          the build with a message that can be acted on instead of shipping a broken card, and a number written as a
-          token cannot drift from the code.
+          A limit written as a number in a card would drift from the code; a token filled in from the constant of the
+          code is always the limit of the build in use.
         tests:
-          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
-          - CanvasNetHelp_Create_SemanticErrors_ThrowWithFileAndLine
-          - CanvasNetHelp_LibraryTokens_AreTheCodeConstants
+          - CanvasNetHelp_Tokens_AreTheCodeConstants
           - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
-
-      - id: CanvasNetViewer-Help-HelpCatalog-TreeIntegrity
+      - id: CanvasNetViewer-Help-CanvasNetHelp-TreeIntegrity
         title: >-
-          The HelpCatalog class shall load exactly the embedded card files, shall require the roots to be the
-          documented roots, the children of every card to be exactly the card files of its folder, and every related
-          card to name another card once, so that every card is reachable from a root, shall require the names and
-          aliases of siblings and of roots and the example names of a root's tree to be unique ignoring case, and shall
-          keep a card body free of a top-level heading and of the headings of the generated footer.
+          The CanvasNetHelp class shall ship exactly the library cards, their example files, and the file that names
+          the source, shall require the children of every card to be exactly the card files of its folder and every
+          related card to name another card once, so that every card is reachable from a root, shall require the names
+          and aliases of siblings and of roots and the example names of a root's tree to be unique ignoring case, and
+          shall keep a card body free of a top-level heading, of the headings of the generated footer, and of an
+          unclosed code block or one that names no language.
         justification: |
           A link that leads nowhere, a card that no path reaches, or a body that breaks the footer would make the help
-          lie about its own structure; checking the tree when it loads keeps every path and link valid.
+          lie about its own structure; folders that mirror the tree let an author find a card by its path.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
         tests:
           - CanvasNetHelp_Default_Tree_ChildrenAndSeeAlsoResolve
           - CanvasNetHelp_Default_Resources_AreExactlyTheLibraryCards
+          - CanvasNetHelp_Default_Children_AreTheCardFilesOfTheFolder
           - CanvasNetHelp_Default_ChildNames_AreUniqueAmongSiblings
-          - CanvasNetHelp_Default_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings
-          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
-
-      - id: CanvasNetViewer-Help-HelpCatalog-SizeBudget
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SizeBudget
         title: >-
-          The HelpCatalog class shall keep the plain text of every library card at most 6,000 characters, the text of a
-          root card that has cards below it at most 3,500 characters, and every summary on one line of at most 60
-          characters for a root card and 100 characters for any other card.
+          The CanvasNetHelp class shall keep every library card at most 6,000 characters, a root card that has cards
+          below it at most 3,500 characters, every summary on one line of at most 60 characters for a root card and 100
+          characters for any other card, and every line of a card at most 80 columns outside a fenced code block and
+          120 columns inside one.
         justification: |
-          The readers are mostly agents with a limited context: a short card costs few tokens, and a short index card
-          lets them find the right card before reading it.
+          The readers are mostly agents with a limited context and people at a terminal: a short card costs few tokens,
+          a short index card lets them find the right card before reading it, and short lines read without wrapping.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
         tests:
-          - CanvasNetHelp_Default_Cards_FitTheSizeBudget
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Tags
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+          - CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Tags
         title: >-
-          The HelpCatalog class shall give every card at least one tag, each from the closed vocabulary of the format
+          The CanvasNetHelp class shall give every card at least one tag, each from the closed vocabulary of the format
           tags svg, mermaid, plantuml, mathml, scad, vega-lite, pdf, pptx, vsdx, and raster and the scope tags
           authoring, design, composition, diagnostics, limits, hosting, and file-access, with no tag repeated and at
           least one scope tag, shall give every card of the tree of a format the tag of that format and no other format
-          tag, and shall report a card that breaks the vocabulary rules as an error naming the file and the line.
+          tag, and shall apply the same vocabulary to the cards a host adds and to the filters of a view.
         justification: |
           A host chooses the cards its reader may see by tags; a vocabulary that is closed and checked when the cards
           load means a filter written today selects the same kind of cards tomorrow.
+        children:
+          - CanvasNet-OTS-HelpCards-Views
         tests:
           - HelpTags_All_IsTheFormatTagsThenTheScopeTags
           - CanvasNetHelp_Default_Tags_AreFromTheClosedVocabulary_AndEveryCardHasAScopeTag
-          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
-          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Filter
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Configure_AppliesTheTagVocabulary
+          - CanvasNetHelp_Catalog_Filter_UnknownTag_ThrowsArgumentException
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Examples
         title: >-
-          The HelpCatalog class shall give a view of a catalog in which a card is visible when it is visible in the
-          catalog, it has any of the included tags (or nothing is included), and it has none of the excluded tags,
-          shall leave the catalog unchanged, shall report an unknown tag as an argument error, and shall report a card
-          that the view hides, when it is passed to the view, as an argument error.
-        justification: |
-          A host keeps only what its reader may learn, and may narrow a view again; a tag that is misspelled must fail
-          rather than silently select nothing.
-        tests:
-          - CanvasNetHelp_Filter_IncludeExclude_SelectsCardsByTags
-          - CanvasNetHelp_Filter_UnknownTag_ThrowsArgumentException
-          - CanvasNetHelp_Filter_OfAView_Composes
-          - CanvasNetHelp_CardMembers_HiddenCard_ThrowArgumentException
-
-      - id: CanvasNetViewer-Help-HelpCatalog-HiddenCards
-        title: >-
-          The HelpCatalog class shall decide in a view whether a card is visible by the card's own tags, shall list as
-          roots the visible cards that have no visible ancestor and as the cards below a card its nearest visible
-          descendants, shall resolve a path through hidden cards but return nothing for a hidden card, shall leave a
-          hidden card out of the related cards, shall write a link to a hidden card as the card's title and a link to a
-          hidden example as "an example", and shall name the visible owner of an example in place of a hidden card
-          that the link was written with.
-        justification: |
-          A reader must never be sent to a card it cannot read, yet the visible cards below a hidden one, such as the
-          style card of a format whose overview is hidden, must stay reachable.
-        tests:
-          - CanvasNetHelp_Filter_HiddenParent_LiftsVisibleChildrenToRootsAndChildren
-          - CanvasNetHelp_Filter_Find_HiddenIsNull_VisibleChildOfHiddenParentResolves
-          - CanvasNetHelp_Filter_HiddenLinkTargets_BecomePlainText
-          - CanvasNetHelp_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
-          - CanvasNetHelp_DefaultFiltered_NeverPointsAtAHiddenCard
-          - CanvasNetHelp_DefaultFiltered_VisibleCardBelowAHiddenRoot_IsARootFoundByItsPath
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Links
-        title: >-
-          The HelpCatalog class shall read the links of a card body to a card ([[a/b]]), to an example of a card or of
-          a card below it ([[a/b#name]]), and to an example of the containing card or of a card below it ([[#name]])
-          only outside code blocks and code spans, shall report a link to a card or example that does not exist, or
-          text outside code that starts like a link and is not one, as an error naming the file and the line, and
-          shall write a visible link in library terms as the card `a/b`, the example `name`, or the example `name` of
-          the card `a/b`.
-        justification: |
-          A link that names its target neutrally reads correctly in a library and in a command-line tool; diagram
-          syntax such as Mermaid's double brackets in code must stay literal, and a typo must fail the build.
-        tests:
-          - CanvasNetHelp_Markdown_Links_RenderInLibraryForm
-          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
-
-      - id: CanvasNetViewer-Help-HelpCatalog-HostLinks
-        title: >-
-          The HelpCatalog class shall write the body of a card with each visible link in a host's own words, calling
-          the host once for each link whose target is visible, in order, with the target card (the owner of the
-          example when the card the link was written with is hidden) and the example name, and shall write a link
-          whose target is hidden as plain text without calling the host.
-        justification: |
-          A host has its own way to reach a card, for example the command that prints it, and must never be asked to
-          write a link to a card its reader cannot read.
-        tests:
-          - CanvasNetHelp_FormatMarkdown_CallsTheHostOnlyForVisibleLinks
-          - CanvasNetHelp_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Extend
-        title: >-
-          The HelpCatalog class shall layer the card files embedded in a host's assembly on an unfiltered catalog: a
-          host card that extends the card at its own path appends its body, related cards, and examples to that card
-          and may replace its title and summary, and any other host card starts a new root tree listed after the
-          existing roots; it shall resolve the links of the host cards against the combined tree, add the host's
-          tokens without redefining an existing token, leave the catalog it extends unchanged, and report an overlay
-          of a card that does not exist or of another path, a host card in the tree of an existing card, a token that
-          redefines an existing token, or an extension of a filtered view as an error.
-        justification: |
-          A host adds what only it knows (its commands, options, and result documents) to the same tree, so its reader
-          sees one card per subject; the library catalog stays the same for every other host.
-        tests:
-          - CanvasNetHelp_Extend_OverlayAppendsBodySeeAlsoExamplesAndOverridesTitleSummary
-          - CanvasNetHelp_Extend_MisfitExtension_ThrowsWithTheReason
-          - CanvasNetHelp_Extend_TokenCollisionOrFilteredView_Throws
-          - CanvasNetHelp_Extend_AssemblyWithoutCards_KeepsTheCards
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Rendering
-        title: >-
-          The HelpCatalog class shall render a card as plain text with the same bytes every time (its title, summary,
-          aliases, tags, and body, followed by the cards below it, its examples, and its related cards that the view
-          shows, each with its identifier and summary, with LF line endings and the generated lines wrapped at 78
-          columns without splitting a word), shall render a card as one JSON object (id, title, summary, tags, aliases,
-          body, children, seeAlso, and examples with their content), and shall render the cards of a view as an index
-          in plain text and as JSON.
-        justification: |
-          A host hands the card to a reader, usually an agent, as text in a prompt or as structured data; the text is
-          stable, and the JSON carries everything the text shows and the content of the examples.
-        tests:
-          - CanvasNetHelp_RenderText_Card_IsPlainWrappedTextWithFooters
-          - CanvasNetHelp_RenderJson_Card_HasEveryField
-          - CanvasNetHelp_RenderIndex_ListsTheVisibleTree
-          - CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
-
-      - id: CanvasNetViewer-Help-HelpCatalog-ThreadSafety
-        title: >-
-          The HelpCatalog class shall return the same library catalog to every caller and shall give the same results
-          to callers that read, filter, and render it from several threads at once as to one caller.
-        justification: |
-          A host serves several agents or requests at once; the shared catalog must not be loaded twice or change
-          under a reader.
-        tests:
-          - CanvasNetHelp_Default_IsThreadSafe_AndReturnsTheSameInstance
-          - CanvasNetHelp_Default_ConcurrentReads_GiveTheSameResults
-
-      - id: CanvasNetViewer-Help-HelpCatalog-Examples
-        title: >-
-          The HelpCatalog class shall give each example of a library card a name unique below its root, the kind source
-          (a file that renders on its own) or snippet (a file that refers to sibling files), a language, a file name, a
-          description, and the content of its file exactly as it ships, shall ship no command-line example in the
-          library cards, and shall ship source examples that render under strict mode without any diagnostic and
-          snippets that do so once their sibling files exist.
+          The CanvasNetHelp class shall give each example of a library card a name unique below its root, the kind
+          source (a file that renders on its own) or snippet (a file that refers to sibling files), a language, a file
+          name, a description, and the content of its file exactly as it ships, next to its card, shall ship no
+          command-line example in the library cards, and shall ship source examples that render under strict mode
+          without any diagnostic and snippets that do so once their sibling files exist.
         justification: |
           A tiny example that is known to work is the fastest way to start with a format; an example that is verified
           cannot mislead, and a snippet that links other files is verified together with them.
@@ -220,12 +116,12 @@ sections:
           - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
           - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
           - CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
-          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
 
-      - id: CanvasNetViewer-Help-HelpCatalog-NoCommandLineText
+      - id: CanvasNetViewer-Help-CanvasNetHelp-NoCommandLineText
         title: >-
-          The HelpCatalog class shall keep the titles, summaries, bodies, example descriptions, and example contents of
-          the library cards free of the name of the command-line tool as a word and of command-line options, apart
+          The CanvasNetHelp class shall keep the titles, summaries, bodies, example descriptions, and example contents
+          of the library cards free of the name of the command-line tool as a word and of command-line options, apart
           from the documented namespace of the position bindings.
         justification: |
           A library host has no command line; a card that tells its reader to run a command or pass a flag sends it
@@ -233,10 +129,11 @@ sections:
         tests:
           - CanvasNetHelp_LibraryCards_HaveNoCommandLineText
           - CanvasNetHelp_LibraryCards_CommandLineTextScan_FindsWhatItLooksFor
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
 
-      - id: CanvasNetViewer-Help-HelpCatalog-FormatContent
+      - id: CanvasNetViewer-Help-CanvasNetHelp-FormatContent
         title: >-
-          The HelpCatalog class shall give the cards of each format (scad, vega-lite, mermaid, plantuml, mathml, svg,
+          The CanvasNetHelp class shall give the cards of each format (scad, vega-lite, mermaid, plantuml, mathml, svg,
           pdf, pptx, vsdx, and raster) the sections of what is supported, what is not supported, the library options
           that apply, the diagnostics and what strict mode does with them, and the known differences from the original
           program, and each drawing format at least two examples.
@@ -246,9 +143,9 @@ sections:
         tests:
           - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
 
-      - id: CanvasNetViewer-Help-HelpCatalog-StyleGuidance
+      - id: CanvasNetViewer-Help-CanvasNetHelp-StyleGuidance
         title: >-
-          The HelpCatalog class shall provide the style card (palette and contrast, font sizes relative to the output
+          The CanvasNetHelp class shall provide the style card (palette and contrast, font sizes relative to the output
           size, spacing, light, dark, and transparent backgrounds, resolution, strict mode, and checking the rendered
           picture) and a style card for each drawing format linked to it both ways, with a styled Mermaid flowchart and
           a styled Vega-Lite chart as examples that render under strict mode without a diagnostic; every Mermaid theme
@@ -265,9 +162,9 @@ sections:
           - CanvasNetHelp_StyleAdvice_TransparentChartInsideSvg_ShowsThePage
           - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
 
-      - id: CanvasNetViewer-Help-HelpCatalog-CompositionGuidance
+      - id: CanvasNetViewer-Help-CanvasNetHelp-CompositionGuidance
         title: >-
-          The HelpCatalog class shall provide the composition card (choosing the outer picture, sizing an embedded
+          The CanvasNetHelp class shall provide the composition card (choosing the outer picture, sizing an embedded
           picture, the fragments of a placement, the nesting and file-access limits, and the render, look, and fix
           loop) and a composition card for each drawing format linked to it both ways, with an SVG figure that embeds
           the styled Mermaid flowchart and the styled Vega-Lite chart as a snippet that renders under strict mode
@@ -288,9 +185,9 @@ sections:
           - CanvasNetHelp_FramedFigureExample_CalloutsEndOnTheModelAnchors
           - CanvasNetHelp_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
 
-      - id: CanvasNetViewer-Help-HelpCatalog-SvgArrows
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SvgArrows
         title: >-
-          The HelpCatalog class shall provide the svg arrows card (aliases markers and arrowheads) below the svg card,
+          The CanvasNetHelp class shall provide the svg arrows card (aliases markers and arrowheads) below the svg card,
           linked both ways with the svg style, svg framed-figure, and composition cards, that teaches a marker with
           orient="auto" on marker-end and auto-start-reverse on marker-start instead of a hand-drawn head, drawing a
           connector from its source to its target, that the head follows the final tangent of the path, a
@@ -303,9 +200,9 @@ sections:
           - CanvasNetHelp_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers
           - CanvasNetHelp_ArrowsExample_TipsLandOnTheTargetEdges
 
-      - id: CanvasNetViewer-Help-HelpCatalog-SvgImageLinks
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SvgImageLinks
         title: >-
-          The HelpCatalog class shall state in the svg embedding card which file types an image element may link
+          The CanvasNetHelp class shall state in the svg embedding card which file types an image element may link
           (exactly the file name extensions the library renders), that a linked model, chart, document page, or SVG
           file is drawn at the size of the placement, the link rule, and the diagnostic codes svg-image-unresolved,
           svg-image-too-large, and image-access-denied with an example; in the svg fragments card the page fragment
@@ -326,9 +223,9 @@ sections:
           - CanvasNetHelp_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
           - CanvasNetHelp_ScadAndVegaLiteCards_PointToImageHrefLinking
 
-      - id: CanvasNetViewer-Help-HelpCatalog-ViewAngles
+      - id: CanvasNetViewer-Help-CanvasNetHelp-ViewAngles
         title: >-
-          The HelpCatalog class shall state in the scad views and svg fragments cards that the variable $vpr set to
+          The CanvasNetHelp class shall state in the scad views and svg fragments cards that the variable $vpr set to
           [90-elevation,0,azimuth] draws what the azimuth and elevation view options draw, so that a link, which takes
           no angles, can turn the view of an embedded model.
         justification: |
@@ -337,9 +234,9 @@ sections:
         tests:
           - CanvasNetHelp_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation
 
-      - id: CanvasNetViewer-Help-HelpCatalog-Consistency
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Consistency
         title: >-
-          The HelpCatalog class shall state only facts verified against the library: the error codes listed in the
+          The CanvasNetHelp class shall state only facts verified against the library: the error codes listed in the
           errors codes card shall be every library error code (every code of the error contract except
           operation-failed, threshold-failed, and pandoc-filter-error, which only a host raises), the diagnostic
           identifiers cited in a card shall exist in the libraries and be produced by the input that is said to
@@ -355,9 +252,9 @@ sections:
           - CanvasNetHelp_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
           - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
 
-      - id: CanvasNetViewer-Help-HelpCatalog-Mermaid
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Mermaid
         title: >-
-          The HelpCatalog class shall provide the mermaid cards (alias mmd) with what a diagram may use (flowcharts,
+          The CanvasNetHelp class shall provide the mermaid cards (alias mmd) with what a diagram may use (flowcharts,
           sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts, gantt charts,
           mindmaps, packet diagrams, and git graphs, one card per diagram type with its settings on a card below it),
           each diagram type and construct that is not drawn with the identifier of its diagnostic, the library options
@@ -383,9 +280,9 @@ sections:
           - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
           - CanvasNetHelp_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor
 
-      - id: CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MermaidGuideParity
         title: >-
-          The HelpCatalog class shall give in the mermaid cards, row for row and in order, the same syntax, relation,
+          The CanvasNetHelp class shall give in the mermaid cards, row for row and in order, the same syntax, relation,
           tag, and setting rows of each diagram type and the same unsupported-feature and warning codes as the Mermaid
           user guide, worded the same, code spans included.
         justification: |
@@ -394,9 +291,9 @@ sections:
         tests:
           - CanvasNetHelp_MermaidCards_DiagramSyntaxItems_MatchUserGuide
 
-      - id: CanvasNetViewer-Help-HelpCatalog-PlantUml
+      - id: CanvasNetViewer-Help-CanvasNetHelp-PlantUml
         title: >-
-          The HelpCatalog class shall provide the plantuml cards (alias puml) with what a diagram may use (sequence
+          The CanvasNetHelp class shall provide the plantuml cards (alias puml) with what a diagram may use (sequence
           diagrams, activity diagrams, class, object, state, use case, component, and deployment diagrams and their
           elements, links, notes, and page texts, the preprocessor subset and local includes under the file-access
           policy, the supported skinparam settings, colors, and fonts, and the composition of a diagram in an SVG
@@ -421,9 +318,9 @@ sections:
           - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
           - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
 
-      - id: CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
+      - id: CanvasNetViewer-Help-CanvasNetHelp-PlantUmlGuideParity
         title: >-
-          The HelpCatalog class shall give in the plantuml sequence, activity, class, object, state, usecase,
+          The CanvasNetHelp class shall give in the plantuml sequence, activity, class, object, state, usecase,
           component, and deployment cards, row for row and in order, the same supported syntax rows, and in the
           plantuml unsupported and diagnostics cards the same unsupported-feature, warning, and error codes as the
           PlantUML user guide, worded the same, code spans included.
@@ -433,9 +330,9 @@ sections:
         tests:
           - CanvasNetHelp_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide
 
-      - id: CanvasNetViewer-Help-HelpCatalog-MathMl
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMl
         title: >-
-          The HelpCatalog class shall provide the mathml cards (aliases mml and equation) that teach how to write a
+          The CanvasNetHelp class shall provide the mathml cards (aliases mml and equation) that teach how to write a
           good-looking equation: the file and its tokens, fractions and roots, scripts and primes, sums, integrals, and
           limits, stretchy fences, matrices and case analyses, aligned derivations with equation numbers, units and
           numbers, Greek letters and named entities, accents and labeled braces, worked engineering formulas, styling,
@@ -465,9 +362,9 @@ sections:
           - CanvasNetHelp_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers
           - CanvasNetHelp_MathMlPitfalls_StretchyFalseParentheses_AreNarrower
 
-      - id: CanvasNetViewer-Help-HelpCatalog-MathMlGuideParity
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMlGuideParity
         title: >-
-          The HelpCatalog class shall give in the mathml elements and attributes cards, row for row and in order, the
+          The CanvasNetHelp class shall give in the mathml elements and attributes cards, row for row and in order, the
           same supported element and attribute rows, and in the mathml unsupported and diagnostics cards the same
           unsupported-feature, warning, and error codes as the MathML user guide, worded the same, code spans
           included.
@@ -477,9 +374,9 @@ sections:
         tests:
           - CanvasNetHelp_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide
 
-      - id: CanvasNetViewer-Help-HelpCatalog-MathMlEquations
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMlEquations
         title: >-
-          The HelpCatalog class shall show, in the mathml cards and in the MathML user guide, only whole equations (in
+          The CanvasNetHelp class shall show, in the mathml cards and in the MathML user guide, only whole equations (in
           xml code blocks and in Pandoc mathml code blocks) that render under strict mode without a diagnostic, and
           shall state in the guide's rendering example the element count and the sizes the library reports.
         justification: |
@@ -491,9 +388,9 @@ sections:
           - CanvasNetHelp_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
           - CanvasNetHelp_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
 
-      - id: CanvasNetViewer-Help-HelpCatalog-Positions
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Positions
         title: >-
-          The HelpCatalog class shall provide the root card positions, with cards for the selectors (the grammar, the
+          The CanvasNetHelp class shall provide the root card positions, with cards for the selectors (the grammar, the
           matching of channels and data fields, and the limits), the Mermaid and Vega-Lite kinds, ids, values, data
           fields (with the 2012 base year of a month time unit), and attachment points, and the geometry; shall link it
           with the framed-figure, anchors, and composition cards; and shall teach in the framed-figure card to read the
@@ -510,13 +407,13 @@ sections:
           - CanvasNetHelp_PositionsMermaid_KindsPerType_AreTheKindsReported
           - CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions
 
-      - id: CanvasNetViewer-Help-HelpCatalog-Bindings
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Bindings
         title: >-
-          The HelpCatalog class shall provide the card svg bindings that names the namespace, the attributes, the value
-          syntax, every binding code, and svg-binding-failed; the framed-figure card shall recommend a binding first,
-          then the reported positions with the image x and y added by hand, then a labeled grid; and its framed-flow
-          example shall bind every arrow tip with cn:x2y2 to a position that the diagram rendered alone at the size of
-          its image reports, plus the image x and y.
+          The CanvasNetHelp class shall provide the card svg bindings that names the namespace, the attributes, the
+          value syntax, every binding code, and svg-binding-failed; the framed-figure card shall recommend a binding
+          first, then the reported positions with the image x and y added by hand, then a labeled grid; and its
+          framed-flow example shall bind every arrow tip with cn:x2y2 to a position that the diagram rendered alone at
+          the size of its image reports, plus the image x and y.
         justification: |
           Agents learn the features from the help; the advice must lead to the exact way first, and the example must
           work.

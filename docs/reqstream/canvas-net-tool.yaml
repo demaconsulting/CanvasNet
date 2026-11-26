@@ -62,7 +62,7 @@ sections:
           An AI agent that has to draw or convert a file must learn what each format supports, and get a working
           example to start from, without leaving the tool or guessing; the content ships with the tool so that it
           is offline, matches the installed version, and is machine-readable for agents. The knowledge about the
-          formats is the help catalog of the Viewer library, shared with every program that uses the library, and the
+          formats is the help cards of the Viewer library, shared with every program that uses the library, and the
           tool adds its command-line sections to it.
         children:
           - CanvasNetTool-Commands-HelpTopics
@@ -831,7 +831,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-Mermaid
           - CanvasNetTool-Commands-RenderCommand-Mermaid
           - CanvasNetTool-Commands-RenderCommand-Theme
-          - CanvasNetViewer-Help-HelpCatalog-Mermaid
+          - CanvasNetViewer-Help-CanvasNetHelp-Mermaid
         tests:
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
@@ -869,7 +869,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
           - CanvasNetTool-Commands-DiscoveryCommands-PlantUml
           - CanvasNetTool-Commands-RenderCommand-PlantUml
-          - CanvasNetViewer-Help-HelpCatalog-PlantUml
+          - CanvasNetViewer-Help-CanvasNetHelp-PlantUml
         tests:
           - CanvasNetTool_PlantUml_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_RenderPlantUml
@@ -903,7 +903,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-MathMlErrors
           - CanvasNetTool-Commands-DiscoveryCommands-MathMl
           - CanvasNetTool-Commands-RenderCommand-MathMl
-          - CanvasNetViewer-Help-HelpCatalog-MathMl
+          - CanvasNetViewer-Help-CanvasNetHelp-MathMl
           - CanvasNetTool-PandocFilter-PictureAttributes-MathMl
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
         tests:
@@ -1146,7 +1146,7 @@ sections:
           the command writes, and every mistake must be a clear error.
         children:
           - CanvasNetTool-Commands-RenderCommand-Positions
-          - CanvasNetViewer-Help-HelpCatalog-Positions
+          - CanvasNetViewer-Help-CanvasNetHelp-Positions
           - CanvasNetTool-Commands-HelpTopics-CommandLineGuidance
         tests:
           - CanvasNetTool_Positions_RenderAsProcess_ReportsFeaturePixels
@@ -1163,6 +1163,6 @@ sections:
           flattening for other SVG readers.
         children:
           - CanvasNetTool-Commands-FlattenCommand-Bindings
-          - CanvasNetViewer-Help-HelpCatalog-Bindings
+          - CanvasNetViewer-Help-CanvasNetHelp-Bindings
         tests:
           - CanvasNetTool_Bindings_RenderAndFlattenAsProcess_ResolveTheBinding

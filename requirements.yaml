@@ -332,8 +332,7 @@ includes:
   - docs/reqstream/canvas-net-viewer/imaging/montage-builder.yaml
   - docs/reqstream/canvas-net-viewer/imaging/svg-flattener.yaml
   - docs/reqstream/canvas-net-viewer/help.yaml
-  - docs/reqstream/canvas-net-viewer/help/help-catalog.yaml
-  - docs/reqstream/canvas-net-viewer/help/help-front-matter.yaml
+  - docs/reqstream/canvas-net-viewer/help/canvas-net-help.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml
@@ -374,3 +373,4 @@ includes:
   - docs/reqstream/ots/fileassert.yaml
   - docs/reqstream/ots/system-numerics-tensors.yaml
   - docs/reqstream/ots/test-results.yaml
+  - docs/reqstream/ots/help-cards.yaml
