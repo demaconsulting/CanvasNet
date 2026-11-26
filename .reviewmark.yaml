@@ -30,8 +30,7 @@ needs-review:
   - "docs/sysml2/**/*.sysml"     # SysML2 architecture model
   - "docs/user_guide/examples/*.mmd"   # User guide gallery diagram sources (Mermaid)
   - "docs/user_guide/examples/*.puml"  # User guide gallery diagram sources (PlantUML)
-  - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*.md"  # Library help cards (embedded resources)
-  - "src/DemaConsulting.CanvasNet.Viewer/Help/Examples/**/*"  # Library help example sources (embedded resources)
+  - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*"  # Library help cards and their example sources (embedded)
   - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*.md"  # Tool help cards and card overlays (embedded)
   - "src/**/third-party/*.txt"    # Shipped third-party license texts and notices
   - "test/**/*.LICENSE"           # License texts of third-party test fixtures
@@ -2021,8 +2020,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpExample.cs"       # unit source (the example)
       - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpLink.cs"          # unit source (a link a host writes)
       - "src/DemaConsulting.CanvasNet.Viewer/Help/HelpTags.cs"          # unit source (the tag vocabulary)
-      - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*"           # shipped library help cards
-      - "src/DemaConsulting.CanvasNet.Viewer/Help/Examples/**/*"        # shipped library help examples
+      - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*"           # shipped library help cards and examples
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpCatalogTests*.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Help/HelpCardText.cs"  # unit test helper (reads the cards)
 
