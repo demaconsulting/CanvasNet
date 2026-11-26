@@ -18,10 +18,10 @@ A render continues after a warning, also in strict mode.
 - `mathml-warning`: The code of every warning of an equation; the specific
   mathml-* code is in detail and the line and column in location.
 - `mathml-syntax-error`: Error (mathml-error): the text is not valid UTF-8 or
-  not well-formed XML, declares a document type, uses a named reference that is
-  not in the W3C set, or its root is not `math`; the message gives the file, the
-  line, and the column (an empty file is line 1, column 1), and the hint
-  suggests the fix.
+  not well-formed XML, declares a document type or an encoding other than UTF-8,
+  uses a named reference that is not in the W3C set, or its root is not `math`;
+  the message gives the file, the line, and the column (an empty file is line 1,
+  column 1), and the hint suggests the fix.
 - `mathml-limit-exceeded`: Error (budget-exceeded): a limit of the library
   (elements, nesting, token length, table cells, layout work, painted glyphs, or
   a picture larger than the largest image); see [[limits]].

@@ -53,7 +53,8 @@ public sealed partial class MathMlDocument
 - `Parse` and the two `Open` overloads read one `math` element, in the MathML namespace or in no namespace (as HTML
   writes it). The named character references of the full W3C HTML and MathML set (`&alpha;`, `&minus;`,
   `&InvisibleTimes;`) and numeric references are decoded without a document type; a document type declaration is
-  refused. A file or stream is read as strict UTF-8 (a byte order mark is removed, invalid UTF-8 is rejected).
+  refused. A file or stream is read as strict UTF-8 (a byte order mark is removed, invalid UTF-8 is rejected), and an
+  XML declaration that names another encoding (US-ASCII included) is refused with a located error.
   `Open(Stream)` reads from the current position and leaves the stream open. Reading never uses the network and never
   reads another file: links are reported, not followed.
 - The descriptive properties come from the text only. `ElementCount` counts every MathML element, the `math` element
@@ -136,7 +137,8 @@ The limits, with their defaults and what they bound:
 
 - `MaxTextSize` (default 1,048,576): the text as supplied, in UTF-16 characters. Exceeding it throws
   `InvalidDataException`.
-- `MaxElements` (default 100,000): the MathML elements of the equation.
+- `MaxElements` (default 100,000): the MathML elements of the equation, each skipped element (of another namespace, or
+  inside a token) counted too.
 - `MaxNestingDepth` (default 256, at most 1,024): elements inside each other. The reader is iterative and the layout
   recursion is bounded by this limit, so a deep text never overflows the stack.
 - `MaxTokenLength` (default 10,000): the characters of one token.
@@ -144,7 +146,8 @@ The limits, with their defaults and what they bound:
   stretched operator).
 - `MaxPaintedGlyphs` (default 1,000,000): the glyphs one render paints.
 - `MaxDiagnostics` (default 1,000): the reports kept per call; the rest become one `mathml-diagnostics-suppressed`
-  warning.
+  warning. The `MaxDiagnostics` of the limits of `MathMlOpenOptions` also bounds the reports kept while the text is
+  read.
 - `MaxAssemblyParts` (default 1,000): the glyphs of one stretched operator or radical sign.
 - `MaxTableCells` (default 100,000): the grid slots of one table, checked before the grid is allocated.
 
@@ -343,7 +346,7 @@ The codes, with their kind and when each is reported:
 - **`mathml-css-unsupported`**: Unsupported: A declaration of the `style` attribute outside the supported subset (such
   as `border` or `padding`); it is ignored.
 - **`mathml-syntax-error`**: Error (mathml-error): the text is not valid UTF-8 or not well-formed XML, declares a
-  document type, uses a named reference that is not in the W3C set, or its root is not
+  document type or an encoding other than UTF-8, uses a named reference that is not in the W3C set, or its root is not
   `math`; the message gives the file, the line, and the column (an empty file is line 1, column 1), and the hint
   suggests the fix.
 - **`mathml-limit-exceeded`**: Error (budget-exceeded): a limit of the library (elements, nesting, token length, table
@@ -402,6 +405,11 @@ attributes by Firefox) with the same font, and the boxes of every element agree 
 - **Picture box.** The picture is the content box united with the ink and a one-pixel margin around the ink, so an
   overhanging glyph, a stretched fence, or the tail of a radical is never clipped; a browser's box may be a pixel or
   two smaller.
+- **Slanted letters.** A slanted letter gets its italic correction as clearance before a fence or a superscript where
+  its ink would otherwise collide with it (the 2 of ζ², a parenthesis after *f*); Chrome lets them touch.
+- **Subscripts of letters.** The subscript of a single character stays at the normal subscript shift of the font
+  whatever the descender of the character, as TeX sets it, so the subscript n of γ sits as low as the subscript n of
+  x; MathML Core and Chrome lower it below the descender.
 - **Errors.** For invalid text a browser draws what it can; this package throws a located `MathMlSyntaxException`.
 
 The design documentation lists every difference of the layout in detail.

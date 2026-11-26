@@ -61,6 +61,7 @@ and let the operators space themselves:
 - Named references of the full W3C HTML and MathML set work without a document
   type (`&alpha;`, `&minus;`, `&InvisibleTimes;`), and so do numeric references
   (`&#x2212;`); a document type declaration is refused.
-- The file is UTF-8 (a byte-order mark is allowed), its extension is .mml (the
-  only one; the media type is application/mathml+xml), and it reads no other
-  file.
+- The file is UTF-8 (a byte-order mark is allowed; an XML declaration that
+  names another encoding, US-ASCII included, is refused), its extension is .mml
+  (the only one; the media type is application/mathml+xml), and it reads no
+  other file.

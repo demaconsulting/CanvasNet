@@ -35,6 +35,12 @@ The equation is laid out by the rules of MathML Core and compared with Chrome
 - There is no line breaking, no right-to-left layout, and no style sheet.
 - A character that Noto Sans Math lacks is drawn with the bundled Noto Sans and
   the other fallback fonts; the picture never depends on installed fonts.
+- A slanted letter gets its italic correction as clearance before a fence or a
+  superscript where its ink would otherwise collide with it (the 2 of ζ², a
+  parenthesis after f); Chrome lets them touch.
+- The subscript of a single character stays at the normal subscript shift of
+  the font whatever its descender, as TeX sets it (the n of γ as low as the n
+  of x); MathML Core and Chrome lower it below the descender.
 - The picture is the content box united with the ink and a one-pixel margin
   around the ink, so an overhanging glyph, a stretched fence, or the tail of a
   radical is never clipped; a browser's box may be a pixel or two smaller.
