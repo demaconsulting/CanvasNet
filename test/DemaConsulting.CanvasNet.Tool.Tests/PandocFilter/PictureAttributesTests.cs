@@ -322,7 +322,8 @@ public class PictureAttributesTests
 
     /// <summary>
     ///     Test that an author's style is trimmed of white space and trailing <c>;</c>, on its own and in running text, so
-    ///     the width Pandoc appends or the filter's placement joins it with one <c>;</c> and no <c>;;</c> is written.
+    ///     the width Pandoc appends or the filter's placement joins it with one <c>;</c> and no <c>;;</c> is written, and a
+    ///     style of nothing but <c>;</c> and white space is left out on its own.
     /// </summary>
     [Fact]
     public void PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed()
@@ -331,9 +332,11 @@ public class PictureAttributesTests
         var display = PictureAttributes.WithNaturalSize([new("style", "color:red ; ; "), new("id", "eq")], 52, 17, 15, false);
         var inline = PictureAttributes.WithNaturalSize([new("style", "vertical-align:middle;")], 52, 17, 15, true);
         var empty = PictureAttributes.WithNaturalSize([new("style", " ; ")], 52, 17, 15, true);
+        var emptyDisplay = PictureAttributes.WithNaturalSize([new("style", " ; "), new("id", "eq")], 52, 17, 15, false);
 
-        // Assert: the author's style without its trailing ';', in its place
+        // Assert: the author's style without its trailing ';', in its place, and none when nothing is left
         Assert.Equal([P("style", "color:red"), P("id", "eq"), P("width", "3.25em")], display);
+        Assert.Equal([P("id", "eq"), P("width", "3.25em")], emptyDisplay);
         Assert.Equal(
             [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle"), P("width", "3.25em")],
             inline);

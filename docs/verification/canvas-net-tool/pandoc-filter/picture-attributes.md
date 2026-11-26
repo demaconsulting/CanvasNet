@@ -25,7 +25,7 @@ N/A - standard test environment. The unit is pure computation and needs no files
   of the other kinds, and wants its natural size only without a size, width, or height (attribute or style).
 - An equation's natural size is a `width` in em of the 16 pixel font (the renderer's default), with no `height`; in
   running text a `style` also sets it inline on the baseline, before the author's own declarations; an author's style
-  loses its trailing `;` and white space, so no `;;` is written.
+  loses its trailing `;` and white space, so no `;;` is written, and on its own one with nothing left is not written.
 
 #### Test Scenarios
 
@@ -84,7 +84,8 @@ false with `size`, `width`, or `height`, with a `style` that declares `Width` (a
 `height`, and for a Mermaid diagram.
 
 **PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm**: A = πr² (52x17, baseline 15) on its own gets
-`width=3.25em` after `id` (or after the author's `style`, which is kept as written); in running text it gets
+`width=3.25em` after `id` (or after the author's `style=color:red`, which stays in its place, trimmed of white space
+and trailing `;`); in running text it gets
 `style=display:inline;margin:0;vertical-align:-0.125em` before `width=3.25em`; with the author's
 `style= vertical-align:middle; ` (first, before `id`) the style is the filter's declarations followed by the author's,
 trimmed of white space and the trailing `;`, in the author's position; an equation with its baseline at the bottom gets
@@ -93,7 +94,8 @@ trimmed of white space and the trailing `;`, in the author's position; an equati
 **PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed**: A = πr² (52x17, baseline 15) on its own
 with `style=color:red ; ; ` and `id` gets `style=color:red`, `id`, then `width=3.25em`; in running text with
 `style=vertical-align:middle;` it gets `style=display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle`
-before `width=3.25em`; and in running text with `style= ; ` only the filter's declarations, with no `;` after them.
+before `width=3.25em`; on its own with `style= ; ` and `id` it gets no `style`, only `id` then `width=3.25em`; and in
+running text with `style= ; ` only the filter's declarations, with no `;` after them.
 
 **PictureAttributes_MathMlFontSize_IsTheRenderersDefault**: `MathMlFontSize` (16) equals the default
 `MathMlRenderOptions.FontSize`, so one em of the filter is the font size the natural size is measured at.

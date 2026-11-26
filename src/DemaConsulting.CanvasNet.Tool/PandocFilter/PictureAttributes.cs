@@ -397,36 +397,43 @@ internal static class PictureAttributes
     ///     (<paramref name="height"/> - <paramref name="baseline"/>) in <c>em</c>, so the equation sits on the line of text;
     ///     the author's own declarations follow in the same <c>style</c>, trimmed of white space and trailing <c>;</c>, so
     ///     they win; on its own the author's style is kept, trimmed the same way, so Pandoc's appended width joins it with
-    ///     one <c>;</c>.
+    ///     one <c>;</c>, and a style with nothing left once trimmed is left out.
     /// </returns>
     internal static IReadOnlyList<KeyValuePair<string, string>> WithNaturalSize(
         IReadOnlyList<KeyValuePair<string, string>> keep, int width, int height, int baseline, bool inRunningText)
     {
-        var list = new KeepList();
-        string? authorStyle = null;
-        foreach (var (key, value) in keep)
-        {
-            list.Set(key, value);
-            if (key == "style")
-            {
-                authorStyle = value;
-            }
-        }
-
-        // The author's style without a trailing ';', so a declaration added after it joins with one ';'
-        var author = authorStyle?.Trim().TrimEnd(StyleEnd) ?? string.Empty;
+        // The author's style without white space or a trailing ';', so a declaration added after it joins with one ';'
+        var author = keep.Where(a => a.Key == "style").Select(a => a.Value).LastOrDefault()?.Trim().TrimEnd(StyleEnd)
+            ?? string.Empty;
 
         // In running text the picture is placed in the line, its baseline on the text's, before any declaration of the author
+        var style = author;
         if (inRunningText)
         {
             var depth = height - baseline;
             var align = depth == 0 ? "0" : FormatNumber(-(double)depth / MathMlFontSize) + "em";
             var placement = $"display:inline;margin:0;vertical-align:{align}";
-            list.Set("style", author.Length == 0 ? placement : $"{placement};{author}");
+            style = author.Length == 0 ? placement : $"{placement};{author}";
         }
-        else if (author.Length > 0)
+
+        // The style goes in the author's position; a style left empty is not written
+        var list = new KeepList();
+        foreach (var (key, value) in keep)
         {
-            list.Set("style", author);
+            if (key != "style")
+            {
+                list.Set(key, value);
+            }
+            else if (style.Length > 0)
+            {
+                list.Set(key, style);
+            }
+        }
+
+        // Without a style of the author's, the filter's placement goes after the others (a known key keeps its place)
+        if (style.Length > 0)
+        {
+            list.Set("style", style);
         }
 
         list.Set("width", Em(width));
