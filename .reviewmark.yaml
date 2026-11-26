@@ -30,6 +30,7 @@ needs-review:
   - "docs/sysml2/**/*.sysml"     # SysML2 architecture model
   - "docs/user_guide/examples/*.mmd"   # User guide gallery diagram sources (Mermaid)
   - "docs/user_guide/examples/*.puml"  # User guide gallery diagram sources (PlantUML)
+  - "docs/user_guide/examples/embedding/*"  # Example sources of the chapter "Embedding Pictures in Markdown"
   - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*.md"  # Library help cards (embedded resources)
   - "src/DemaConsulting.CanvasNet.Viewer/Help/Examples/**/*"  # Library help example sources (embedded resources)
   - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*.md"  # Tool help cards and card overlays (embedded)
@@ -76,6 +77,7 @@ reviews:
       - "README.md"                                                 # project readme
       - "docs/images/README.md"                                     # README image provenance and licensing
       - "docs/user_guide/**/*.md"                                   # user guide
+      - "docs/user_guide/examples/embedding/*"                      # example sources of the embedding chapter
 
   # Decomposition Review (only one per repository)
   - id: Decomposition

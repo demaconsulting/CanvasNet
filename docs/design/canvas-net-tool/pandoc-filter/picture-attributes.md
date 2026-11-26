@@ -4,14 +4,14 @@
 
 #### Purpose
 
-`PictureAttributes` reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the Pandoc
-filter: which
+`PictureAttributes` reads the attributes of a picture or a code block (Mermaid, PlantUML, MathML, Vega-Lite, or OpenSCAD
+marked `draw`) for the Pandoc filter: which
 kind of
 input a picture names, the checks of every drawing attribute with the messages of the Lua filter, the defaults of each
 kind, the sorted tool options, and the attributes that stay on the picture. It is a literal port of `kind_of`,
 `is_svg`, the `OPTIONS` table, `build_options`, and `block_name` of the Lua filter (version 16). The unit is the
-internal static class `PictureAttributes` in `PictureAttributes.cs`, which also holds the supporting record
-`PictureOptions`. The class is stateless and thread-safe.
+internal static class `PictureAttributes` in `PictureAttributes.cs`, which also holds the supporting records
+`PictureOptions` and `BlockClass`. The class is stateless and thread-safe.
 
 #### Data Model
 
@@ -19,20 +19,25 @@ internal static class `PictureAttributes` in `PictureAttributes.cs`, which also 
 their bytes) and `Keep` (`IReadOnlyList<KeyValuePair<string, string>>`, the attributes that stay, in their original
 order).
 
+**BlockClass** (internal sealed record): `Class` (the class as the author writes it), `Kind` (the kind the block is
+drawn as), and `NeedsDraw` (`true` when the block is drawn only together with the class `draw`).
+
 **Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, `mermaid`, `plantuml`, and `mathml`.
 
 **Suffixes**: the name ends checked in order: `.vl.json` and `.vl` (`vegalite`), `.scad`, `.vsdx`, `.pptx`, `.pdf`,
 `.mmd` and `.mermaid` (`mermaid`), `.puml`, `.plantuml`, and `.pu` (`plantuml`; an `.iuml` include fragment is not
 a picture), and `.mml` (`mathml`). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
 
-**BlockClassKinds** (private): the classes of the code blocks the filter draws, each with its kind: `mermaid`
-(`mermaid`), `plantuml` (`plantuml`), and `mathml` (`mathml`); the class is the name of the kind, and the first of
-them a block has wins.
+**BlockClassTable** (private): the `BlockClass` rows of the code blocks the filter draws, in order: `mermaid`
+(`mermaid`), `plantuml` (`plantuml`), `mathml` (`mathml`), `vega-lite` (`vegalite`), `vegalite` (`vegalite`), and
+`openscad` (`scad`, `NeedsDraw`). The first row a block has wins. An `openscad` block is opt-in because documentation
+often shows OpenSCAD source as highlighted code; `DrawClass` = `draw` is the class that asks for the picture.
 
 **PictureSuffixes**: `SvgSuffix` followed by the `Suffixes`, in order, the lowercase name ends of every local picture
-the filter may change. **BlockClasses**: the classes of `BlockClassKinds`. These two lists are the filter's own
-registry of what it handles: `PandocFilterShim.Generate` writes them into the shim's fast path, so the shim starts
-the tool for exactly the pictures and code blocks the engine does not leave alone.
+the filter may change. **BlockClasses**: the classes of the rows without `NeedsDraw` (drawn by default).
+**DrawBlockClasses**: the classes of the rows with `NeedsDraw` (`openscad`). These lists are the filter's own registry
+of what it handles: `PandocFilterShim.Generate` writes them into the shim's fast path, so the shim starts the tool for
+exactly the pictures and code blocks the engine does not leave alone.
 
 **Limits and defaults**: `ScadDefaultSize` = `1600x1200`, `DefaultBackground` = `white` (models only),
 `MaxTriangles` = `2000000`, `MathMlDefaultScale` = `2` (equations only), and `MaxPixels` = 8192.
@@ -50,8 +55,10 @@ the tool for exactly the pictures and code blocks the engine does not leave alon
 **IsSvg(src)**: `true` when `src` has no URL scheme and ends in `.svg` in any letter case; the engine checks it before
 `KindOf`. Neither method cuts a fragment or query off `src`, so `report.pdf#page=2` is left alone.
 
-**BlockKindOf(classes)**: the kind of the first entry of `BlockClassKinds` whose class the block has (an exact,
-case-sensitive comparison, so `Mermaid` is not `mermaid`), or `null` when it has none and is left alone.
+**BlockOf(classes)**: the first row of `BlockClassTable` whose class the block has (an exact, case-sensitive
+comparison, so `Mermaid` is not `mermaid`), where a `NeedsDraw` row counts only when the classes also hold `draw`; or
+`null` when it finds none and the block is left alone (a plain `openscad` block included). **BlockKindOf(classes)**:
+the `Kind` of that row, or `null`.
 
 **Build(name, kind, attributes)**: walks the attributes in order. Every key that starts with `param-` or `define-` is
 checked, a bare `param-` or `define-` included, so none stays on the picture. `param-NAME` (Vega-Lite only, `NAME` not
@@ -72,18 +79,49 @@ bytes. The value checks are:
 - `page`: a whole number from 1, written without leading zeros.
 - `view`, `projection`, `theme`: one of the word lists, ignoring ASCII case, written in lowercase.
 
-**NaturalWidthNeeded(kind, attributes)**: `true` for a `mathml` picture whose attributes have none of `size`,
-`width`, and `height`: the engine then shows it at its natural width (see *PandocFilterEngine*), so every equation of a
-document shows at the 16 pixel font size whatever scale it is drawn at; an author's own `size`, `width`, or `height` is
-kept as written and no width is added.
+**NaturalSizeNeeded(kind, attributes)**: `true` for a `mathml` picture whose attributes have none of `size`, `width`,
+and `height`, and whose `style` declares no `width` or `height` (property names compared without case): the engine then
+shows it at its natural size (see *PandocFilterEngine*), so every equation shows at the size of the text around it
+whatever scale it is drawn at. An author's own `size`, `width`, `height`, or sizing `style` is kept as written and
+nothing is added; an author's `scale` still gets the natural size.
+
+**MathMlFontSize**: 16, the font size in pixels an equation's natural size is measured at (the default
+`MathMlRenderOptions.FontSize`, pinned by a test), and so one `em` of the size the filter shows an equation at.
+
+**Em(pixels)**: a length of the natural size in `em`: `pixels / 16` written with `FormatNumber`, followed by `em`
+(`52` gives `3.25em`). A whole number of pixels over 16 has at most four decimals, so the text is exact.
+
+**WithNaturalSize(keep, width, height, baseline, inRunningText)**: the keep list with `width` set to `Em(width)` after
+the other attributes. No `height` is set. In running text, `style` is first set to
+`display:inline;margin:0;vertical-align:-D` (where `D` is `Em(height - baseline)`, the depth below the baseline, and
+`vertical-align:0` when the depth is 0). The author's own style follows it, trimmed of white space and trailing `;`,
+after a `;`, in the position of the author's `style` attribute when there is one. On its own, the author's style is
+kept in its position, trimmed the same way, so Pandoc's appended `;width:` joins it with one `;`. An author's style with
+nothing left once trimmed (only `;` and white space) is not written on its own. The choices are:
+
+- **em, not px.** The natural size is measured at a 16 pixel font, so `1em` is 16 natural pixels. A browser at its
+  default 16 px font shows exactly the natural size, a 10 point PDF body shows the equation at body-text size (a pixel
+  width would be 1.2 times too big there), and an equation in a caption, heading, or table follows that text's size.
+  Pandoc's HTML writer turns an `em` width into a `style` width (`style="width:3.25em"`), which every browser and
+  WeasyPrint honor; a pixel width becomes the HTML attribute `width`, which WeasyPrint ignores without
+  `--presentational-hints`. The LaTeX and Word writers read an `em` width too.
+- **Width only.** The picture keeps its aspect ratio (`height:auto` in a style sheet, `keepaspectratio` in LaTeX), so
+  an equation wider than a narrow column is scaled down whole instead of distorted.
+- **Placement in running text.** `display:inline` and `margin:0` keep the equation in the line under a style sheet that
+  makes every picture a block with a margin (as the DEMA template does); both are the HTML defaults of an image, so they
+  are harmless elsewhere. `vertical-align` lowers the picture by its depth, so its baseline sits on the text's.
+- **Author first in the cascade.** The filter's declarations come before the author's in one `style`, so any author
+  declaration (`vertical-align`, `display`) wins by order. Pandoc 3.0 and later append the width of the attribute to
+  that `style` (`consolidateStyles`), giving one attribute.
 
 **BuildSvg(name, attributes)**: reads only `scale` (checked as above), one `--scale=` option per `scale` attribute in
 order, and keeps every other attribute.
 
 **SplitCaption(attributes)**: returns the last `caption` value (or `null`) and the other attributes as a keep list.
 
-**BlockName(identifier, text, kind)**: `<kind> block #<identifier>`, or `<kind> block (<first line>)` (`kind` is
-`mermaid` unless the block is a `plantuml` or `mathml` block) where the first line
+**BlockName(identifier, text, blockClass)**: `<class> block #<identifier>`, or `<class> block (<first line>)`, where the
+class is the one the author wrote (`mermaid` by default; `plantuml`, `mathml`, `vega-lite`, `vegalite`, or `openscad`
+for the other blocks) and the first line
 follows any leading white space, has its trailing white space removed, and is cut to 40 characters (runes) followed by
 `...`.
 
@@ -117,8 +155,7 @@ message of the Lua filter, for example:
 
 #### Callers
 
-- **PandocFilterShim** - `BlockClasses` and `PictureSuffixes`, written into the shim's fast path.
-- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockKindOf`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `BlockName`, and
-  `SplitCaption` while
-  it plans the pictures of a document.
+- **PandocFilterShim** - `BlockClasses`, `DrawBlockClasses`, and `PictureSuffixes`, written into the shim's fast path.
+- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockOf`, `DrawClass`, `Build`, `NaturalSizeNeeded`,
+  `WithNaturalSize`, `BuildSvg`, `BlockName`, and `SplitCaption` while it plans the pictures of a document.
 - **DependencyHasher** - the kind constants and `KindOf` to find the composite links of an SVG drawing.

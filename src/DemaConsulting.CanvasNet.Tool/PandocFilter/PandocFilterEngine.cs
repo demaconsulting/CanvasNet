@@ -81,7 +81,7 @@ internal sealed partial class PandocFilterEngine
     ///     <see cref="ErrorCodes.PandocFilterError"/> for an attribute, path, limit, environment, or cache error, and with the
     ///     library's code for a picture that cannot be drawn; the message is the Lua filter's.
     /// </exception>
-    /// <remarks>Writes the pictures, copies, markers, and the files of Mermaid code blocks into the cache folder.</remarks>
+    /// <remarks>Writes the pictures, copies, markers, and the files of the code blocks it draws into the cache folder.</remarks>
     internal byte[] Run(ReadOnlySpan<byte> input, string? pandocVersion)
     {
         var document = PandocAst.Parse(input, pandocVersion);
@@ -194,34 +194,59 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c>, <c>plantuml</c>, or <c>mathml</c> is written to the cache
-    ///     folder and drawn like a <c>.mmd</c>, <c>.puml</c>, or <c>.mml</c> picture; any other block is left alone.
+    ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c>, <c>plantuml</c>, <c>mathml</c>, <c>vega-lite</c> (or
+    ///     <c>vegalite</c>), or <c>openscad</c> with <c>draw</c> is written to the cache folder and drawn like a picture of its
+    ///     kind (<see cref="PictureAttributes.BlockOf"/>); any other block, a plain <c>openscad</c> block included, is left
+    ///     alone.
     /// </summary>
     /// <param name="index">The element's position.</param>
     /// <param name="node">The element.</param>
     /// <param name="jobs">The jobs of the run, by key.</param>
     /// <returns>The planned picture, or <see langword="null"/> when the element is left alone.</returns>
+    /// <exception cref="ToolException">
+    ///     Thrown with <see cref="ErrorCodes.PandocFilterError"/> when the block names a local file
+    ///     (<see cref="DependencyHasher.FindBlockReference"/>): the block has no folder to find it in, so the message says to
+    ///     link the chart or model as a picture. Nothing is written for such a block.
+    /// </exception>
     private PlannedPicture? PlanBlock(int index, JsonObject node, Dictionary<string, DrawJob> jobs)
     {
         var block = PandocAst.ReadCodeBlock(node);
-        if (PictureAttributes.BlockKindOf(block.Attr.Classes) is not { } kind)
+        if (PictureAttributes.BlockOf(block.Attr.Classes) is not { } blockClass)
         {
             return null;
         }
 
-        var name = PictureAttributes.BlockName(block.Attr.Id, block.Text, kind);
+        var kind = blockClass.Kind;
+        var name = PictureAttributes.BlockName(block.Attr.Id, block.Text, blockClass.Class);
+        if (DependencyHasher.FindBlockReference(kind, block.Text) is { } reference)
+        {
+            throw Fail($"'{name}' {reference.Action} '{reference.Path}' at line {reference.Line}, but a code block has no folder to find it in; {LinkInstead(kind)}");
+        }
+
         var (caption, attributes) = PictureAttributes.SplitCaption(block.Attr.Attributes);
         var text = block.Text + "\n";
         var source = PictureCache.BlockSourceFile(CreateCacheFolder(), text, kind);
         PictureCache.WriteTextAtomically(source, text);
-        var item = new PlannedPicture(index, name, node, block, caption);
+        var item = new PlannedPicture(index, name, node, block, caption) { BlockClass = blockClass };
         return PlanDraw(item, source, kind, attributes, kind, jobs);
     }
 
     /// <summary>
+    ///     Gets the fix the error of a block that names a local file suggests: the picture to link instead.
+    /// </summary>
+    /// <param name="kind">The kind of the block (<see cref="PictureAttributes.VegaLite"/> or <see cref="PictureAttributes.Scad"/>).</param>
+    /// <returns>The fix, with an example of the picture in Markdown.</returns>
+    private static string LinkInstead(string kind)
+    {
+        return kind == PictureAttributes.Scad
+            ? "put the model in a .scad file beside the files it names and link it as a picture, for example ![Part](part.scad){view=iso}"
+            : "put the chart in a .vl.json file beside the files it names and link it as a picture, for example ![Sales](sales.vl.json)";
+    }
+
+    /// <summary>
     ///     Plans a picture of a kind the tool draws (<c>draw</c>, up to the render): options, identity, file access, the
-    ///     natural width of an equation the author did not size, dependencies, key, then the cache, the marker of a diagram
-    ///     left as written, or a job.
+    ///     natural size of an equation the author did not size (and its place on the baseline in running text),
+    ///     dependencies, key, then the cache, the marker of a diagram left as written, or a job.
     /// </summary>
     /// <param name="item">The picture.</param>
     /// <param name="source">The source file.</param>
@@ -239,10 +264,13 @@ internal sealed partial class PandocFilterEngine
         var access = _settings.FileAccessOf(source);
         var policy = _settings.PolicyOf(access, source);
 
-        // An equation the author did not size is shown at its natural width, whatever scale it is drawn at
-        if (PictureAttributes.NaturalWidthNeeded(kind, attributes) && NaturalWidth(source, policy) is { } natural)
+        // An equation the author did not size is shown at its natural size in em, whatever scale it is drawn at, and an
+        // equation in running text sits on the text's baseline (a code block is always shown on its own)
+        if (PictureAttributes.NaturalSizeNeeded(kind, attributes) && NaturalSize(source, policy) is { } natural)
         {
-            item.Keep = [.. options.Keep, new KeyValuePair<string, string>("width", $"{natural}px")];
+            var baseline = natural.Equation?.Baseline ?? natural.Height;
+            var inRunningText = item.Block == null && PandocAst.IsInRunningText(item.Node);
+            item.Keep = PictureAttributes.WithNaturalSize(options.Keep, natural.Width, natural.Height, baseline, inRunningText);
         }
 
         var parts = DependencyHasher.ForPicture(kind, source, item.Name, policy);
@@ -264,26 +292,41 @@ internal sealed partial class PandocFilterEngine
             return item;
         }
 
-        Attach(item, jobs, new DrawJob(item.Index, item.Name, false, kind, source, options.Options, access, cache, key, file, marker, item.Block != null));
+        Attach(item, jobs, new DrawJob(item.Index, item.Name, false, kind, source, options.Options, access, cache, key, file, marker, HintClasses(item.BlockClass)));
         return item;
     }
 
     /// <summary>
-    ///     Gets the natural width of an equation: its width in pixels at scale 1 and the 16-pixel font size, read by a probe
-    ///     (the equation is parsed and measured, not drawn).
+    ///     Gets the classes the size-limit hint of a code block names in its example, so the example can be pasted as is.
+    /// </summary>
+    /// <param name="blockClass">The class that made the block a picture, or <see langword="null"/> for an image.</param>
+    /// <returns><c>.mermaid</c>, <c>.vega-lite</c>, <c>.openscad .draw</c>, and so on; <see langword="null"/> for an image.</returns>
+    private static string? HintClasses(BlockClass? blockClass)
+    {
+        return blockClass switch
+        {
+            null => null,
+            { NeedsDraw: true } => $".{blockClass.Class} .{PictureAttributes.DrawClass}",
+            _ => "." + blockClass.Class
+        };
+    }
+
+    /// <summary>
+    ///     Gets the natural size of an equation: its width, height, and baseline in pixels at scale 1 and the 16-pixel font
+    ///     size, read by a probe (the equation is parsed and measured, not drawn).
     /// </summary>
     /// <param name="source">The equation's source file.</param>
     /// <param name="policy">The policy the tool draws the picture under, or <see langword="null"/> for the default mode.</param>
     /// <returns>
-    ///     The width, or <see langword="null"/> when the equation cannot be measured: the picture then keeps its attributes as
-    ///     written, and the draw reports the failure with the tool's message.
+    ///     The facts of the probe, or <see langword="null"/> when the equation cannot be measured: the picture then keeps its
+    ///     attributes as written, and the draw reports the failure with the tool's message.
     /// </returns>
-    private static int? NaturalWidth(string source, FileAccessPolicy? policy)
+    private static SourceInfo? NaturalSize(string source, FileAccessPolicy? policy)
     {
         try
         {
             var fileAccess = policy ?? FileAccessPolicy.AllowAll;
-            return SourceLoader.Probe(source, fileAccess).Width;
+            return SourceLoader.Probe(source, fileAccess);
         }
         catch (ViewerException)
         {
@@ -341,7 +384,7 @@ internal sealed partial class PandocFilterEngine
             return item;
         }
 
-        Attach(item, jobs, new DrawJob(index, image.Src, true, "svg", source, options.Options, access, cache, key, file, marker, false));
+        Attach(item, jobs, new DrawJob(index, image.Src, true, "svg", source, options.Options, access, cache, key, file, marker, null));
         return item;
     }
 
@@ -392,9 +435,9 @@ internal sealed partial class PandocFilterEngine
         }
 
         // A code block becomes the picture: a figure with the caption, or a paragraph that holds the picture
-        // The class that made the block a picture is dropped (it is the name of the kind); the others stay
-        var drawnClass = PictureAttributes.BlockKindOf(block.Attr.Classes);
-        var classes = block.Attr.Classes.Where(c => c != drawnClass).ToList();
+        // The class that made the block a picture is dropped (and draw, which asked for it); the others stay
+        var drawn = item.BlockClass!;
+        var classes = block.Attr.Classes.Where(c => c != drawn.Class && !(drawn.NeedsDraw && c == PictureAttributes.DrawClass)).ToList();
         JsonObject replacement;
         if (item.Caption is { } caption)
         {
@@ -485,6 +528,9 @@ internal sealed partial class PandocFilterEngine
 
         /// <summary>Gets the caption of a code block, or <see langword="null"/>.</summary>
         public string? Caption { get; } = caption;
+
+        /// <summary>Gets the class that made a code block a picture, or <see langword="null"/> for an image.</summary>
+        public BlockClass? BlockClass { get; init; }
 
         /// <summary>Gets or sets the attributes that stay on the picture.</summary>
         public IReadOnlyList<KeyValuePair<string, string>> Keep { get; set; } = [];

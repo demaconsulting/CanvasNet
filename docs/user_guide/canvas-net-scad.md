@@ -1151,3 +1151,14 @@ the viewpoint and set the model's variables, and `width` stays on the picture. T
 ```
 
 ![Bracket with a taller upright leg](examples/bracket.scad){view=iso define-wall_height=44 size=1200x900 width=60%}
+
+A small model can also be written in the document as a code block of classes `openscad` and `draw`, which takes the
+same attributes and a `caption`. Without `draw` an `openscad` block stays highlighted code, as in the examples of this
+chapter, and a block that includes or uses another file must be a `.scad` picture instead (see *Embedding Pictures in
+Markdown*):
+
+````markdown
+```{.openscad .draw view=iso size=800x600 width=40%}
+cylinder(h = 10, r1 = 8, r2 = 4, $fn = 48);
+```
+````

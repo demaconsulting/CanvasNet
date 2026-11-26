@@ -93,6 +93,48 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the tool, run as a real process, draws a Vega-Lite code block and an OpenSCAD code block marked
+    ///     <c>draw</c>, leaves a plain OpenSCAD code block as code, and stops with the filter's error for a chart block that
+    ///     reads a data file, saying to link a picture instead.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_PandocFilter_ChartAndModelBlocks_DrawnOnlyWhenAsked()
+    {
+        // Arrange: a chart block, a model block to draw, a model block to show, and a chart block that reads a file
+        using var directory = new TempDirectory();
+        var document = PandocDoc.Document(
+            PandocDoc.CodeBlock("", ["vega-lite"], "{\"data\": {\"values\": [{\"a\": \"A\", \"b\": 2}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"nominal\"}, \"y\": {\"field\": \"b\", \"type\": \"quantitative\"}}}"),
+            PandocDoc.CodeBlock("", ["openscad", "draw"], "cube(10);", ("size", "40x30")),
+            PandocDoc.CodeBlock("", ["openscad"], "sphere(5);"));
+        var reading = PandocDoc.Document(PandocDoc.CodeBlock("sales", ["vegalite"], "{\"data\": {\"url\": \"sales.csv\"}, \"mark\": \"bar\"}"));
+        string[] args =
+        [
+            _dllPath, "pandoc-filter", "--json", "--protocol", "1", "--filter-path", directory.Combine("docs", "filters", "canvasnet.lua"),
+            "--format", "html5", "--resource-path", directory.Path
+        ];
+
+        // Act
+        var drawn = RunWithInput(document, out var output, out var errors, args);
+        var refused = RunWithInput(reading, out var failureOutput, out _, args);
+
+        // Assert: two pictures drawn into the cache, and the plain model left as code
+        Assert.Equal(0, drawn);
+        Assert.Equal(string.Empty, errors);
+        using var json = JsonDocument.Parse(output);
+        Assert.Equal(["Para", "Para", "CodeBlock"], json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+        var sources = PandocDoc.ImageSources(output);
+        Assert.Equal(2, sources.Count);
+        Assert.All(sources, src => Assert.True(File.Exists(src), $"The picture {src} was not drawn."));
+
+        // Assert: the chart that reads a data file is the filter's error, which names the fix
+        Assert.Equal(1, refused);
+        using var failure = JsonDocument.Parse(failureOutput);
+        Assert.Equal("pandoc-filter-error", failure.RootElement.GetProperty("error").GetProperty("code").GetString());
+        var message = failure.RootElement.GetProperty("error").GetProperty("message").GetString();
+        Assert.StartsWith("'vegalite block #sales' reads the data file 'sales.csv' at line 1, but a code block has no folder to find it in", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Runs the tool through <c>dotnet</c> with bytes on standard input, as Pandoc's <c>pandoc.pipe</c> does, and keeps
     ///     standard output as raw bytes.
     /// </summary>

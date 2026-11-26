@@ -31,6 +31,8 @@ This user guide covers:
 - Rendering MathML Core equations (`DemaConsulting.CanvasNet.MathMl`) as a browser lays them out, with the bundled Noto
   Sans Math font, advice on writing good-looking equations, and a gallery of original equations
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
+- Embedding pictures in Markdown documents built with Pandoc: every format the Pandoc filter draws, as the Markdown
+  that is written and the picture it gives
 
 ## References
 

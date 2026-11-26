@@ -2531,21 +2531,23 @@ filters:
   - docs/filters/canvasnet.lua
 ```
 
-For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input,
-and Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The
-tool is not started at all for a document without a code block of class `mermaid`, `plantuml`, or `mathml` and
-without a local picture whose name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`,
-`.mermaid`, `.puml`, `.plantuml`, `.pu`, or `.mml` (in any letter case;
-a name followed by a `#` fragment or a `?` query does not count, as the filter leaves such a picture alone). Code
-blocks of other languages (`bash`, `yaml`, `csharp`, and so on), raster pictures (PNG, JPEG, BMP, TIFF, ICO, AVIF, and
-so on), and remote pictures therefore never need the tool, and a code-only document builds without it. A fix of the
-filter ships with the tool, but the shim lists the classes and file name ends that its tool draws (`--write-shim`
-writes them from the tool's own tables), so write the shim again after each update of the tool: an older shim keeps
-working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. A shim
-written before the tool drew MathML, for example, never starts the tool for a document whose only pictures are
-equations (code blocks of class `mathml` and `.mml` pictures), so their MathML is left as it is, while the same
-equations are drawn in a document that also has a diagram; run `dotnet canvasnet pandoc-filter --write-shim` again
-after updating the tool. The tool also says when the protocol of the shim changes (see *Shim protocol* below).
+For each Pandoc run, the shim sends the whole document to `dotnet canvasnet pandoc-filter` once, on standard input, and
+Pandoc continues with the document the tool writes back, so a document of many pictures starts the tool once. The tool
+is not started at all for a document without a code block of class `mermaid`, `plantuml`, `mathml`, `vega-lite`, or
+`vegalite`, without a code block of class `openscad` that also has the class `draw`, and without a local picture whose
+name ends in `.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`,
+`.pu`, or `.mml` (in any letter case; a name followed by a `#` fragment or a `?` query does not count, as the filter
+leaves such a picture alone). Code blocks of other languages (`bash`, `yaml`, `csharp`, `json`, `openscad` without
+`draw`, and so on), raster pictures (PNG, JPEG, BMP, TIFF, ICO, AVIF, and so on), and remote pictures therefore never
+need the tool, and a code-only document builds without it. A fix of the filter ships with the tool, but the shim lists
+the classes and file name ends that its tool draws (`--write-shim` writes them from the tool's own tables), so write the
+shim again after each update of the tool: an older shim keeps working, but it may start the tool for a document that
+does not need it, or miss a format the newer tool draws. A shim written before the tool drew MathML, for example, never
+starts the tool for a document whose only pictures are equations (code blocks of class `mathml` and `.mml` pictures), so
+their MathML is left as it is, while the same equations are drawn in a document that also has a diagram, and a shim
+written before the tool drew Vega-Lite and OpenSCAD code blocks leaves a document whose only pictures are such blocks as
+code; run `dotnet canvasnet pandoc-filter --write-shim` again after updating the tool. The tool also says when the
+protocol of the shim changes (see *Shim protocol* below).
 
 A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml`,
 `.vsdx`, `.pptx`, or `.pdf` is then
@@ -2616,11 +2618,24 @@ A MathML equation is written in the document the same way, as a fenced code bloc
 `<math>` element, or as a `.mml` picture. It reads the attributes of a `.mml` picture (`size`, `scale`, and
 `background`; an equation has no `theme`, so `theme` is an error), and `caption` and the other attributes work as for a
 `mermaid` block. An equation is drawn at **scale 2** unless `size` or `scale` is given, so it stays sharp in print, and
-it is shown at its **natural width**: when the picture has no `size`, `width`, or `height` attribute, the filter adds
-`width="Npx"`, where N is the width of the equation at its natural size (the 16 pixel font size of a browser, as
-`canvasnet info` reports it). Every equation of a document therefore shows at the same text size, whatever scale it was
-drawn at; an author's own `size`, `width`, `height`, or `scale` is kept as written (a `scale` without a width still
-shows the natural width). The added width is not part of the hash, so it never draws a picture again.
+it is shown at the **size of the text** around it, with no style to write:
+
+- **Width in em.** When the picture has no `size`, `width`, or `height` (as an attribute or as a declaration of its
+  `style`), the filter adds `width="Nem"`, where N is the width of the equation at its natural size (the 16 pixel font
+  size of a browser, as `canvasnet info` reports it) divided by 16. Pandoc writes it as `style="width:Nem"` in HTML,
+  which browsers and WeasyPrint both honor, and LaTeX and Word read it too, so the equation is as tall as the text in a
+  browser, a 10 point PDF, a caption, or a heading. No height is added, so the picture keeps its shape in a narrow
+  column.
+- **On the baseline in a sentence.** An equation in running text (an image with other text or pictures in its line,
+  such as `the area ![A equals pi r squared](area.mml) of a circle`) also gets
+  `style="display:inline;margin:0;vertical-align:-Dem"`, where D is its depth below the baseline, so it sits on the
+  line of text even when the style sheet makes pictures blocks. An equation alone in its paragraph (a figure) or a
+  `mathml` block is shown on its own and gets the width only.
+- **The author's choice wins.** An author's own `size`, `width`, `height`, or a `style` that sets `width` or `height` is
+  kept as written and nothing is added; a `scale` alone still gets the natural size. The author's other `style`
+  declarations follow the filter's, so they win (`style="vertical-align:middle"` moves an inline equation).
+- **Not in the hash.** The width and the style are added on every run and are not part of the hash, so they never draw
+  a picture again.
 
 ````markdown
 ```{.mathml caption="The quadratic formula"}
@@ -2637,6 +2652,48 @@ shows the natural width). The added width is not part of the hash, so it never d
 </math>
 ```
 ````
+
+A Vega-Lite chart is written in the document the same way, as a fenced code block of class `vega-lite` (or its alias
+`vegalite`) holding the JSON specification. It reads the attributes of a `.vl.json` picture (`size`, `scale`,
+`background`, and `param-NAME`), and `caption` and the other attributes work as for a `mermaid` block. The data of a
+chart block must be written in the specification (`data.values`): the text of a block is drawn from the cache folder,
+which has no data files beside it, so a block whose `data.url` names a local file (or whose image marks name a local
+picture) stops the build with a message that says to put the chart in a `.vl.json` file beside its data and link it as
+a picture. A remote `data.url` is never read by the tool (it reports `vl-data-remote-url`, shown as a warning). To show
+a specification as code instead, use the class `json`.
+
+````markdown
+```{.vega-lite caption="Visits per day" scale=2 width=50%}
+{
+  "data": {"values": [{"day": "Mon", "visits": 120}, {"day": "Tue", "visits": 180}]},
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "day", "type": "nominal"},
+    "y": {"field": "visits", "type": "quantitative"}
+  }
+}
+```
+````
+
+An OpenSCAD model is drawn from a code block only when the block asks for it with the class `draw` as well as
+`openscad`, because documentation often shows OpenSCAD source as highlighted code: a plain ```` ```openscad ```` block
+stays code and never starts the tool. A block of classes `openscad` and `draw` reads the attributes of a `.scad` picture
+(`view`, `azimuth`, `elevation`, `projection`, `define-NAME`, `size`, `scale`, and `background`, with the defaults of a
+model: 1600x1200 over white), `caption` and the other attributes work as for a `mermaid` block, and both classes are
+removed from the picture. A model block has no folder either, so an `include` or `use` in it stops the build with a
+message that names the line and says to put the model in a `.scad` file and link it as a picture.
+
+````markdown
+```{.openscad .draw caption="A washer" view=iso size=800x600 width=40%}
+difference() {
+  cylinder(h = 3, r = 12, $fn = 64);
+  translate([0, 0, -1]) cylinder(h = 5, r = 5, $fn = 48);
+}
+```
+````
+
+The chapter *Embedding Pictures in Markdown* shows every format the filter draws, each as the Markdown that is written
+and the picture it gives, side by side.
 
 **SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
 model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
@@ -2727,7 +2784,7 @@ CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/Dem
 cache folder `generated/canvasnet` is beside its folder), the output format and file, the resource path, and whether the
 pictures are embedded. The tool writes the document back with its warnings in the metadata key `canvasnet-warnings`
 (the notes the tool reports for each picture; a note for information only, such as `vega-lite-info`, is left out),
-which the shim removes and shows as Pandoc warnings, and a caption of a Mermaid block as a span of class
+which the shim removes and shows as Pandoc warnings, and a caption of a code block as a span of class
 `canvasnet-markdown`, which the shim reads as Markdown; a document must not use these two names. A shim that speaks a
 protocol the tool does not stops the build with a message such as
 `docs/filters/canvasnet.lua speaks protocol 0; this tool needs protocol 1` and the command that fixes it,

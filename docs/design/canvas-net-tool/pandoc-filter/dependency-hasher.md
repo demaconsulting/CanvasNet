@@ -9,10 +9,12 @@ that a change to any of them draws the picture again. It is a literal port of th
 (version 16): the includes of an OpenSCAD model, the data files and pictures of a Vega-Lite chart, the pictures of a
 Mermaid diagram, the include files of a PlantUML diagram, and the image links of an SVG drawing, for which it also
 decides whether the drawing must be flattened (a link to a `.mml` equation makes it composite). An equation is hashed
-as its own file only.
+as its own file only. It also finds the first local file the text of a Vega-Lite or OpenSCAD code block names, which
+the block cannot reach because its text is drawn from the cache folder.
 The unit is the internal sealed partial class `DependencyHasher`, split over `DependencyHasher.cs` (entry points, model
 walk, shared picture walk, file-access reads), `DependencyHasher.Chart.cs`, `DependencyHasher.Mermaid.cs`,
-`DependencyHasher.PlantUml.cs`, and `DependencyHasher.Svg.cs`.
+`DependencyHasher.PlantUml.cs`, `DependencyHasher.Svg.cs`, and `DependencyHasher.Blocks.cs` (the block check, with the
+supporting record `BlockReference`).
 
 #### Data Model
 
@@ -52,6 +54,26 @@ followed) is the single part labeled with the file name of `source`. Returns the
 
 **ForSvg(source, policy)**: walks an SVG drawing with `AddSvg` and returns the parts and whether the drawing is
 composite.
+
+**FindBlockReference(kind, text)** (static, in `DependencyHasher.Blocks.cs`): the first local file the text of a code
+block names, as a `BlockReference(Action, Path, Line)`, or `null`. For `vegalite` the text (without a leading byte
+order mark) is parsed as JSON with the walk's options and given to the walk's own collectors (`CollectDataUrls`,
+`CollectImageLinks`, and `CollectRowLinks` when a url channel names fields); a data URL counts when
+`FilterPaths.LocalDataFile` resolves it, a picture link when `FilterPaths.LocalImageFile` resolves it as written or
+percent-decoded, so the check refuses exactly what the walk would follow and leaves remote links and `data:` URIs to
+the tool. The collectors return the JSON string values themselves (the last of a repeated member, as the walk follows
+it), not their text. `OffsetOf` finds each value's position as the offset of its raw text
+(`JsonMarshal.GetRawUtf8Value`) in the parsed bytes, which `JsonDocument.Parse` keeps without copying for the life of
+the document. `FirstInText` then takes the local value written first (a data URL on a tie), which gives the action
+(`reads the data file` or `draws the picture`) and its line (one more than the line feeds before its opening quote). So
+the same text in another member, such as a `title`, never counts, and a name both read and drawn gets the action of the
+member written first. For `scad` the text is parsed with `ScadDocument.Parse`, and the first of its `Directives` gives
+`includes` or `uses`, its path, and its line, which is the lexer's location of the directive keyword, so a comment or
+string naming the same file does not move it; the parser ignores comments and never takes a comparison such as
+`a < b && c > d` for a directive, and `import()` reads no file.
+Text that cannot be parsed (`JsonException`, `ScadSyntaxException`, `InvalidDataException`) gives `null`, and the tool
+then reports the error when it draws the block. Any other kind gives `null`: Mermaid, PlantUML, and MathML blocks keep
+their behavior.
 
 **AsBytes(content)** / **FromBytes(text)**: read bytes as Latin-1 (one character per byte, so the ASCII-only classes of
 the Lua patterns match), and turn such a text back into the UTF-8 text it holds.
@@ -165,11 +187,14 @@ message applies.
 - **PictureAttributes** - the kind constants and `KindOf`, which tells a file only the tool draws.
 - **FileAccessPolicy**, **FileReferenceResolver**, and **FileReferenceException** (core library) - the policy, the
   race-free read of a referenced file through it, and its refusal.
-- **System.Text.Json** and **System.Text.RegularExpressions** (.NET) - the chart decoder and the Lua patterns.
+- **ScadDocument**, **ScadDirective**, and **ScadSyntaxException** (Scad library) - the directives of an OpenSCAD code
+  block, found by the parser.
+- **System.Text.Json** and **System.Text.RegularExpressions** (.NET) - the chart decoder (and the reader that finds the
+  line of a name in a block) and the Lua patterns.
 - **ToolException** (tool) and **ErrorCodes** (Viewer library) - the error and its code.
 
 #### Callers
 
 - **PandocFilterEngine** - `ForPicture` in `PlanDraw` and `ForSvg` in `PlanSvg`, with the policy of the picture's
   file-access arguments (`FilterSettings.PolicyOf`); the parts go to `PictureCache.ComputeKey`, and a plain drawing
-  is left to Pandoc.
+  is left to Pandoc. `FindBlockReference` in `PlanBlock`, before the text of a code block is written.

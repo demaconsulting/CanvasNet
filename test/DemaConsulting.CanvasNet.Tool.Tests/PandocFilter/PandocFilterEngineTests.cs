@@ -222,8 +222,9 @@ public class PandocFilterEngineTests
 
     /// <summary>
     ///     Test that a <c>.mml</c> picture and a code block of class <c>mathml</c> are drawn at scale 2 and shown at their
-    ///     natural width (the width of a probe at scale 1, as <c>width="Npx"</c>), the block as a figure from a
-    ///     <c>.mml</c> file in the cache, and that a second run adds the same width from the cache without drawing.
+    ///     natural width (the width of a probe at scale 1, in em of the 16-pixel font: <c>width="Nem"</c>), the block as a
+    ///     figure from a <c>.mml</c> file in the cache, and that a second run adds the same width from the cache without
+    ///     drawing.
     /// </summary>
     [Fact]
     public void PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth()
@@ -253,10 +254,10 @@ public class PandocFilterEngineTests
         using var json = JsonDocument.Parse(output);
         var blocks = json.RootElement.GetProperty("blocks");
         var picture = blocks[0].GetProperty("c")[0].GetProperty("c")[0];
-        Assert.Equal($$"""["",[],[["id","ohm"],["width","{{ohmWidth}}px"]]]""", picture.GetRawText());
+        Assert.Equal($$"""["",[],[["id","ohm"],["width","{{PictureAttributes.Em(ohmWidth)}}"]]]""", picture.GetRawText());
         Assert.Equal("Figure", blocks[1].GetProperty("t").GetString());
         var figureImage = blocks[1].GetProperty("c")[2][0].GetProperty("c")[0];
-        Assert.Equal($$"""["",[],[["width","{{quadraticWidth}}px"]]]""", figureImage.GetProperty("c")[0].GetRawText());
+        Assert.Equal($$"""["",[],[["width","{{PictureAttributes.Em(quadraticWidth)}}"]]]""", figureImage.GetProperty("c")[0].GetRawText());
         Assert.True(quadraticWidth > ohmWidth);
 
         // Assert: a second run draws nothing and gives the same document
@@ -265,24 +266,25 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
-    ///     Test that an author's <c>width</c>, <c>height</c>, or <c>size</c> on an equation is kept without a natural width,
-    ///     that an author's <c>scale</c> replaces the default but still shows the natural width, and that an equation that
-    ///     cannot be measured keeps its attributes as written (the draw reports it).
+    ///     Test that an author's <c>width</c>, <c>height</c>, <c>size</c>, or sizing <c>style</c> on an equation is kept
+    ///     without a natural width, that an author's <c>scale</c> replaces the default but still shows the natural width,
+    ///     and that an equation that cannot be measured keeps its attributes as written (the draw reports it).
     /// </summary>
     [Fact]
     public void PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth()
     {
-        // Arrange: one equation shown five ways, and a text that is not an equation
+        // Arrange: one equation shown six ways, and a text that is not an equation, each in a paragraph of its own
         using var tree = new FilterTree();
         var path = tree.Write("eq.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>=</mo><mn>1</mn></math>");
         tree.Write("broken.mml", "<math><mi>x</mo></math>");
         var natural = SourceLoader.Probe(path).Width;
-        var document = PandocDoc.Document(PandocDoc.Para(
-            PandocDoc.Image("eq.mml", ("width", "50%")),
-            PandocDoc.Image("eq.mml", ("height", "2em")),
-            PandocDoc.Image("eq.mml", ("size", "400x100")),
-            PandocDoc.Image("eq.mml", ("scale", "3")),
-            PandocDoc.Image("broken.mml")));
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Image("eq.mml", ("width", "50%"))),
+            PandocDoc.Para(PandocDoc.Image("eq.mml", ("height", "2em"))),
+            PandocDoc.Para(PandocDoc.Image("eq.mml", ("size", "400x100"))),
+            PandocDoc.Para(PandocDoc.Image("eq.mml", ("scale", "3"))),
+            PandocDoc.Para(PandocDoc.Image("eq.mml", ("style", "width:3em"))),
+            PandocDoc.Para(PandocDoc.Image("broken.mml")));
         var drawer = new StubDrawer();
 
         // Act
@@ -290,18 +292,19 @@ public class PandocFilterEngineTests
 
         // Assert: the attributes each picture keeps
         using var json = JsonDocument.Parse(output);
-        var images = json.RootElement.GetProperty("blocks")[0].GetProperty("c").EnumerateArray().Select(i => i.GetProperty("c")[0].GetRawText()).ToList();
+        var images = json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("c")[0].GetProperty("c")[0].GetRawText()).ToList();
         Assert.Equal(
             [
                 """["",[],[["width","50%"]]]""",
                 """["",[],[["height","2em"]]]""",
                 """["",[],[]]""",
-                $$"""["",[],[["width","{{natural}}px"]]]""",
+                $$"""["",[],[["width","{{PictureAttributes.Em(natural)}}"]]]""",
+                """["",[],[["style","width:3em"]]]""",
                 """["",[],[]]"""
             ],
             images);
 
-        // Assert: the options each draw was given (the width and height pictures share one draw at scale 2)
+        // Assert: the options each draw was given (the width, height, and style pictures share one draw at scale 2)
         var options = drawer.Arguments.Select(args => string.Join(' ', args.Where(a => a.StartsWith("--s", StringComparison.Ordinal)))).Order(StringComparer.Ordinal).ToList();
         Assert.Equal(["--scale=2", "--scale=2", "--scale=3", "--size=400x100"], options);
     }
@@ -314,11 +317,11 @@ public class PandocFilterEngineTests
     [Fact]
     public void PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile()
     {
-        // Arrange: one equation shown plainly and at half the width of the page
+        // Arrange: one equation shown plainly and at half the width of the page, each in a paragraph of its own
         using var tree = new FilterTree();
         var path = tree.Write("eq.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>=</mo><mn>1</mn></math>");
         var natural = SourceLoader.Probe(path).Width;
-        var document = PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("eq.mml"), PandocDoc.Image("eq.mml", ("width", "50%"))));
+        var document = PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("eq.mml")), PandocDoc.Para(PandocDoc.Image("eq.mml", ("width", "50%"))));
         var drawer = new StubDrawer();
 
         // Act
@@ -335,8 +338,50 @@ public class PandocFilterEngineTests
 
         // Assert: the plain picture gets the natural width and the other keeps the author's width
         using var json = JsonDocument.Parse(output);
-        var images = json.RootElement.GetProperty("blocks")[0].GetProperty("c").EnumerateArray().Select(i => i.GetProperty("c")[0].GetRawText()).ToList();
-        Assert.Equal([$$"""["",[],[["width","{{natural}}px"]]]""", """["",[],[["width","50%"]]]"""], images);
+        var images = json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("c")[0].GetProperty("c")[0].GetRawText()).ToList();
+        Assert.Equal([$$"""["",[],[["width","{{PictureAttributes.Em(natural)}}"]]]""", """["",[],[["width","50%"]]]"""], images);
+    }
+
+    /// <summary>
+    ///     Test that an equation in a sentence is shown at its natural width and placed in the line with its baseline on
+    ///     the text's (a <c>style</c> before the author's own declarations), that the same equation alone in its paragraph
+    ///     gets the width only, and that a second run gives the same document from the cache without drawing.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathMlInASentence_SitsOnTheBaseline()
+    {
+        // Arrange: y = x², which reaches below its baseline, in a sentence with the author's color and on its own
+        using var tree = new FilterTree();
+        var path = tree.Write("eq.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>y</mi><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></math>");
+        var natural = SourceLoader.Probe(path);
+        var depth = natural.Height - natural.Equation!.Baseline;
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Str("Then"), PandocDoc.Space(), PandocDoc.Image("eq.mml", ("style", "color:red")), PandocDoc.Str(".")),
+            PandocDoc.Para(PandocDoc.Image("eq.mml")));
+        var drawer = new StubDrawer();
+        var again = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+        var second = tree.Run(again, document);
+
+        // Assert: one draw, and the equation's depth below the baseline
+        Assert.Single(drawer.Calls);
+        Assert.True(depth > 0);
+
+        // Assert: the sentence's equation is placed in the line, the author's style after the filter's; the lone one is not
+        var width = PictureAttributes.Em(natural.Width);
+        var align = PictureAttributes.FormatNumber(-(double)depth / PictureAttributes.MathMlFontSize);
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        Assert.Equal(
+            $$"""["",[],[["style","display:inline;margin:0;vertical-align:{{align}}em;color:red"],["width","{{width}}"]]]""",
+            blocks[0].GetProperty("c")[2].GetProperty("c")[0].GetRawText());
+        Assert.Equal($$"""["",[],[["width","{{width}}"]]]""", blocks[1].GetProperty("c")[0].GetProperty("c")[0].GetRawText());
+
+        // Assert: a second run draws nothing and gives the same document
+        Assert.Empty(again.Calls);
+        Assert.Equal(output, second);
     }
 
     /// <summary>
@@ -615,5 +660,140 @@ public class PandocFilterEngineTests
             "drawing 'wide.mmd' failed: 'wide.mmd' is too large; a scale of 0.56 or less fits. (Set the picture's scale attribute to 0.56 or less, for example {scale=0.56}.)",
             image.Message);
         Assert.Equal("drawing 'tall.mmd' failed: 'tall.mmd' is too large; a scale of 0.56 or less fits. (Use --scale 0.56 (or less).)", plain.Message);
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>vega-lite</c> or <c>vegalite</c> is written to the cache as a <c>.vl.json</c>
+    ///     file and drawn with its parameters, becoming a figure with a caption or a paragraph, with its own class dropped
+    ///     and the other classes and attributes kept.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_VegaLiteBlocks_BecomeFigureFromAVlJsonFile()
+    {
+        // Arrange: a captioned chart with a parameter, and a chart under the alias class
+        using var tree = new FilterTree();
+        var captioned = PandocDoc.CodeBlock(
+            "fig-sales", ["vega-lite", "wide"], "{\"mark\": \"bar\", \"data\": {\"values\": [{\"a\": 1}]}}", ("caption", "Sales"), ("param-cutoff", "3"), ("width", "50%"));
+        var alias = PandocDoc.CodeBlock("visits", ["vegalite"], "{\"mark\": \"line\", \"data\": {\"values\": [{\"a\": 2}]}}");
+        var drawer = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, PandocDoc.Document(captioned, alias));
+
+        // Assert: a figure and a paragraph, each picture without the chart's class
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        Assert.Equal("Figure", blocks[0].GetProperty("t").GetString());
+        Assert.Equal("fig-sales", blocks[0].GetProperty("c")[0][0].GetString());
+        var image = blocks[0].GetProperty("c")[2][0].GetProperty("c")[0];
+        Assert.Equal("""["",["wide"],[["width","50%"]]]""", image.GetProperty("c")[0].GetRawText());
+        Assert.Equal("Para", blocks[1].GetProperty("t").GetString());
+        Assert.Equal("""["visits",[],[]]""", blocks[1].GetProperty("c")[0].GetProperty("c")[0].GetRawText());
+        Assert.All(PandocDoc.ImageSources(output), src => Assert.Matches("^../docs/generated/canvasnet/vegalite-[0-9a-f]{40}\\.png$", src));
+
+        // Assert: both texts written as charts, and the parameter passed to the tool
+        Assert.Equal(2, tree.CacheFiles().Count(name => name.EndsWith(".vl.json", StringComparison.Ordinal)));
+        Assert.Equal(2, drawer.Calls.Count);
+        Assert.All(drawer.Calls, call => Assert.EndsWith(".vl.json", call, StringComparison.Ordinal));
+        Assert.Single(drawer.Arguments, args => args.Contains("--param=cutoff=3"));
+        Assert.Empty(PandocDoc.Warnings(output));
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>openscad</c> stays code unless it also has the class <c>draw</c> (nothing is
+    ///     written or drawn for it), and that a block with both is drawn as a model with the model defaults, becoming a
+    ///     picture with <c>openscad</c> and <c>draw</c> dropped and the other classes and attributes kept.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_OpenScadBlocks_DrawnOnlyWithTheDrawClass()
+    {
+        // Arrange: a plain model shown as code (with an include, which is no error for code), and a model to draw
+        using var tree = new FilterTree();
+        var plain = PandocDoc.CodeBlock("", ["openscad"], "include <lib.scad>\ncube(10);");
+        var drawn = PandocDoc.CodeBlock("part", ["openscad", "draw", "wide"], "cube(10);", ("view", "iso"), ("width", "40%"));
+        var drawer = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, PandocDoc.Document(plain, drawn));
+
+        // Assert: the plain block as written, and the drawn one as a paragraph that holds the picture
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        Assert.Equal(["CodeBlock", "Para"], blocks.EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+        Assert.Equal("""["",["openscad"],[]]""", blocks[0].GetProperty("c")[0].GetRawText());
+        Assert.Equal("include <lib.scad>\ncube(10);", blocks[0].GetProperty("c")[1].GetString());
+        Assert.Equal("""["part",["wide"],[["width","40%"]]]""", blocks[1].GetProperty("c")[0].GetProperty("c")[0].GetRawText());
+        Assert.Matches("^../docs/generated/canvasnet/scad-[0-9a-f]{40}\\.png$", Assert.Single(PandocDoc.ImageSources(output)));
+
+        // Assert: one model written and drawn, with the view and the model defaults
+        Assert.Single(tree.CacheFiles(), name => name.EndsWith(".scad", StringComparison.Ordinal));
+        var args = Assert.Single(drawer.Arguments);
+        Assert.EndsWith(".scad", args[0], StringComparison.Ordinal);
+        Assert.Contains("--view=iso", args);
+        Assert.Contains("--size=1600x1200", args);
+        Assert.Contains("--background=white", args);
+        Assert.Contains("--max-triangles=2000000", args);
+    }
+
+    /// <summary>
+    ///     Test that a Vega-Lite or OpenSCAD block that names a local file stops the build before anything is written or
+    ///     drawn, with a message that names the block, the file, its line, and the picture to link instead.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_BlockNamingAFile_StopsWithAHintToUseAPicture()
+    {
+        // Arrange: a chart that reads a data file, and a model that uses a library
+        using var tree = new FilterTree();
+        var chart = PandocDoc.CodeBlock("sales", ["vega-lite"], "{\n  \"data\": {\"url\": \"sales.csv\"},\n  \"mark\": \"bar\"\n}");
+        var model = PandocDoc.CodeBlock("", ["draw", "openscad"], "use <shapes.scad>\nrounded(5);");
+        var drawer = new StubDrawer();
+
+        // Act
+        var chartError = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(chart)));
+        var modelError = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(model)));
+
+        // Assert: the filter's error, naming the fix, and nothing written or drawn
+        Assert.Equal(ErrorCodes.PandocFilterError, chartError.Code);
+        Assert.Equal(
+            "'vega-lite block #sales' reads the data file 'sales.csv' at line 2, but a code block has no folder to find it in; "
+            + "put the chart in a .vl.json file beside the files it names and link it as a picture, for example ![Sales](sales.vl.json)",
+            chartError.Message);
+        Assert.Equal(ErrorCodes.PandocFilterError, modelError.Code);
+        Assert.Equal(
+            "'openscad block (use <shapes.scad>)' uses 'shapes.scad' at line 1, but a code block has no folder to find it in; "
+            + "put the model in a .scad file beside the files it names and link it as a picture, for example ![Part](part.scad){view=iso}",
+            modelError.Message);
+        Assert.Empty(drawer.Calls);
+        Assert.Empty(tree.CacheFiles());
+    }
+
+    /// <summary>
+    ///     Test that the size-limit hint of an oversized OpenSCAD block names both classes the block needs, and that of a
+    ///     Vega-Lite block names the class the author wrote, so the example can be pasted as is.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_OversizedOpenScadBlock_HintNamesBothClasses()
+    {
+        // Arrange: every draw fails with a size-limit error that carries the scale that fits
+        using var tree = new FilterTree();
+        var drawer = new StubDrawer
+        {
+            Failure = name =>
+            {
+                var error = new ViewerException(ErrorCodes.SizeLimit, $"'{name}' is too large; a scale of 0.5 or less fits.", "Use --scale 0.5 (or less).");
+                error.Data["DemaConsulting.CanvasNet.Viewer.FitScale"] = "0.5";
+                return error;
+            }
+        };
+
+        // Act
+        var model = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["openscad", "draw"], "cube(10);", ("scale", "9")))));
+        var chart = Assert.Throws<ToolException>(() => tree.Run(drawer, PandocDoc.Document(PandocDoc.CodeBlock("", ["vegalite"], "{\"mark\": \"bar\"}", ("scale", "9")))));
+
+        // Assert
+        Assert.Equal(ErrorCodes.SizeLimit, model.Code);
+        Assert.StartsWith("drawing 'openscad block (cube(10);)' failed: ", model.Message, StringComparison.Ordinal);
+        Assert.EndsWith("(Set the block's scale attribute to 0.5 or less, for example {.openscad .draw scale=0.5}.)", model.Message, StringComparison.Ordinal);
+        Assert.EndsWith("(Set the block's scale attribute to 0.5 or less, for example {.vegalite scale=0.5}.)", chart.Message, StringComparison.Ordinal);
     }
 }

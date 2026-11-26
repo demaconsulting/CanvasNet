@@ -17,11 +17,15 @@ unit has two parts:
 
 The protocol changes only when the arguments or the output contract change, never for a change of the filter's logic.
 The shim's fast path, which decides whether a document needs the tool at all, is the one part of the shim that follows
-the filter's logic: it lists the code-block classes and picture suffixes the engine draws, written from the engine's
-own tables (`PictureAttributes.BlockClasses` and `PictureAttributes.PictureSuffixes`) when the shim is generated, so it
-cannot drift from the tool. A shim written by an older tool keeps working with a newer one (the protocol is the same),
-but it starts the tool for documents the newer tool would not touch, or misses a format the newer tool draws, so a
-repository writes its shim again after updating the tool.
+the filter's logic: it lists the code-block classes the engine draws, the classes it draws only with the class `draw`,
+and the picture suffixes it draws, written from the engine's own tables (`PictureAttributes.BlockClasses`,
+`PictureAttributes.DrawBlockClasses`, and `PictureAttributes.PictureSuffixes`) when the shim is generated, so it cannot
+drift from the tool. Adding the Vega-Lite and opt-in OpenSCAD block classes changed only these lists and the loop that
+reads them, not the arguments or the output, so the protocol stayed 1. A shim written by an older tool keeps working
+with a newer one (the protocol is the same), but it starts the tool for documents the newer tool would not touch, or
+misses a format the newer tool draws, so a repository writes its shim again after updating the tool. For example, a shim
+written before the Vega-Lite and OpenSCAD blocks never starts the tool for a document whose only pictures are such
+blocks, so they stay code.
 
 #### Data Model
 
@@ -31,17 +35,19 @@ repository writes its shim again after updating the tool.
 - `MinProtocol` = 1 and `MaxProtocol` = 1: the oldest and the newest protocol the tool accepts.
 - `ResourceName` = `DemaConsulting.CanvasNet.Tool.PandocFilter.canvasnet.lua`: the logical name of the embedded
   template (the `EmbeddedResource` of `PandocFilter\canvasnet.lua` in the tool's project file).
-- `ClassesPlaceholder` = `@CLASSES@` and `SuffixesPlaceholder` = `@SUFFIXES@`: the placeholders of the template that
-  `Generate` fills. Each makes the template invalid Lua, so a copy of the unfilled template fails at once instead of
-  silently never starting the tool.
+- `ClassesPlaceholder` = `@CLASSES@`, `DrawClassesPlaceholder` = `@DRAW_CLASSES@`, and `SuffixesPlaceholder` =
+  `@SUFFIXES@`: the placeholders of the template that `Generate` fills (`@CLASSES@` is not part of `@DRAW_CLASSES@`, as
+  an underscore, not an at sign, comes before its `C`). Each makes the template invalid Lua, so a copy of the unfilled
+  template fails at once instead of silently never starting the tool.
 - `DefaultPath` = `docs/filters/canvasnet.lua`: the usual path of the shim, used in a message when the path is unknown.
 
 **Bytes**: the shim, generated once on first use (`Lazy<byte[]>`): the embedded template read as UTF-8, passed through
 `Generate`, and encoded as UTF-8 without a byte order mark.
 
 **Shim constants**: `PROTOCOL` = `"1"`; `CLASSES`, the code-block classes the engine draws (generated:
-`{ "mermaid", "plantuml", "mathml" }`); and `SUFFIXES`, the lowercase picture name ends the engine may change
-(generated:
+`{ "mermaid", "plantuml", "mathml", "vega-lite", "vegalite" }`); `DRAW_CLASSES`, the classes it draws only when the
+block also has the class `draw` (generated: `{ "openscad" }`); and `SUFFIXES`, the lowercase picture name ends the
+engine may change (generated:
 `{ ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu", ".mml" }`,
 that is `.svg`, which the engine flattens when it links a picture only the tool draws, then the inputs it draws). The
 header comment names the oldest tool release that has the `pandoc-filter` command, says it is written by
@@ -54,14 +60,15 @@ written again after the tool is updated.
 **Pandoc(doc)** (Lua): the filter function Pandoc calls once with the whole document.
 
 1. **When the tool starts** (`needs_tool`): the document is walked; the tool is needed when a `CodeBlock` has a class
-   that is one of `CLASSES` (exact, case-sensitive, as the engine compares it), or an `Image` is a local picture whose
-   source, lowercased, ends in one of `SUFFIXES` (`has_suffix`, which compares the end of the text, so the rule is the
-   engine's `KindOf` and `IsSvg`). A source is remote when it starts with a URI scheme (`^%a[%w+.-]+:`, a letter and at
-   least one more character before the colon, so a drive letter such as `C:` is local). The source is not cut at a
-   fragment or query, as the engine does not cut it either: `report.pdf#page=2` and `chart.vl.json?x` do not end in a
-   listed suffix, and the engine leaves them alone. Everything the engine would leave alone is therefore returned
-   unchanged (`nil`) without starting the tool: code blocks of any other class (`bash`, `yaml`, `csharp`, `text`, or
-   `Mermaid`), rasters (`.png`, `.bmp`, `.tif`, `.ico`, `.avif`, and so on), names without a listed suffix, and remote
+   that is one of `CLASSES` (exact, case-sensitive, as the engine compares it), a `CodeBlock` has the class `draw` and a
+   class that is one of `DRAW_CLASSES`, or an `Image` is a local picture whose source, lowercased, ends in one of
+   `SUFFIXES` (`has_suffix`, which compares the end of the text, so the rule is the engine's `KindOf` and `IsSvg`). A
+   source is remote when it starts with a URI scheme (`^%a[%w+.-]+:`, a letter and at least one more character before
+   the colon, so a drive letter such as `C:` is local). The source is not cut at a fragment or query, as the engine does
+   not cut it either: `report.pdf#page=2` and `chart.vl.json?x` do not end in a listed suffix, and the engine leaves
+   them alone. Everything the engine would leave alone is therefore returned unchanged (`nil`) without starting the
+   tool: code blocks of any other class (`bash`, `yaml`, `csharp`, `text`, `json`, `Mermaid`, or `openscad` without
+   `draw`), rasters (`.png`, `.bmp`, `.tif`, `.ico`, `.avif`, and so on), names without a listed suffix, and remote
    pictures.
 2. **The command**: `CANVASNET_TOOL` when it is set and has a non-blank character, split by `split_command` (white space
    separates, a double quote groups and may hold spaces, there are no escapes), else `dotnet canvasnet`. The first word
@@ -83,9 +90,10 @@ written again after the tool is updated.
 **Bytes** (C#): the generated shim (see Data Model); **Load** reads the manifest resource `ResourceName` into an
 array.
 
-**Generate(template)** (C#): replaces `ClassesPlaceholder` with a Lua list of `PictureAttributes.BlockClasses` and
-`SuffixesPlaceholder` with a Lua list of `PictureAttributes.PictureSuffixes` (`{ "a", "b" }`, each item in double
-quotes with a backslash or double quote escaped). Each placeholder must be in the template exactly once.
+**Generate(template)** (C#): replaces `ClassesPlaceholder` with a Lua list of `PictureAttributes.BlockClasses`,
+`DrawClassesPlaceholder` with a Lua list of `PictureAttributes.DrawBlockClasses`, and `SuffixesPlaceholder` with a Lua
+list of `PictureAttributes.PictureSuffixes` (`{ "a", "b" }`, each item in double quotes with a backslash or double quote
+escaped). Each placeholder must be in the template exactly once.
 
 **CheckProtocol(protocol, filterPath)** (C#): accepts `MinProtocol` to `MaxProtocol` and refuses anything else (see
 Error Handling). The path in the messages is `filterPath`, or `DefaultPath` when it is null or empty.
@@ -131,7 +139,8 @@ without a placeholder or with a placeholder twice: `InvalidOperationException` w
 
 - **ToolException** and **ErrorCodes** (Viewer library) - the `usage-error` and `output-write-failed` errors.
 - **PictureCache** - `Delete` removes the partial file after a failed write.
-- **PictureAttributes** - `BlockClasses` and `PictureSuffixes`, the tables `Generate` writes into the fast path.
+- **PictureAttributes** - `BlockClasses`, `DrawBlockClasses`, and `PictureSuffixes`, the tables `Generate` writes into
+  the fast path.
 - **Pandoc 3 Lua API** (shim) - `pandoc.pipe`, `pandoc.read`, `pandoc.write`, `pandoc.json.decode`, `pandoc.utils`,
   `pandoc.log`, and the globals `PANDOC_SCRIPT_FILE`, `FORMAT`, `PANDOC_VERSION`, `PANDOC_STATE`, and
   `PANDOC_WRITER_OPTIONS`.

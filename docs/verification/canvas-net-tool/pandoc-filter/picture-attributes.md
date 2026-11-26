@@ -3,8 +3,8 @@
 #### Verification Approach
 
 `PictureAttributes` is verified with xUnit unit tests in `PictureAttributesTests.cs`. The tests call the internal static
-methods directly (`KindOf`, `IsSvg`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `SplitCaption`, `BlockName`, and
-`FormatNumber`) with
+methods directly (`KindOf`, `IsSvg`, `Build`, `NaturalSizeNeeded`, `Em`, `WithNaturalSize`, `BuildSvg`, `SplitCaption`,
+`BlockName`, and `FormatNumber`, `BlockOf`) with
 attribute lists written in the test; nothing is stubbed, no file is read, and no tool is run. Refusals are asserted as
 the `ToolException` the method throws, with its code and its exact message.
 
@@ -19,8 +19,13 @@ N/A - standard test environment. The unit is pure computation and needs no files
 - Every refused attribute fails with `pandoc-filter-error`, no hint, and the exact message of the Lua filter.
 - The defaults, the normalized values, the byte order of the options, and the kept attributes match the Lua filter.
 - Numbers are written exactly as C's `%.15g`.
+- A `vega-lite` or `vegalite` block is a chart, an `openscad` block is a model only together with `draw`, and a
+  block is named by the class the author wrote.
 - An equation (`.mml` or a `mathml` block) is drawn at scale 2 unless a size or scale is given, refuses the attributes
-  of the other kinds, and wants its natural display width only without a size, width, or height.
+  of the other kinds, and wants its natural size only without a size, width, or height (attribute or style).
+- An equation's natural size is a `width` in em of the 16 pixel font (the renderer's default), with no `height`; in
+  running text a `style` also sets it inline on the baseline, before the author's own declarations; an author's style
+  loses its trailing `;` and white space, so no `;;` is written, and on its own one with nothing left is not written.
 
 #### Test Scenarios
 
@@ -32,10 +37,11 @@ give none.
 **PictureAttributes_IsSvg_LocalSvgOnly**: `a/Drawing.SVG` is a drawing; a URL ending in `.svg` and `a.svgz` are not.
 
 **PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws**: `PictureSuffixes` is `.svg`, `.vl.json`,
-`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml` and `BlockClasses` is
-`mermaid`, `plantuml`, `mathml`; every suffix, in lower and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`);
-`BlockKindOf` gives `mermaid` for `mermaid` alone or after another class, `plantuml` for `plantuml`, and `mathml` for
-`mathml`, and nothing for `Mermaid`, `puml`, `mml`, `bash`, or no class.
+`.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml`, `BlockClasses` is
+`mermaid`, `plantuml`, `mathml`, `vega-lite`, `vegalite`, `DrawBlockClasses` is `openscad`, and `DrawClass` is `draw`;
+every suffix, in lower and upper case, is a drawing (`IsSvg`) or has a kind (`KindOf`); `BlockKindOf` gives `mermaid`
+for `mermaid` alone or after another class, `plantuml` for `plantuml`, and `mathml` for `mathml`, and nothing for
+`Mermaid`, `puml`, `mml`, `bash`, or no class.
 
 **PictureAttributes_Build_InvalidAttribute_ThrowsTheLuaMessage**: each invalid value (`size` 0x10 and 8193x10, `scale`
 0 and `1e3`, `background` `#12`, `page` 0, `dpi` 1.5 for `.vsdx` and 0 for `.pdf`, an unknown `view`, `azimuth`
@@ -73,9 +79,39 @@ the caption and the other attribute stays.
 **PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo**: an equation with only `id` gets `--scale=2` and keeps
 `id`; with `scale=3` and `background=transparent` it gets `--background=transparent` and `--scale=3`; with
 `size=400x100` only `--size=400x100`; with `width=50%` it gets `--scale=2` and keeps the width.
-`NaturalWidthNeeded` is true for an equation with only `id` or `scale`, and false with `size`, `width`, or `height`,
-and for a Mermaid diagram.
+`NaturalSizeNeeded` is true for an equation with only `id` or `scale` or a `style` without a width or height, and
+false with `size`, `width`, or `height`, with a `style` that declares `Width` (any case, spaces around the colon) or
+`height`, and for a Mermaid diagram.
+
+**PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm**: A = πr² (52x17, baseline 15) on its own gets
+`width=3.25em` after `id` (or after the author's `style=color:red`, which stays in its place, trimmed of white space
+and trailing `;`); in running text it gets
+`style=display:inline;margin:0;vertical-align:-0.125em` before `width=3.25em`; with the author's
+`style= vertical-align:middle; ` (first, before `id`) the style is the filter's declarations followed by the author's,
+trimmed of white space and the trailing `;`, in the author's position; an equation with its baseline at the bottom gets
+`vertical-align:0`; and `Em(1)` is `0.0625em`.
+
+**PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed**: A = πr² (52x17, baseline 15) on its own
+with `style=color:red ; ; ` and `id` gets `style=color:red`, `id`, then `width=3.25em`; in running text with
+`style=vertical-align:middle;` it gets `style=display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle`
+before `width=3.25em`; on its own with `style= ; ` and `id` it gets no `style`, only `id` then `width=3.25em`; and in
+running text with `style= ; ` only the filter's declarations, with no `;` after them.
+
+**PictureAttributes_MathMlFontSize_IsTheRenderersDefault**: `MathMlFontSize` (16) equals the default
+`MathMlRenderOptions.FontSize`, so one em of the filter is the font size the natural size is measured at.
 
 **PictureAttributes_Build_MathMlTheme_IsRefused**: `theme=dark` on `eq.mml` fails with `pandoc-filter-error` and
 `'eq.mml' has theme=dark, but theme applies to Mermaid diagrams only`, and `page=2` on `mathml block #eq` with
 `'mathml block #eq' has page=2, but page applies to .vsdx, .pptx and .pdf files only`.
+
+**PictureAttributes_BlockOf_VegaLiteAndItsAlias_AreCharts**: `vega-lite` alone and `vegalite` after another class are
+`BlockClass` rows of the kind `vegalite` that need no `draw`, each with its own class; `vega-lite` with `draw` is still
+a chart; `Vega-Lite`, `vl`, and `json` are not drawn.
+
+**PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass**: `openscad` alone is not drawn; `openscad` with `draw` (in
+either order, also with another class) is the row of the kind `scad` that needs `draw`; `draw` alone, `OpenSCAD` or
+`scad` with `draw`, and `openscad` with `Draw` are not drawn.
+
+**PictureAttributes_BlockName_NamesTheClassTheAuthorWrote**: a block is named `vega-lite block #sales`,
+`vegalite block ({"mark": "bar",)` (its first non-blank line), `openscad block (cube(10);)`, or `openscad block #part`
+by the class it was given.

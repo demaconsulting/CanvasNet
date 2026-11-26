@@ -41,6 +41,9 @@ block (also when the kind `mermaid` is named), while a PlantUML block is
 SHA-1 of `canvasnet.lua mathml block\n` and its text with `.mml`, and differs from the name of a Mermaid block of the
 same text.
 
+**PictureCache_BlockSourceFile_VegaLiteAndScadBlocks_HaveTheirExtensions**: the source of a Vega-Lite block is the
+SHA-1 of `canvasnet.lua vegalite block\n` and its text with `.vl.json`, and the source of an OpenSCAD block the SHA-1 of
+`canvasnet.lua scad block\n` and its text with `.scad`; `KindOf` reads each name as its kind.
 **PictureCache_WriteTextAtomically_NewAndExisting_WritesOnce**: a new file holds the UTF-8 bytes of `é\n` without a byte
 order mark, an existing file keeps its text `kept` instead of `replaced`, and the folder holds only the two files, with
 no partial file left.

@@ -1201,6 +1201,8 @@ words:
   - slideous
   - dzslides
   - inlines
+  - Emph
+  - keepaspectratio
   - typewise
   - gsub
   - foldr

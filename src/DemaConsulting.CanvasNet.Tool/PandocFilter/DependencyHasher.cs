@@ -26,7 +26,9 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         a file the mode denies (outside the folders, or reached through a link the mode refuses) is never read
 ///         (<see cref="ReadFile"/>). The walks live in <c>DependencyHasher.Chart.cs</c>, <c>DependencyHasher.Mermaid.cs</c>,
 ///         <c>DependencyHasher.PlantUml.cs</c>,
-///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk). A MathML equation references
+///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk); the check of the files a
+///         Vega-Lite or OpenSCAD code block names (<see cref="FindBlockReference"/>) lives in
+///         <c>DependencyHasher.Blocks.cs</c>. A MathML equation references
 ///         no other file: its own content is its only part, and an equation a drawing, chart, or diagram links is hashed as
 ///         a leaf file. An instance is not
 ///         thread-safe; the static entry points are, as each call has its own instance.

@@ -396,6 +396,12 @@ failure document has `usage-error` and the hint `Write the shim again: dotnet ca
 <file>`, and standard error has the error; a model with `size=0x10` exits with code 1 and the failure document has
 `pandoc-filter-error` and a message that starts with `'part.scad' has size=0x10`.
 
+**CanvasNetTool_PandocFilter_ChartAndModelBlocks_DrawnOnlyWhenAsked**: a Pandoc JSON document with a `vega-lite` code
+block, an `{.openscad .draw}` code block with `size=40x30`, and a plain `openscad` code block is piped to
+`pandoc-filter --json --protocol 1` run as a real process; exit code 0, nothing on standard error, the blocks become
+`Para`, `Para`, and `CodeBlock`, and both pictures exist. A `vegalite` block `#sales` whose data URL is `sales.csv`
+exits with code 1, and the failure document has `pandoc-filter-error` and a message that starts with
+`'vegalite block #sales' reads the data file 'sales.csv' at line 1, but a code block has no folder to find it in`.
 **CanvasNetTool_FileAccess_AllowRootAsProcess_ConfinesEveryReadingCommand**: a drawing in `site` that links a Mermaid
 diagram in `site/parts` and one in `other` is given to `render`, `inspect colors`, `compare`, `montage`, and `flatten`
 as real processes with `--allow-root site --json`; each exits with code 0 and reports exactly one `image-access-denied`

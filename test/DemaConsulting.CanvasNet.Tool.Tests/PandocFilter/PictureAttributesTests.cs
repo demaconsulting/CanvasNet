@@ -53,7 +53,9 @@ public class PictureAttributesTests
     {
         // Assert: the lists
         Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu", ".mml"], PictureAttributes.PictureSuffixes);
-        Assert.Equal(["mermaid", "plantuml", "mathml"], PictureAttributes.BlockClasses);
+        Assert.Equal(["mermaid", "plantuml", "mathml", "vega-lite", "vegalite"], PictureAttributes.BlockClasses);
+        Assert.Equal(["openscad"], PictureAttributes.DrawBlockClasses);
+        Assert.Equal("draw", PictureAttributes.DrawClass);
 
         // Assert: every suffix is a picture the engine handles, in either letter case
         Assert.All(PictureAttributes.PictureSuffixes, suffix =>
@@ -72,6 +74,62 @@ public class PictureAttributesTests
         Assert.Null(PictureAttributes.BlockKindOf(["puml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["bash"]));
         Assert.Null(PictureAttributes.BlockKindOf([]));
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>vega-lite</c> or its alias <c>vegalite</c> is drawn as a Vega-Lite chart,
+    ///     whatever other classes it has, and that the class is matched exactly.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockOf_VegaLiteAndItsAlias_AreCharts()
+    {
+        // Act
+        var dashed = PictureAttributes.BlockOf(["vega-lite"]);
+        var alias = PictureAttributes.BlockOf(["wide", "vegalite"]);
+
+        // Assert: both are charts, each named by the class as written, and drawn without draw
+        Assert.Equal(new BlockClass("vega-lite", PictureAttributes.VegaLite, false), dashed);
+        Assert.Equal(new BlockClass("vegalite", PictureAttributes.VegaLite, false), alias);
+        Assert.Equal(PictureAttributes.VegaLite, PictureAttributes.BlockKindOf(["vega-lite", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["Vega-Lite"]));
+        Assert.Null(PictureAttributes.BlockOf(["vl"]));
+        Assert.Null(PictureAttributes.BlockOf(["json"]));
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>openscad</c> is drawn as a model only when it also has the class <c>draw</c>,
+    ///     in either order, and that neither class alone, nor another letter case, makes a picture.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass()
+    {
+        // Act
+        var plain = PictureAttributes.BlockOf(["openscad"]);
+        var drawn = PictureAttributes.BlockOf(["openscad", "draw"]);
+        var reversed = PictureAttributes.BlockOf(["draw", "numberLines", "openscad"]);
+
+        // Assert: only the block that asks for the picture is drawn, as a model
+        Assert.Null(plain);
+        Assert.Equal(new BlockClass("openscad", PictureAttributes.Scad, true), drawn);
+        Assert.Equal(drawn, reversed);
+        Assert.Null(PictureAttributes.BlockOf(["draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["OpenSCAD", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["scad", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["openscad", "Draw"]));
+    }
+
+    /// <summary>
+    ///     Test that a message names a code block by the class the author wrote, so a <c>vegalite</c> block is not called a
+    ///     <c>vega-lite</c> block, and an OpenSCAD block is an <c>openscad</c> block rather than one of its kind.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockName_NamesTheClassTheAuthorWrote()
+    {
+        // Act / Assert
+        Assert.Equal("vega-lite block #sales", PictureAttributes.BlockName("sales", "{}", "vega-lite"));
+        Assert.Equal("vegalite block ({\"mark\": \"bar\",)", PictureAttributes.BlockName("", "\n{\"mark\": \"bar\",\n}", "vegalite"));
+        Assert.Equal("openscad block (cube(10);)", PictureAttributes.BlockName("", "cube(10);", "openscad"));
+        Assert.Equal("openscad block #part", PictureAttributes.BlockName("part", "cube(10);", "openscad"));
     }
 
     /// <summary>
@@ -199,8 +257,8 @@ public class PictureAttributesTests
 
     /// <summary>
     ///     Test that an equation is drawn at scale 2 unless a size or a scale is given, that its own scale, size, and
-    ///     background are kept as options, and that the natural display width is wanted only when no size, width, or
-    ///     height is given.
+    ///     background are kept as options, and that the natural size is wanted only when no size, width, or height is
+    ///     given, as an attribute or in the style.
     /// </summary>
     [Fact]
     public void PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo()
@@ -219,13 +277,82 @@ public class PictureAttributesTests
         Assert.Equal(["--scale=2"], wide.Options);
         Assert.Equal([new KeyValuePair<string, string>("width", "50%")], wide.Keep);
 
-        // Assert: the natural width only for an equation without a size, width, or height
-        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("id", "eq")]));
-        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("scale", "3")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("size", "400x100")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("width", "50%")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("height", "2em")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mermaid", []));
+        // Assert: the natural size only for an equation without a size, width, or height, or a style that sets one
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("id", "eq")]));
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("scale", "3")]));
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "color:red; max-width:50%")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("size", "400x100")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("width", "50%")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("height", "2em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "color:red; Width : 3em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "height:1em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mermaid", []));
+    }
+
+    /// <summary>
+    ///     Test that an equation's natural size is written in em of the 16-pixel font, as a <c>width</c> after the other
+    ///     attributes and no <c>height</c>, and that in running text a <c>style</c> also places it in the line on the
+    ///     text's baseline, before the author's own declarations.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm()
+    {
+        // Act: A = πr² (52x17, baseline 15) on its own and in running text, with and without the author's style
+        var display = PictureAttributes.WithNaturalSize([new("id", "eq")], 52, 17, 15, false);
+        var styledDisplay = PictureAttributes.WithNaturalSize([new("style", "color:red")], 52, 17, 15, false);
+        var inline = PictureAttributes.WithNaturalSize([new("id", "eq")], 52, 17, 15, true);
+        var styled = PictureAttributes.WithNaturalSize([new("style", " vertical-align:middle; "), new("id", "eq")], 52, 17, 15, true);
+        var flat = PictureAttributes.WithNaturalSize([], 138, 44, 44, true);
+
+        // Assert: the width in em, the author's attributes first and in their order
+        Assert.Equal([P("id", "eq"), P("width", "3.25em")], display);
+        Assert.Equal([P("style", "color:red"), P("width", "3.25em")], styledDisplay);
+        Assert.Equal(
+            [P("id", "eq"), P("style", "display:inline;margin:0;vertical-align:-0.125em"), P("width", "3.25em")],
+            inline);
+        Assert.Equal(
+            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle"), P("id", "eq"), P("width", "3.25em")],
+            styled);
+        Assert.Equal([P("style", "display:inline;margin:0;vertical-align:0"), P("width", "8.625em")], flat);
+        Assert.Equal("0.0625em", PictureAttributes.Em(1));
+
+        // An attribute of the expected lists
+        static KeyValuePair<string, string> P(string key, string value) => new(key, value);
+    }
+
+    /// <summary>
+    ///     Test that an author's style is trimmed of white space and trailing <c>;</c>, on its own and in running text, so
+    ///     the width Pandoc appends or the filter's placement joins it with one <c>;</c> and no <c>;;</c> is written, and a
+    ///     style of nothing but <c>;</c> and white space is left out on its own.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed()
+    {
+        // Act: A = πr² (52x17, baseline 15) with styles that end in ';' or hold nothing but ';'
+        var display = PictureAttributes.WithNaturalSize([new("style", "color:red ; ; "), new("id", "eq")], 52, 17, 15, false);
+        var inline = PictureAttributes.WithNaturalSize([new("style", "vertical-align:middle;")], 52, 17, 15, true);
+        var empty = PictureAttributes.WithNaturalSize([new("style", " ; ")], 52, 17, 15, true);
+        var emptyDisplay = PictureAttributes.WithNaturalSize([new("style", " ; "), new("id", "eq")], 52, 17, 15, false);
+
+        // Assert: the author's style without its trailing ';', in its place, and none when nothing is left
+        Assert.Equal([P("style", "color:red"), P("id", "eq"), P("width", "3.25em")], display);
+        Assert.Equal([P("id", "eq"), P("width", "3.25em")], emptyDisplay);
+        Assert.Equal(
+            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle"), P("width", "3.25em")],
+            inline);
+        Assert.Equal([P("style", "display:inline;margin:0;vertical-align:-0.125em"), P("width", "3.25em")], empty);
+
+        // An attribute of the expected lists
+        static KeyValuePair<string, string> P(string key, string value) => new(key, value);
+    }
+
+    /// <summary>
+    ///     Test that the em of the filter is the font size the renderer measures an equation's natural size at.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_MathMlFontSize_IsTheRenderersDefault()
+    {
+        Assert.Equal(PictureAttributes.MathMlFontSize, new DemaConsulting.CanvasNet.MathMl.MathMlRenderOptions().FontSize);
     }
 
     /// <summary>

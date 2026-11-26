@@ -7,6 +7,7 @@
 # files of a PlantUML diagram, and the image
 # links of an SVG drawing (and tells whether the drawing links a file only the tool draws), takes a document page and a
 # MathML equation as its file, and stops the build at 64 levels or 512 files rather than leaving a file out of the key.
+# It also finds the first local file the text of a Vega-Lite or OpenSCAD code block names, which the block cannot reach.
 
 sections:
   - title: DependencyHasher Unit Requirements
@@ -151,3 +152,24 @@ sections:
         tests:
           - DependencyHasher_ForPicture_MissingDocument_ThrowsCannotRead
           - DependencyHasher_Hash_MathMlPicture_HashesItsContentOnly
+
+      - id: CanvasNetTool-PandocFilter-DependencyHasher-BlockReferences
+        title: >-
+          The DependencyHasher unit shall find the first local file, in the order of the text and with the action and
+          line of the JSON value or directive that names it, that the text of a Vega-Lite code block names (a data URL,
+          the link of an image mark, or a link in the inline rows of a url field, found by the collectors of the chart
+          walk) or that the text of an OpenSCAD code block includes or uses (found by the OpenSCAD parser), and shall
+          find none for a remote link, a data URI, a comment, an import, text that cannot be read, or a block of
+          another kind.
+        justification: |
+          A code block has no folder, so a file it names cannot be found; finding exactly what the walks would follow,
+          and only real directives, lets the engine refuse such a block with a located message without refusing a
+          block that names no file. The same name written earlier in a title, a comment, or a string must not move
+          the message to the wrong line or give it the wrong action.
+        tests:
+          - DependencyHasher_FindBlockReference_VegaLite_FindsLocalDataAndPicturesOnly
+          - DependencyHasher_FindBlockReference_OpenScad_FindsIncludeAndUseWithLine
+          - DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfDataUrl
+          - DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfImageMarkUrl
+          - DependencyHasher_FindBlockReference_VegaLite_SameNameReadAndDrawn_ReportsActionOfFirstMember
+          - DependencyHasher_FindBlockReference_OpenScad_SameNameInEarlierCommentAndString_ReportsLineOfDirective

@@ -22,9 +22,14 @@ N/A - standard test environment. The tests use a temporary folder each and do no
 - All unit tests pass with zero failures.
 - A picture is drawn once per key and found in the cache on the next run; the elements point at the cached files.
 - Diagrams left as written and drawings with nothing to flatten are recorded in markers and warned about on every run.
-- Mermaid code blocks become a figure or a paragraph of the documented shape.
+- Mermaid code blocks become a figure or a paragraph of the documented shape; Vega-Lite blocks and OpenSCAD blocks
+  marked `draw` do too, written to the cache with their own extension and with their own classes dropped, while a
+  plain `openscad` block is left as written without a file or a draw.
+- A Vega-Lite or OpenSCAD block that names a local file stops the run with the documented message before anything is
+  written or drawn.
 - An equation (a `.mml` picture or a `mathml` block) is drawn at scale 2 unless the author scales or sizes it, and shows
-  at its natural width unless the author gives a size, width, or height, on every run.
+  at its natural width in em unless the author gives a size, width, or height (attribute or style), on every run; an
+  equation in a sentence is also set inline on the text's baseline, after which the author's style follows.
 - One job and four jobs give the same output, warnings, cache files, and reported failure, also after a failure that
   later jobs ran past.
 - Every failure has the documented message and code, and the one of the lowest position is reported.
@@ -69,19 +74,28 @@ written to the cache, one `.unsupported` marker is left, and both blocks were dr
 
 **PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth**: Ohm's law as a `.mml` picture with the
 attribute `id`, and the quadratic formula as a captioned `mathml` block, are drawn once each with `--scale=2`, and one
-`.mml` block source is in the cache; the picture keeps `id` and gets `width` of its probed natural width (`<w>px`), the
-block becomes a `Figure` whose image has only `width` of the quadratic formula's natural width, which is wider; a second
+`.mml` block source is in the cache; the picture, alone in its paragraph, keeps `id` and gets `width` of its probed
+natural width in em (`<w/16>em`), the block becomes a `Figure` whose image has only `width` of the quadratic formula's
+natural width in em, which is wider; a second
 run draws nothing and gives the same document.
 
 **PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth**: one equation shown with `width=50%`, `height=2em`,
-`size=400x100`, and `scale=3`, and a text that is not an equation, keep `width=50%`, `height=2em`, nothing, the natural
-`width` (with `scale=3`), and nothing (the probe fails, so the attributes stay as written) respectively; the draws are
-given `--scale=2` (the width and height pictures share one draw, and the broken file has its own), `--scale=3`, and
+`size=400x100`, `scale=3`, and `style=width:3em`, and a text that is not an equation, each alone in its paragraph,
+keep `width=50%`, `height=2em`, nothing, the natural `width` in em (with `scale=3`), `style=width:3em` without a
+width, and nothing (the probe fails, so the attributes stay as written) respectively; the draws are given `--scale=2`,
+(the width, height, and style pictures share one draw, and the broken file has its own), `--scale=3`, and
 `--size=400x100`.
 
 **PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile**: one equation shown plainly and with
-`width=50%` is drawn once with `--scale=2` into one PNG of the cache, which both pictures show; the plain picture gets
-the natural `width` and the other keeps `width=50%`, so the added natural width is not part of the cache key.
+`width=50%`, each alone in its paragraph, is drawn once with `--scale=2` into one PNG of the cache, which both pictures
+show; the plain picture gets the natural `width` in em and the other keeps `width=50%`, so the added natural width is
+not part of the cache key.
+
+**PandocFilterEngine_Run_MathMlInASentence_SitsOnTheBaseline**: y = x², which reaches below its baseline, in the
+sentence `Then <equation>.` with the author's `style=color:red`, and alone in a paragraph, is drawn once; the
+sentence's picture gets `style=display:inline;margin:0;vertical-align:-<depth/16>em;color:red` (the depth being the
+probe's height minus its baseline) and the natural `width` in em, the lone picture only the `width`; a second run
+draws nothing and gives the same document.
 
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine
@@ -119,3 +133,28 @@ message `'<name>' is too large; a scale of 0.56 or less fits.` and a command-lin
 exception's `Data`, a Mermaid block fails with `drawing 'mermaid block (flowchart TD)' failed: ...` ending in `(Set the
 block's scale attribute to 0.56 or less, for example {.mermaid scale=0.56}.)` and a `.mmd` picture with `(Set the
 picture's scale attribute to 0.56 or less, for example {scale=0.56}.)`; without it the tool's hint is kept.
+
+**PandocFilterEngine_Run_VegaLiteBlocks_BecomeFigureFromAVlJsonFile**: a captioned `vega-lite` block with the
+identifier `fig-sales`, a class `wide`, `param-cutoff=3`, and `width=50%` becomes a `Figure` with that identifier whose
+picture has `["",["wide"],[["width","50%"]]]`; a `vegalite` block with the identifier `visits` becomes a `Para` whose
+picture has `["visits",[],[]]`. Both pictures are `vegalite-<key>.png`, both texts are `.vl.json` files in the cache,
+both draws read a `.vl.json` file, exactly one is given `--param=cutoff=3`, and there are no warnings.
+
+**PandocFilterEngine_Run_OpenScadBlocks_DrawnOnlyWithTheDrawClass**: a plain `openscad` block (which includes
+`lib.scad`, no error for code) stays a `CodeBlock` with its class and text; a block with the identifier `part`, the
+classes `openscad`, `draw`, and `wide`, `view=iso`, and `width=40%` becomes a `Para` whose picture
+`scad-<key>.png` has `["part",["wide"],[["width","40%"]]]`. One `.scad` file is in the cache and one draw reads it,
+with `--view=iso`, `--size=1600x1200`, `--background=white`, and `--max-triangles=2000000`.
+
+**PandocFilterEngine_Run_BlockNamingAFile_StopsWithAHintToUseAPicture**: a `vega-lite` block `#sales` that reads
+`sales.csv` on line 2 fails with `pandoc-filter-error` and
+`'vega-lite block #sales' reads the data file 'sales.csv' at line 2, but a code block has no folder to find it in; put
+the chart in a .vl.json file beside the files it names and link it as a picture, for example ![Sales](sales.vl.json)`;
+a `{.draw .openscad}` block that uses `shapes.scad` fails with `'openscad block (use <shapes.scad>)' uses 'shapes.scad'
+at line 1, ...; put the model in a .scad file beside the files it names and link it as a picture, for example
+![Part](part.scad){view=iso}`. Nothing is drawn and the cache folder holds no file.
+
+**PandocFilterEngine_Run_OversizedOpenScadBlock_HintNamesBothClasses**: a stub drawer raises `size-limit` with the
+scale that fits (0.5); an `openscad` `draw` block with `scale=9` fails with the code `size-limit`, a message that starts
+`drawing 'openscad block (cube(10);)' failed: ` and ends `(Set the block's scale attribute to 0.5 or less, for example
+{.openscad .draw scale=0.5}.)`, and a `vegalite` block's hint is `{.vegalite scale=0.5}`.

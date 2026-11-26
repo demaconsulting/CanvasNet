@@ -75,9 +75,9 @@ internal sealed partial class DependencyHasher
     /// <param name="spec">The decoded specification.</param>
     private void AddChartData(string path, string root, JsonElement spec)
     {
-        var urls = new HashSet<string>(StringComparer.Ordinal);
+        var urls = new List<JsonElement>();
         CollectDataUrls(spec, urls, 0);
-        var files = urls.Select(url => FilterPaths.LocalDataFile(root, url))
+        var files = urls.Select(url => FilterPaths.LocalDataFile(root, url.GetString()!))
             .OfType<string>()
             .Where(DependencyExists)
             .Distinct(StringComparer.Ordinal)
@@ -108,7 +108,7 @@ internal sealed partial class DependencyHasher
     /// <param name="depth">The nesting depth of charts, diagrams, and drawings.</param>
     private void AddChartPictures(string path, string root, JsonElement spec, int depth)
     {
-        var links = new HashSet<string>(StringComparer.Ordinal);
+        var links = new List<JsonElement>();
         var fields = new HashSet<string>(StringComparer.Ordinal);
         CollectImageLinks(spec, links, fields, 0);
         if (fields.Count > 0)
@@ -118,7 +118,8 @@ internal sealed partial class DependencyHasher
 
         // Every link that names an existing file, as written and percent-decoded (the tool's image resolver decodes a
         // local link before it opens it), sorted and each file once
-        var pictures = links.SelectMany(link => new[] { link, FilterPaths.DecodePercent(link) })
+        var pictures = links.Select(link => link.GetString()!)
+            .SelectMany(link => new[] { link, FilterPaths.DecodePercent(link) })
             .Select(link => FilterPaths.LocalImageFile(root, link))
             .OfType<string>()
             .Distinct(StringComparer.Ordinal)
@@ -137,9 +138,9 @@ internal sealed partial class DependencyHasher
     ///     Collects the string <c>url</c> of every <c>data</c> object anywhere in a specification.
     /// </summary>
     /// <param name="node">An object or array of the specification.</param>
-    /// <param name="urls">The URLs found.</param>
+    /// <param name="urls">The JSON strings of the URLs found, in the order walked; a name may repeat.</param>
     /// <param name="depth">The depth of <paramref name="node"/>.</param>
-    private static void CollectDataUrls(JsonElement node, HashSet<string> urls, int depth)
+    private static void CollectDataUrls(JsonElement node, List<JsonElement> urls, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -162,10 +163,10 @@ internal sealed partial class DependencyHasher
     ///     object, and the literal links and the field names of a <c>url</c> channel.
     /// </summary>
     /// <param name="node">An object or array of the specification.</param>
-    /// <param name="links">The links found.</param>
+    /// <param name="links">The JSON strings of the links found, in the order walked; a name may repeat.</param>
     /// <param name="fields">The names of the fields whose values in the rows are links.</param>
     /// <param name="depth">The depth of <paramref name="node"/>.</param>
-    private static void CollectImageLinks(JsonElement node, HashSet<string> links, HashSet<string> fields, int depth)
+    private static void CollectImageLinks(JsonElement node, List<JsonElement> links, HashSet<string> fields, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -192,10 +193,10 @@ internal sealed partial class DependencyHasher
     ///     and the <c>field</c> names whose values in the rows are links.
     /// </summary>
     /// <param name="node">The channel, or an object or array below it.</param>
-    /// <param name="links">The links found.</param>
+    /// <param name="links">The JSON strings of the links found, in the order walked; a name may repeat.</param>
     /// <param name="fields">The field names found.</param>
     /// <param name="depth">The depth below the channel.</param>
-    private static void CollectUrlChannel(JsonElement node, HashSet<string> links, HashSet<string> fields, int depth)
+    private static void CollectUrlChannel(JsonElement node, List<JsonElement> links, HashSet<string> fields, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -208,7 +209,7 @@ internal sealed partial class DependencyHasher
             {
                 if (key is "value" or "datum")
                 {
-                    links.Add(value.GetString()!);
+                    links.Add(value);
                 }
                 else if (key == "field")
                 {
@@ -227,10 +228,10 @@ internal sealed partial class DependencyHasher
     ///     of <c>datasets</c>.
     /// </summary>
     /// <param name="node">An object or array of the specification.</param>
-    /// <param name="links">The links found.</param>
+    /// <param name="links">The JSON strings of the links found, in the order walked; a name may repeat.</param>
     /// <param name="fields">The field names whose values are links.</param>
     /// <param name="depth">The depth of <paramref name="node"/>.</param>
-    private static void CollectRowLinks(JsonElement node, HashSet<string> links, HashSet<string> fields, int depth)
+    private static void CollectRowLinks(JsonElement node, List<JsonElement> links, HashSet<string> fields, int depth)
     {
         if (depth > MaxDepth)
         {
@@ -259,9 +260,9 @@ internal sealed partial class DependencyHasher
     ///     Adds the links the named fields hold in the rows of a table.
     /// </summary>
     /// <param name="rows">The rows: an array or object of objects; anything else holds none.</param>
-    /// <param name="links">The links found.</param>
+    /// <param name="links">The JSON strings of the links found, in the order walked; a name may repeat.</param>
     /// <param name="fields">The field names whose values are links.</param>
-    private static void AddRowLinks(JsonElement rows, HashSet<string> links, HashSet<string> fields)
+    private static void AddRowLinks(JsonElement rows, List<JsonElement> links, HashSet<string> fields)
     {
         if (!IsTable(rows))
         {
@@ -331,8 +332,11 @@ internal sealed partial class DependencyHasher
     /// </summary>
     /// <param name="node">The value.</param>
     /// <param name="name">The member's name.</param>
-    /// <returns>The string, or <see langword="null"/> when the value is not an object or its last such member is not a string.</returns>
-    private static string? StringMember(JsonElement node, string name)
+    /// <returns>
+    ///     The JSON string of the last such member, or <see langword="null"/> when the value is not an object or that
+    ///     member is not a string.
+    /// </returns>
+    private static JsonElement? StringMember(JsonElement node, string name)
     {
         if (node.ValueKind != JsonValueKind.Object)
         {
@@ -345,6 +349,6 @@ internal sealed partial class DependencyHasher
             found = property.Value;
         }
 
-        return found is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
+        return found is { ValueKind: JsonValueKind.String } ? found : null;
     }
 }

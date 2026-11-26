@@ -1260,6 +1260,32 @@ jobs:
           fi
           echo "✓ Every MathML equation (code block or picture) in the documents is drawn"
 
+      # === CHECK THAT EVERY VEGA-LITE CHART AND OPENSCAD MODEL IS DRAWN ===
+      # canvasnet.lua draws every Vega-Lite code block (class vega-lite or vegalite), every OpenSCAD code block that
+      # also has the class draw, and every .vl.json, .vl, and .scad picture; a document that still holds one was not
+      # filtered (a chart or model that cannot be drawn stops the build). A plain openscad block is code by design and
+      # is not checked. Pandoc writes a code block with its classes (class="sourceCode vega-lite" when it is
+      # highlighted), and a picture as an image whose src is still that file (<img src="chart.vl.json">).
+      # Downstream projects: Remove this section if the documents hold no Vega-Lite charts or OpenSCAD models.
+
+      - name: Check every Vega-Lite chart and OpenSCAD model is drawn
+        shell: bash
+        run: |
+          if grep -l -E 'class="([^"]* )?(vega-lite|vegalite)( [^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Vega-Lite block that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          drawn='class="([^"]* )?openscad ([^"]* )?draw( [^"]*)?"|class="([^"]* )?draw ([^"]* )?openscad( [^"]*)?"'
+          if grep -l -E "$drawn" docs/*/generated/*.html; then
+            echo "✗ The documents above hold an OpenSCAD .draw block that was not drawn (see the warnings)"
+            exit 1
+          fi
+          if grep -l -E 'src="[^"]*\.(vl\.json|vl|scad)(#[^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Vega-Lite or OpenSCAD picture that was not drawn (see the warnings)"
+            exit 1
+          fi
+          echo "✓ Every Vega-Lite chart and OpenSCAD model (code block or picture) in the documents is drawn"
+
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.
       # Downstream projects: Add any additional artifact uploads here.

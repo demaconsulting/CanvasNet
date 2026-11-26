@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Visits per weekday; the days above the cutoff parameter are highlighted (original, MIT).",
+  "width": 320,
+  "height": 180,
+  "title": "Visits per Day",
+  "params": [{"name": "cutoff", "value": 250}],
+  "data": {"values": [
+    {"day": "Mon", "visits": 180}, {"day": "Tue", "visits": 240}, {"day": "Wed", "visits": 310},
+    {"day": "Thu", "visits": 280}, {"day": "Fri", "visits": 350}, {"day": "Sat", "visits": 140},
+    {"day": "Sun", "visits": 120}
+  ]},
+  "mark": {"type": "bar", "cornerRadiusEnd": 3},
+  "encoding": {
+    "x": {"field": "day", "type": "ordinal", "sort": null, "title": "Day", "axis": {"labelAngle": 0}},
+    "y": {"field": "visits", "type": "quantitative", "title": "Visits"},
+    "color": {
+      "condition": {"test": "datum.visits > cutoff", "value": "#f58518"},
+      "value": "#4c78a8"
+    }
+  }
+}
