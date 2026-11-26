@@ -15,28 +15,41 @@ row, and builds the boxes that `mpadded` and `merror` put around a row. The unit
 #### Data Model
 
 - `ErrorBorderWidth` - 1 CSS pixel; the border color of `merror` (CSS `red`).
-- Per call: the style resolver, which resolves the length attributes of `mpadded`.
+- Per call: the style resolver, which resolves the length attributes of `mpadded`, and the report sink, which receives
+  the report of a negative `mpadded` width.
 
 #### Key Methods
 
-- `LayoutRow(children, isMath, relayout)` - `isMath` marks a row that is never an embellished operator (the inferred
-  rows of `math` and `msqrt`); first, when a relayout function is given, `Stretch`; then MathML Core
-  3.3.1.2: the children are placed left to right with their alphabetic baselines aligned; the ascent and descent are
-  the maximums of the children's and at least zero, as Chrome lays rows out (a row of a minus sign reaches down to its
-  baseline). When the row is itself an embellished operator (one embellished-operator child and
-  any number of space-like children, MathML Core 3.2.4.1) and is not `math`, it adds no spacing inside and passes the
-  operator to its parent; otherwise an embellished-operator child gets its leading space before it and its trailing
-  space after it (the `lspace` and `rspace` that the token layout resolved from the operator dictionary). A row of
-  space-like children is space-like (3.2.5.1). The italic correction of the last child becomes the row's, but it is
-  not added between children: MathML Core adds the italic correction of a slanted
-  child before the next upright one, and Chrome, whose layout the reference tests compare with, does not.
+- `LayoutRow(children, isMath, relayout, isAnonymous)` - `isMath` marks a row that is never an embellished operator and
+  always spaces its operators (the inferred row of `math`, and the rows of `mtable` and `mtr`); `isAnonymous` marks the
+  anonymous row of `msqrt` or `mtd` (MathML Core 3.1.3), which is spaced like a grouping element (a lone operator gets
+  no spacing, as in Chrome) but carries no operator, since its element is never an embellished operator; first, when a
+  relayout function is given, `Stretch`; then MathML Core 3.3.1.2: the children are placed left to right with their
+  alphabetic baselines aligned; the ascent and descent are the maximums of the children's and at least zero, as Chrome
+  lays rows out (a row of a minus sign reaches down to its baseline). When the row is itself an embellished operator
+  (one embellished-operator child and any number of space-like children, MathML Core 3.2.4.1) and is not `math`, it adds
+  no spacing inside and passes the operator to its parent; otherwise an embellished-operator child gets its leading
+  space before it and its trailing space after it (the `lspace` and `rspace` that the token layout resolved from the
+  operator dictionary). A row of space-like children is space-like (3.2.5.1). The italic correction of the last child
+  becomes the row's when that child is not an embellished operator (the italic correction of an operator serves only its
+  own scripts). Between children, MathML Core adds the italic correction of a slanted child before the next child that
+  is not slanted, and Chrome, whose layout the reference tests compare with, never does, which lets the hook of an
+  italic *f* collide with a closing brace. CanvasNet adds it only where the inks would collide (`MathBox.Clearance`):
+  when the ink of a slanted token (not an operator, with an italic correction) overlaps the ink at the start of the
+  next child that is not slanted, also across tokens that paint nothing (an invisible function application), the next
+  child moves right by the italic correction, or by the overlap when larger; a child whose ink starts before its origin
+  (a tail to the left) moves right by its overlap with the token before it. Wherever the inks stay apart, the row is
+  laid out as Chrome lays it out.
 - `Stretch(children, relayout)` - MathML Core 3.3.1.1: the children whose embellished operator is stretchy with a block
   stretch axis are laid out again by the relayout function (the engine) with a block stretch size constraint: the
-  largest ascent and descent of the other children, or, when every child stretches, of the operators first laid out
+  largest ascent and descent of the boxes of the other children (MathML Core 3.3.1.1 names their ink ascent and
+  descent; the boxes are used, as Chrome uses them, a known difference for children whose box is larger than their
+  ink), or, when every child stretches, of the operators first laid out
   with the constraint (0, 0). A row that is an embellished operator with a constraint of its parent gets no relayout
   function: the engine passes the constraint to its operator instead.
 - `LayoutPadded(element, style, inner)` - MathML Core 3.3.6: the requested `width`, `height`, and `depth` replace the
-  inner box's (absent, invalid, or percentage values keep the inner box's; negative height and depth are clamped to
+  inner box's (absent, invalid, or percentage values keep the inner box's, and so does a negative width, which is
+  reported as `mathml-attribute-invalid` at the attribute as for `mspace`; negative height and depth are clamped to
   zero), and the inner row is moved right by `lspace` (clamped to zero) and up by `voffset`; the operator and
   space-likeness of the inner row are kept.
 - `LayoutError(inner)` - the user agent style of `merror`: the box grows by the border width on every side and a
@@ -44,13 +57,15 @@ row, and builds the boxes that `mpadded` and `merror` put around a row. The unit
 
 #### Error Handling
 
-N/A for errors of its own - invalid and percentage values of the `mpadded` attributes are reported by the style
-resolver and ignored; the arithmetic is on finite, clamped lengths.
+N/A for errors of its own - invalid and percentage values of the `mpadded` attributes are reported by the style resolver
+and ignored, and a negative `mpadded` width is reported here as `mathml-attribute-invalid` and ignored; the arithmetic
+is on finite, clamped lengths.
 
 #### Dependencies
 
 The `MathBox` and `StyleResolver` units, the `OperatorDictionary` unit (its `StretchAxis`), the `MathTree` unit of the
-Syntax subsystem, and the core `Canvas` subsystem (`Rgba32`).
+Syntax subsystem, the root namespace's `MathMlReportSink` and `MathMlDiagnosticCodes`, and the core `Canvas` subsystem
+(`Rgba32`).
 
 #### Callers
 

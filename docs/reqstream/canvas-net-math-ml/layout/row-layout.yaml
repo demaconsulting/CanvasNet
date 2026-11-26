@@ -16,17 +16,22 @@ sections:
                 title: >-
                   The RowLayout unit shall place the children of a row left to right on a shared baseline with the
                   maximum ascent and descent (at least zero), add the leading and trailing space of an operator child
-                  around it, and give the row the italic correction of its last child without adding italic corrections
-                  between children.
+                  around it, give the row the italic correction of its last child (none when that child is an
+                  embellished operator), and add the italic correction of a slanted token (or the overlap, when larger)
+                  before the next child that is not slanted only where their inks would otherwise overlap, moving a
+                  child whose ink starts before its origin clear of the token before it.
                 justification: |
-                  MathML Core lays rows out this way; Chrome, which the reference layouts come from, adds no italic
-                  correction between children and lets a row reach down to its baseline.
+                  MathML Core lays rows out this way and adds the italic correction of a slanted child before an upright
+                  one; Chrome, which the reference layouts come from, adds no italic correction between children, which
+                  lets the hook of an italic f collide with a closing brace. Glyphs must never collide, so CanvasNet
+                  adds the correction where the inks would overlap and lays rows out as Chrome elsewhere.
                 tests:
                   - RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents
                   - RowLayout_LayoutRow_NegativeExtents_ClampToZero
                   - RowLayout_LayoutRow_Operator_GetsItsSpacing
                   - RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator
                   - RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild
+                  - RowLayout_LayoutRow_CollidingInk_GetsClearance
 
               - id: CanvasNetMathMl-Layout-RowLayout-Stretch
                 title: >-
@@ -45,19 +50,25 @@ sections:
               - id: CanvasNetMathMl-Layout-RowLayout-Grouping
                 title: >-
                   The RowLayout unit shall make a row of one operator and space-like children an embellished operator
-                  that adds no spacing inside (unless it is math), and a row of space-like children space-like.
+                  that adds no spacing inside (unless it is math), lay the anonymous row of msqrt and mtd out without
+                  spacing inside in that case but carrying no operator, and make a row of space-like children
+                  space-like.
                 justification: |
-                  MathML Core spaces an operator wrapped in a grouping element as the operator itself.
+                  MathML Core spaces an operator wrapped in a grouping element as the operator itself; the anonymous
+                  rows of msqrt and mtd (MathML Core 3.1.3) are spaced like grouping elements, as Chrome spaces them,
+                  while their elements are never embellished operators (3.2.4.1).
                 tests:
                   - RowLayout_LayoutRow_Grouping_PropagatesOperatorAndSpaceLikeness
 
               - id: CanvasNetMathMl-Layout-RowLayout-Padded
                 title: >-
                   The RowLayout unit shall give mpadded its requested width, height, and depth, move its content by
-                  lspace and voffset, keep the inner size for a percentage or an invalid value, and clamp a negative
-                  height, depth, or lspace to zero.
+                  lspace and voffset, keep the inner size for a percentage or an invalid value, keep the inner width
+                  for a negative width and report it as a mathml-attribute-invalid warning at the attribute, and clamp
+                  a negative height, depth, or lspace to zero.
                 justification: |
-                  mpadded is how authors adjust the space around content, as MathML Core 3.3.6 specifies.
+                  mpadded is how authors adjust the space around content, as MathML Core 3.3.6 specifies; a negative
+                  width is invalid CSS, and the author must learn that it was ignored, as for mspace.
                 tests:
                   - RowLayout_LayoutPadded_Attributes_SetSizeAndMoveContent
 

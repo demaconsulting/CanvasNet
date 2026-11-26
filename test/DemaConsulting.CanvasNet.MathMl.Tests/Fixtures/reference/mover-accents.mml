@@ -5,9 +5,7 @@
   </mover>
   <mover accent="true">
     <mrow>
-      <mi>x</mi>
-      <mi>y</mi>
-      <mi>z</mi>
+      <mi>xyz</mi>
     </mrow>
     <mo>&#x302;</mo>
   </mover>

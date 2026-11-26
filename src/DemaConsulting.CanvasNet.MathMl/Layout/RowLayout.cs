@@ -14,11 +14,16 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         aligned; the ascent and the descent are the maximums of the children's, and at least zero, as Chrome (a row of
 ///         a minus sign reaches down to its baseline). An embellished operator child gets its
 ///         leading space before it and its trailing space after it, unless the row is itself an embellished operator (it
-///         then passes its operator to its parent) and is not <c>math</c>. The italic correction of the last child
-///         becomes the italic correction of the row, but it is not added between
-///         children: MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next upright one, and
-///         Chrome does not, so CanvasNet lays rows out as Chrome does (a documented difference from the text of MathML
-///         Core). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
+///         then passes its operator to its parent) and is not <c>math</c>; the anonymous row of <c>msqrt</c> and of
+///         <c>mtd</c> is spaced like a grouping element (a lone operator gets no spacing, as MathML Core 3.1.3 and Chrome
+///         lay it out) but passes no operator, since its element is never an embellished operator. The italic correction
+///         of the last child becomes the italic correction of the row when that child is not an embellished operator
+///         (an operator's italic correction serves only its own scripts). MathML Core 3.3.1.2 adds the italic correction
+///         of a slanted child before the next child that is not slanted, and Chrome never does, which lets the hook of an
+///         italic <i>f</i> collide with a closing brace; CanvasNet adds it only where the ink of a slanted token would
+///         otherwise overlap the ink of what follows it (and moves a token whose ink starts before its origin clear of the
+///         token before it), so a row is laid out as Chrome lays it out wherever the inks stay apart
+///         (<see cref="MathBox.Clearance"/>; a documented difference). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
 ///         again with a block stretch size constraint (MathML Core 3.3.1.1, <see cref="Stretch"/>): the largest ascent and
 ///         descent of the other children, or, when every child stretches, of the operators at their own size. A row that
 ///         is itself an embellished operator with a constraint from its parent passes that constraint to its operator
@@ -31,7 +36,7 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///     </para>
 ///     <para>
 ///         <b>mpadded.</b> As MathML Core 3.3.6: the requested width, height and depth replace the inner box's (absent,
-///         invalid or percentage values keep the inner box's; negative height and depth are clamped to zero), and the
+///         invalid or percentage values keep the inner box's, a negative width too, reported as <see cref="MathMlDiagnosticCodes.AttributeInvalid"/> as for <c>mspace</c>; negative height and depth are clamped to zero), and the
 ///         inner row is moved right by <c>lspace</c> (clamped to zero) and up by <c>voffset</c>.
 ///     </para>
 ///     <para>
@@ -53,26 +58,36 @@ internal sealed class RowLayout
     /// <summary>The style resolver of the call, which resolves the length attributes of <c>mpadded</c>.</summary>
     private readonly StyleResolver _styles;
 
+    /// <summary>The sink of the call, which receives the report of a negative <c>mpadded</c> width.</summary>
+    private readonly MathMlReportSink _sink;
+
     /// <summary>
     ///     Initializes the row layout of one call.
     /// </summary>
     /// <param name="styles">The style resolver of the call.</param>
-    public RowLayout(StyleResolver styles)
+    /// <param name="sink">The sink of the call.</param>
+    public RowLayout(StyleResolver styles, MathMlReportSink sink)
     {
         _styles = styles;
+        _sink = sink;
     }
 
     /// <summary>
     ///     Lays out a row of children (MathML Core 3.3.1.2), stretching its stretchy operators first (3.3.1.1).
     /// </summary>
     /// <param name="children">The boxes of the in-flow children, in order, laid out without a stretch constraint.</param>
-    /// <param name="isMath">Whether the row is the inferred row of the <c>math</c> element or of <c>msqrt</c>, which is never an embellished operator and always adds operator spacing.</param>
+    /// <param name="isMath">Whether the row is the inferred row of the <c>math</c> element (or of a table or table row), which is never an embellished operator and always adds operator spacing.</param>
     /// <param name="relayout">
     ///     Lays a child out again with a block stretch size constraint (by its index), or null when the row does not
     ///     stretch its operators (it passes the constraint of its parent to its embellished operator instead).
     /// </param>
+    /// <param name="isAnonymous">
+    ///     Whether the row is the anonymous row of <c>msqrt</c> or <c>mtd</c> (MathML Core 3.1.3): spaced as a grouping
+    ///     element (one embellished operator and space-like children add no operator spacing, 3.3.1.2), but its element
+    ///     is never an embellished operator, so the box carries no operator.
+    /// </param>
     /// <returns>The box of the row.</returns>
-    public MathBox LayoutRow(IReadOnlyList<MathBox> children, bool isMath, Func<int, BlockStretchConstraint, MathBox>? relayout = null)
+    public MathBox LayoutRow(IReadOnlyList<MathBox> children, bool isMath, Func<int, BlockStretchConstraint, MathBox>? relayout = null, bool isAnonymous = false)
     {
         if (relayout is not null)
         {
@@ -83,11 +98,14 @@ internal sealed class RowLayout
         var embellished = EmbellishedOperatorOf(children);
         var addSpace = isMath || embellished is null;
 
-        // Place the children on the shared baseline (MathML Core 3.3.1.2, without the italic corrections, as Chrome)
+        // Place the children on the shared baseline (MathML Core 3.3.1.2, without the italic corrections, as Chrome,
+        // unless the ink of a slanted or overhanging token would collide with the ink of what follows it)
         var placed = new List<PlacedBox>(children.Count);
         var offset = 0.0;
         var ascent = double.NegativeInfinity;
         var descent = double.NegativeInfinity;
+        MathRect? previousInk = null;
+        var previousItalic = 0.0;
         foreach (var child in children)
         {
             if (child.Operator is { } leading && addSpace)
@@ -95,7 +113,19 @@ internal sealed class RowLayout
                 offset += leading.LeadingSpace;
             }
 
+            offset += MathBox.Clearance(previousInk, previousItalic, child, offset, 0);
             placed.Add(new PlacedBox(child, offset, 0));
+            if (child.Children.Count > 0)
+            {
+                previousInk = null;
+            }
+            else if (child.InkBounds() is { } ink)
+            {
+                // A token that paints; one that paints nothing (an invisible operator, a space) keeps the one before
+                previousInk = ink.Offset(offset, 0);
+                previousItalic = child.Operator is null ? child.ItalicCorrection : 0;
+            }
+
             offset += child.Width;
             if (child.Operator is { } trailing && addSpace)
             {
@@ -111,7 +141,7 @@ internal sealed class RowLayout
         return new MathBox(offset, Math.Max(0, ascent), Math.Max(0, descent), placed)
         {
             ItalicCorrection = last is { Operator: null } ? last.ItalicCorrection : 0,
-            Operator = isMath ? null : embellished,
+            Operator = isMath || isAnonymous ? null : embellished,
             IsSpaceLike = children.All(child => child.IsSpaceLike),
         };
     }
@@ -134,7 +164,8 @@ internal sealed class RowLayout
             return children;
         }
 
-        // The children that do not stretch give the target; when there are none, the operators at their own size do
+        // The children that do not stretch give the target (the ascent and descent of their boxes, as Chrome, where
+        // MathML Core names their ink: a documented difference); when there are none, the operators at their own size do
         var boxes = children.ToArray();
         var measured = Enumerable.Range(0, boxes.Length).Except(toStretch).ToList();
         if (measured.Count == 0)
@@ -169,7 +200,8 @@ internal sealed class RowLayout
         var width = _styles.ResolveLength(element, "width", style, null);
         if (width < 0)
         {
-            // A negative width is invalid CSS
+            // A negative width is invalid CSS: reported as for mspace, and the inner width is kept
+            _sink.Warn(MathMlDiagnosticCodes.AttributeInvalid, "a negative width of <mpadded> is not valid; it is ignored", element.Attributes["width"].Location, "use a width of zero or more");
             width = null;
         }
 

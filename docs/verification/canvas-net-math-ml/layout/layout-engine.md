@@ -77,7 +77,8 @@ number of prescripts, and no children are rows with seven `mathml-child-count` w
 `LayoutEngineTests.LayoutEngine_Layout_EmbellishedScripted_StretchesInRow`
 
 Asserts that a fraction whose numerator is `=` carries the infix operator `=` and is spaced by its row with the leading
-and trailing space of the operator, that the row of a square root and the square root itself carry no operator, and
+and trailing space of the operator, that the row of a square root and the square root itself, and the row of a table
+cell and the cell itself, carry no operator, and
 that an `msup` whose base is a parenthesis carries the prefix operator of its position.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-ScriptForms: Scripts Are Postfix
@@ -126,8 +127,9 @@ Asserts that the box of `mphantom` is a phantom with the size of its content.
 
 **Tests**: `LayoutEngineTests.LayoutEngine_Layout_UnsupportedAttributes_AreReported`
 
-Asserts that legacy and unknown attributes and `dir="rtl"` are reported as `mathml-attribute-unsupported`, and that
-global attributes that do not change a picture are silent.
+Asserts that legacy and unknown attributes and `dir="rtl"` are reported as `mathml-attribute-unsupported`, that the
+legacy table attributes `align`, `equalrows`, `columnwidth`, and `groupalign` (on `mtable` and on `mtd`) are reported
+the same way, five reports in all, and that global attributes that do not change a picture are silent.
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-TextInRows: Text In A Row
 
@@ -143,7 +145,8 @@ Asserts that text directly inside a row is laid out as a space-like text box.
 Asserts that in a row with a space-like `mtext` the first operator is prefix and the middle ones infix, that an `mrow`
 wrapping an operator and an `mspace` passes its own (infix) form to the operator, that an explicit form wins, and that
 the lone operator of a row is infix; and that inside `msqrt` the first and last operators of several children are
-prefix and postfix, and a lone operator is infix and keeps its leading space.
+prefix and postfix, and a lone operator is infix and gets no operator spacing in the anonymous row of `msqrt`, as in
+the anonymous row of an `mtd` (the row is as wide as the operator).
 
 ##### CanvasNetMathMl-Layout-LayoutEngine-Stretching: Embellished Operators Stretch
 

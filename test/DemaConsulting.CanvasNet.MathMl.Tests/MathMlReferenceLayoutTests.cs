@@ -45,7 +45,7 @@ public class MathMlReferenceLayoutTests
     {
         // Chrome measures the ink of an automatic italic mi on the untransformed character (the upright f has no
         // descender) but draws and advances the italic glyph, which descends; CanvasNet measures what it draws
-        ["tokens-mi-italic 1 <mi> height"] = "Chrome measures the ink of the untransformed character",
+        ["tokens-mi-italic 4 <mi> height"] = "Chrome measures the ink of the untransformed character",
         ["operators-spacing 10 <mi> height"] = "Chrome measures the ink of the untransformed character",
 
         // Chrome's hinted bounds of the arrow and of the under brace are a pixel shorter than their outlines rounded out,

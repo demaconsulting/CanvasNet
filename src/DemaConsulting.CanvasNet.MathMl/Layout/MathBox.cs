@@ -236,7 +236,7 @@ internal sealed class MathBox
     /// <summary>Gets the paint items of the box itself (not of its children).</summary>
     public IReadOnlyList<IPaintItem> Items { get; }
 
-    /// <summary>Gets the italic correction in CSS pixels (MathML Core: of a single slanted glyph, or of the last child of a row; the scripts read it only from a large or stretched operator, as Chrome).</summary>
+    /// <summary>Gets the italic correction in CSS pixels (MathML Core: of a single slanted glyph, or of the last child of a row; the scripts and the next child of a row read it from a large or stretched operator, as Chrome, and from a slanted token only where the inks would otherwise collide).</summary>
     public double ItalicCorrection { get; init; }
 
     /// <summary>Gets the top accent attachment in CSS pixels from the left edge, or null when the box has none.</summary>
@@ -281,6 +281,83 @@ internal sealed class MathBox
         }
 
         return bounds;
+    }
+
+    /// <summary>
+    ///     Computes the ink bounds at the start of the box: those of the token reached by following the first child down
+    ///     (a row, a scripted element, or a grouping element starts with its first child), relative to the origin of this
+    ///     box. It stops at a phantom, at a box that paints items of its own around its children (a radical, a fraction, a
+    ///     table, a background), and at a token that paints nothing.
+    /// </summary>
+    /// <returns>The bounds and the token, or null when the start of the box is not a painted token.</returns>
+    public (MathRect Ink, MathBox Token)? LeadingInk()
+    {
+        var x = 0.0;
+        var y = 0.0;
+        var box = this;
+        while (!box.IsPhantom)
+        {
+            if (box.Children.Count == 0)
+            {
+                return box.InkBounds() is { } ink ? (ink.Offset(x, y), box) : null;
+            }
+
+            if (box.Items.Count > 0)
+            {
+                return null;
+            }
+
+            var first = box.Children[0];
+            x += first.X;
+            y += first.Y;
+            box = first.Box;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Computes the clearance that keeps the ink of a box from overlapping the ink of a token before it on the same
+    ///     line (MathML Core 3.3.1.2 and 3.4.1.3 add the italic correction of a slanted box before what follows it;
+    ///     Chrome does not, and CanvasNet adds it only where the ink would otherwise collide).
+    /// </summary>
+    /// <param name="previousInk">The ink of the token before, in the coordinates of the parent, or null.</param>
+    /// <param name="previousItalic">The italic correction of the token before when it is slanted (not an operator), else 0.</param>
+    /// <param name="next">The box that follows.</param>
+    /// <param name="x">The horizontal position of the next box in the parent.</param>
+    /// <param name="y">The vertical position of the next box in the parent.</param>
+    /// <returns>
+    ///     The distance to move the next box right: 0 when the inks do not overlap, or when the next box does not overhang
+    ///     its start and the token before is not slanted or the next box is slanted too; otherwise the overlap, and at
+    ///     least the italic correction of the token before when it is slanted and the next box is not.
+    /// </returns>
+    public static double Clearance(MathRect? previousInk, double previousItalic, MathBox next, double x, double y)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        if (previousInk is not { } before || next.LeadingInk() is not { } leading)
+        {
+            return 0;
+        }
+
+        var (lead, token) = leading;
+
+        // Only a slanted token before a box that does not start with a slanted token (two slanted letters lean the same
+        // way, so their boxes overlap where their glyphs do not), or a box whose ink starts before its origin (a tail to
+        // the left), is checked
+        var nextIsSlanted = next.Operator is null && token.Operator is null && token.ItalicCorrection > 0;
+        if ((previousItalic <= 0 || nextIsSlanted) && lead.X >= 0)
+        {
+            return 0;
+        }
+
+        var after = lead.Offset(x, y);
+        var overlap = before.Right - after.X;
+        if (overlap <= 0 || after.Bottom <= before.Y || after.Y >= before.Bottom)
+        {
+            return 0;
+        }
+
+        return previousItalic > 0 && !nextIsSlanted ? Math.Max(overlap, previousItalic) : overlap;
     }
 
     /// <summary>

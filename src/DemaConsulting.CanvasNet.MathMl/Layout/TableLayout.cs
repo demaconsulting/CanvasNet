@@ -89,8 +89,9 @@ internal enum TableLine
 ///         <b>Grid.</b> The cells are placed by the HTML algorithm for processing rows: each cell takes the first
 ///         column of its row that no cell of an earlier row spans down into, and covers <c>columnspan</c> columns
 ///         (1 to 1,000) and <c>rowspan</c> rows (0 to 65,534; 0 spans to the last row, and a span past the last row ends
-///         there, as browsers end it); an invalid span is 1 and reported as
-///         <see cref="MathMlDiagnosticCodes.AttributeInvalid"/>. The number of grid slots (rows times columns) is checked
+///         there, as browsers end it), read with the HTML rules for parsing non-negative integers (whitespace and a plus
+///         sign before the digits are allowed; characters after them are ignored, as browsers ignore them, and reported);
+///         an invalid span is 1 and reported as <see cref="MathMlDiagnosticCodes.AttributeInvalid"/>. The number of grid slots (rows times columns) is checked
 ///         against <see cref="MathMlLimits.MaxTableCells"/> as the columns grow, before the grid is allocated, and every
 ///         slot is charged to the work budget.
 ///     </para>
@@ -382,7 +383,9 @@ internal sealed class TableLayout
     }
 
     /// <summary>
-    ///     Reads one span attribute: ASCII digits, clamped to the maximum; 1 when absent or invalid (reported).
+    ///     Reads one span attribute with the HTML rules for parsing non-negative integers (leading ASCII whitespace, an
+    ///     optional <c>+</c>, then ASCII digits; the characters after the digits are ignored, as browsers ignore them, and
+    ///     reported), clamped to the maximum; 1 when absent or invalid (reported).
     /// </summary>
     /// <param name="cell">The cell element.</param>
     /// <param name="name">The attribute name.</param>
@@ -396,15 +399,42 @@ internal sealed class TableLayout
             return 1;
         }
 
-        var text = attribute.Value.Trim();
-        if (text.Length == 0 || !text.All(char.IsAsciiDigit) || (!allowZero && text.All(digit => digit == '0')))
+        // The HTML rules for parsing non-negative integers: whitespace, an optional plus sign, then the digits
+        var text = attribute.Value;
+        var start = 0;
+        while (start < text.Length && text[start] is ' ' or '\t' or '\n' or '\f' or '\r')
+        {
+            start++;
+        }
+
+        if (start < text.Length && text[start] == '+')
+        {
+            start++;
+        }
+
+        var end = start;
+        while (end < text.Length && char.IsAsciiDigit(text[end]))
+        {
+            end++;
+        }
+
+        var digits = text[start..end].TrimStart('0');
+        if (end == start || (!allowZero && digits.Length == 0))
         {
             Invalid(name, attribute, allowZero ? "a non-negative integer" : "a positive integer");
             return 1;
         }
 
+        if (end < text.Length)
+        {
+            _sink.Warn(
+                MathMlDiagnosticCodes.AttributeInvalid,
+                string.Create(CultureInfo.InvariantCulture, $"the {name} '{attribute.Value}' has characters after its number; {text[start..end]} is used, as HTML reads it"),
+                attribute.Location,
+                string.Create(CultureInfo.InvariantCulture, $"write the {name} as an integer such as 2"));
+        }
+
         // A value beyond the maximum (however many digits) is the maximum, as HTML clamps it
-        var digits = text.TrimStart('0');
         var value = 0;
         if (digits.Length > 9)
         {

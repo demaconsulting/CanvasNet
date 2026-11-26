@@ -271,7 +271,7 @@ internal static partial class OperatorDictionary
     }
 
     /// <summary>
-    ///     Parses the value of the <c>form</c> attribute (ASCII case-insensitive, surrounding white space ignored).
+    ///     Parses the value of the <c>form</c> attribute (ASCII case-insensitive; whitespace around it makes it invalid, as MathML Core matches the values exactly).
     /// </summary>
     /// <param name="value">The attribute value.</param>
     /// <param name="form">The form.</param>
@@ -280,7 +280,7 @@ internal static partial class OperatorDictionary
     {
         ArgumentNullException.ThrowIfNull(value);
         form = OperatorForm.Infix;
-        switch (value.Trim().ToLowerInvariant())
+        switch (value.ToLowerInvariant())
         {
             case "prefix":
                 form = OperatorForm.Prefix;

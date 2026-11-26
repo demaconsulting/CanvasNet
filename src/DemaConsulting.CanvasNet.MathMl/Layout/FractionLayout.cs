@@ -29,7 +29,7 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         <b>Box.</b> The content box is as wide as the wider child, each child centered in it; the user agent stylesheet
 ///         of MathML Core pads the fraction with 1px on both sides (<c>padding-inline: 1px</c>), so the box is 2px wider
 ///         than the content and the children are moved right by 1px. The ascent and the descent of a child are those of
-///         its box (the ink of a token, as Chrome lays tokens out). An embellished fraction (its numerator is an
+///         its box (the ink of a token, as Chrome lays tokens out); the descent is at least zero, as MathML Core 3.3.2.1 and 3.3.2.2 and Chrome give it (a denominator above the baseline does not raise the bottom of the box). An embellished fraction (its numerator is an
 ///         embellished operator) keeps the operator that the layout engine gives it.
 ///     </para>
 ///     <para>
@@ -106,7 +106,7 @@ internal sealed class FractionLayout
                 Constant(display ? MathConstant.FractionDenominatorDisplayStyleShiftDown : MathConstant.FractionDenominatorShiftDown, size),
                 half + Constant(display ? MathConstant.FractionDenomDisplayStyleGapMin : MathConstant.FractionDenominatorGapMin, size) + denominator.Ascent - axis);
             ascent = Math.Max(Math.Max(numeratorShift + numerator.Ascent, denominator.Ascent - denominatorShift), axis + half);
-            descent = Math.Max(Math.Max(numerator.Descent - numeratorShift, denominatorShift + denominator.Descent), half - axis);
+            descent = Math.Max(Math.Max(0, numerator.Descent - numeratorShift), Math.Max(denominatorShift + denominator.Descent, half - axis));
         }
         else
         {
@@ -123,7 +123,7 @@ internal sealed class FractionLayout
             }
 
             ascent = Math.Max(numeratorShift + numerator.Ascent, denominator.Ascent - denominatorShift);
-            descent = Math.Max(numerator.Descent - numeratorShift, denominatorShift + denominator.Descent);
+            descent = Math.Max(0, Math.Max(numerator.Descent - numeratorShift, denominatorShift + denominator.Descent));
         }
 
         // The children centered in the content box, which the padding moves right

@@ -28,24 +28,30 @@ that differs from the expected value constitutes a failure.
 ##### CanvasNetMathMl-Layout-ScriptLayout-Subscript: The Subscript Shift
 
 **Tests**: `ScriptLayoutTests.ScriptLayout_LayoutSub_ShiftFromConstantsAndScriptAscent`,
-`ScriptLayoutTests.ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript`
+`ScriptLayoutTests.ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript`,
+`ScriptLayoutTests.ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent`
 
 Asserts that a small subscript is shifted down by SubscriptShiftDown (21 px), a subscript 70 px tall by its ascent −
 SubscriptTopMax (27 px), and a subscript of a base descending 30 px by SubscriptBaselineDropMin + 30 (44 px), with the
 resulting ascent and descent; and that the subscript of a large operator with an italic correction of 50 px starts
 50 px before the end of the operator while its superscript starts at the end, the width being the operator, the wider
-script, and SpaceAfterScript, and the operator kept on the box.
+script, and SpaceAfterScript, and the operator kept on the box; and that the subscript of a single character
+descending 40 px is shifted by SubscriptShiftDown only, while the subscript of the same extents drawn with two glyphs is
+SubscriptBaselineDropMin + 40 px down.
 
 ##### CanvasNetMathMl-Layout-ScriptLayout-Superscript: The Superscript Shift And The Italic Correction
 
 **Tests**: `ScriptLayoutTests.ScriptLayout_LayoutSup_CrampedUsesCrampedShift`,
-`ScriptLayoutTests.ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript`
+`ScriptLayoutTests.ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript`,
+`ScriptLayoutTests.ScriptLayout_LayoutSup_CollidingInkFollowsItalicCorrection`
 
 Asserts that a small superscript is shifted up by SuperscriptShiftUp (39 px), by SuperscriptShiftUpCramped (28 px)
 when `math-shift` is compact, by SuperscriptBottomMin + its descent for a deep script (53.4 px), and by the base's
 ascent − SuperscriptBaselineDropMax for a tall base (66 px); that the superscript of an operator with an italic
-correction of 6 px starts 6 px after its end while its subscript and the width ignore the correction; and that a base
-that is not an operator moves no script.
+correction of 6 px starts 6 px after its end while its subscript and the width ignore the correction; that a base
+that is not an operator and paints nothing moves no script; and that the superscript of a slanted letter whose ink
+reaches 11 px past its advance (italic correction 13 px) starts 13 px after the advance, clear of the ink, with the
+width grown by 13 px, while a letter whose ink stays within its advance keeps the superscript at the advance.
 
 ##### CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript: Both Scripts
 

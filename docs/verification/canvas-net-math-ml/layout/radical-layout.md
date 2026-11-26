@@ -44,12 +44,16 @@ from the start of the base over its 50 px, 7.1 px below the top of the box, in t
 ##### CanvasNetMathMl-Layout-RadicalLayout-Root: The Index
 
 **Tests**: `RadicalLayoutTests.RadicalLayout_LayoutRoot_IndexIsKernedAndRaised`,
-`RadicalLayoutTests.RadicalLayout_LayoutRoot_NarrowIndex_ClampsKernAfter`
+`RadicalLayoutTests.RadicalLayout_LayoutRoot_NarrowIndex_ClampsKernAfter`,
+`RadicalLayoutTests.RadicalLayout_LayoutRoot_TallIndex_AscentAndDescentAsChrome`
 
 Asserts that an index 60 px wide starts after the kern of 5.1 px with its bottom raised by 35/64 of the height of the
 symbol from the bottom of the square root, that the square root follows after the kern of -45 px, the width and the
-ascent of the root; and that after an index 30 px wide the kern is clamped to -30 px, so the square root starts at
-5.1 px.
+ascent of the root; that after an index 30 px wide the kern is clamped to -30 px, so the square root starts at
+5.1 px; and that an index 150 px tall (50 px of it below its baseline), taller than the raise, gives the root the
+ascent of its top (the raise above the bottom of the square root plus the depth and the ascent of the index) and the
+descent of the square root minus the raise plus the height of the index, with the bottom of the index still at the
+raise.
 
 ##### CanvasNetMathMl-Layout-RadicalLayout-Limit: The Assembly Limit
 

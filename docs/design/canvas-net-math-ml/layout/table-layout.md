@@ -29,9 +29,11 @@ behavior is specified by the `CanvasNetMathMl-Layout-TableLayout-*` requirements
   checks cancellation:
   - **Grid** - the HTML algorithm for processing rows: each cell takes the first column of its row that no cell of an
     earlier row spans down into; `columnspan` is 1-1,000 and `rowspan` 0-65,534 (0 spans to the last row, and a span
-    past the last row ends there, as browsers end it). Each time the columns grow, the slot count (rows times columns)
-    is checked against `MaxTableCells` before anything is allocated; the grid of owners (`rows × columns` integers) is
-    then allocated, charged one per slot, and filled, each cell charged for its area.
+    past the last row ends there, as browsers end it), read with the HTML rules for parsing non-negative integers
+    (leading whitespace and a plus sign allowed, the characters after the digits ignored as browsers ignore them, and
+    reported as `mathml-attribute-invalid`). Each time the columns grow, the slot count (rows times columns) is checked
+    against `MaxTableCells` before anything is allocated; the grid of owners (`rows × columns` integers) is then
+    allocated, charged one per slot, and filled, each cell charged for its area.
   - **Padding** - 0.4em left and right and 0.5ex top and bottom at the cell's font size (`MathFont.XHeight`); an
     anonymous cell has none. In the spacing mode below, only the outer sides of the edge cells keep it.
   - **Columns** - each column is as wide as its widest padded cell of one column; then each cell spanning several
@@ -78,7 +80,8 @@ Firefox counts that pixel in the cell after the line, so its cell boxes and cont
 
 #### Error Handling
 
-An invalid attribute value is a warning and ignored; a span over its maximum is clamped with a warning. A grid with more
+An invalid attribute value is a warning and ignored; a span over its maximum is clamped with a warning, and a span with
+characters after its digits is read as its number with a warning. A grid with more
 slots than `MaxTableCells` throws a located `MathMlRenderException` with `mathml-limit-exceeded` before the grid is
 allocated; the work budget and cancellation are checked through `charge`. Lengths are clamped by `MathLength` to plus or
 minus 1,000,000 px, so the arithmetic stays finite; a table larger than a surface fails in the document's frame check.

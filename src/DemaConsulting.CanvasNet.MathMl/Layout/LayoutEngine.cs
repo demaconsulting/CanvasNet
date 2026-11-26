@@ -22,7 +22,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         element that MathML Core does not define, such as <c>mfenced</c>) is laid out as a row of its children, as
 ///         MathML Core lays out an unknown element, and reported as
 ///         <see cref="MathMlDiagnosticCodes.ElementUnsupported"/>. Annotations and elements with
-///         <c>display: none</c> get no box. Text written directly inside a layout element is laid out like an
+///         <c>display: none</c> get no box (the annotations hold other encodings of the equation and are never drawn,
+///         where MathML Core 3.7 would lay them out like <c>mtext</c> and <c>mrow</c>: a documented difference). Text written directly inside a layout element is laid out like an
 ///         <c>mtext</c>.
 ///     </para>
 ///     <para>
@@ -160,7 +161,7 @@ internal sealed partial class LayoutEngine
         _cancellationToken = cancellationToken;
         _styles = new StyleResolver(font, sink);
         _tokens = new TokenLayout(font, _styles, sink, limits);
-        _rows = new RowLayout(_styles);
+        _rows = new RowLayout(_styles, sink);
         _fractions = new FractionLayout(font, _styles);
         _radicals = new RadicalLayout(font, limits);
         _scripts = new ScriptLayout(font);
@@ -315,8 +316,11 @@ internal sealed partial class LayoutEngine
     private MathBox LayoutRowLike(MathElement element, MathStyle style, int depth, OperatorContext context, List<(MathNode Node, MathStyle Style)> flow)
     {
         // The form of each embellished operator from its position among the children that are not space-like; the
-        // inferred rows of math and msqrt are never embellished operators themselves (they always add operator spacing)
+        // inferred rows of math, msqrt and the table elements are never embellished operators themselves. The inferred
+        // row of math always adds operator spacing; the anonymous rows of msqrt and mtd are spaced like a grouping
+        // element (a lone operator gets none, MathML Core 3.1.3, as Chrome)
         var opaque = element.Name is "math" or "msqrt" or "mtable" or "mtr" or "mtd";
+        var anonymous = element.Name is "msqrt" or "mtd";
         var spaceLike = flow.Select(entry => entry.Node is not MathElement child || IsSpaceLike(child)).ToArray();
         var count = spaceLike.Count(value => !value);
         var passThrough = !opaque && (context.Form is not null || context.HasStretch) && IsEmbellishedOperator(element);
@@ -350,7 +354,7 @@ internal sealed partial class LayoutEngine
                 return LayoutChild(flow[source].Node, flow[source].Style, depth, contexts[source] with { Stretch = constraint })
                     ?? throw new InvalidOperationException("A displayed child has no box.");
             };
-        var row = _rows.LayoutRow(boxes, opaque, relayout);
+        var row = _rows.LayoutRow(boxes, opaque && !anonymous, relayout, anonymous);
         return element.Name switch
         {
             "mpadded" => _rows.LayoutPadded(element, style, row),

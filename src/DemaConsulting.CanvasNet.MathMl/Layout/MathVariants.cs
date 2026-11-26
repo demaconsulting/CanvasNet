@@ -123,13 +123,13 @@ internal static partial class MathVariants
     /// <summary>
     ///     Parses a <c>mathvariant</c> value.
     /// </summary>
-    /// <param name="text">The attribute value; surrounding whitespace is ignored.</param>
+    /// <param name="text">The attribute value; whitespace around it makes it invalid, as MathML Core matches the values exactly.</param>
     /// <param name="variant">The value when the text is valid.</param>
     /// <returns>True when the text is one of the 18 values (ASCII case-insensitive).</returns>
     public static bool TryParse(string? text, out MathVariant variant)
     {
         variant = MathVariant.Normal;
-        return text is not null && Names.TryGetValue(text.Trim(), out variant);
+        return text is not null && Names.TryGetValue(text, out variant);
     }
 
     /// <summary>

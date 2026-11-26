@@ -19,7 +19,8 @@ public class StyleResolverTests
 
     /// <summary>
     ///     Validates that the display mode decides the math style of the <c>math</c> element, that the option overrides
-    ///     it, and that an invalid value is a warning.
+    ///     it, and that an invalid value is a warning, including a value with whitespace around it (MathML Core matches
+    ///     the value exactly).
     /// </summary>
     [Fact]
     public void StyleResolver_ResolveRoot_Display_SetsMathStyle()
@@ -28,16 +29,18 @@ public class StyleResolverTests
         var sink = new MathMlReportSink(10, false);
         var block = Node("math", [], ("display", "BLOCK"));
         var invalid = Node("math", [], ("display", "wide"));
+        var padded = Node("math", [], ("display", " block "));
 
         // Act
         var own = Styles(sink).ResolveRoot(block, 16, Black, null);
         var overridden = Styles(sink).ResolveRoot(block, 16, Black, MathMlDisplay.Inline);
         var fallback = Styles(sink).ResolveRoot(invalid, 16, Black, null);
+        var untrimmed = Styles(sink).ResolveRoot(padded, 16, Black, null);
 
         // Assert
-        Assert.Equal((true, false, false), (own.DisplayStyle, overridden.DisplayStyle, fallback.DisplayStyle));
+        Assert.Equal((true, false, false, false), (own.DisplayStyle, overridden.DisplayStyle, fallback.DisplayStyle, untrimmed.DisplayStyle));
         Assert.Equal((16.0, 0), (own.FontSize, own.MathDepth));
-        Assert.Equal(1, sink.Count);
+        Assert.Equal(2, sink.Count);
     }
 
     /// <summary>
@@ -123,8 +126,9 @@ public class StyleResolverTests
     }
 
     /// <summary>
-    ///     Validates that <c>mathvariant</c> is inherited, that <c>normal</c> cancels the automatic italic, and that an
-    ///     invalid value is a warning.
+    ///     Validates that <c>mathvariant</c> is inherited, that <c>normal</c> is resolved as a value of its own (which the
+    ///     token layout uses to cancel the automatic italic), and that an invalid value is a warning, including a value
+    ///     with whitespace around it (MathML Core matches the value exactly).
     /// </summary>
     [Fact]
     public void StyleResolver_Resolve_MathVariant_IsInherited()
@@ -138,12 +142,14 @@ public class StyleResolverTests
         var child = styles.Resolve(Node("mi", []), bold);
         var normal = styles.Resolve(Node("mi", [], ("mathvariant", "normal")), Parent);
         var invalid = styles.Resolve(Node("mi", [], ("mathvariant", "heavy")), Parent);
+        var padded = styles.Resolve(Node("mi", [], ("mathvariant", " bold ")), Parent);
 
         // Assert
         Assert.Equal((MathVariant?)MathVariant.Bold, child.Variant);
         Assert.Equal((MathVariant?)MathVariant.Normal, normal.Variant);
         Assert.Null(invalid.Variant);
-        Assert.Equal(1, sink.Count);
+        Assert.Null(padded.Variant);
+        Assert.Equal(2, sink.Count);
     }
 
     /// <summary>
@@ -239,7 +245,7 @@ public class StyleResolverTests
         // Assert
         Assert.Equal((1, false, 60.0), (inline.MathDepth, inline.DisplayStyle, System.Math.Round(inline.FontSize, 9)));
         Assert.Equal((0, false, 100.0), (underDisplay.MathDepth, underDisplay.DisplayStyle, underDisplay.FontSize));
-        Assert.Equal((1, false), (denominator.MathDepth, denominator.DisplayStyle));
+        Assert.Equal((1, false, 60.0), (denominator.MathDepth, denominator.DisplayStyle, System.Math.Round(denominator.FontSize, 9)));
     }
 
     /// <summary>
@@ -327,8 +333,8 @@ public class StyleResolverTests
         // Assert
         Assert.Equal((0, true, 100.0, false), (@base.MathDepth, @base.DisplayStyle, @base.FontSize, @base.MathShiftCompact));
         Assert.Equal((1, false, 60.0, true), (sub.MathDepth, sub.DisplayStyle, System.Math.Round(sub.FontSize, 9), sub.MathShiftCompact));
-        Assert.Equal((1, false, false), (sup.MathDepth, sup.DisplayStyle, sup.MathShiftCompact));
-        Assert.Equal((1, false, false), (over.MathDepth, over.DisplayStyle, over.MathShiftCompact));
+        Assert.Equal((1, false, 60.0, false), (sup.MathDepth, sup.DisplayStyle, System.Math.Round(sup.FontSize, 9), sup.MathShiftCompact));
+        Assert.Equal((1, false, 60.0, false), (over.MathDepth, over.DisplayStyle, System.Math.Round(over.FontSize, 9), over.MathShiftCompact));
         Assert.Equal(ChildStyleRule.Script with { MathShiftCompact = true }, StyleResolver.ScriptRule(Node("msub", []), 1));
     }
 

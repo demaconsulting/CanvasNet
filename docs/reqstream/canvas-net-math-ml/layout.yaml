@@ -20,7 +20,8 @@ sections:
             title: >-
               The Layout subsystem shall lay out the token elements as MathML Core does: the transformed characters
               drawn with the glyphs of the math font placed by their advances, and a box as wide as the advances with
-              the ink ascent and descent.
+              the ink ascent and descent, whose ink bounds cover everything the painter draws for it, antialiasing
+              included.
             justification: |
               Tokens are the leaves of every equation; their boxes decide the size and the spacing of everything else.
             children:
@@ -34,6 +35,7 @@ sections:
               - CanvasNetMathMl-Layout-MathBox-Model
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_PaintedInk_StaysInsideTheExtent
 
           - id: CanvasNetMathMl-Layout-Operators
             title: >-
@@ -54,6 +56,7 @@ sections:
               - CanvasNetMathMl-Layout-RowLayout-Row
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_ExplicitFormAndScriptOperator_FollowTheDictionary
 
           - id: CanvasNetMathMl-Layout-Stretching
             title: >-
@@ -84,11 +87,13 @@ sections:
               - CanvasNetMathMl-Layout-MathBox-Operators
             tests:
               - Layout_StretchyFencesAroundTallRow_MatchConstants
+              - Layout_InlineStretchLargeOperatorAndReport_FollowTheFont
 
           - id: CanvasNetMathMl-Layout-Rows
             title: >-
               The Layout subsystem shall lay out rows and the grouping elements as MathML Core does: the children on a
-              shared baseline with the spacing of their operators, mpadded with its requested size and offsets, merror
+              shared baseline with the spacing of their operators, without the ink of a slanted letter colliding with
+              the ink of what follows it, mpadded with its requested size and offsets, merror
               with its border, mphantom with its size but no ink, semantics and maction with their first child, and the
               text written directly inside a row like an mtext.
             justification: |
@@ -105,6 +110,7 @@ sections:
               - CanvasNetMathMl-Layout-RowLayout-Error
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
 
           - id: CanvasNetMathMl-Layout-Fractions
             title: >-
@@ -148,13 +154,16 @@ sections:
               - CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
             tests:
               - Layout_FractionsAndRadicals_MatchConstants
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
 
           - id: CanvasNetMathMl-Layout-Scripts
             title: >-
               The Layout subsystem shall lay out msub, msup, msubsup and mmultiscripts as MathML Core 3.4.1 and 3.4.3
               do: the scripts shifted by the script constants of the MATH table (the cramped superscript shift in a
-              compact math shift), kept apart by the minimum gap, after the base with the italic correction of a
-              stretched or large operator and followed by the space after a script; the prescripts of mmultiscripts
+              compact math shift; the subscript of a single character at the shift of the font whatever its descender),
+              kept apart by the minimum gap, after the base with the italic correction of a
+              stretched or large operator (and of a slanted letter where the inks would otherwise collide) and followed
+              by the space after a script; the prescripts of mmultiscripts
               before the base; the scripts one script level smaller as postfix operators; and an embellished scripted
               element spaced and stretched like its operator.
             justification: |
@@ -173,6 +182,8 @@ sections:
               - CanvasNetMathMl-Layout-MathFont-Constants
             tests:
               - Layout_ScriptsAndLimits_MatchConstants
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
+              - Layout_SubscriptOfCharacter_IgnoresItsDescender
 
           - id: CanvasNetMathMl-Layout-UnderOver
             title: >-
@@ -232,7 +243,7 @@ sections:
               - CanvasNetMathMl-Layout-TableLayout-Lines
               - CanvasNetMathMl-Layout-TableLayout-InvalidValues
             tests:
-              - Layout_Tables_CenterOnAxisWithCorePadding
+              - Layout_TableExtensions_AlignSpaceAndRule
 
           - id: CanvasNetMathMl-Layout-ChildCount
             title: >-
@@ -271,6 +282,7 @@ sections:
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
               - Layout_FractionsAndRadicals_MatchConstants
               - Layout_ScriptsAndLimits_MatchConstants
+              - Layout_ColorVariantAndInlineStyle_StyleTheGlyphs
 
           - id: CanvasNetMathMl-Layout-MathFont
             title: >-
@@ -288,6 +300,7 @@ sections:
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
+              - Layout_MissingGlyph_IsReported
 
           - id: CanvasNetMathMl-Layout-UnsupportedFeatures
             title: >-

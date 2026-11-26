@@ -16,7 +16,8 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 /// <remarks>
 ///     <para>
 ///         <b>Shifts (3.4.1.2-3.4.1.4).</b> A subscript is shifted down by the largest of SubscriptShiftDown, its ascent -
-///         SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base; a superscript up by the largest of
+///         SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base (left out for a single character, as
+///         TeX sets the subscript of a character); a superscript up by the largest of
 ///         SuperscriptShiftUp (SuperscriptShiftUpCramped when the computed <c>math-shift</c> of the scripted element is
 ///         <c>compact</c>), SuperscriptBottomMin + its descent, and the ascent of the base - SuperscriptBaselineDropMax.
 ///         With both scripts, when the gap between them is less than SubSuperscriptGapMin, the superscript is raised
@@ -29,9 +30,14 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 ///         correction of a large operator base), the superscript at the width of the base + its italic correction (when it
 ///         is not a large operator); SpaceAfterScript follows the scripts. As Chrome, the italic correction is only that of
 ///         an operator drawn with a size variant or an assembly (an operator drawn with its normal glyph and a token such
-///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction), and
+///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction),
+///         except that a superscript whose ink would overlap the ink of a slanted token base (the hook of a zeta) moves
+///         right by the italic correction of the base, or by the overlap when larger (<see cref="MathBox.Clearance"/>),
+///         and widens the element by it, so glyphs never collide; and
 ///         the width is that of the base and the wider script with SpaceAfterScript, without the italic corrections (MathML
-///         Core adds them).
+///         Core adds them), so a subscript of a large operator that is wider than its superscript is followed by
+///         LargeOpItalicCorrection more space, as in Chrome (verified by the reference fixture
+///         <c>scripts-largeop-wide-limit</c>).
 ///     </para>
 ///     <para>
 ///         <b>mmultiscripts (3.4.3.1).</b> The shifts are the largest over the pairs (each pair as an <c>msubsup</c>);
@@ -103,8 +109,13 @@ internal sealed class ScriptLayout
 
         if (sup is not null)
         {
-            children.Add(new PlacedBox(sup, @base.Width + italic, -supShift));
-            scripts = Math.Max(scripts, sup.Width);
+            // A superscript whose ink would collide with the ink of a slanted token base (the hook of a zeta) follows its
+            // italic correction, as MathML Core places it; otherwise it starts at the advance, as Chrome places it
+            var clearance = italic > 0 || @base.Operator is not null || @base.Children.Count > 0
+                ? 0
+                : MathBox.Clearance(@base.InkBounds(), @base.ItalicCorrection, sup, @base.Width, -supShift);
+            children.Add(new PlacedBox(sup, @base.Width + italic + clearance, -supShift));
+            scripts = Math.Max(scripts, clearance + sup.Width);
             ascent = Math.Max(ascent, sup.Ascent + supShift);
             descent = Math.Max(descent, sup.Descent - supShift);
         }
@@ -201,16 +212,32 @@ internal sealed class ScriptLayout
     }
 
     /// <summary>
-    ///     Computes the shift down of a subscript (MathML Core 3.4.1.2).
+    ///     Computes the shift down of a subscript (MathML Core 3.4.1.2): the largest of SubscriptShiftDown, the ascent of
+    ///     the subscript less SubscriptTopMax, and, unless the base is a single character, SubscriptBaselineDropMin below
+    ///     the descent of the base. A single character keeps the subscript at the shift of the font whatever its
+    ///     descender, as TeX lays out the subscript of a character (rule 18a); MathML Core and Chrome drop it below the
+    ///     descender (a documented difference: the subscript n of γ sits as low as the subscript n of x).
     /// </summary>
     /// <param name="base">The box of the base.</param>
     /// <param name="sub">The box of the subscript.</param>
     /// <param name="size">The font size of the scripted element.</param>
     /// <returns>SubShift.</returns>
-    private double SubShift(MathBox @base, MathBox sub, double size) =>
-        Math.Max(
-            Math.Max(Constant(MathConstant.SubscriptShiftDown, size), sub.Ascent - Constant(MathConstant.SubscriptTopMax, size)),
-            Constant(MathConstant.SubscriptBaselineDropMin, size) + @base.Descent);
+    private double SubShift(MathBox @base, MathBox sub, double size)
+    {
+        var shift = Math.Max(Constant(MathConstant.SubscriptShiftDown, size), sub.Ascent - Constant(MathConstant.SubscriptTopMax, size));
+        return IsCharacter(@base) ? shift : Math.Max(shift, Constant(MathConstant.SubscriptBaselineDropMin, size) + @base.Descent);
+    }
+
+    /// <summary>
+    ///     Decides whether a base is a single character: a token that is not an operator and draws one glyph.
+    /// </summary>
+    /// <param name="base">The box of the base.</param>
+    /// <returns>True for a single character.</returns>
+    internal static bool IsCharacter(MathBox @base)
+    {
+        ArgumentNullException.ThrowIfNull(@base);
+        return @base.Operator is null && @base.Children.Count == 0 && @base.Items.OfType<GlyphItem>().Count() == 1;
+    }
 
     /// <summary>
     ///     Computes the shift up of a superscript (MathML Core 3.4.1.3).

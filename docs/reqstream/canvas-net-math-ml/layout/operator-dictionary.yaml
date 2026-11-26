@@ -25,7 +25,7 @@ sections:
                   as in a browser that implements MathML Core.
                 tests:
                   - OperatorDictionary_Lookup_PlusInfix_IsCategoryB
-                  - OperatorDictionary_Lookup_EqualsInfix_IsCategoryA
+                  - OperatorDictionary_Lookup_ArrowInfixIsA_EqualsIsDefault
                   - OperatorDictionary_Lookup_LeftParenPrefix_IsFenceStretchySymmetric
                   - OperatorDictionary_Lookup_SumPrefix_IsLargeOpMovableLimits
                   - OperatorDictionary_Lookup_IntegralPrefix_IsLargeOpNotMovable
@@ -35,9 +35,10 @@ sections:
 
               - id: CanvasNetMathMl-Layout-OperatorDictionary-SpecialTables
                 title: >-
-                  The OperatorDictionary unit shall look a two-character ASCII operator up through
-                  Operators_2_ascii_chars, drop a combining long solidus or vertical line overlay before the lookup,
-                  and give the fence and separator defaults from Operators_fence and Operators_separator.
+                  The OperatorDictionary unit shall give the 18 two-character ASCII operators of MathML Core B.1 (such
+                  as &&, ** and ||) the categories that B.1 assigns them, give an operator followed by a combining long
+                  solidus or vertical line overlay the category of the operator alone, and report the fence and
+                  separator properties of B.1 for an operator.
                 justification: |
                   Authors write operators such as && and negated relations, which MathML Core maps onto the
                   dictionary through these tables.
@@ -50,10 +51,11 @@ sections:
                 title: >-
                   The OperatorDictionary unit shall infer the prefix form for the first and the postfix form for the
                   last of several children of a row that are not space-like, and the infix form otherwise, and shall
-                  parse an explicit form ASCII case-insensitively, disabling the fallback to the other forms.
+                  parse an explicit form ASCII case-insensitively and exactly (whitespace around it makes it invalid),
+                  disabling the fallback to the other forms.
                 justification: |
                   The same character is spaced differently as a sign, an operator, or a postfix, as MathML Core
-                  3.2.4.2 specifies.
+                  3.2.4.2 specifies; MathML Core matches the values of the form attribute exactly, as browsers do.
                 tests:
                   - OperatorDictionary_InferForm_FirstMiddleLast_PrefixInfixPostfix
                   - OperatorDictionary_InferForm_ExplicitAttribute_Wins

@@ -93,6 +93,64 @@ public class ScriptLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the superscript of a slanted letter whose ink would collide with the ink of the letter (the hook
+    ///     of a zeta reaching past its advance) follows the italic correction of the letter, as MathML Core 3.4.1.3 places
+    ///     it, and widens the element by it, while a superscript clear of the ink of the letter starts at its advance, as
+    ///     in Chrome.
+    /// </summary>
+    [Fact]
+    public void ScriptLayout_LayoutSup_CollidingInkFollowsItalicCorrection()
+    {
+        // Arrange: a letter with an italic correction of 13, its ink reaching 11 past its advance of 40 at its top
+        var layout = new ScriptLayout(MathFont.Default);
+        var hooked = new MathBox(40, 76, 21, null, [new RuleItem(new MathRect(2, -76, 49, 97), Black)]) { ItalicCorrection = 13 };
+        var upright = new MathBox(40, 76, 21, null, [new RuleItem(new MathRect(2, -76, 36, 97), Black)]) { ItalicCorrection = 13 };
+        var two = new MathBox(34, 44, 0, null, [new RuleItem(new MathRect(3, -43, 28, 43), Black)]);
+
+        // Act
+        var collided = layout.Layout(hooked, null, two, Compact);
+        var clear = layout.Layout(upright, null, two, Compact);
+
+        // Assert: the superscript moves by the italic correction, its ink clear of the ink of the letter
+        var sup = collided.Children[1];
+        Assert.Equal(40 + 13, sup.X, 9);
+        Assert.True(sup.X + 3 > 2 + 49);
+        Assert.Equal(40 + 13 + 34 + Space, collided.Width, 9);
+        Assert.Equal(40, clear.Children[1].X, 9);
+        Assert.Equal(40 + 34 + Space, clear.Width, 9);
+    }
+
+    /// <summary>
+    ///     Validates that the subscript of a single character is shifted by the constants and its own ascent only, whatever
+    ///     the descender of the character (as TeX), while the subscript of another base (two glyphs, a row) is also kept
+    ///     SubscriptBaselineDropMin below the descent of the base (MathML Core 3.4.1.2).
+    /// </summary>
+    [Fact]
+    public void ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent()
+    {
+        // Arrange: a deep character (descent 40 px) and the same extents drawn with two glyphs
+        var layout = new ScriptLayout(MathFont.Default);
+        var (font, glyph) = MathFont.Default.Resolve(0x1D6FE);
+        GlyphItem Glyph(double x) => new(font, glyph, 100, x, 0, Black, new MathRect(x, -50, 40, 90));
+        var character = new MathBox(45, 50, 40, null, [Glyph(0)]);
+        var pair = new MathBox(90, 50, 40, null, [Glyph(0), Glyph(45)]);
+        var sub = new MathBox(20, 10, 0);
+        var shiftDown = MathFont.Default.Constant(MathConstant.SubscriptShiftDown, 100);
+        var dropMin = MathFont.Default.Constant(MathConstant.SubscriptBaselineDropMin, 100);
+
+        // Act
+        var single = layout.Layout(character, sub, null, Compact);
+        var twoGlyphs = layout.Layout(pair, sub, null, Compact);
+
+        // Assert
+        Assert.True(ScriptLayout.IsCharacter(character));
+        Assert.False(ScriptLayout.IsCharacter(pair));
+        Assert.Equal(shiftDown, single.Children[1].Y, 9);
+        Assert.Equal(dropMin + 40, twoGlyphs.Children[1].Y, 9);
+        Assert.True(dropMin + 40 > shiftDown);
+    }
+
+    /// <summary>
     ///     Validates that the subscript of a large operator is pulled back by its italic correction
     ///     (LargeOpItalicCorrection) and its superscript is not moved.
     /// </summary>

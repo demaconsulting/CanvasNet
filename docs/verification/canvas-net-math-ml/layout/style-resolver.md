@@ -31,9 +31,9 @@ the expected one constitutes a failure.
 `StyleResolverTests.StyleResolver_Resolve_Mtable_IsCompact`
 
 Asserts the normal math style of a block equation and the compact style of an inline one, the override of the option,
-the warning of an invalid `display`, and the effect of `displaystyle`; and that an `mtable` in a display style is
-compact without a change of math depth or font size, while an `mrow` stays normal and `displaystyle="true"` on the
-`mtable` overrides the rule.
+the warnings of an invalid `display` and of `block` with whitespace around it (inline then), and the effect of
+`displaystyle`; and that an `mtable` in a display style is compact without a change of math depth or font size, while an
+`mrow` stays normal and `displaystyle="true"` on the `mtable` overrides the rule.
 
 ##### CanvasNetMathMl-Layout-StyleResolver-MathDepth: scriptlevel And Clamping
 
@@ -62,8 +62,8 @@ background of `merror`, which an attribute overrides.
 
 **Tests**: `StyleResolverTests.StyleResolver_Resolve_MathVariant_IsInherited`
 
-Asserts that `mathvariant` is inherited, that `normal` cancels the automatic italic, and the warning of an invalid
-value.
+Asserts that `mathvariant` is inherited, that `normal` is resolved as a value of its own, and the warnings of an invalid
+value and of a value with whitespace around it.
 
 ##### CanvasNetMathMl-Layout-StyleResolver-InlineStyle: The style Attribute
 

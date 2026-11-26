@@ -1,0 +1,17 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mtable>
+    <mtr>
+      <mtd columnspan="2px"><mspace width="2em" height="1em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="1em"/></mtd>
+      <mtd><mspace width="1em" height="1em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd columnspan="+2"><mspace width="2em" height="1em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd columnspan=" 2"><mspace width="2em" height="1em"/></mtd>
+    </mtr>
+  </mtable>
+</math>

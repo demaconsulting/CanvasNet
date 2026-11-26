@@ -457,9 +457,11 @@ internal sealed class TokenLayout
             items.Add(new RuleItem(rule.Offset(left, shift), style.Color));
         }
 
+        // Only a size variant or an assembly gives its italic correction to the scripts (as Chrome); the base glyph of a
+        // stretchy operator that already covers its target, or that nothing stretches, has none, as an unstretched one
         return new MathBox(width, result.Ascent - shift, result.Descent + shift, null, items)
         {
-            ItalicCorrection = result.ItalicCorrection,
+            ItalicCorrection = result.Kind == StretchKind.Base ? 0 : result.ItalicCorrection,
         };
     }
 

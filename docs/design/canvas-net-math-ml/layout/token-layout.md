@@ -59,8 +59,9 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/token-layout.yaml`.
   - otherwise keeps the `mtext` layout.
 
   The box is an embellished operator (`EmbellishedOperator` with every resolved property) and is not space-like. Its
-  italic correction is that of a size variant or an assembly; an operator drawn with its normal glyph has none, so that
-  the scripts follow it as Chrome places them.
+  italic correction is that of a size variant or an assembly; an operator drawn with its normal glyph has none (also
+  a stretchy operator whose base glyph already covers its target or that nothing stretches), so that the scripts follow
+  it as Chrome places them.
 - `LayoutText(text, style, autoItalic, location)` - transforms the characters (`Transform`), resolves each with the math
   font, and places the glyphs by their advances (no kerning, no glyph substitution): an invisible format character (the
   invisible operators U+2061 to U+2064) takes no space and draws nothing; a white-space character advances by its width;

@@ -16,28 +16,38 @@ sections:
               - id: CanvasNetMathMl-Layout-ScriptLayout-Subscript
                 title: >-
                   The ScriptLayout unit shall shift a subscript down by the largest of the subscript shift of the MATH
-                  table, its ascent less the maximum subscript top, and the minimum baseline drop below the descent of
+                  table, its ascent less the maximum subscript top, and, unless the base is a single character (a
+                  token that is not an operator and draws one glyph), the minimum baseline drop below the descent of
                   the base, and pull it back by the italic correction of a large operator base.
                 justification: |
                   MathML Core 3.4.1.2 positions a subscript by these constants, and the italic correction of a large
-                  operator moves its lower script under its slant.
+                  operator moves its lower script under its slant. MathML Core and Chrome also drop the subscript of a
+                  letter with a descender (γ, y, ψ) below the descender, which sets it almost twice as low as the
+                  subscript of x; TeX keeps the subscript of a single character at the shift of the font, and so does
+                  CanvasNet (a documented known difference).
                 tests:
                   - ScriptLayout_LayoutSub_ShiftFromConstantsAndScriptAscent
                   - ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript
+                  - ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent
 
               - id: CanvasNetMathMl-Layout-ScriptLayout-Superscript
                 title: >-
                   The ScriptLayout unit shall shift a superscript up by the largest of the superscript shift of the MATH
                   table (the cramped one when the math-shift of the element is compact), the minimum bottom above its
-                  descent, and the ascent of the base less the maximum baseline drop, and move it right by the italic
-                  correction of an operator base drawn with a size variant or an assembly.
+                  descent, and the ascent of the base less the maximum baseline drop, move it right by the italic
+                  correction of an operator base drawn with a size variant or an assembly, and move it right by the
+                  italic correction of a slanted token base (or the overlap, when larger) when its ink would otherwise
+                  overlap the ink of the base, widening the element by that amount.
                 justification: |
-                  MathML Core 3.4.1.3 positions a superscript by these constants and lowers it in cramped styles;
-                  Chrome, the reference of the layout tests, applies only the italic correction of a stretched or large
-                  operator.
+                  MathML Core 3.4.1.3 positions a superscript by these constants and lowers it in cramped styles, and
+                  places it after the italic correction of its base; Chrome, the reference of the layout tests, applies
+                  only the italic correction of a stretched or large operator and lets the superscript of a letter such
+                  as a zeta collide with its hook, which must not happen, so CanvasNet adds the italic correction where
+                  the inks would collide.
                 tests:
                   - ScriptLayout_LayoutSup_CrampedUsesCrampedShift
                   - ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript
+                  - ScriptLayout_LayoutSup_CollidingInkFollowsItalicCorrection
 
               - id: CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript
                 title: >-

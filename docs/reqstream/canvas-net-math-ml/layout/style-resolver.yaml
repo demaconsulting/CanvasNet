@@ -16,12 +16,14 @@ sections:
               - id: CanvasNetMathMl-Layout-StyleResolver-MathStyle
                 title: >-
                   The StyleResolver unit shall give the math element the normal math style in block display and the
-                  compact math style in inline display, with the display option overriding the attribute and an invalid
-                  display value reported as a warning, shall give mtable the compact math style of the user agent
+                  compact math style in inline display, with the display option overriding the attribute, the attribute
+                  matched ASCII case-insensitively and exactly, and an invalid display value (one with whitespace around
+                  it included) reported as a warning, shall give mtable the compact math style of the user agent
                   stylesheet, and shall apply displaystyle to the other elements and over that rule.
                 justification: |
                   The math style decides how large operators and scripts are drawn; MathML Core draws the cells of a
-                  table in compact style even in a displayed equation.
+                  table in compact style even in a displayed equation, and matches math[display="block" i] exactly, so
+                  a browser draws a padded value inline.
                 tests:
                   - StyleResolver_ResolveRoot_Display_SetsMathStyle
                   - StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle
@@ -61,10 +63,11 @@ sections:
 
               - id: CanvasNetMathMl-Layout-StyleResolver-Variant
                 title: >-
-                  The StyleResolver unit shall inherit mathvariant, let normal cancel the automatic italic, and report
-                  an invalid value.
+                  The StyleResolver unit shall inherit mathvariant, resolve normal as a value of its own, and report an
+                  invalid value (one with whitespace around it included).
                 justification: |
-                  mathvariant styles the letters of a subtree.
+                  mathvariant styles the letters of a subtree; the token layout cancels the automatic italic for normal
+                  (CanvasNetMathMl-Layout-TokenLayout-AutoItalic), and MathML Core matches the values exactly.
                 tests:
                   - StyleResolver_Resolve_MathVariant_IsInherited
 

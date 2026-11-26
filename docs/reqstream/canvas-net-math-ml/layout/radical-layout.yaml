@@ -34,12 +34,16 @@ sections:
                   The RadicalLayout unit shall place the index of a root after the kern before the degree (not
                   negative), the square root after the kern after the degree (not less than minus the width of the
                   index), and the bottom of the index raised from the bottom of the square root by the degree bottom
-                  raise percentage of the height of the radical symbol.
+                  raise percentage of the height of the radical symbol, the ascent and the descent of the root counting
+                  the whole height of the index (its depth included).
                 justification: |
-                  MathML Core 3.3.3.3 places the index of a root with these constants of the MATH table.
+                  MathML Core 3.3.3.3 places the index of a root with these constants of the MATH table; the ascent and
+                  the descent follow Chrome, the reference of the layout tests, which counts the depth of the index
+                  where MathML Core leaves it out (a documented known difference).
                 tests:
                   - RadicalLayout_LayoutRoot_IndexIsKernedAndRaised
                   - RadicalLayout_LayoutRoot_NarrowIndex_ClampsKernAfter
+                  - RadicalLayout_LayoutRoot_TallIndex_AscentAndDescentAsChrome
 
               - id: CanvasNetMathMl-Layout-RadicalLayout-Limit
                 title: >-

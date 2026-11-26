@@ -35,7 +35,8 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml`.
 
 #### Key Methods
 
-- `TryParseDisplay(value, out display)` - `block` or `inline` (ASCII case-insensitive).
+- `TryParseDisplay(value, out display)` - `block` or `inline` (ASCII case-insensitive and exact: whitespace around the
+  value makes it invalid, as MathML Core matches `math[display="block" i]`).
 - `ScriptRule(element, index)` - the user agent rule of the child of a scripted element at an index among the element
   children (MathML Core 3.4.4 and Appendix A): none for the base, except `AccentBase` for the base of an `mover` or
   `munderover` with an accent; `Script` for every other child, with `math-shift: compact` for the subscript of `msub`
@@ -86,4 +87,6 @@ The `MathFont` unit (the scale-down constants and the x-height), the `TokenLayou
 
 `LayoutEngine` resolves the style of every element with it (the children of `mfrac` and `mroot` with `ResolveChild`),
 and `MathMlDocument` resolves the style of the `math` element through the engine; `TokenLayout`, `RowLayout`, and
-`FractionLayout` resolve the length attributes of `mspace`, `mo`, `mpadded`, and `mfrac` with it.
+`FractionLayout` resolve the length attributes of `mspace`, `mo`, `mpadded`, and `mfrac` with it; `TokenLayout`,
+`FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, and `TableLayout` take the `MathStyle` of the
+element they lay out (its font size, math style, math shift, and color).

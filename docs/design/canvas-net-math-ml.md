@@ -208,13 +208,19 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
 ### Known Differences
 
 - **Picture box** - the picture is the content box united with the ink, so an overhanging glyph (an italic *f*) is
-  never clipped; a browser's `math` box is the content box only. The reference tests compare element boxes, not picture
-  sizes.
+  never clipped; a browser's `math` box is the content box only. The picture has no margin, so ink may reach its outer
+  pixel rows and columns (the lower limit of an integral, a final italic letter, a large parenthesis); everything
+  painted, antialiasing included, lies inside it (verified at several font sizes). The reference tests compare element
+  boxes, not picture sizes.
 - **Token metrics** - a token has the ink ascent and descent of its glyphs rounded out to whole CSS pixels, also when
   its text has a space, as Chrome lays tokens out; MathML Core lays a text with a soft wrap opportunity out as a line of
   text.
-- **Italic correction in rows** - the italic correction of a slanted child is not added before the next child, as
-  Chrome lays rows out; MathML Core 3.3.1.2 adds it. A row keeps the italic correction of its last child.
+- **Italic correction in rows** - MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next
+  child that is not slanted, and Chrome never adds it, which lets the hook of an italic *f* run into a closing brace
+  (`{f}`) or the parenthesis of `f(x)`. CanvasNet adds it only where the ink of a slanted token would otherwise overlap
+  the ink of what follows (by the overlap when that is larger), and moves a child whose ink starts before its origin
+  clear of the token before it, so glyphs never collide; wherever the inks stay apart, a row is laid out as Chrome lays
+  it out. A row keeps the italic correction of its last child when that child is not an embellished operator.
 - **Row extents** - the ascent and the descent of a row, a scripted element, and an under- and overscript element are
   at least zero, as Chrome lays them out (a row of a minus sign reaches down to its baseline).
 - **`ms`** - drawn without quotes, as MathML Core and Chrome draw it; the legacy `lquote` and `rquote` are reported as
@@ -226,16 +232,30 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   unstretched height of the operator.
 - **Text in layout elements** - text written directly inside a row is drawn like an `mtext` and reported as
   `mathml-element-unsupported`.
+- **Annotations** - `annotation` and `annotation-xml` are never drawn, wherever they are. MathML Core 3.7 lays out
+  `annotation` like `mtext` and `annotation-xml` like `mrow`, and only its user agent rule
+  `semantics > :not(:first-child) { display: none }` hides them inside `semantics`. Chrome draws no text of an
+  `annotation` (its box is empty) but draws the content of an `annotation-xml` outside `semantics` or as its first
+  child. Annotations carry other encodings of an equation (TeX, content MathML) that are not meant to be seen, so
+  CanvasNet leaves them out everywhere.
+- **Ink metrics** - every formula of MathML Core that uses the "ink" ascent and descent of a child (the shifts and gaps
+  of fractions, radicals, scripts, and limits, and the block stretch target of a row in 3.3.1.1) uses the ascent and
+  descent of its box, as Chrome does. A token box is its ink, but the box of a fraction (with its padding), of a radical
+  (with RadicalExtraAscender), of an `mpadded` with a requested height, or of a table (with its padding) is larger than
+  its ink, so, for example, a fence around such a child grows taller than MathML Core gives it.
 - **Glyphs** - glyphs are placed by their advances, without GPOS kerning, `ssty` script variants, or other glyph
   substitution; the ink of an automatic italic `mi` is measured on the glyph that is drawn (Chrome measures the
   untransformed character, the one documented exception of the reference fixtures).
 - **Stretched operators** - as Chrome draws them, a stretched operator is centered in a box as wide as its widest
-  construction (its preferred inline size), and a stretchy operator that nothing can stretch keeps its glyph centered
-  on the target (MathML Core lays it out as an `mtext`) and is reported as `mathml-stretch-unavailable` when the glyph
-  is shorter than the target. A large operator in display style is centered on the math axis, as Chrome does (MathML
-  Core leaves its position to the glyph). An assembly connector shorter than `MinConnectorOverlap` lowers the minimum
-  overlap where MathML Core would reject the assembly, so the arrows of Noto Sans Math still stretch. Chrome rounds the
-  overlap to its layout unit, so an assembly may differ from Chrome's by a fraction of a pixel.
+  construction (its preferred inline size), and a stretchy operator that nothing can stretch keeps its glyph centered on
+  the target (MathML Core lays it out as an `mtext`) and is reported as `mathml-stretch-unavailable` when the glyph is
+  shorter than the target. A large operator in display style is centered on the math axis, as Chrome does (MathML Core
+  leaves its position to the glyph). An assembly connector shorter than `MinConnectorOverlap` lowers the minimum overlap
+  where MathML Core would reject the assembly, so the arrows of Noto Sans Math still stretch. The longest overlap that
+  the connectors allow leaves out the connectors at the outer ends of the assembly (the start of the first part and the
+  end of the last, unless they are extenders), which join nothing; the literal text of MathML Core 5.3.1 leaves out the
+  other two ends, most likely an erratum. Chrome rounds the overlap to its layout unit, so an assembly may differ from
+  Chrome's by a fraction of a pixel.
 - **Stretch fallbacks** - when the math font has no construction for a character, CanvasNet uses the Unicode-based
   glyph assemblies of MathML Core Appendix B.4 (which the specification allows) and a rule for the line characters
   (low line, macron, combining low line, horizontal bar, overline); Chrome uses neither, so these are not compared with
@@ -245,22 +265,46 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
 - **Fractions** - the legacy `bevelled`, `numalign`, and `denomalign` attributes of MathML 3 are reported as
   unsupported attributes and the fraction is drawn as MathML Core draws it; the MathML 3 names `thin`, `medium`, and
   `thick` of `linethickness` are invalid values (MathML Core and Chrome define no names), reported, and the default
-  thickness is used; a negative thickness draws no bar, as Chrome draws it. The "ink" ascent and descent of the
-  children in the formulas of MathML Core are the ascent and descent of their boxes (a token box is its ink, as in
-  Chrome).
+  thickness is used; a negative thickness draws no bar, as Chrome draws it.
 - **Radicals** - as Chrome lays them out, a radical is as wide as its base plus the widest construction of the radical
   symbol while the base follows the symbol drawn; the inline size of an assembled symbol is its ink width rounded out
   to whole pixels (Chrome measures the ink of an assembly and its glyph bounds are pixel-snapped, which may differ by a
   pixel); the bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical
   symbol taken at Chrome's 1/64 precision (MathML Core takes the percentage of the block size of the square root B),
-  and the descent of a root uses Chrome's formula. With D(B) the line-descent of B, R the raise of the index, and
-  A(I) and D(I) the line-ascent and line-descent of the index, MathML Core 3.3.3.3 gives the descent
-  max(D(B), D(B) − R + A(I)), while Chrome and CanvasNet use max(D(B), D(B) − R + A(I) + D(I)): the two agree whenever
-  the raise is at least the height of the index (as it is for an ordinary index), and for a tall index the Chrome
-  formula adds the depth of the index, so the picture has empty space below the root.
-- **Scripts** - as Chrome lays them out, only the italic correction of an operator drawn with a size variant or an
-  assembly moves a script (the italic correction of a token glyph such as an italic *f*, which MathML Core 3.2.1.1
-  defines, does not), and the width of a scripted element is that of its base and its wider script with
+  and the ascent and the descent of a root use Chrome's formulas. With A(B) and D(B) the line-ascent and line-descent
+  of B, R the raise of the index, and A(I) and D(I) the line-ascent and line-descent of the index, MathML Core 3.3.3.3
+  gives the ascent max(A(B), −D(B) + R + A(I)) and the descent max(D(B), D(B) − R + A(I)), while Chrome and CanvasNet
+  use max(A(B), −D(B) + R + D(I) + A(I)) and max(D(B), D(B) − R + A(I) + D(I)), the bottom of the index (its descent
+  included) standing R above the bottom of the square root. The descents agree whenever the raise is at least the
+  height of the index (as it is for an ordinary index); for an index with a depth the ascent includes it, and for a tall
+  index the descent adds the depth of the index, so the picture has empty space below the root. Chrome draws an index
+  taller than R lower than its raise (its top at most R above the raised bottom), while its ascent keeps the formula
+  above; CanvasNet keeps the bottom of every index R above the bottom of the square root (the reference fixtures use
+  indexes no taller than R, `mroot-deep-index`).
+- **Subscripts of characters** - the subscript of a single character (a token that is not an operator and draws one
+  glyph) is shifted by SubscriptShiftDown (or by its own ascent less SubscriptTopMax), whatever the descender of the
+  character, as TeX sets the subscript of a character; MathML Core 3.4.1.2 and Chrome also keep it
+  SubscriptBaselineDropMin below the ink descent of the base, which sets the subscript n of γ, y, or ψ almost twice
+  as low as the subscript n of x. Other bases (rows, fractions, operators) keep the rule of
+  MathML Core. The reference fixtures use letters without descenders as the bases of subscripts.
+- **Spacing as Chrome, not TeX** - CanvasNet follows MathML Core and Chrome where TeX spaces differently: operators
+  keep the dictionary spacing at every script level (scaled with the font size of the script, so "n = 1" under a sum
+  and "s − 1" in an exponent are spaced like the operators of the line, where TeX drops the spacing of relations and
+  binary operators in scripts); a word operator such as lim, max, or sup has no entry in the operator dictionary of
+  MathML Core and gets the default 0.2778em on both sides, so the markup should set `lspace="0"` and
+  `rspace="0.1667em"` to space it as TeX does; a large operator with limits is as wide as its widest limit, so the
+  space between `=` and a display summation, and between the summation and what follows it, comes from that width and
+  the operator spacing (about 0.375em before `=` and 0.5em from it to the column of the summation, 0.39em from the
+  summation to a following fraction, where TeX gives about 0.29em); the lower limit of a large integral is pulled back
+  by its LargeOpItalicCorrection and hangs below the integral by SubscriptBaselineDropMin; and the space inside a
+  stretched fence differs on its two sides when a script ends the row (SpaceAfterScript follows the script, and the
+  fence is centered in the width of its widest construction). The stress equations of the review match Chrome in each
+  of these points.
+- **Scripts** - as Chrome lays them out, the italic correction of an operator drawn with a size variant or an assembly
+  moves a script, and the italic correction of a token glyph (MathML Core 3.2.1.1, which 3.4.1.3 always adds before a
+  superscript) does not, except where the ink of the superscript would overlap the ink of a slanted token base: the
+  superscript of ζ then follows the italic correction of ζ (Chrome lets the 2 of ζ² collide with the hook of the ζ), and
+  the element is wider by it. The width of a scripted element is that of its base and its wider script with
   SpaceAfterScript, without the italic corrections MathML Core adds. A scripted element whose base is a stretchy
   operator is an embellished operator that its row stretches (MathML Core 3.2.4.1 and 3.3.1.1); Chrome stretches only
   operators that are not scripted, so this case is verified by the unit tests and not compared with Chrome. The form of
@@ -268,24 +312,38 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   Chrome infers it from the position of the operator inside the scripted element, so the reference fixtures use
   operators without a prefix form there. Chrome computes the width of an `mmultiscripts` with both prescripts and
   postscripts from its postscript pairs only (its box is wider than its content), so the reference fixture uses script
-  pairs of one width.
+  pairs of one width. Two visible consequences match Chrome: a large operator with a subscript wider than its
+  superscript (the lower limit of an integral) ends LargeOpItalicCorrection plus SpaceAfterScript after its subscript,
+  because the subscript starts LargeOpItalicCorrection before the end of the base while the width counts the whole base
+  (`scripts-largeop-wide-limit`); and the superscript of a letter that is clear of its ink (b²) starts at the advance of
+  the letter, with its bottom SuperscriptShiftUp (or the cramped shift, or the ascent of the letter less
+  SuperscriptBaselineDropMax) above the baseline, beside the ascender (`msup-italic-letter`). The reference fixtures
+  keep the letters whose ink the clearance moves (an italic *f* or ζ before a superscript, a brace, or a parenthesis)
+  out of the comparison with Chrome; the unit and subsystem tests verify the clearance.
 - **Under- and overscripts** - as Chrome lays them out, an overscript is centered on its base (MathML Core places it
   by its top accent attachment) and the gaps of an accent and of a script that is neither a limit nor on a stretchy
   base are measured between the boxes (MathML Core measures them from the baseline of the script). Accents come from
   the `accent` and `accentunder` attributes of the under- and overscript element only, as MathML Core and Chrome
   define them (the MathML 3 `accent` property of `mo`, which Firefox uses, is accepted silently and has no effect), and
   the combining equivalents of MathML Core B.3 are not applied, as in Chrome.
-- **Horizontal stretching** - as Chrome lays them out, an operator stretched along the inline axis keeps the inline
-  size of its unstretched glyph, its stretched glyph centered on it; the glyph is chosen as MathML Core 5.3.2 chooses it
-  (the first size variant at least as wide as the target), which may be one variant wider than Chrome's. Chrome does not
+- **Horizontal stretching** - as Chrome lays them out, an operator stretched along the inline axis keeps the inline size
+  of its unstretched glyph, its stretched glyph centered on it; the glyph is chosen as MathML Core 5.3.2 chooses it (the
+  first size variant at least as wide as the target), which may be one variant wider than Chrome's. Chrome does not
   stretch the right and left arrows of Noto Sans Math (their assembly connectors are shorter than
-  `MinConnectorOverlap`), which CanvasNet stretches as it does vertically. The bundled font has no horizontal
-  construction for `^` and `~`; they keep their glyphs, as in Chrome, and are reported as `mathml-stretch-unavailable`
-  only when the author wrote `stretchy="true"` (reporting every accent would be noise).
-- **Tables** - a cell spanning several columns or rows spreads the room it lacks over them in proportion to their
-  sizes, and a row-spanning cell is aligned on the baseline of its first row, as Chrome does (CSS leaves both to the
-  browser); a rowspan past the last row ends there, as browsers end it. Stray children of `mtable` and `mtr` are wrapped
-  in anonymous rows and cells, as CSS wraps them, and an `mtr` or `mtd` outside a table is laid out as a row of its
+  `MinConnectorOverlap`), which CanvasNet stretches as it does vertically. When an under- or overscript element is
+  itself an embellished operator stretched by its parent, its base (laid out with the constraint of the parent) still
+  counts toward the width its other stretchy operators stretch to; MathML Core 3.4.2.2 takes that width from the other
+  children only (for example, an overline over an arrow that a row stretches covers the stretched arrow, where MathML
+  Core leaves the overline at its unstretched width). Chrome stretches no scripted operator, so this case is verified by
+  the unit tests. The bundled font has no horizontal construction for `^` and `~`; they keep their glyphs, as in Chrome,
+  and are reported as `mathml-stretch-unavailable` only when the author wrote `stretchy="true"` (reporting every accent
+  would be noise).
+- **Tables** - a cell spanning several columns or rows spreads the room it lacks over them in proportion to their sizes,
+  and a row-spanning cell is aligned on the baseline of its first row, as Chrome does (CSS leaves both to the browser);
+  a rowspan past the last row ends there, as browsers end it. The spans are read with the HTML rules for parsing
+  non-negative integers, as browsers read them (`2px` and `+2` are 2); the characters after the digits, which browsers
+  ignore silently, are also reported as `mathml-attribute-invalid`. Stray children of `mtable` and `mtr` are wrapped in
+  anonymous rows and cells, as CSS wraps them, and an `mtr` or `mtd` outside a table is laid out as a row of its
   children, which browsers wrap in an anonymous table; both are reported as `mathml-child-count`, which browsers do not
   report. The legacy `mtable` attributes other than the D2 set (`align`, `equalrows`, `equalcolumns`, `width`,
   `columnwidth`, `side`, `minlabelspacing`, `groupalign`, `alignmentscope`, and `decimalpoint` alignment) and

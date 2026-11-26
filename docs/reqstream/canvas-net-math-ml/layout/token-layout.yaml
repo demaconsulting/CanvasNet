@@ -120,7 +120,8 @@ sections:
                 title: >-
                   The TokenLayout unit shall draw a largeop mo in display style with its large variant centered on the
                   math axis, with the italic correction of the variant, and keep the base glyph outside display style or
-                  without the largeop property, an operator drawn with its base glyph having no italic correction.
+                  without the largeop property, an operator drawn with its base glyph (unstretched, or stretched to a
+                  target its base glyph already covers) having no italic correction.
                 justification: |
                   Sums and integrals are drawn larger in displayed equations; Chrome, the reference of the layout tests,
                   places scripts by the italic correction of a size variant or an assembly only.
@@ -128,6 +129,7 @@ sections:
                   - TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight
                   - TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph
                   - TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection
+                  - TokenLayout_LayoutOperator_StretchedToBaseGlyph_HasNoItalicCorrection
 
               - id: CanvasNetMathMl-Layout-TokenLayout-MissingGlyph
                 title: >-

@@ -41,12 +41,15 @@ cells has no size.
 ##### CanvasNetMathMl-Layout-TableLayout-Spans: Placement And Spreading Of Spans
 
 **Tests**: `TableLayoutTests.TableLayout_Layout_Spans_SpreadTheirExcess`,
-`TableLayoutTests.TableLayout_Layout_RowSpanZero_SpansToTheEnd`
+`TableLayoutTests.TableLayout_Layout_RowSpanZero_SpansToTheEnd`,
+`TableLayoutTests.TableLayout_Layout_SpanValues_ReadAsHtmlIntegers`
 
 Asserts that a cell spanning two columns of 100 px and 140 px with 380 px of padded content widens them in proportion
 (by 140 × 100/240 and 140 × 140/240 px), that a cell spanning two rows spreads the height it lacks in proportion to the
 row heights, that spanning boxes cover the rows and columns they span, that a `rowspan` of 0 and a `rowspan` past the
-last row end at the last row, and that the cells of the later rows skip the spanned columns.
+last row end at the last row, that the cells of the later rows skip the spanned columns, and that the `columnspan`
+values `2px`, `+2`, and ` 2` each span both columns of the table, as the HTML rules for parsing non-negative integers
+read them, with one `mathml-attribute-invalid` warning for the characters after the digits of `2px`.
 
 ##### CanvasNetMathMl-Layout-TableLayout-Axis: Centering On The Math Axis
 
@@ -82,14 +85,15 @@ Asserts that a solid column line is a one-pixel rule in the middle of its one-pi
 spans it, that a dashed column line is a run of dashes of at most 3 px, that a row line spans all columns, and that a
 solid frame is a rule along each edge of the table, which is two pixels wider.
 
-##### CanvasNetMathMl-Layout-TableLayout-InvalidValues: Reports Of Invalid And Legacy Attributes
+##### CanvasNetMathMl-Layout-TableLayout-InvalidValues: Reports Of Invalid Attribute Values
 
-**Tests**: `TableLayoutTests.TableLayout_Layout_InvalidAndLegacyAttributes_AreReported`
+**Tests**: `TableLayoutTests.TableLayout_Layout_InvalidAttributes_AreReported`,
+`TableLayoutTests.TableLayout_Layout_SpanValues_ReadAsHtmlIntegers`
 
 Asserts that ten invalid values (alignments, a negative spacing, a frame, a line list, three frame spacings, a row
 alignment list on `mtr`, a non-numeric `rowspan`, a zero and an oversized `columnspan`) are each reported once as
-`mathml-attribute-invalid` and ignored (the oversized span clamped to 1,000), and that the legacy `align`, `equalrows`,
-`columnwidth`, and `groupalign` attributes are reported as `mathml-attribute-unsupported` by the engine.
+`mathml-attribute-invalid` and ignored (the oversized span clamped to 1,000), and that characters after the digits of a
+span are reported at the attribute while the number is used.
 
 ##### CanvasNetMathMl-Layout-TableLayout-Limit: Grid Slots Before Allocation
 

@@ -457,6 +457,26 @@ public class TokenLayoutTests
     }
 
     /// <summary>
+    ///     Validates that a stretchy operator whose base glyph already covers its target (drawn with the base glyph, not a
+    ///     size variant or an assembly) has no italic correction, as the unstretched operator has none, although its glyph
+    ///     has a MATH italic correction.
+    /// </summary>
+    [Fact]
+    public void TokenLayout_LayoutOperator_StretchedToBaseGlyph_HasNoItalicCorrection()
+    {
+        // Arrange
+        var glyph = StretchyGlyphs.Glyph(MathFont.Default, 0x222B, Size);
+        var context = new OperatorContext(OperatorForm.Prefix, new BlockStretchConstraint(1, 0));
+
+        // Act
+        var stretched = Tokens().LayoutToken(Token("mo", "\u222B", ("stretchy", "true")), Style, context);
+
+        // Assert
+        Assert.True(glyph.ItalicCorrection > 0);
+        Assert.Equal(StretchKind.Base, glyph.Kind);
+        Assert.Equal(0, stretched.ItalicCorrection);
+    }
+    /// <summary>
     ///     Validates <c>minsize</c> and <c>maxsize</c>: the target grows to the minimum or shrinks to the maximum about the
     ///     math axis, a percentage is of the unstretched height, and an empty constraint gives the minimum size centered on
     ///     the axis.

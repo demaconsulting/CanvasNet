@@ -82,8 +82,8 @@ internal sealed record StretchResult(StretchKind Kind, double Width, double Asce
 ///         ink on the end of the previous part, a horizontal part with its origin there.
 ///     </para>
 ///     <para>
-///         The horizontal stretching (an operator under or over a base) is used by the under-over layout of a later
-///         version. The class is stateless and safe for concurrent use.
+///         The horizontal stretching serves the operators of the under- and overscript elements
+///         (<see cref="TokenLayout"/>, through its inline stretching). The class is stateless and safe for concurrent use.
 ///     </para>
 /// </remarks>
 internal static partial class StretchyGlyphs
@@ -268,7 +268,10 @@ internal static partial class StretchyGlyphs
         ArgumentNullException.ThrowIfNull(parts);
 
         // The longest overlap the connectors allow; a connector shorter than the minimum overlap lowers it (Noto Sans Math
-        // joins the extenders of its arrows without overlap), so that such an assembly still grows
+        // joins the extenders of its arrows without overlap), so that such an assembly still grows. The connectors at the
+        // outer ends of the assembly (the start of the first part and the end of the last, when they are not extenders)
+        // join nothing and are left out; the literal text of MathML Core 5.3.1 names the other two ends (a documented
+        // difference, most likely an erratum of the specification)
         var connectors = double.PositiveInfinity;
         for (var i = 0; i < parts.Count; i++)
         {

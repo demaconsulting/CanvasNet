@@ -68,11 +68,12 @@ font throws `InvalidDataException` from the core on first access, which `MathMlD
 
 #### Dependencies
 
-The core `Fonts` subsystem (`TrueTypeFont` with the internal `TryGetMathTable` and `MathTable`,
-`SystemFontCatalog.LoadBundledFallbackCore`, and `GlyphFallback`) and `Geometry` subsystem (the bounds of the
-outlines).
+The `OperatorDictionary` unit (the `StretchAxis` parameter of `TryGetConstruction`), the core `Fonts` subsystem
+(`TrueTypeFont` with the internal `TryGetMathTable` and `MathTable`, `SystemFontCatalog.LoadBundledFallbackCore`, and
+`GlyphFallback`), and the core `Geometry` subsystem (the bounds of the outlines).
 
 #### Callers
 
 `MathMlDocument` creates every layout over `MathFont.Default`; `LayoutEngine`, `StyleResolver`, `TokenLayout`,
-`FractionLayout`, and `RadicalLayout` read its constants and metrics; `StretchyGlyphs` reads its constructions.
+`FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, and `TableLayout` read its constants and metrics;
+`StretchyGlyphs` reads its constructions.

@@ -45,6 +45,14 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/math-box.yaml`.
 - `ContentRect` - `[0, Width]` by `[-Ascent, Descent]`, with negative extents clamped to zero.
 - `InkBounds()` - the union of the bounds of the box's items and of the ink of its children at their offsets; null for
   a phantom box and for a box that paints nothing.
+- `LeadingInk()` - the ink and the box of the token at the start of a box (following the first child down through
+  rows and scripted elements), relative to the box; null at a phantom, at a box that paints items around its children
+  (a radical, a fraction, a table, a background), or at a token that paints nothing.
+- `Clearance(previousInk, previousItalic, next, x, y)` - how far the next box must move right so that its leading ink
+  does not overlap the ink of the token before it: nothing when the inks stay apart, or when the next box does not
+  start before its origin and the token before is not slanted or the next box starts with a slanted token; otherwise
+  the overlap, and at least the italic correction of a slanted token before a box that is not slanted (MathML Core
+  3.3.1.2 and 3.4.1.3). `RowLayout` and `ScriptLayout` use it so that glyphs never collide.
 - `MathRect.Union` and `Offset` - the smallest rectangle around two, and a rectangle moved.
 
 #### Error Handling
@@ -59,5 +67,7 @@ subsystem (`Rgba32`).
 
 #### Callers
 
-`TokenLayout`, `RowLayout`, and `LayoutEngine` build boxes and pass operator contexts; `MathMlDocument` frames the
-picture from the content box and the ink of the `math` box; `MathMlPainter` paints the items.
+`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, and
+`LayoutEngine` build boxes (and `LayoutEngine` passes operator contexts); `StretchyGlyphs` measures with `MathRect`;
+`MathMlDocument` frames the picture from the content box and the ink of the `math` box; `MathMlPainter` paints the
+items.
