@@ -16,10 +16,10 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///     <para>
 ///         Identical reports (same code, message, location and hint) are recorded once. At most
 ///         <see cref="MathMlLimits.MaxDiagnostics"/> reports are kept; the first one beyond the cap is replaced by a single
-///         <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice and the rest are dropped, so a hostile equation
-///         cannot grow the buffer without bound. Strict mode is unaffected by the cap: the first unsupported feature is
-///         always recorded, so it is delivered to the handler before the exception that it causes is thrown. An instance is
-///         used by one call on one thread.
+///         <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice and the rest are dropped without being
+///         remembered, so a hostile equation cannot grow the buffer or the de-duplication sets without bound. Strict mode is
+///         unaffected by the cap: the first unsupported feature is always recorded, so it is delivered to the handler
+///         before the exception that it causes is thrown. An instance is used by one call on one thread.
 ///     </para>
 /// </remarks>
 internal sealed class MathMlReportSink
@@ -59,6 +59,12 @@ internal sealed class MathMlReportSink
     public int Count => _events.Count;
 
     /// <summary>
+    ///     Gets the number of distinct reports remembered for de-duplication; it stops growing once the suppression
+    ///     notice is recorded.
+    /// </summary>
+    public int TrackedCount => _seenWarnings.Count + _seenUnsupported.Count;
+
+    /// <summary>
     ///     Records a warning.
     /// </summary>
     /// <param name="code">The stable <c>mathml-*</c> code.</param>
@@ -67,6 +73,12 @@ internal sealed class MathMlReportSink
     /// <param name="hint">The suggested fix, or null.</param>
     public void Warn(string code, string message, MathMlLocation location, string? hint = null)
     {
+        // Once the notice is recorded nothing more is kept, so the de-duplication set stops growing too
+        if (_suppressed)
+        {
+            return;
+        }
+
         var warning = new MathMlDiagnostic(code, message, location) { Hint = hint };
         if (_seenWarnings.Add(warning))
         {
@@ -85,7 +97,9 @@ internal sealed class MathMlReportSink
     public void Unsupported(string feature, string message, MathMlLocation location, string? hint = null)
     {
         var report = new MathMlUnsupportedFeature(feature, message, location) { Hint = hint };
-        if (_seenUnsupported.Add(report))
+
+        // Once the notice is recorded only the report that strict mode throws for is kept, so the set stops growing
+        if ((_throwOnUnsupported || !_suppressed) && _seenUnsupported.Add(report))
         {
             // Strict mode delivers the report that it throws for, even when the buffer is full of earlier reports
             Add((null, report), force: _throwOnUnsupported);

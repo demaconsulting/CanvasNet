@@ -52,7 +52,9 @@ Asserts `+2` and `-1` as relative changes, `3` as a level, and the refusal of a 
 
 **Tests**: `AttributeValuesTests.AttributeValues_TryParseColor_ReadsCssColors`
 
-Asserts names, hexadecimal forms, and functions, and the refusal of invalid text.
+Asserts names, `transparent` (all channels zero), the hexadecimal forms with and without alpha (`#00f`, `#0000ff80`),
+the `rgb()`, `rgba()`, `hsl()`, and `hsla()` functions with their alpha (a number and a percentage, rounded to 128 and
+64), and the refusal of invalid text and of an `hsl()` with a missing channel.
 
 ##### CanvasNetMathMl-Syntax-AttributeValues-Style: The Inline Style Subset
 

@@ -69,6 +69,32 @@ public class MathMlReportSinkTests
     }
 
     /// <summary>
+    ///     Validates that once the suppression notice is recorded, further distinct reports of either kind are neither
+    ///     kept nor remembered, so the bookkeeping of a call stays bounded.
+    /// </summary>
+    [Fact]
+    public void MathMlReportSink_BeyondCap_StopsRememberingReports()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(2, throwOnUnsupported: false);
+
+        // Act: two kept reports, one that is replaced by the notice, then a thousand more of both kinds
+        sink.Warn("mathml-a", "w0", default);
+        sink.Unsupported("mathml-b", "u0", default);
+        sink.Warn("mathml-a", "w1", default);
+        var trackedAtSuppression = sink.TrackedCount;
+        for (var i = 2; i < 1_002; i++)
+        {
+            sink.Warn("mathml-a", $"w{i}", default);
+            sink.Unsupported("mathml-b", $"u{i}", default);
+        }
+
+        // Assert
+        Assert.Equal((3, 3), (sink.Count, trackedAtSuppression));
+        Assert.Equal(3, sink.TrackedCount);
+    }
+
+    /// <summary>
     ///     Validates strict mode: the first unsupported feature is recorded (even beyond the cap) and thrown.
     /// </summary>
     [Fact]

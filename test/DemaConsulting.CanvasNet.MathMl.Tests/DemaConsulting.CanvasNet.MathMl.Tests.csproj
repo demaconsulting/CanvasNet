@@ -86,14 +86,13 @@
     </None>
   </ItemGroup>
 
-  <!-- The third-party notices that ship with the package, copied so that a test can check that they exist -->
-  <ItemGroup>
-    <None Include="..\..\src\DemaConsulting.CanvasNet.MathMl\third-party\LICENSE-*.txt" Link="Notices\%(Filename)%(Extension)">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\..\src\DemaConsulting.CanvasNet.MathMl\third-party\README.md" Link="Notices\third-party-provenance.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+  <!-- The third-party notices as the package ships them: the MathMl project lists the files it packs into licenses\
+       with their paths inside the package, and they are copied under Packed\ so that a test checks the packed content -->
+  <Target Name="CopyPackedLicenseFiles" AfterTargets="CopyFilesToOutputDirectory">
+    <MSBuild Projects="..\..\src\DemaConsulting.CanvasNet.MathMl\DemaConsulting.CanvasNet.MathMl.csproj" Targets="GetPackedLicenseFiles" Properties="TargetFramework=$(TargetFramework)">
+      <Output TaskParameter="TargetOutputs" ItemName="_MathMlPackedLicenseFile" />
+    </MSBuild>
+    <Copy SourceFiles="@(_MathMlPackedLicenseFile)" DestinationFiles="@(_MathMlPackedLicenseFile->'$(OutDir)Packed\%(PackedPath)')" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -79,8 +79,9 @@ public sealed class MathMlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of MathML elements of an equation (the <c>math</c> element included, the content of
-    ///     annotations and of skipped foreign elements excluded); 100,000 by default.
+    ///     Gets the maximum number of elements of an equation: the MathML elements (the <c>math</c> element included) and
+    ///     the elements that are skipped (of another namespace, or inside a token), each counted once; the content of a
+    ///     skipped element and of an annotation is not counted. 100,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxElements
@@ -147,6 +148,11 @@ public sealed class MathMlLimits
     ///     reports are collapsed into a single <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice and
     ///     rendering continues. 1,000 by default.
     /// </summary>
+    /// <remarks>
+    ///     The limits of the open options also bound the reports that reading finds (elements of other namespaces, links,
+    ///     text outside a token), which the document keeps for every call: at most this many, followed by a single
+    ///     suppression notice.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxDiagnostics
     {

@@ -84,9 +84,25 @@
        entity file and the operator dictionary (Appendix B.1), the Unicode-based glyph assemblies (Appendix B.4), and
        the italic table (Appendix C.1) of MathML Core) and the Unicode License v3 (the mathvariant tables derived from
        UnicodeData.txt) require their notices in distributions, so they ship as plain files in the package's licenses\
-       folder (the same approach as the PlantUml and Mermaid packages). -->
+       folder (the same approach as the PlantUml and Mermaid packages), with the provenance record (the license of each
+       derived table and the statement that the project is not affiliated with the W3C or Unicode, Inc.) beside them. -->
   <ItemGroup>
     <None Include="third-party\LICENSE-*.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="third-party\README.md" Pack="true" PackagePath="licenses\third-party-README.md" />
   </ItemGroup>
+
+  <!-- Returns the files packed into the licenses\ folder with their paths inside the package (PackedPath), so that the
+       test project checks what the package ships rather than the repository copies -->
+  <Target Name="GetPackedLicenseFiles" Returns="@(_PackedLicenseFile)">
+    <ItemGroup>
+      <_PackedLicenseFile Include="@(None->'%(FullPath)')" Condition="'%(None.Pack)' == 'true' And $([System.String]::Copy('%(None.PackagePath)').StartsWith('licenses'))" />
+      <_PackedLicenseFile>
+        <PackedPath>%(PackagePath)</PackedPath>
+      </_PackedLicenseFile>
+      <_PackedLicenseFile Condition="$([System.String]::Copy('%(PackagePath)').EndsWith('\'))">
+        <PackedPath>%(PackagePath)%(Filename)%(Extension)</PackedPath>
+      </_PackedLicenseFile>
+    </ItemGroup>
+  </Target>
 
 </Project>

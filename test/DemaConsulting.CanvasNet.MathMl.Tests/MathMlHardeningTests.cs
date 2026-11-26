@@ -223,6 +223,36 @@ public class MathMlHardeningTests
     }
 
     /// <summary>
+    ///     Validates that a text of many skipped elements and links is bounded: the skipped elements are charged to
+    ///     <see cref="MathMlLimits.MaxElements"/>, and a render delivers at most
+    ///     <see cref="MathMlLimits.MaxDiagnostics"/> of their reports followed by one suppression notice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded()
+    {
+        // Arrange: 3,000 elements of another namespace and 3,000 links (on empty tokens, so the picture stays small)
+        var text = "<math xmlns:x=\"urn:x\">" + string.Concat(Enumerable.Repeat("<x:a/><mi href=\"#\"/>", 3_000)) + "</math>";
+        var warnings = new List<string>();
+        var unsupported = 0;
+        var options = new MathMlRenderOptions
+        {
+            WarningHandler = warning => warnings.Add(warning.Code),
+            UnsupportedFeatureHandler = _ => unsupported++,
+        };
+
+        // Act
+        var document = MathMlDocument.Parse(text);
+        document.Measure(options, TestContext.Current.CancellationToken);
+        var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlDocument.Parse(text, new MathMlOpenOptions { Limits = new MathMlLimits { MaxElements = 5_000 } }));
+
+        // Assert
+        Assert.Equal(MathMlLimits.Default.MaxDiagnostics, unsupported);
+        Assert.Equal([MathMlDiagnosticCodes.DiagnosticsSuppressed], warnings);
+        Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Contains("MathMlLimits.MaxElements", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Builds a table of digits.
     /// </summary>
     /// <param name="rows">The number of rows.</param>

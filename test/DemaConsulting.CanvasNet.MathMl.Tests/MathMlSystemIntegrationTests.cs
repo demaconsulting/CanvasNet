@@ -125,21 +125,68 @@ public class MathMlSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that an XML declaration of an encoding other than UTF-8 is refused at the encoding.
+    ///     Validates that an XML declaration of an encoding other than UTF-8 is refused at the encoding, US-ASCII included
+    ///     (the text is read as UTF-8, so a declared ASCII would misread every other character).
     /// </summary>
     [Fact]
     public void CanvasNetMathMl_Open_ForeignEncodingDeclaration_IsRefused()
     {
         // Arrange
         const string text = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><math/>";
+        const string ascii = "<?xml version=\"1.0\" encoding=\"US-ASCII\"?>\n<math alttext=\"\u03B1\"><mi>\u03B1</mi></math>";
 
         // Act
         var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlDocument.Parse(text));
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(ascii));
+        var asciiEx = Assert.Throws<MathMlSyntaxException>(() => MathMlDocument.Open(stream, new MathMlOpenOptions { SourceName = "a.mml" }));
 
         // Assert
         Assert.Equal(MathMlDiagnosticCodes.SyntaxError, ex.Code);
         Assert.Equal(new MathMlLocation(null, 1, 21), ex.Location);
         Assert.Contains("UTF-8", ex.Hint, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("a.mml", 1, 21)), (asciiEx.Code, asciiEx.Location));
+    }
+
+    /// <summary>
+    ///     Validates that an equation written with literal characters outside ASCII (Greek letters, the minus sign, a
+    ///     relation, and a mathematical italic letter outside the basic plane) reads the same from a string, a stream,
+    ///     and a file, and renders strictly without a report.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Open_LiteralUnicodeCharacters_AreReadAndRendered()
+    {
+        // Arrange
+        const string text = "<math display=\"block\" alttext=\"\u03B1 \u2212 \u03B2\"><mi>\u03B1</mi><mo>\u2212</mo><mi>\u03B2</mi><mo>\u2264</mo><mn>2</mn><mi>\U0001D465</mi></math>";
+        var path = MathMlTestHelpers.WriteTempFile(text);
+        var reports = new List<string>();
+        var options = new MathMlRenderOptions
+        {
+            ThrowOnUnsupportedFeature = true,
+            WarningHandler = warning => reports.Add(warning.Code),
+            UnsupportedFeatureHandler = feature => reports.Add(feature.Feature),
+        };
+        try
+        {
+            // Act
+            var parsed = MathMlDocument.Parse(text);
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+            var streamed = MathMlDocument.Open(stream);
+            var opened = MathMlDocument.Open(path);
+            using var surface = parsed.Render(options, TestContext.Current.CancellationToken);
+
+            // Assert
+            Assert.All([parsed, streamed, opened], document =>
+            {
+                Assert.Equal("\u03B1 \u2212 \u03B2", document.AltText);
+                Assert.Equal(["\u03B1", "\u2212", "\u03B2", "\u2264", "2", "\U0001D465"], document.Root.ElementChildren.Select(child => child.TextContent));
+            });
+            Assert.Empty(reports);
+            Assert.False(MathMlTestHelpers.IsFullyTransparent(surface));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     /// <summary>
@@ -960,22 +1007,25 @@ public class MathMlSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the third-party notices ship next to the package (copied to the test output from the package's
-    ///     <c>third-party</c> folder), that the W3C notice names its sources, and that the provenance record names the
-    ///     license files.
+    ///     Validates that the package ships the third-party notices: the files the project packs into the package's
+    ///     <c>licenses</c> folder (copied to the test output under <c>Packed</c> from the pack items of the project, with
+    ///     their paths inside the package) are the W3C notice naming its sources, the Unicode license, and the provenance
+    ///     record that names the license files and states that the project is not affiliated.
     /// </summary>
     [Fact]
     public void CanvasNetMathMl_ThirdPartyNotices_ArePresent()
     {
         // Arrange
-        var folder = Path.Combine(AppContext.BaseDirectory, "Notices");
+        var folder = Path.Combine(AppContext.BaseDirectory, "Packed", "licenses");
 
         // Act
+        var packed = Directory.GetFiles(folder).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToList();
         var w3c = File.ReadAllText(Path.Combine(folder, "LICENSE-w3c.txt"));
         var unicode = File.ReadAllText(Path.Combine(folder, "LICENSE-unicode.txt"));
-        var provenance = File.ReadAllText(Path.Combine(folder, "third-party-provenance.txt"));
+        var provenance = File.ReadAllText(Path.Combine(folder, "third-party-README.md"));
 
         // Assert
+        Assert.Equal(["LICENSE-unicode.txt", "LICENSE-w3c.txt", "third-party-README.md"], packed);
         Assert.Contains("W3C SOFTWARE AND DOCUMENT NOTICE AND LICENSE", w3c, StringComparison.Ordinal);
         Assert.Contains("htmlmathml-f.ent", w3c, StringComparison.Ordinal);
         Assert.Contains("Appendix C.1", w3c, StringComparison.Ordinal);

@@ -65,7 +65,8 @@ here) and that the declaration is recorded at line 2, column 1.
 **Tests**: `CharacterReferencesTests.CharacterReferences_Rewrite_ForeignEncodingDeclaration_FailsAtEncoding`
 
 Asserts that `encoding="windows-1252"` fails with `mathml-syntax-error` at line 1, column 21 with a hint naming UTF-8,
-and that `Utf-8` and `us-ascii` (single quotes) are accepted.
+that `us-ascii` (single quotes) fails the same way at its encoding (the text is read as UTF-8), and that `Utf-8` is
+accepted.
 
 ##### CanvasNetMathMl-Syntax-CharacterReferences-Locations: Mapping Back
 

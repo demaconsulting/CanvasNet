@@ -113,7 +113,8 @@ public class AttributeValuesTests
     }
 
     /// <summary>
-    ///     Validates colors: names, hexadecimal forms and functions, and invalid text.
+    ///     Validates colors: names, <c>transparent</c>, the hexadecimal forms with and without alpha, the
+    ///     <c>rgb()</c> and <c>hsl()</c> functions with and without alpha, and invalid text.
     /// </summary>
     [Fact]
     public void AttributeValues_TryParseColor_ReadsCssColors()
@@ -123,7 +124,16 @@ public class AttributeValuesTests
         Assert.True(AttributeValues.TryParseColor("#00f", out var blue));
         Assert.True(AttributeValues.TryParseColor("rgb(0, 128, 0)", out var green));
         Assert.Equal((new Rgba32(255, 0, 0, 255), new Rgba32(0, 0, 255, 255), new Rgba32(0, 128, 0, 255)), (red, blue, green));
+        Assert.True(AttributeValues.TryParseColor("transparent", out var transparent));
+        Assert.True(AttributeValues.TryParseColor("#0000ff80", out var hexAlpha));
+        Assert.True(AttributeValues.TryParseColor("rgba(255, 0, 0, 0.5)", out var rgba));
+        Assert.True(AttributeValues.TryParseColor("hsl(240, 100%, 50%)", out var hsl));
+        Assert.True(AttributeValues.TryParseColor("hsla(0, 100%, 50%, 25%)", out var hsla));
+        Assert.Equal(new Rgba32(0, 0, 0, 0), transparent);
+        Assert.Equal((new Rgba32(0, 0, 255, 128), new Rgba32(255, 0, 0, 128)), (hexAlpha, rgba));
+        Assert.Equal((new Rgba32(0, 0, 255, 255), new Rgba32(255, 0, 0, 64)), (hsl, hsla));
         Assert.False(AttributeValues.TryParseColor("reddish", out _));
+        Assert.False(AttributeValues.TryParseColor("hsl(240, 100%)", out _));
     }
 
     /// <summary>

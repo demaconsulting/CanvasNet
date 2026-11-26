@@ -5,9 +5,10 @@ This document describes the unit-level verification strategy for the `MathTree` 
 
 #### Verification Approach
 
-The unit is verified by building elements, text runs, and attribute values directly (through the test helpers
-`Token` and `Node`) with the test assembly's `InternalsVisibleTo` access and asserting their members and their value
-semantics. Nothing is mocked; the records have no dependency to replace. Unit tests reside in `Syntax/MathTreeTests.cs`.
+The unit is verified by constructing `MathElement`, `MathText`, and `MathAttribute` records directly (an `mi` with a
+text child, and an `mrow` with an attribute dictionary, a loose text run, and that `mi`; no test helper is involved)
+with the test assembly's `InternalsVisibleTo` access and asserting their members and their value semantics. Nothing is
+mocked; the records have no dependency to replace. Unit tests reside in `Syntax/MathTreeTests.cs`.
 
 #### Test Environment
 

@@ -39,11 +39,11 @@ subsystem `MathMlSyntax` (see *CanvasNetMathMl System Design*).
 `TryParseBoolean`, `TryParseUnsignedInteger`, `TryParseScriptLevel`, and `TryParseColor`, `MathLength.Resolve`, and
 `StyleDeclarations.Parse`.
 
-**Consumed**: the public `MathMlLimits` (`MaxElements`, `MaxNestingDepth`, `MaxTokenLength`), `MathMlLocation`,
-`MathMlAnnotation`, `MathMlSyntaxException`, `MathMlDiagnosticCodes`, and the internal `MathMlPendingReport` of the root
-namespace; the core `Packaging` subsystem (`SafeXml.CreateReader`: document types prohibited, no resolver, a character
-cap) and `Canvas` subsystem (`CssColor`, `Rgba32`); and the .NET base class library. The subsystem uses no other
-subsystem of the system.
+**Consumed**: the public `MathMlLimits` (`MaxElements`, `MaxNestingDepth`, `MaxTokenLength`, `MaxDiagnostics`),
+`MathMlLocation`, `MathMlAnnotation`, `MathMlSyntaxException`, `MathMlDiagnosticCodes`, and the internal
+`MathMlPendingReport` of the root namespace; the core `Packaging` subsystem (`SafeXml.CreateReader`: document types
+prohibited, no resolver, a character cap) and `Canvas` subsystem (`CssColor`, `Rgba32`); and the .NET base class
+library. The subsystem uses no other subsystem of the system.
 
 **Consumers**: `MathMlDocument` reads every text with `MathMlReader.Read` and keeps the tree; the Layout subsystem reads
 the tree and parses its attribute values and inline styles with `AttributeValues` and `StyleDeclarations`; the painter
@@ -55,8 +55,11 @@ reads the locations of the elements.
 keeps the lines of the text and records the column shifts of each changed line in a `LocationMap`. It encodes the
 rewritten text as strict UTF-8 into a memory stream and reads it with the hardened reader of the core, which decodes the
 numeric references; every position the reader reports (elements, attributes, errors) is mapped back to the original text
-through the map. The reader walks the nodes iteratively with an explicit stack of open elements and builds the immutable
-`MathTree`, keeping what it finds to report as pending reports in text order. The `AttributeValues` parsers are pure
+through the map, also the positions that the messages of the reader cite. An XML declaration of any encoding other than
+UTF-8 is refused by the pre-pass, so the reader always decodes the text as the UTF-8 it was encoded as, and literal
+characters of every plane are read as written. The reader walks the nodes iteratively with an explicit stack of open
+elements and builds the immutable `MathTree`, keeping what it finds to report as pending reports in text order (at most
+`MaxDiagnostics` of them, then one suppression notice). The `AttributeValues` parsers are pure
 functions used later by the Layout subsystem; they refuse what they do not accept and leave the reporting to their
 caller. All units are stateless functions of their input (the scanner and the read state live for one call), so the
 subsystem is safe for concurrent use.

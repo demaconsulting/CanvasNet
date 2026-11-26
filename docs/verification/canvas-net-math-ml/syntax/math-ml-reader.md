@@ -64,17 +64,38 @@ nothing about them is reported.
 
 **Tests**: `MathMlReaderTests.MathMlReader_Read_Attributes_KeepLocationsAndReportLinks`,
 `MathMlReaderTests.MathMlReader_Read_WrongRoot_FailsLocated`,
-`MathMlReaderTests.MathMlReader_Read_EmptyOrBlankText_FailsAtLineOneColumnOne`
+`MathMlReaderTests.MathMlReader_Read_EmptyOrBlankText_FailsAtLineOneColumnOne`,
+`MathMlReaderTests.MathMlReader_Read_XmlErrorAfterReplacement_IsLocatedInOriginalText`
 
 Asserts that `href` and `xlink:href` are reported and not kept, that the other attributes of other namespaces are
 ignored, that the kept attributes have their own locations, and that a refusal is located in the original text; an
 empty text and a text of only white space are each a `mathml-syntax-error` located at line 1, column 1, with a hint.
+A mismatched end tag after `&Bopf;` (which grew by three characters) is located at line 1, column 29 of the original
+text, and the start tag that the message of the XML reader cites is given as line 1, column 23 (its column in the
+original text), with no position of the rewritten text left in the message.
 
-##### CanvasNetMathMl-Syntax-MathMlReader-Limits: Elements, Depth, And Token Length
+##### CanvasNetMathMl-Syntax-MathMlReader-Characters: Literal Characters
+
+**Tests**: `MathMlReaderTests.MathMlReader_Read_LiteralNonAsciiCharacters_AreReadAsWritten`
+
+For Greek letters, the minus sign U+2212, CJK ideographs, mathematical italic letters outside the basic plane, and a mix
+of them, asserts that a short equation (the token, a literal minus sign, and a number) and a text of the token repeated
+2,000 times (longer than the first buffer of the XML reader, with the token also in an attribute value) are read with
+every text and attribute value exactly as written.
+
+##### CanvasNetMathMl-Syntax-MathMlReader-Limits: Elements, Depth, Token Length, And Reports
 
 **Tests**: `MathMlReaderTests.MathMlReader_Read_ElementLimit_Throws`,
 `MathMlReaderTests.MathMlReader_Read_DepthLimit_Throws`,
-`MathMlReaderTests.MathMlReader_Read_TokenLengthLimit_Throws`
+`MathMlReaderTests.MathMlReader_Read_TokenLengthLimit_Throws`,
+`MathMlReaderTests.MathMlReader_Read_SkippedElements_CountAgainstElementLimit`,
+`MathMlReaderTests.MathMlReader_Read_ManyReports_AreBoundedBySuppressionNotice`
 
 Asserts that the first element, level, or raw token text beyond a small limit throws `mathml-limit-exceeded` naming
-the limit (the element limit located at the element that exceeds it).
+the limit, located at the element that exceeds the element limit (line 1, column 18), at the first element too deep
+(line 1, column 20), and at the start of the token text that is too long (line 1, column 11); that skipped elements of
+another namespace and inside a token are charged to the element limit (a text of two MathML elements and three skipped
+elements passes a limit of 5 and fails a limit of 4 at the skipped element inside the token, line 1, column 41) while
+the element count stays the MathML elements read; and that twenty reports of skipped elements and links under a report
+limit of 3 are kept as the first three in text order followed by one `mathml-diagnostics-suppressed` warning naming
+`MathMlLimits.MaxDiagnostics`.

@@ -110,6 +110,84 @@ public class MathMlDocumentTests
     }
 
     /// <summary>
+    ///     Validates the description of a document that sets them all: a block display, the number of MathML elements
+    ///     (the content of annotations excluded), the text alternative, and the annotations with their encodings.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Parse_Description_ReadsDisplayCountAltTextAndAnnotations()
+    {
+        // Arrange
+        const string text = "<math display=\"block\" alttext=\"x squared\"><semantics><msup><mi>x</mi><mn>2</mn></msup>" +
+            "<annotation encoding=\"application/x-tex\">x^2</annotation></semantics></math>";
+
+        // Act
+        var document = MathMlDocument.Parse(text, new MathMlOpenOptions { SourceName = "d.mml" });
+
+        // Assert
+        Assert.Equal((MathMlDisplay.Block, 6, "x squared", "d.mml"), (document.Display, document.ElementCount, document.AltText, document.SourceName));
+        Assert.Equal([new MathMlAnnotation("application/x-tex", "x^2")], document.Annotations);
+    }
+
+    /// <summary>
+    ///     Validates the picture frame: the content box united with the ink of a glyph that overhangs it, rounded out to
+    ///     whole pixels at a fractional scale, with the baseline on the row of the origin of the math box, equal for
+    ///     <c>Measure</c> and <c>Render</c>.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow()
+    {
+        // Arrange: an italic f overhangs its advance; scale 1.5 makes the edges fall between pixels
+        var document = MathMlDocument.Parse("<math><mi>f</mi></math>");
+        var options = new MathMlRenderOptions { Scale = 1.5 };
+        var box = document.LayoutBox(options, TestContext.Current.CancellationToken);
+        var content = box.ContentRect;
+        var extent = MathMlDocument.PictureExtent(box);
+        var expectedWidth = (int)(Math.Ceiling(extent.Right * 1.5) - Math.Floor(extent.X * 1.5));
+        var expectedHeight = (int)(Math.Ceiling(extent.Bottom * 1.5) - Math.Floor(extent.Y * 1.5));
+        var expectedBaseline = (int)-Math.Floor(extent.Y * 1.5);
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert: the ink reaches outside the content box, and the picture holds both
+        Assert.True(extent.X < content.X || extent.Right > content.Right || extent.Y < content.Y || extent.Bottom > content.Bottom);
+        Assert.Equal(new MathMlSize(expectedWidth, expectedHeight, expectedBaseline), size);
+        Assert.Equal((size.Width, size.Height), (surface.Width, surface.Height));
+        Assert.Contains(Enumerable.Range(0, surface.Width), x => surface[x, size.Baseline - 1].A > 0);
+    }
+
+    /// <summary>
+    ///     Validates the fail-closed rule: a defect of the layout or the painting (here an index error thrown while the
+    ///     result is produced) becomes a located <c>mathml-render-failed</c> render exception with the original exception
+    ///     inside, the reports found before it are still delivered, and cancellation and a disposed object pass unchanged.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Run_LayoutDefect_BecomesLocatedRenderFailure()
+    {
+        // Arrange: a link is a report of reading, which is delivered even though the call fails
+        var document = MathMlDocument.Parse("\n<math><mi href=\"#\">x</mi></math>", new MathMlOpenOptions { SourceName = "defect.mml" });
+        var delivered = new List<string>();
+        var options = new MathMlRenderOptions { UnsupportedFeatureHandler = report => delivered.Add(report.Feature) };
+        var defect = new IndexOutOfRangeException("defect");
+        var token = TestContext.Current.CancellationToken;
+
+        // Act
+        var ex = Assert.Throws<MathMlRenderException>(() => document.Run<int>(options, token, _ => throw defect));
+        var canceled = Assert.Throws<OperationCanceledException>(() => document.Run<int>(options, token, _ => throw new OperationCanceledException("stop")));
+        var disposed = Assert.Throws<ObjectDisposedException>(() => document.Run<int>(options, token, _ => throw new ObjectDisposedException("surface")));
+
+        // Assert
+        Assert.Equal((MathMlDiagnosticCodes.RenderFailed, new MathMlLocation("defect.mml", 2, 2)), (ex.Code, ex.Location));
+        Assert.Same(defect, ex.InnerException);
+        Assert.Contains("IndexOutOfRangeException", ex.Message, StringComparison.Ordinal);
+        Assert.NotNull(ex.Hint);
+        Assert.Equal("stop", canceled.Message);
+        Assert.Equal("surface", disposed.ObjectName);
+        Assert.Equal([MathMlDiagnosticCodes.AttributeUnsupported, MathMlDiagnosticCodes.AttributeUnsupported, MathMlDiagnosticCodes.AttributeUnsupported], delivered);
+    }
+
+    /// <summary>
     ///     Validates that an empty equation measures one pixel and renders transparent.
     /// </summary>
     [Fact]
@@ -197,10 +275,15 @@ public class MathMlDocumentTests
     {
         // Arrange
         var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<menclose><mi>a</mi><mi>b</mi></menclose>"));
+        var calls = 0;
         var throwing = new MathMlRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
         var failing = new MathMlRenderOptions
         {
-            UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler"),
+            UnsupportedFeatureHandler = _ =>
+            {
+                calls++;
+                throw new InvalidOperationException("handler");
+            },
             Limits = new MathMlLimits { MaxPaintedGlyphs = 1 },
         };
 
@@ -208,14 +291,15 @@ public class MathMlDocumentTests
         var handlerError = Assert.Throws<InvalidOperationException>(() => document.Render(throwing, TestContext.Current.CancellationToken));
         var renderError = Assert.Throws<MathMlRenderException>(() => document.Render(failing, TestContext.Current.CancellationToken));
 
-        // Assert
+        // Assert: the failed call delivered its report (the handler ran) and the render failure is the one thrown
         Assert.Equal("handler", handlerError.Message);
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, renderError.Code);
+        Assert.Equal(1, calls);
     }
 
     /// <summary>
     ///     Validates the classification of the exceptions that escape the layout: runtime defects and malformed font data
-    ///     become render failures; the documented failures and cancellation pass unchanged.
+    ///     become render failures; the documented failures, cancellation, and a disposed object pass unchanged.
     /// </summary>
     [Fact]
     public void MathMlDocument_IsLayoutDefect_ClassifiesExceptions()
@@ -227,6 +311,7 @@ public class MathMlDocumentTests
         Assert.False(MathMlDocument.IsLayoutDefect(new MathMlRenderException()));
         Assert.False(MathMlDocument.IsLayoutDefect(new MathMlUnsupportedFeatureException()));
         Assert.False(MathMlDocument.IsLayoutDefect(new OperationCanceledException()));
+        Assert.False(MathMlDocument.IsLayoutDefect(new ObjectDisposedException("surface")));
     }
 
     /// <summary>

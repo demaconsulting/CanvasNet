@@ -23,25 +23,28 @@ sections:
       - id: CanvasNetMathMl-Open
         title: >-
           The library shall parse a MathML equation supplied as a string, a readable stream, or a file path into a
-          MathMlDocument that is identical whichever entry point is used, shall ignore a leading byte-order mark, shall
-          refuse bytes that are not valid UTF-8, and shall reject null arguments and unreadable sources with the
-          documented exception contract.
+          MathMlDocument that is identical whichever entry point is used, shall read the literal characters of every
+          Unicode plane as written, shall ignore a leading byte-order mark, shall refuse bytes that are not valid UTF-8,
+          and shall reject null arguments and unreadable sources with the documented exception contract.
         tags: [system]
         justification: |
           Callers hold equations in different forms (a string in a document, an embedded resource, a .mml file); every
-          entry point must yield the same validated result, and invalid arguments must fail closed with a predictable
-          exception rather than being coerced.
+          entry point must yield the same validated result, an equation written with literal Greek letters or
+          operators must read as written, and invalid arguments must fail closed with a predictable exception rather
+          than being coerced.
         children:
           - CanvasNetMathMl-MathMlDocument-ParseOpen
+          - CanvasNetMathMl-Syntax-Reading
         tests:
           - CanvasNetMathMl_Open_StringStreamAndPath_Agree
+          - CanvasNetMathMl_Open_LiteralUnicodeCharacters_AreReadAndRendered
 
       - id: CanvasNetMathMl-LocatedErrors
         title: >-
           The library shall refuse text that is not well-formed XML, declares a document type, has a root other than
-          math, uses an unknown named character reference, or declares an encoding other than UTF-8 with a syntax
-          exception that carries a stable mathml-* code, the source name, line, and column of the problem in the
-          original text, and a hint.
+          math, uses an unknown named character reference, or declares an encoding other than UTF-8 (US-ASCII
+          included) with a syntax exception that carries a stable mathml-* code, the source name, line, and column of
+          the problem in the original text, and a hint.
         tags: [system]
         justification: |
           Equations are written by hand and by tools and checked in builds; an author or an agent can only fix an
@@ -366,8 +369,9 @@ sections:
           The library shall bound the resources that reading and rendering an untrusted equation can consume, refusing
           a text longer than the size limit with an InvalidDataException and a structural, layout, stretching, table
           (grid slots checked before the grid is allocated), or painting limit with a located exception whose code is
-          mathml-limit-exceeded, shall refuse deeply nested text without exhausting the stack, and shall throw only
-          these documented exceptions for any mutated text.
+          mathml-limit-exceeded, shall refuse deeply nested text without exhausting the stack, shall keep and deliver a
+          bounded number of reports however many unsupported constructs a text holds, and shall throw only these
+          documented exceptions for any mutated text.
         tags: [system, security]
         justification: |
           Equations come from untrusted documents; a hostile one must fail with a clear error instead of exhausting
@@ -390,6 +394,7 @@ sections:
           - CanvasNetMathMl_Hardening_DeepFractions_AreBounded
           - CanvasNetMathMl_Hardening_HugeLengths_AreRefused
           - CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render
+          - CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded
 
       - id: CanvasNetMathMl-Cancellation
         title: >-

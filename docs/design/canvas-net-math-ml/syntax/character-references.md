@@ -43,7 +43,9 @@ specified by the `CanvasNetMathMl-Syntax-CharacterReferences-*` requirements in
   `&AMP;`, and `&nvlt;` contain markup characters), and refused for an unknown name; other `&` text is left for the XML
   reader. Every replacement adds a breakpoint to its line.
 - `CheckXmlDeclaration` - reads the `encoding` pseudo-attribute of `<?xml ...?>` and refuses every value other than
-  UTF-8 and US-ASCII (ASCII case-insensitive), because the text was already decoded as UTF-8.
+  UTF-8 (ASCII case-insensitive), US-ASCII included: the text was already decoded as UTF-8 and is given to the XML
+  reader as UTF-8, and a declared ASCII would make the reader decode every other character as `?` (a text that is
+  plain ASCII is valid UTF-8, so it can declare UTF-8 or omit the declaration).
 - `LocationMap.MapBack(line, column)` - a line without breakpoints maps to itself; otherwise the column inside a
   replacement maps to its ampersand and a column after it is shifted back by the delta of the last breakpoint before
   it.
@@ -56,8 +58,8 @@ specified by the `CanvasNetMathMl-Syntax-CharacterReferences-*` requirements in
 An unknown name is a `MathMlSyntaxException` (`mathml-syntax-error`) at its ampersand with the hint to check the
 spelling (names are case-sensitive) or use a numeric character reference such as `&#x2062;`; a foreign encoding is one
 at the encoding name with a hint to save the text as UTF-8. A reference never spans a line break, so the lines of the
-two texts are the same and the output is at most 9/4 of the input (the shortest name, `&ac;`, becomes at most two
-references of nine characters).
+two texts are the same and the output is at most 16/5 of the input (the worst name of the table, `&nGt;`, five
+characters, becomes `&#x226B;&#x20D2;`, sixteen).
 
 #### Dependencies
 

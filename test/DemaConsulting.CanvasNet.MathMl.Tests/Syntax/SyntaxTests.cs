@@ -5,7 +5,9 @@ namespace DemaConsulting.CanvasNet.MathMl.Tests.Syntax;
 
 /// <summary>
 ///     Subsystem tests for the <c>Syntax</c> subsystem: a text with references, comments, CDATA, a foreign element and
-///     an annotation is read into the equation tree with every location in the original text.
+///     an annotation is read into the equation tree with every location in the original text; literal characters are read
+///     as written; another root, an unknown name, and the reading limits are refused with located errors; and the
+///     attribute values of the tree are parsed or refused.
 /// </summary>
 public class SyntaxTests
 {
@@ -56,9 +58,105 @@ public class SyntaxTests
         // Act
         var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, MathMlLimits.Default));
 
+        // Assert: the end tag name is at column 13 of the original (16 of the rewritten text)
+        Assert.Equal(new MathMlLocation(null, 2, 13), ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that literal characters outside ASCII (Greek, the minus sign, CJK, and a character outside the basic
+    ///     plane) are read through the full pipeline exactly as written, next to references, with the locations after
+    ///     them counted in UTF-16 code units.
+    /// </summary>
+    [Fact]
+    public void Syntax_Read_LiteralUnicodeText_IsReadAsWritten()
+    {
+        // Arrange: the astral x counts as two columns, the reference after it grows by three characters
+        const string text = "<math alttext=\"\u03B1\u2212\u4E2D\">\n<mi>\U0001D465</mi><mo>\u2212</mo><mi>&Bopf;</mi><mtext>\u4E2D\u6587</mtext></math>";
+
+        // Act
+        var result = MathMlReader.Read(text, "u.mml", MathMlLimits.Default);
+
         // Assert
-        Assert.Equal(2, ex.Location.Line);
-        Assert.InRange(ex.Location.Column, 11, 14);
+        var children = result.Root.ElementChildren.ToList();
+        Assert.Equal(["\U0001D465", "\u2212", "\U0001D539", "\u4E2D\u6587"], children.Select(child => child.TextContent));
+        Assert.Equal("\u03B1\u2212\u4E2D", result.Root.GetAttribute("alttext"));
+        Assert.Equal(new MathMlLocation("u.mml", 2, 38), children[3].Location);
+        Assert.Empty(result.Reports);
+    }
+
+    /// <summary>
+    ///     Validates the refusals of reading through the subsystem: another root and an unknown named reference fail with
+    ///     located syntax errors and hints.
+    /// </summary>
+    [Fact]
+    public void Syntax_Read_WrongRootAndUnknownName_AreRefusedLocated()
+    {
+        // Act
+        var root = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read("<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\"/>", "r.mml", MathMlLimits.Default));
+        var unknown = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read("<math>\n<mi>&alpha;&notaname;</mi></math>", "n.mml", MathMlLimits.Default));
+
+        // Assert
+        Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("r.mml", 2, 2)), (root.Code, root.Location));
+        Assert.Contains("<svg>", root.Message, StringComparison.Ordinal);
+        Assert.NotNull(root.Hint);
+        Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("n.mml", 2, 12)), (unknown.Code, unknown.Location));
+        Assert.Contains("&notaname;", unknown.Message, StringComparison.Ordinal);
+        Assert.NotNull(unknown.Hint);
+    }
+
+    /// <summary>
+    ///     Validates the reading limits through the full read, after references that change the length of the line: the
+    ///     element, nesting, and token-length limits fail with located limit errors that name the property.
+    /// </summary>
+    [Fact]
+    public void Syntax_Read_Limits_AreEnforcedAndLocatedInOriginalText()
+    {
+        // Arrange: "&Bopf;" grows by three characters before every limit is reached
+        const string text = "<math><mi>&Bopf;</mi><mrow><mrow><mi>&alpha;&beta;&gamma;</mi></mrow></mrow></math>";
+
+        // Act
+        var elements = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 3 }));
+        var depth = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxNestingDepth = 3 }));
+        var token = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxTokenLength = 2 }));
+
+        // Assert: the second mrow (column 29), the mi inside it (column 35), and the text of that mi (column 38)
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 29)), (elements.Code, elements.Location));
+        Assert.Contains("MathMlLimits.MaxElements", elements.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 35)), (depth.Code, depth.Location));
+        Assert.Contains("MathMlLimits.MaxNestingDepth", depth.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 38)), (token.Code, token.Location));
+        Assert.Contains("MathMlLimits.MaxTokenLength", token.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the invalid attribute values of a read tree are refused by the parsers (so that the layout can
+    ///     report and ignore them), while the valid unsigned integers of the same tree are read.
+    /// </summary>
+    [Fact]
+    public void Syntax_ReadAndParse_InvalidAttributeValues_AreRefused()
+    {
+        // Arrange
+        const string text = "<math><mtable><mtr><mtd rowspan=\"2\" columnspan=\"-1\">" +
+            "<mstyle scriptlevel=\"1.5\" displaystyle=\"yes\" mathcolor=\"reddish\" style=\"color: nope\"><mspace width=\"wide\"/></mstyle>" +
+            "</mtd></mtr></mtable></math>";
+
+        // Act
+        var result = MathMlReader.Read(text, null, MathMlLimits.Default);
+        var cell = result.Root.ElementChildren.Single().ElementChildren.Single().ElementChildren.Single();
+        var style = cell.ElementChildren.Single();
+        var space = style.ElementChildren.Single();
+        var declarations = StyleDeclarations.Parse(style.GetAttribute("style")!);
+
+        // Assert
+        Assert.True(AttributeValues.TryParseUnsignedInteger(cell.GetAttribute("rowspan"), out var rowspan));
+        Assert.Equal(2, rowspan);
+        Assert.False(AttributeValues.TryParseUnsignedInteger(cell.GetAttribute("columnspan"), out _));
+        Assert.False(AttributeValues.TryParseScriptLevel(style.GetAttribute("scriptlevel"), out _, out _));
+        Assert.False(AttributeValues.TryParseBoolean(style.GetAttribute("displaystyle"), out _));
+        Assert.False(AttributeValues.TryParseColor(style.GetAttribute("mathcolor"), out _));
+        Assert.False(AttributeValues.TryParseLength(space.GetAttribute("width"), out _));
+        Assert.Null(declarations.Color);
+        Assert.Single(declarations.Issues);
     }
 
     /// <summary>

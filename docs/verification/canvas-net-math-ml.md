@@ -46,8 +46,9 @@ time, and no test reads a clock.
   net11.0
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Files**: temporary files written and deleted by the tests, the fixtures and reference layouts of
-  `Fixtures/reference/` and `Fixtures/reference-firefox/`, the gallery equations, and the third-party notices copied to
-  the test output; no network, no browser
+  `Fixtures/reference/` and `Fixtures/reference-firefox/`, the gallery equations, and the third-party notices that the
+  package project packs into `licenses\`, copied to the test output under `Packed\` from its pack items; no network,
+  no browser
 - **Mocking**: None
 - **Platform subset**: `CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels` and
   `CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels` carry `[Trait("Category", "Platform")]` and are the
@@ -63,11 +64,15 @@ that differs from the expected value, or a reference box outside the tolerance, 
 
 ### CanvasNetMathMl-Open: The Entry Points Agree
 
-**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Open_StringStreamAndPath_Agree`
+**Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_Open_StringStreamAndPath_Agree`,
+`MathMlSystemIntegrationTests.CanvasNetMathMl_Open_LiteralUnicodeCharacters_AreReadAndRendered`
 
 Opens the same block equation (with a comment, a named reference, and an annotation) from a string, a stream, and a
 temporary file, and asserts that all three have the display `Block`, 7 elements, and the alternative text, that the
-file's source name is its path, and that the three measure the same.
+file's source name is its path, and that the three measure the same. Opens a short equation written with literal
+characters (Greek letters, U+2212, U+2264, and a mathematical italic x outside the basic plane, also in the alternative
+text) from a string, a stream, and a file, asserts the texts as written in all three, and renders it in strict mode
+without a report and with ink.
 
 ### CanvasNetMathMl-LocatedErrors: Invalid Text Fails Located
 
@@ -78,7 +83,8 @@ file's source name is its path, and that the three measure the same.
 
 Asserts `mathml-syntax-error` with a hint for a mismatched end tag (`bad.mml`, line 2), an unknown name after a
 rewritten one (line 2, column 12, the hint naming `&#x2062;`), a document type declaration (line 1, the hint naming the
-document type), and an XML declaration of ISO-8859-1 (line 1, column 21, the hint naming UTF-8).
+document type), and an XML declaration of ISO-8859-1 (line 1, column 21, the hint naming UTF-8) and, from a stream, of
+US-ASCII before literal Greek letters (line 1, column 21).
 
 ### CanvasNetMathMl-CharacterReferences: Named References Are Decoded
 
@@ -303,7 +309,8 @@ alternative, and that the user guide gallery together uses `mfrac`, `msqrt`, `mr
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_HorizontalStretch_IsLimited`,
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_DeepFractions_AreBounded`,
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_HugeLengths_AreRefused`,
-`MathMlHardeningTests.CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render`
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded`
 
 Asserts that a text and a stream over a size limit of 100 throw `InvalidDataException` naming
 `MathMlLimits.MaxTextSize`, that 10,000 nested rows fail with `mathml-limit-exceeded` naming
@@ -315,10 +322,13 @@ a cell spanning 1,000 columns and 200 rows fails on `MaxTableCells`, not on a wo
 neither allocated nor charged; spans that make 50,000 grid slots exceed a work budget of 20,000 that the same elements
 without spans fit in; an arrow stretched under a 400 em script fails on 20 assembly parts; fractions nested 300 deep
 fail while read on `MaxNestingDepth`, and 100 deep fail a work budget of 200 and render under the defaults; a
-`linethickness` and a `columnspacing` of 99,999,999 em fail on `Surface.MaxDimension`; and a 40 by 40 table with spans,
-lines, and a frame renders identically twice. A seeded fuzzer (`Random(20261125)`, 24 mutations of every reference
-fixture: truncations, deletions, inserted MathML elements, attributes, and references, swapped lines, and flipped
-characters, every third run in strict mode) opens, measures, and renders each text and asserts that only
+`linethickness` and a `columnspacing` of 99,999,999 em fail on `Surface.MaxDimension`; a 40 by 40 table with spans,
+lines, and a frame renders identically twice; and a text of 3,000 elements of another namespace and 3,000 links
+delivers the default 1,000 unsupported-feature reports and one `mathml-diagnostics-suppressed` warning when measured,
+and fails on `MathMlLimits.MaxElements` under a limit of 5,000 because the skipped elements are counted. A seeded
+fuzzer (`Random(20261125)`, 24 mutations of every reference fixture: truncations, deletions, inserted MathML elements,
+attributes, and references, swapped lines, and flipped characters, every third run in strict mode) opens, measures,
+and renders each text and asserts that only
 `MathMlSyntaxException` and `MathMlRenderException` with a `mathml-*` code and a location (a text without markup has no
 location), `MathMlUnsupportedFeatureException` in strict mode, and `InvalidDataException` occur, and that every
 successful render has the measured size.
@@ -370,8 +380,9 @@ policy is asked about the linked equation only (the other file is never opened),
 
 **Tests**: `MathMlSystemIntegrationTests.CanvasNetMathMl_ThirdPartyNotices_ArePresent`
 
-Asserts that the W3C and Unicode license texts and the provenance table ship next to the package, that the W3C
-notice names the W3C entity file and Appendices B.1, B.4, and C.1 of MathML Core as its sources, and that the provenance
+Asserts that the package's `licenses\` folder, as the pack items of the package project place it, holds exactly the W3C
+and Unicode license texts and the provenance table (`third-party-README.md`), that the W3C notice names the W3C entity
+file and Appendices B.1, B.4, and C.1 of MathML Core as its sources, and that the provenance
 table names both license files and states that the package is not affiliated.
 
 ### CanvasNetMathMl-Platform-Windows, Linux, MacOS, Net8, Net9, Net10, Net11: Every Platform And Runtime

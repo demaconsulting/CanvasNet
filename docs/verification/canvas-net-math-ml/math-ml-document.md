@@ -6,8 +6,9 @@ limits, the records and exceptions, the report sink, and the image source.
 
 ### Verification Approach
 
-The unit is verified through its public API and, for the internal report sink and the defect classification, through
-the test assembly's `InternalsVisibleTo` access. The Syntax and Layout subsystems, the painter, and the bundled font are
+The unit is verified through its public API and, for the internal report sink, the defect classification, the layout
+box, and the pipeline `Run` (to drive a defect through it), through the test assembly's `InternalsVisibleTo` access. The
+Syntax and Layout subsystems, the painter, and the bundled font are
 used as is; no mocking is required. The handler tests use collecting and throwing handlers; the limit tests use small
 limits instead of large inputs. The image source is verified with in-memory `ImageSourceRequest`s (content bytes, a
 fragment, a requested size, a pixel budget, and a cancellation token), as the image sources of the other formats are.
@@ -43,18 +44,26 @@ and a missing file; that a stream with a byte-order mark reads and stays open; a
 
 #### CanvasNetMathMl-MathMlDocument-Describe: The Defaults Of The Description
 
-**Tests**: `MathMlDocumentTests.MathMlDocument_Parse_DescriptionDefaults_AreInlineAndEmpty`
+**Tests**: `MathMlDocumentTests.MathMlDocument_Parse_DescriptionDefaults_AreInlineAndEmpty`,
+`MathMlDocumentTests.MathMlDocument_Parse_Description_ReadsDisplayCountAltTextAndAnnotations`
 
-Asserts an inline display, no alternative text, no annotations, and the element count of a plain equation, and that an
-invalid `display` value reads as inline.
+Asserts an inline display, no alternative text, no annotations, and no source name for a plain equation, and that an
+invalid `display` value reads as inline; and, for an equation that sets them all, the block display, the element count
+of 6 (the `annotation` element counted, not its content), the alternative text, the source name of the options, and the
+TeX annotation with its encoding.
 
 #### CanvasNetMathMl-MathMlDocument-MeasureRender: The Picture Frame
 
 **Tests**: `MathMlDocumentTests.MathMlDocument_Measure_EmptyMath_IsOnePixel`,
-`MathMlDocumentTests.MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded`
+`MathMlDocumentTests.MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded`,
+`MathMlDocumentTests.MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow`
 
 Asserts that an empty `math` measures 1 by 1 and renders transparent, and that an `mspace` wider than a surface can be
-fails with `mathml-limit-exceeded` while the fitting overload still renders it into a small size.
+fails with `mathml-limit-exceeded` while the fitting overload still renders it into a small size. For an italic f,
+whose ink reaches outside its content box, at scale 1.5 asserts that the measured size is the union of the content box
+and the ink with its edges rounded out (floor of the left and top, ceiling of the right and bottom), that the baseline
+row is the rounded-out top above the origin, that the rendered surface has the measured size, and that the row just
+above the baseline holds ink.
 
 #### CanvasNetMathMl-MathMlDocument-RenderOptions: Defaults And Validation
 
@@ -98,14 +107,17 @@ default codes and unknown location of the standard constructors, and that every 
 **Tests**: `MathMlReportSinkTests.MathMlReportSink_Deliver_KeepsOrderAcrossKinds`,
 `MathMlReportSinkTests.MathMlReportSink_Warn_Duplicate_IsRecordedOnce`,
 `MathMlReportSinkTests.MathMlReportSink_BeyondCap_AddsSingleSuppressedNotice`,
+`MathMlReportSinkTests.MathMlReportSink_BeyondCap_StopsRememberingReports`,
 `MathMlReportSinkTests.MathMlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException`,
 `MathMlReportSinkTests.MathMlPendingReport_Replay_RecordsItsKind`,
 `MathMlDocumentTests.MathMlDocument_Render_HandlerFailures_FollowTheDeliveryRules`
 
 Asserts the order across warnings and unsupported features, that an identical report is recorded once, that the
-reports beyond the cap collapse into one `mathml-diagnostics-suppressed` notice, that a failing handler is ignored after
-a failure and propagates otherwise (through the sink and through a render), and that pending reports replay as their
-kind.
+reports beyond the cap collapse into one `mathml-diagnostics-suppressed` notice, that after the notice a thousand
+further distinct reports of both kinds are neither kept nor remembered for de-duplication (the count of remembered
+reports stays at three), that a failing handler is ignored after a failure and propagates otherwise (through the sink
+and through a render, where the handler of a failed render is still called once), and that pending reports replay as
+their kind.
 
 #### CanvasNetMathMl-MathMlDocument-StrictMode: The First Unsupported Feature Throws
 
@@ -116,11 +128,17 @@ Asserts that in strict mode the first unsupported feature is recorded, even beyo
 
 #### CanvasNetMathMl-MathMlDocument-FailClosed: Defects Become Render Failures
 
-**Tests**: `MathMlDocumentTests.MathMlDocument_IsLayoutDefect_ClassifiesExceptions`
+**Tests**: `MathMlDocumentTests.MathMlDocument_IsLayoutDefect_ClassifiesExceptions`,
+`MathMlDocumentTests.MathMlDocument_Run_LayoutDefect_BecomesLocatedRenderFailure`
 
 Asserts that malformed font data and the runtime's programming-error exceptions are classified as defects (which become
 located `mathml-render-failed` errors), and that `MathMlRenderException`, `MathMlUnsupportedFeatureException`,
-`OperationCanceledException`, and `ObjectDisposedException` are not.
+`OperationCanceledException`, and `ObjectDisposedException` are not. Drives a defect through the pipeline of a call
+(an `IndexOutOfRangeException` thrown while the result is produced from the laid-out box, through the internal `Run`)
+and asserts a `MathMlRenderException` with `mathml-render-failed`, located at the `math` element in the original text
+(line 2, column 2 of the named source), with a hint, naming the exception type, and carrying the original exception as
+its inner exception; that an `OperationCanceledException` and an `ObjectDisposedException` pass unchanged; and that the
+report of reading (a link) is delivered on each of the failed calls.
 
 #### CanvasNetMathMl-MathMlDocument-ImageSource: The Image Source Of .mml Links
 

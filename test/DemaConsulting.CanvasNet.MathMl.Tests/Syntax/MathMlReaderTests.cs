@@ -111,7 +111,7 @@ public class MathMlReaderTests
     }
 
     /// <summary>
-    ///     Validates the nesting limit.
+    ///     Validates the nesting limit, located at the first element that is too deep.
     /// </summary>
     [Fact]
     public void MathMlReader_Read_DepthLimit_Throws()
@@ -120,14 +120,15 @@ public class MathMlReaderTests
         var accepted = MathMlReader.Read("<math><mrow><mi>a</mi></mrow></math>", null, new MathMlLimits { MaxNestingDepth = 3 });
         var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read("<math><mrow><mrow><mi>a</mi></mrow></mrow></math>", null, new MathMlLimits { MaxNestingDepth = 3 }));
 
-        // Assert
+        // Assert: the fourth level is the mi, whose name starts at column 20
         Assert.Equal(3, accepted.ElementCount);
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, ex.Code);
         Assert.Contains("MathMlLimits.MaxNestingDepth", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(new MathMlLocation(null, 1, 20), ex.Location);
     }
 
     /// <summary>
-    ///     Validates the token length limit, counted on the raw text.
+    ///     Validates the token length limit, counted on the raw text and located at the start of the text.
     /// </summary>
     [Fact]
     public void MathMlReader_Read_TokenLengthLimit_Throws()
@@ -138,6 +139,98 @@ public class MathMlReaderTests
         // Assert
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, ex.Code);
         Assert.Contains("MathMlLimits.MaxTokenLength", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(new MathMlLocation(null, 1, 11), ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that the skipped elements (of another namespace, or inside a token) are charged to the element
+    ///     limit, so that a text of skipped elements is bounded, and that the error is located at the element beyond it.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_SkippedElements_CountAgainstElementLimit()
+    {
+        // Arrange: the math element and three skipped elements, one more than the limit allows
+        const string text = "<math xmlns:x=\"urn:x\"><x:a/><x:a/><mi>y<x:a/></mi></math>";
+
+        // Act
+        var accepted = MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 5 });
+        var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 4 }));
+
+        // Assert: the element count stays the MathML elements read; the limit is exceeded at the skipped element in mi
+        Assert.Equal(2, accepted.ElementCount);
+        Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Contains("MathMlLimits.MaxElements", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(new MathMlLocation(null, 1, 41), ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that reading keeps at most <see cref="MathMlLimits.MaxDiagnostics"/> pending reports, followed by a
+    ///     single suppression notice, however many skipped elements and links the text holds.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_ManyReports_AreBoundedBySuppressionNotice()
+    {
+        // Arrange: ten skipped elements and ten links, twenty reports
+        var text = "<math xmlns:x=\"urn:x\">" + string.Concat(Enumerable.Repeat("<x:a/><mi href=\"#\">y</mi>", 10)) + "</math>";
+
+        // Act
+        var result = MathMlReader.Read(text, null, new MathMlLimits { MaxDiagnostics = 3 });
+
+        // Assert
+        Assert.Equal(4, result.Reports.Count);
+        Assert.Equal(
+            [MathMlDiagnosticCodes.ElementUnsupported, MathMlDiagnosticCodes.AttributeUnsupported, MathMlDiagnosticCodes.ElementUnsupported, MathMlDiagnosticCodes.DiagnosticsSuppressed],
+            result.Reports.Select(report => report.Code));
+        Assert.True(result.Reports[^1].IsWarning);
+        Assert.Contains("MathMlLimits.MaxDiagnostics", result.Reports[^1].Message, StringComparison.Ordinal);
+        Assert.Equal(11, result.ElementCount);
+    }
+
+    /// <summary>
+    ///     Validates that literal characters outside ASCII (Greek, the minus sign, CJK, and characters outside the basic
+    ///     plane) are read exactly as written, in short texts and in texts longer than the buffer of the XML reader.
+    /// </summary>
+    /// <param name="token">The text of the token.</param>
+    [Theory]
+    [InlineData("\u03B1\u03B2")]
+    [InlineData("\u2212")]
+    [InlineData("\u4E2D\u6587")]
+    [InlineData("\U0001D465\U0001D466")]
+    [InlineData("a\u00E9\u2212\U0001D465")]
+    public void MathMlReader_Read_LiteralNonAsciiCharacters_AreReadAsWritten(string token)
+    {
+        // Arrange: the token alone, and the token repeated past the first buffer of the XML reader
+        var shortText = $"<math><mi>{token}</mi><mo>\u2212</mo><mn>1</mn></math>";
+        var longToken = string.Concat(Enumerable.Repeat(token, 2_000));
+        var longText = $"<math alttext=\"{token}\"><mtext>{longToken}</mtext></math>";
+
+        // Act
+        var shortResult = MathMlReader.Read(shortText, null, MathMlLimits.Default);
+        var longResult = MathMlReader.Read(longText, null, new MathMlLimits { MaxTokenLength = longToken.Length });
+
+        // Assert
+        Assert.Equal([token, "\u2212", "1"], shortResult.Root.ElementChildren.Select(child => child.TextContent));
+        Assert.Equal(longToken, longResult.Root.ElementChildren.Single().TextContent);
+        Assert.Equal(token, longResult.Root.GetAttribute("alttext"));
+    }
+
+    /// <summary>
+    ///     Validates that an error of the XML reader after a replacement on the same line is located in the original text,
+    ///     and that the positions its message cites are those of the original text too.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_XmlErrorAfterReplacement_IsLocatedInOriginalText()
+    {
+        // Arrange: "&Bopf;" grows by three characters before the mismatched end tag; the start tag name is at column 23
+        const string text = "<math><mi>&Bopf;</mi><mi>x</mo></math>";
+
+        // Act
+        var ex = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, "m.mml", MathMlLimits.Default));
+
+        // Assert
+        Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("m.mml", 1, 29)), (ex.Code, ex.Location));
+        Assert.Contains("line 1, column 23", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("position", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

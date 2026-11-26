@@ -37,6 +37,7 @@ sections:
               The border of merror marks an error around its content without covering it.
             tests:
               - MathMlPainter_Paint_Border_PaintsFourSides
+              - MathMlPainter_Paint_RulesAndBorders_AreOverGlyphs
 
           - id: CanvasNetMathMl-MathMlPainter-Phantom
             title: >-
@@ -54,6 +55,7 @@ sections:
               A line character stretched as a rule must be painted where the layout placed it.
             tests:
               - MathMlPainter_Paint_Rule_FillsItsRectangle
+              - MathMlPainter_Paint_RulesAndBorders_AreOverGlyphs
 
           - id: CanvasNetMathMl-MathMlPainter-Cancellation
             title: >-

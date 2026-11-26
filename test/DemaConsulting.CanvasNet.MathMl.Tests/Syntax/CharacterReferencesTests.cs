@@ -114,8 +114,8 @@ public class CharacterReferencesTests
     }
 
     /// <summary>
-    ///     Validates that an XML declaration of an encoding other than UTF-8 or US-ASCII fails at its encoding with a hint,
-    ///     and that UTF-8 and US-ASCII are accepted in any letter case.
+    ///     Validates that an XML declaration of an encoding other than UTF-8 (US-ASCII included, because the text is read
+    ///     as UTF-8) fails at its encoding with a hint, and that UTF-8 is accepted in any letter case.
     /// </summary>
     [Fact]
     public void CharacterReferences_Rewrite_ForeignEncodingDeclaration_FailsAtEncoding()
@@ -125,14 +125,15 @@ public class CharacterReferencesTests
 
         // Act
         var ex = Assert.Throws<MathMlSyntaxException>(() => CharacterReferences.Rewrite(foreign, "f.mml"));
+        var ascii = Assert.Throws<MathMlSyntaxException>(() => CharacterReferences.Rewrite("<?xml version='1.0' encoding='us-ascii'?><math/>", "a.mml"));
         var utf8 = CharacterReferences.Rewrite("<?xml version=\"1.0\" encoding=\"Utf-8\"?><math/>", null);
-        var ascii = CharacterReferences.Rewrite("<?xml version='1.0' encoding='us-ascii'?><math/>", null);
 
         // Assert
         Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("f.mml", 1, 21)), (ex.Code, ex.Location));
         Assert.Contains("UTF-8", ex.Hint, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.SyntaxError, new MathMlLocation("a.mml", 1, 21)), (ascii.Code, ascii.Location));
+        Assert.Contains("us-ascii", ascii.Message, StringComparison.Ordinal);
         Assert.EndsWith("<math/>", utf8.Text, StringComparison.Ordinal);
-        Assert.EndsWith("<math/>", ascii.Text, StringComparison.Ordinal);
     }
 
     /// <summary>

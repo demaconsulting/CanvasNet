@@ -89,6 +89,38 @@ public class MathMlPainterTests
     }
 
     /// <summary>
+    ///     Validates that rules and borders are painted after the glyphs: listed before an overlapping glyph, they still
+    ///     cover its ink.
+    /// </summary>
+    [Fact]
+    public void MathMlPainter_Paint_RulesAndBorders_AreOverGlyphs()
+    {
+        // Arrange: find a pixel of full ink of an upright l on its own
+        var red = new Rgba32(255, 0, 0, 255);
+        var green = new Rgba32(0, 128, 0, 255);
+        var placement = new MathPlacement(1, 2, 35);
+        int stem;
+        using (var glyphOnly = new Surface(30, 40))
+        {
+            MathMlPainter.Paint(glyphOnly, new MathBox(20, 40, 0, null, [Glyph('l', 40, 0)]), placement, null, 10, TestContext.Current.CancellationToken);
+            stem = Enumerable.Range(0, 30).First(x => glyphOnly[x, 30] == Black);
+        }
+
+        // A rule over the lower stem and a border whose left side runs through the stem higher up, both listed first
+        var rule = new RuleItem(new MathRect(stem - 2 - 1, -6, 3, 2), red);
+        var border = new BorderItem(new MathRect(stem - 2, -15, 8, 4), 1, green);
+        var box = new MathBox(20, 40, 0, null, [rule, border, Glyph('l', 40, 0)]);
+        using var surface = new Surface(30, 40);
+
+        // Act
+        MathMlPainter.Paint(surface, box, placement, null, 10, TestContext.Current.CancellationToken);
+
+        // Assert: the rule covers the stem at rows 29 and 30, the border's left side at rows 20 to 23
+        Assert.Equal((red, red), (surface[stem, 29], surface[stem, 30]));
+        Assert.All(Enumerable.Range(20, 4), y => Assert.Equal(green, surface[stem, y]));
+    }
+
+    /// <summary>
     ///     Validates that a phantom subtree keeps nothing on the surface.
     /// </summary>
     [Fact]

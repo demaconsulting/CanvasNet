@@ -29,8 +29,11 @@ namespace DemaConsulting.CanvasNet.MathMl.Syntax;
 ///     <para>
 ///         <b>Bounds.</b> The reader is iterative (an explicit stack), so a deeply nested text fails with
 ///         <see cref="MathMlDiagnosticCodes.LimitExceeded"/> (<see cref="MathMlLimits.MaxNestingDepth"/>), never with a
-///         stack overflow; it also enforces <see cref="MathMlLimits.MaxElements"/> and
-///         <see cref="MathMlLimits.MaxTokenLength"/>. The class is stateless and safe for concurrent use.
+///         stack overflow; it also enforces <see cref="MathMlLimits.MaxElements"/> (the skipped elements are charged too)
+///         and <see cref="MathMlLimits.MaxTokenLength"/>, and keeps at most <see cref="MathMlLimits.MaxDiagnostics"/>
+///         pending reports followed by a single <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice. The
+///         messages of the XML reader cite positions of the original text only. The class is stateless and safe for
+///         concurrent use.
 ///     </para>
 /// </remarks>
 internal static partial class MathMlReader
@@ -74,8 +77,10 @@ internal static partial class MathMlReader
         var state = new ReadState(prePass.Map, limits);
         try
         {
-            // The cap of the reader is the rewritten length (at most 9/4 of the original); the original was checked
-            using var reader = SafeXml.CreateReader(stream, Math.Max(1, prePass.Text.Length + 1));
+            // The cap of the reader is the UTF-8 length of the rewritten text plus one. The reader counts the bytes of a
+            // short text before its decoder is settled, and a text never has more characters than UTF-8 bytes, so the cap
+            // is never below what the reader counts; the rewritten text is at most 16/5 of the original, which was checked
+            using var reader = SafeXml.CreateReader(stream, (int)Math.Min(int.MaxValue, bytes.LongLength + 1));
             state.Run(reader);
         }
         catch (XmlException ex)
@@ -91,7 +96,7 @@ internal static partial class MathMlReader
             var hint = prePass.DoctypeLocation is not null
                 ? "remove the document type declaration: document types are not allowed, and the named character references of the W3C HTML+MathML set are built in"
                 : "check that every element is closed and that a literal '&' or '<' in text is written as &amp; or &lt;";
-            throw new MathMlSyntaxException(ex, MathMlDiagnosticCodes.SyntaxError, $"the text is not well-formed XML: {StripPosition(ex.Message)}", location, hint);
+            throw new MathMlSyntaxException(ex, MathMlDiagnosticCodes.SyntaxError, $"the text is not well-formed XML: {DescribeXmlError(ex.Message, prePass.Map)}", location, hint);
         }
 
         return new MathReadResult(state.Root!, state.ElementCount, [.. state.Reports], [.. state.Annotations]);
@@ -127,12 +132,28 @@ internal static partial class MathMlReader
     }
 
     /// <summary>
-    ///     Removes the position suffix (" Line 3, position 7.") that the XML reader appends to its messages, because the
-    ///     location of the exception is the one in the original text.
+    ///     Rewrites a message of the XML reader for the original text: the position suffix (" Line 3, position 7.") is
+    ///     removed, because the location of the exception is the one in the original text, and every position the body
+    ///     cites ("the 'mi' start tag on line 1 position 26") is mapped back to the original text.
     /// </summary>
     /// <param name="message">The message of the XML reader.</param>
-    /// <returns>The message without the suffix.</returns>
-    private static string StripPosition(string message) => PositionSuffix().Replace(message, string.Empty).TrimEnd();
+    /// <param name="map">The map of the rewritten positions.</param>
+    /// <returns>The message with original positions only.</returns>
+    private static string DescribeXmlError(string message, LocationMap map)
+    {
+        var body = PositionSuffix().Replace(message, string.Empty).TrimEnd();
+        return EmbeddedPosition().Replace(body, match =>
+        {
+            if (!int.TryParse(match.Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var line) ||
+                !int.TryParse(match.Groups[2].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var column))
+            {
+                return match.Value;
+            }
+
+            var original = map.MapBack(line, column);
+            return string.Create(CultureInfo.InvariantCulture, $"line {original.Line}, column {original.Column}");
+        });
+    }
 
     /// <summary>
     ///     Finds the first unpaired surrogate of a text.
@@ -167,6 +188,13 @@ internal static partial class MathMlReader
     /// <returns>The pattern.</returns>
     [GeneratedRegex(@"\s*Line \d+, position \d+\.\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex PositionSuffix();
+
+    /// <summary>
+    ///     The pattern of a position cited in the body of a message of the XML reader ("line 1 position 26").
+    /// </summary>
+    /// <returns>The pattern.</returns>
+    [GeneratedRegex(@"\bline (\d{1,10}),? position (\d{1,10})", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex EmbeddedPosition();
 
     /// <summary>
     ///     An element being read: its name, attributes and children so far.
@@ -206,6 +234,12 @@ internal static partial class MathMlReader
         /// <summary>The line information of the reader.</summary>
         private IXmlLineInfo? _lineInfo;
 
+        /// <summary>The number of skipped elements (of other namespaces, or inside a token), charged to the element limit.</summary>
+        private int _skippedElements;
+
+        /// <summary>Whether the reports beyond the limit have been replaced by the suppression notice.</summary>
+        private bool _reportsSuppressed;
+
         /// <summary>
         ///     Initializes the state.
         /// </summary>
@@ -223,7 +257,7 @@ internal static partial class MathMlReader
         /// <summary>Gets the number of elements read.</summary>
         public int ElementCount { get; private set; }
 
-        /// <summary>Gets the pending reports in text order.</summary>
+        /// <summary>Gets the pending reports in text order: at most <see cref="MathMlLimits.MaxDiagnostics"/>, then a single suppression notice.</summary>
         public List<MathMlPendingReport> Reports { get; } = [];
 
         /// <summary>Gets the annotations in text order.</summary>
@@ -282,21 +316,21 @@ internal static partial class MathMlReader
             }
             else if (!isMathMl || _stack[^1].IsToken)
             {
-                // Foreign content and markup inside a token are skipped with their subtree
+                // Foreign content and markup inside a token are skipped with their subtree; each skipped element is
+                // charged to the element limit, so that a text of skipped elements is bounded like any other
+                _skippedElements++;
+                CheckElementLimit(location);
                 var reason = isMathMl
                     ? $"the element <{name}> inside the token <{_stack[^1].Name}> is not drawn; a token holds text only"
                     : $"the element <{reader.Name}> of the namespace '{reader.NamespaceURI}' is not MathML and is not drawn";
-                Reports.Add(MathMlPendingReport.Unsupported(MathMlDiagnosticCodes.ElementUnsupported, reason, location, "remove the element or replace it with MathML"));
+                Report(MathMlPendingReport.Unsupported(MathMlDiagnosticCodes.ElementUnsupported, reason, location, "remove the element or replace it with MathML"));
                 reader.Skip();
                 return true;
             }
 
             // The structural limits, before anything is kept
             ElementCount++;
-            if (ElementCount > _limits.MaxElements)
-            {
-                throw Limit($"the equation has more than {_limits.MaxElements} elements (MathMlLimits.MaxElements)", location);
-            }
+            CheckElementLimit(location);
 
             if (_stack.Count + 1 > _limits.MaxNestingDepth)
             {
@@ -389,7 +423,7 @@ internal static partial class MathMlReader
             }
 
             frame.Children.Add(new MathText(collapsed, frame.TextLocation));
-            Reports.Add(MathMlPendingReport.Unsupported(
+            Report(MathMlPendingReport.Unsupported(
                 MathMlDiagnosticCodes.ElementUnsupported,
                 $"text directly inside <{frame.Name}> is not MathML; it is drawn like an <mtext>",
                 frame.TextLocation,
@@ -496,7 +530,7 @@ internal static partial class MathMlReader
                 if (isLink)
                 {
                     // Links are never followed, so they are reported (the rendering is offline)
-                    Reports.Add(MathMlPendingReport.Unsupported(
+                    Report(MathMlPendingReport.Unsupported(
                         MathMlDiagnosticCodes.AttributeUnsupported,
                         $"the link attribute '{reader.Name}' is not followed (rendering never uses the network or other files)",
                         location,
@@ -522,6 +556,43 @@ internal static partial class MathMlReader
         private MathMlLocation Here() => _lineInfo is { } info && info.HasLineInfo() ? _map.MapBack(info.LineNumber, info.LinePosition) : new MathMlLocation(_map.SourceName, 0, 0);
 
         /// <summary>
+        ///     Refuses an element beyond the element limit: the MathML elements read and the skipped elements together.
+        /// </summary>
+        /// <param name="location">The location of the element.</param>
+        /// <exception cref="MathMlSyntaxException">Thrown when the limit is exceeded.</exception>
+        private void CheckElementLimit(MathMlLocation location)
+        {
+            if ((long)ElementCount + _skippedElements > _limits.MaxElements)
+            {
+                throw Limit($"the equation has more than {_limits.MaxElements} elements (MathMlLimits.MaxElements)", location);
+            }
+        }
+
+        /// <summary>
+        ///     Keeps a pending report, bounded by <see cref="MathMlLimits.MaxDiagnostics"/>: the first report beyond the
+        ///     limit is replaced by a single suppression notice and the rest are dropped, so that the reports a document
+        ///     keeps (and replays on every call) cannot grow without bound.
+        /// </summary>
+        /// <param name="report">The report.</param>
+        private void Report(MathMlPendingReport report)
+        {
+            if (Reports.Count < _limits.MaxDiagnostics)
+            {
+                Reports.Add(report);
+                return;
+            }
+
+            if (!_reportsSuppressed)
+            {
+                _reportsSuppressed = true;
+                Reports.Add(MathMlPendingReport.Warning(
+                    MathMlDiagnosticCodes.DiagnosticsSuppressed,
+                    string.Create(CultureInfo.InvariantCulture, $"further reports of reading were suppressed after the limit of {_limits.MaxDiagnostics} (MathMlLimits.MaxDiagnostics of the open options)."),
+                    default));
+            }
+        }
+
+        /// <summary>
         ///     Creates the exception of an exceeded limit.
         /// </summary>
         /// <param name="description">The description that names the property.</param>
@@ -537,6 +608,6 @@ internal static partial class MathMlReader
 /// </summary>
 /// <param name="Root">The <c>math</c> element.</param>
 /// <param name="ElementCount">The number of MathML elements read (the root included; skipped foreign elements and the content of annotations excluded).</param>
-/// <param name="Reports">The pending reports, in text order.</param>
+/// <param name="Reports">The pending reports, in text order (at most <see cref="MathMlLimits.MaxDiagnostics"/>, then a single suppression notice).</param>
 /// <param name="Annotations">The annotations, in text order.</param>
 internal sealed record MathReadResult(MathElement Root, int ElementCount, IReadOnlyList<MathMlPendingReport> Reports, IReadOnlyList<MathMlAnnotation> Annotations);

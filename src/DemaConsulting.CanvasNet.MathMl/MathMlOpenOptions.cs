@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///         <see cref="SourceName"/> appears in every <see cref="MathMlLocation"/> of the document, and <see cref="Limits"/>
 ///         bound what is checked while the text is read (<see cref="MathMlLimits.MaxTextSize"/>,
 ///         <see cref="MathMlLimits.MaxElements"/>, <see cref="MathMlLimits.MaxNestingDepth"/> and
-///         <see cref="MathMlLimits.MaxTokenLength"/>). Opening never uses the network and never reads a file other than
+///         <see cref="MathMlLimits.MaxTokenLength"/>, and the number of reports reading keeps,
+///         <see cref="MathMlLimits.MaxDiagnostics"/>). Opening never uses the network and never reads a file other than
 ///         the one opened: MathML Core has no external references, and links are reported, not followed.
 ///     </para>
 ///     <para>

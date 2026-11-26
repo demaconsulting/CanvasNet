@@ -289,14 +289,15 @@ public sealed partial class MathMlDocument
     ///     Reports are delivered exactly once on the calling thread. After a failure the reports recorded before it are still
     ///     delivered, but a failing handler cannot hide the failure; after success a failing handler propagates and must not
     ///     leak the result. A defect of the layout or the painting becomes a located <see cref="MathMlRenderException"/>
-    ///     (<see cref="MathMlDiagnosticCodes.RenderFailed"/>) with the original exception inside.
+    ///     (<see cref="MathMlDiagnosticCodes.RenderFailed"/>) with the original exception inside. Internal rather than
+    ///     private so that a test can drive a defect through it.
     /// </remarks>
     /// <typeparam name="T">The kind of result.</typeparam>
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <param name="finish">Produces the result from the box of the <c>math</c> element.</param>
     /// <returns>The result.</returns>
-    private T Run<T>(MathMlRenderOptions options, CancellationToken cancellationToken, Func<MathBox, T> finish)
+    internal T Run<T>(MathMlRenderOptions options, CancellationToken cancellationToken, Func<MathBox, T> finish)
     {
         var sink = new MathMlReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
         T result;

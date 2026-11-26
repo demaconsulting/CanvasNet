@@ -37,6 +37,7 @@ sections:
               A host reads the description of an equation before it renders it.
             tests:
               - MathMlDocument_Parse_DescriptionDefaults_AreInlineAndEmpty
+              - MathMlDocument_Parse_Description_ReadsDisplayCountAltTextAndAnnotations
 
           - id: CanvasNetMathMl-MathMlDocument-MeasureRender
             title: >-
@@ -51,6 +52,7 @@ sections:
             tests:
               - MathMlDocument_Measure_EmptyMath_IsOnePixel
               - MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded
+              - MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow
 
           - id: CanvasNetMathMl-MathMlDocument-RenderOptions
             title: >-
@@ -101,8 +103,9 @@ sections:
             title: >-
               The MathMlDocument unit shall deliver the warnings and unsupported features of a call once, in the order
               they were found (the reports of reading first), on the calling thread, with identical reports recorded
-              once and the reports beyond the limit replaced by a single suppression notice, and shall propagate the
-              exception of a failing handler after a successful call but ignore it after a failed call.
+              once and the reports beyond the limit replaced by a single suppression notice (after which no further
+              report is kept or remembered), and shall propagate the exception of a failing handler after a successful
+              call but ignore it after a failed call.
             justification: |
               A deterministic, bounded report stream lets a host show every problem once without a hostile equation
               growing the buffer, and a failing handler must never hide the real failure.
@@ -110,6 +113,7 @@ sections:
               - MathMlReportSink_Deliver_KeepsOrderAcrossKinds
               - MathMlReportSink_Warn_Duplicate_IsRecordedOnce
               - MathMlReportSink_BeyondCap_AddsSingleSuppressedNotice
+              - MathMlReportSink_BeyondCap_StopsRememberingReports
               - MathMlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException
               - MathMlPendingReport_Replay_RecordsItsKind
               - MathMlDocument_Render_HandlerFailures_FollowTheDeliveryRules
@@ -132,6 +136,7 @@ sections:
               A defect must surface as a documented, located failure instead of an undocumented exception type.
             tests:
               - MathMlDocument_IsLayoutDefect_ClassifiesExceptions
+              - MathMlDocument_Run_LayoutDefect_BecomesLocatedRenderFailure
 
           - id: CanvasNetMathMl-MathMlDocument-ImageSource
             title: >-

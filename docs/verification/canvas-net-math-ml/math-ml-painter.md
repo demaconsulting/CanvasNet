@@ -40,9 +40,11 @@ the surface.
 
 #### CanvasNetMathMl-MathMlPainter-Borders: Four Sides
 
-**Tests**: `MathMlPainterTests.MathMlPainter_Paint_Border_PaintsFourSides`
+**Tests**: `MathMlPainterTests.MathMlPainter_Paint_Border_PaintsFourSides`,
+`MathMlPainterTests.MathMlPainter_Paint_RulesAndBorders_AreOverGlyphs`
 
-Asserts the border color on each of the four sides and an untouched inside.
+Asserts the border color on each of the four sides and an untouched inside, and that a border listed before an
+overlapping glyph is painted after it: its left side keeps the border color over a pixel of full ink of the glyph.
 
 #### CanvasNetMathMl-MathMlPainter-Phantom: A Phantom Paints Nothing
 
@@ -65,6 +67,9 @@ Asserts that more glyphs than the limit throw `mathml-limit-exceeded` located at
 
 #### CanvasNetMathMl-MathMlPainter-Rules: A Rule Fills Its Rectangle
 
-**Tests**: `MathMlPainterTests.MathMlPainter_Paint_Rule_FillsItsRectangle`
+**Tests**: `MathMlPainterTests.MathMlPainter_Paint_Rule_FillsItsRectangle`,
+`MathMlPainterTests.MathMlPainter_Paint_RulesAndBorders_AreOverGlyphs`
 
-Asserts that a rule 20 px long and 2 px thick is painted solid over its two pixel rows and nowhere beside or below it.
+Asserts that a rule 20 px long and 2 px thick is painted solid over its two pixel rows and nowhere beside or below it,
+and that a rule listed before an overlapping glyph is painted after it: it keeps its color over pixels of full ink of
+the glyph.

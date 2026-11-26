@@ -66,9 +66,11 @@ sections:
               - id: CanvasNetMathMl-Syntax-CharacterReferences-Encoding
                 title: >-
                   The CharacterReferences unit shall refuse an XML declaration that names an encoding other than UTF-8
-                  or US-ASCII (in any letter case) with a located syntax error at the encoding and a hint.
+                  (in any letter case), US-ASCII included, with a located syntax error at the encoding and a hint.
                 justification: |
-                  The text has already been decoded as UTF-8, so a different declared encoding would be misread.
+                  The text has already been decoded as UTF-8 and is read as UTF-8, so a different declared encoding
+                  would be misread (a declared US-ASCII would turn every other character into a question mark); a text
+                  that is plain ASCII is valid UTF-8 and can declare UTF-8 or omit the declaration.
                 tests:
                   - CharacterReferences_Rewrite_ForeignEncodingDeclaration_FailsAtEncoding
 

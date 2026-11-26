@@ -23,18 +23,19 @@ requirements in
 
 - `MathMlDocument` (sealed, immutable) - `SourceName`, `Display` (the `display` attribute of `math`; inline when absent
   or invalid), `ElementCount` (the MathML elements with `math`, without annotation content and skipped foreign
-  elements), `AltText`, `Annotations`; internally the `Root` (`MathElement`) and the pending `Reports` of reading.
+  elements), `AltText`, `Annotations`; internally the `Root` (`MathElement`) and the pending `Reports` of reading
+  (at most `MaxDiagnostics` of the open limits, then one suppression notice).
 - `MathMlDisplay` - `Inline` and `Block`. `MathMlAnnotation(Encoding, Text)` - an annotation and its encoding.
 - `MathMlOpenOptions` - `SourceName` (null or non-whitespace) and `Limits` (null means `MathMlLimits.Default`).
 - `MathMlRenderOptions` - `FontSize` (16 CSS pixels; finite, greater than zero, at most 4,096), `Scale` (1; finite,
   greater than zero, at most `Surface.MaxDimension`), `Display` (null keeps the document's), `Color` (opaque black),
   `Background` (null is transparent), `Limits` (not null), `WarningHandler`, `UnsupportedFeatureHandler`, and
   `ThrowOnUnsupportedFeature`.
-- `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000), `MaxNestingDepth` (256; 1 to 1,024, which bounds
-  the recursion of the layout), `MaxTokenLength` (10,000), `MaxLayoutWork` (10,000,000), `MaxPaintedGlyphs`
-  (1,000,000), `MaxDiagnostics` (1,000), `MaxAssemblyParts` (1,000, the glyphs of one stretched operator), and
-  `MaxTableCells` (100,000, the grid slots of one table, rows times columns after the spans); every value is at least
-  one, validated when set.
+- `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000, the skipped elements counted), `MaxNestingDepth`
+  (256; 1 to 1,024, which bounds the recursion of the layout), `MaxTokenLength` (10,000), `MaxLayoutWork`
+  (10,000,000), `MaxPaintedGlyphs` (1,000,000), `MaxDiagnostics` (1,000, which the open limits also apply to the
+  reports of reading), `MaxAssemblyParts` (1,000, the glyphs of one stretched operator), and `MaxTableCells` (100,000,
+  the grid slots of one table, rows times columns after the spans); every value is at least one, validated when set.
 - `MathMlLocation(SourceName, Line, Column)` - one-based, `IsKnown` when the line is not zero, printed as
   `name:line:column`. `MathMlDiagnostic(Code, Message, Location) { Hint }` and
   `MathMlUnsupportedFeature(Feature, Message, Location) { Hint }` - the reports, printed with a known location as a
@@ -50,8 +51,8 @@ requirements in
   `MathMlUnsupportedFeatureException` (an `IOException`) - each with a code (`Feature` for the last), a `Location`, and
   a `Hint`; the standard constructors use the default code and an unknown location.
 - `MathMlReportSink` (internal, one per call) - the ordered reports, the sets that de-duplicate them, the cap, the
-  strict flag, and whether the suppression notice was recorded. `MathMlPendingReport(IsWarning, Code, Message,
-  Location, Hint)` - a report of reading, replayed into every call.
+  strict flag, whether the suppression notice was recorded, and the count of remembered reports (`TrackedCount`).
+  `MathMlPendingReport(IsWarning, Code, Message, Location, Hint)` - a report of reading, replayed into every call.
 - `MathMlImageSource` (sealed, stateless, thread-safe) - `Name` `mathml`, `Extensions` `[".mml"]` (decision D4: the
   `.mml` extension only), no `Schemes`, `FragmentParameters` `["display"]`, and the constants `DisplayParameter`
   (`display`) and `WarningCode` (`mathml-warning`).
@@ -83,12 +84,14 @@ requirements in
   and handlers that turn a warning into an `ImageSourceDiagnostic` with the code `mathml-warning` and the specific code
   in `Detail`, and an unsupported feature into one with its feature code, each on one line and with its location. MathML
   Core has no external references, so the request's resolver and file access are never used.
-- `Run` (the pipeline) - creates a `MathMlReportSink`, replays the pending reports of reading, creates a
-  `LayoutEngine` over `MathFont.Default`, resolves the style of `math` from the options, lays the tree out, and finishes
-  (measure or paint). The reports are delivered after the work; see *Error Handling*.
+- `Run` (the pipeline; internal so that a test can drive a defect through it) - creates a `MathMlReportSink`, replays
+  the pending reports of reading, creates a `LayoutEngine` over `MathFont.Default`, resolves the style of `math` from
+  the options, lays the tree out, and finishes (measure or paint). The reports are delivered after the work; see
+  *Error Handling*.
 - `MathMlReportSink.Warn` and `Unsupported` - record a report unless an identical one was recorded; beyond
-  `MaxDiagnostics` the first further report becomes one `mathml-diagnostics-suppressed` notice and the rest are dropped;
-  in strict mode the first unsupported feature is always recorded and then thrown.
+  `MaxDiagnostics` the first further report becomes one `mathml-diagnostics-suppressed` notice and the rest are dropped
+  without being remembered, so the de-duplication sets stop growing too; in strict mode the first unsupported feature is
+  always recorded and then thrown.
 - `MathMlReportSink.Deliver` and `DeliverIgnoringHandlerFailures` - deliver the reports in order, each to its handler;
   the second protects each handler call.
 

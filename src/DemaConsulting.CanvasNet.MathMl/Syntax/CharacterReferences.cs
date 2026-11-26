@@ -25,7 +25,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Syntax;
 ///         predefined XML names (<c>lt</c>, <c>gt</c>, <c>amp</c>, <c>quot</c>, <c>apos</c>) are kept as written. A name
 ///         that the set does not define is a located <see cref="MathMlSyntaxException"/> at its ampersand. A document type
 ///         declaration stops the rewriting, so that the XML reader refuses it. An XML declaration that names an encoding
-///         other than UTF-8 or US-ASCII is refused, because the text has already been decoded as UTF-8.
+///         other than UTF-8 (US-ASCII included) is refused, because the text has already been decoded as UTF-8 and is read
+///         as UTF-8: a declared ASCII would make the XML reader decode every other character as <c>?</c>.
 ///     </para>
 ///     <para>
 ///         <b>Locations.</b> A reference never spans a line break, so the lines of the rewritten text are the lines of the
@@ -358,7 +359,7 @@ internal static partial class CharacterReferences
         }
 
         /// <summary>
-        ///     Refuses an XML declaration that names an encoding other than UTF-8 or US-ASCII.
+        ///     Refuses an XML declaration that names an encoding other than UTF-8 (in any letter case).
         /// </summary>
         /// <exception cref="MathMlSyntaxException">Thrown, located at the encoding, for a foreign encoding.</exception>
         private void CheckXmlDeclaration()
@@ -378,7 +379,7 @@ internal static partial class CharacterReferences
             }
 
             var encoding = match.Groups[2].Value;
-            if (encoding.Equals("UTF-8", StringComparison.OrdinalIgnoreCase) || encoding.Equals("US-ASCII", StringComparison.OrdinalIgnoreCase))
+            if (encoding.Equals("UTF-8", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
