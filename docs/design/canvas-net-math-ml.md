@@ -213,9 +213,12 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
 - **Token metrics** - a token has the ink ascent and descent of its glyphs rounded out to whole CSS pixels, also when
   its text has a space, as Chrome lays tokens out; MathML Core lays a text with a soft wrap opportunity out as a line of
   text.
-- **Italic correction in rows** - the italic correction of a slanted child is not added before the next child, as Chrome
-  lays rows out; MathML Core 3.3.1.2 adds it. A row keeps the italic correction of its last child when that child is not
-  an embellished operator.
+- **Italic correction in rows** - MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next
+  child that is not slanted, and Chrome never adds it, which lets the hook of an italic *f* run into a closing brace
+  (`{f}`) or the parenthesis of `f(x)`. CanvasNet adds it only where the ink of a slanted token would otherwise overlap
+  the ink of what follows (by the overlap when that is larger), and moves a child whose ink starts before its origin
+  clear of the token before it, so glyphs never collide; wherever the inks stay apart, a row is laid out as Chrome lays
+  it out. A row keeps the italic correction of its last child when that child is not an embellished operator.
 - **Row extents** - the ascent and the descent of a row, a scripted element, and an under- and overscript element are
   at least zero, as Chrome lays them out (a row of a minus sign reaches down to its baseline).
 - **`ms`** - drawn without quotes, as MathML Core and Chrome draw it; the legacy `lquote` and `rquote` are reported as
@@ -276,9 +279,11 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   taller than R lower than its raise (its top at most R above the raised bottom), while its ascent keeps the formula
   above; CanvasNet keeps the bottom of every index R above the bottom of the square root (the reference fixtures use
   indexes no taller than R, `mroot-deep-index`).
-- **Scripts** - as Chrome lays them out, only the italic correction of an operator drawn with a size variant or an
-  assembly moves a script (the italic correction of a token glyph such as an italic *f*, which MathML Core 3.2.1.1
-  defines, does not), and the width of a scripted element is that of its base and its wider script with
+- **Scripts** - as Chrome lays them out, the italic correction of an operator drawn with a size variant or an assembly
+  moves a script, and the italic correction of a token glyph (MathML Core 3.2.1.1, which 3.4.1.3 always adds before a
+  superscript) does not, except where the ink of the superscript would overlap the ink of a slanted token base: the
+  superscript of ζ then follows the italic correction of ζ (Chrome lets the 2 of ζ² collide with the hook of the ζ), and
+  the element is wider by it. The width of a scripted element is that of its base and its wider script with
   SpaceAfterScript, without the italic corrections MathML Core adds. A scripted element whose base is a stretchy
   operator is an embellished operator that its row stretches (MathML Core 3.2.4.1 and 3.3.1.1); Chrome stretches only
   operators that are not scripted, so this case is verified by the unit tests and not compared with Chrome. The form of
@@ -289,9 +294,11 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   pairs of one width. Two visible consequences match Chrome: a large operator with a subscript wider than its
   superscript (the lower limit of an integral) ends LargeOpItalicCorrection plus SpaceAfterScript after its subscript,
   because the subscript starts LargeOpItalicCorrection before the end of the base while the width counts the whole base
-  (`scripts-largeop-wide-limit`); and the superscript of an italic letter (ζ², b²) starts at the advance of the letter,
-  with its bottom SuperscriptShiftUp (or the cramped shift) above the baseline, below the top of a tall letter, so a
-  letter whose ink leans right at its top may touch its superscript (`msup-italic-letter`).
+  (`scripts-largeop-wide-limit`); and the superscript of a letter that is clear of its ink (b²) starts at the advance of
+  the letter, with its bottom SuperscriptShiftUp (or the cramped shift, or the ascent of the letter less
+  SuperscriptBaselineDropMax) above the baseline, beside the ascender (`msup-italic-letter`). The reference fixtures
+  keep the letters whose ink the clearance moves (an italic *f* or ζ before a superscript, a brace, or a parenthesis)
+  out of the comparison with Chrome; the unit and subsystem tests verify the clearance.
 - **Under- and overscripts** - as Chrome lays them out, an overscript is centered on its base (MathML Core places it
   by its top accent attachment) and the gaps of an accent and of a script that is neither a limit nor on a stretchy
   base are measured between the boxes (MathML Core measures them from the baseline of the script). Accents come from

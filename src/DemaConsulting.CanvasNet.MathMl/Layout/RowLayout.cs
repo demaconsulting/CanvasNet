@@ -18,10 +18,12 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         <c>mtd</c> is spaced like a grouping element (a lone operator gets no spacing, as MathML Core 3.1.3 and Chrome
 ///         lay it out) but passes no operator, since its element is never an embellished operator. The italic correction
 ///         of the last child becomes the italic correction of the row when that child is not an embellished operator
-///         (an operator's italic correction serves only its own scripts), but it is not added between
-///         children: MathML Core 3.3.1.2 adds the italic correction of a slanted child before the next upright one, and
-///         Chrome does not, so CanvasNet lays rows out as Chrome does (a documented difference from the text of MathML
-///         Core). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
+///         (an operator's italic correction serves only its own scripts). MathML Core 3.3.1.2 adds the italic correction
+///         of a slanted child before the next child that is not slanted, and Chrome never does, which lets the hook of an
+///         italic <i>f</i> collide with a closing brace; CanvasNet adds it only where the ink of a slanted token would
+///         otherwise overlap the ink of what follows it (and moves a token whose ink starts before its origin clear of the
+///         token before it), so a row is laid out as Chrome lays it out wherever the inks stay apart
+///         (<see cref="MathBox.Clearance"/>; a documented difference). Before the children are placed, the stretchy embellished operators with a block stretch axis are laid out
 ///         again with a block stretch size constraint (MathML Core 3.3.1.1, <see cref="Stretch"/>): the largest ascent and
 ///         descent of the other children, or, when every child stretches, of the operators at their own size. A row that
 ///         is itself an embellished operator with a constraint from its parent passes that constraint to its operator
@@ -96,11 +98,14 @@ internal sealed class RowLayout
         var embellished = EmbellishedOperatorOf(children);
         var addSpace = isMath || embellished is null;
 
-        // Place the children on the shared baseline (MathML Core 3.3.1.2, without the italic corrections, as Chrome)
+        // Place the children on the shared baseline (MathML Core 3.3.1.2, without the italic corrections, as Chrome,
+        // unless the ink of a slanted or overhanging token would collide with the ink of what follows it)
         var placed = new List<PlacedBox>(children.Count);
         var offset = 0.0;
         var ascent = double.NegativeInfinity;
         var descent = double.NegativeInfinity;
+        MathRect? previousInk = null;
+        var previousItalic = 0.0;
         foreach (var child in children)
         {
             if (child.Operator is { } leading && addSpace)
@@ -108,7 +113,19 @@ internal sealed class RowLayout
                 offset += leading.LeadingSpace;
             }
 
+            offset += MathBox.Clearance(previousInk, previousItalic, child, offset, 0);
             placed.Add(new PlacedBox(child, offset, 0));
+            if (child.Children.Count > 0)
+            {
+                previousInk = null;
+            }
+            else if (child.InkBounds() is { } ink)
+            {
+                // A token that paints; one that paints nothing (an invisible operator, a space) keeps the one before
+                previousInk = ink.Offset(offset, 0);
+                previousItalic = child.Operator is null ? child.ItalicCorrection : 0;
+            }
+
             offset += child.Width;
             if (child.Operator is { } trailing && addSpace)
             {

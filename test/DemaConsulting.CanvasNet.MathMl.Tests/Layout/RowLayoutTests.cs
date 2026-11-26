@@ -126,6 +126,44 @@ public class RowLayoutTests
     }
 
     /// <summary>
+    ///     Validates the ink clearance of a row: a slanted token whose ink reaches into the ink of the fence after it is
+    ///     followed by its italic correction (MathML Core 3.3.1.2), also across an invisible token; a token whose ink
+    ///     starts before its origin (a tail to the left) moves right by the overlap; two slanted tokens and tokens whose
+    ///     inks stay apart keep their positions, as in Chrome.
+    /// </summary>
+    [Fact]
+    public void RowLayout_LayoutRow_CollidingInk_GetsClearance()
+    {
+        // Arrange: a letter of advance 45 whose ink reaches 57 (italic correction 14.5) and fences with ink 3 to 35
+        static MathBox Inked(double width, double left, double right, double italic = 0, bool isOperator = false) =>
+            new(width, 80, 20, null, [new RuleItem(new MathRect(left, -76, right - left, 96), new Rgba32(0, 0, 0, 255))])
+            {
+                ItalicCorrection = italic,
+                Operator = isOperator ? new EmbellishedOperator(0, 0) : null,
+            };
+
+        var fence = Inked(38, 3, 35, isOperator: true);
+        var hooked = Inked(45, 2, 57, 14.5);
+        var tailed = Inked(45, -6, 40);
+        var invisible = new MathBox(0, 0, 0) { Operator = new EmbellishedOperator(0, 0) };
+
+        // Act
+        var braced = Rows().LayoutRow([fence, hooked, fence], isMath: false);
+        var applied = Rows().LayoutRow([hooked, invisible, fence], isMath: false);
+        var slanted = Rows().LayoutRow([hooked, hooked], isMath: false);
+        var tail = Rows().LayoutRow([fence, tailed], isMath: false);
+        var clear = Rows().LayoutRow([fence, Inked(45, 2, 40, 4)], isMath: false);
+
+        // Assert
+        Assert.Equal([0.0, 38.0, 38 + 45 + 14.5], braced.Children.Select(child => child.X));
+        Assert.Equal(38 + 45 + 14.5 + 38, braced.Width, 9);
+        Assert.Equal(45 + 14.5, applied.Children[2].X, 9);
+        Assert.Equal(45, slanted.Children[1].X, 9);
+        Assert.Equal(38 + 3, tail.Children[1].X, 9);
+        Assert.Equal(38, clear.Children[1].X, 9);
+    }
+
+    /// <summary>
     ///     Validates every attribute of <c>mpadded</c>: the requested width, height and depth, the lspace and voffset that
     ///     move the inner box, and the percentages and negative values that are ignored or clamped (a negative width
     ///     reported as an invalid value).

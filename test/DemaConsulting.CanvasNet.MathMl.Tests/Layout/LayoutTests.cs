@@ -442,4 +442,56 @@ public class LayoutTests
         Assert.Equal((MathMlDiagnosticCodes.AttributeInvalid, 3), (warning.Code, warning.Location.Line));
         Assert.DoesNotContain(rules, rect => Near(rect.Height, 1) && rect.Width < table.Width - 1e-9);
     }
+
+    /// <summary>
+    ///     Validates through the subsystem that the ink of slanted letters does not collide: the italic f between braces
+    ///     and parentheses (stretchy or not) and before the parenthesis of a function application, the digit superscript
+    ///     of a zeta and of a b under a radical sign in display style and in the numerator of a fraction, with the
+    ///     radical overbar at least its vertical gap (RadicalDisplayStyleVerticalGap or RadicalVerticalGap) above the
+    ///     ink of its content, the superscript included.
+    /// </summary>
+    [Fact]
+    public void Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide()
+    {
+        // Arrange
+        var font = MathFont.Default;
+        static List<(string Name, MathRect Ink)> Glyphs(MathBox root) =>
+            [.. Flatten(root).SelectMany(entry => entry.Box.Items.OfType<GlyphItem>().Select(glyph => (entry.Box.Element?.Name ?? "-", glyph.Ink.Offset(entry.X, entry.Y))))];
+        static bool Overlap(MathRect a, MathRect b) => a.X < b.Right && b.X < a.Right && a.Y < b.Bottom && b.Y < a.Bottom;
+
+        // Act
+        var fenced = LayoutText(MathMlTestHelpers.Math(
+            "<mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mrow><mo stretchy=\"false\">{</mo><mi>f</mi><mo stretchy=\"false\">}</mo></mrow>"
+            + "<mrow><mo>(</mo><mi>f</mi><mo>)</mo></mrow><mrow><mo stretchy=\"false\">(</mo><mi>f</mi><mo stretchy=\"false\">)</mo></mrow>"
+            + "<mi>f</mi><mo>&#x2061;</mo><mrow><mo stretchy=\"false\">(</mo><mi>x</mi><mo stretchy=\"false\">)</mo></mrow>"));
+        var damped = LayoutText(MathMlTestHelpers.Math("<msqrt><mn>1</mn><mo>&#x2212;</mo><msup><mi>&#x3B6;</mi><mn>2</mn></msup></msqrt>", "display=\"block\""));
+        var quadratic = LayoutText(MathMlTestHelpers.Math(
+            "<mfrac><mrow><msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&#x2212;</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow><mn>2</mn></mfrac>",
+            "display=\"block\""));
+
+        // Assert: no two glyphs of the fenced letters overlap
+        var glyphs = Glyphs(fenced);
+        Assert.Equal(16, glyphs.Count);
+        for (var i = 1; i < glyphs.Count; i++)
+        {
+            Assert.False(Overlap(glyphs[i - 1].Ink, glyphs[i].Ink), $"glyphs {i - 1} and {i} overlap");
+        }
+
+        // The superscripts are clear of their bases, and the overbar of each radical clears its superscript
+        foreach (var (root, gap) in new[]
+        {
+            (damped, font.Constant(MathConstant.RadicalDisplayStyleVerticalGap, 100)),
+            (quadratic, font.Constant(MathConstant.RadicalVerticalGap, 100)),
+        })
+        {
+            var msup = Flatten(root).Single(entry => entry.Box.Element?.Name == "msup");
+            var (@base, sup) = (Glyphs(msup.Box)[0].Ink, Glyphs(msup.Box)[1].Ink);
+            Assert.False(Overlap(@base, sup));
+            var sqrt = Flatten(root).Single(entry => entry.Box.Element?.Name == "msqrt");
+            var bar = sqrt.Box.Items.OfType<RuleItem>().Single().Rect.Offset(sqrt.X, sqrt.Y);
+            var contentTop = Glyphs(sqrt.Box).Skip(1).Min(glyph => glyph.Ink.Y) + sqrt.Y;
+            Assert.True(contentTop - bar.Bottom >= gap - 1e-9, $"the overbar is {contentTop - bar.Bottom} above the content");
+            Assert.Equal(sup.Y + msup.Y - sqrt.Y, Glyphs(sqrt.Box).Skip(1).Min(glyph => glyph.Ink.Y), 9);
+        }
+    }
 }

@@ -31,13 +31,17 @@ that differs from the expected value constitutes a failure.
 `RowLayoutTests.RowLayout_LayoutRow_NegativeExtents_ClampToZero`,
 `RowLayoutTests.RowLayout_LayoutRow_Operator_GetsItsSpacing`,
 `RowLayoutTests.RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator`,
-`RowLayoutTests.RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild`
+`RowLayoutTests.RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild`,
+`RowLayoutTests.RowLayout_LayoutRow_CollidingInk_GetsClearance`
 
 Asserts the left-to-right placement on a shared baseline with the maximum ascent and descent (zero for a negative
 descent of a minus sign or a negative ascent of ink below the baseline), the leading and trailing
 space around an operator child (also from the operator data of a stretched operator), and that italic corrections are
-not added between children while the row takes the italic correction of its last child (none when that child is an
-embellished operator).
+not added between children whose inks stay apart while the row takes the italic correction of its last child (none
+when that child is an embellished operator); and that a slanted token whose ink reaches into the ink of a fence after it
+is followed by its italic correction of 14.5 px (also across an invisible operator), that a token whose ink starts 6 px
+before its origin moves right by its 3 px overlap with the fence before it, and that two slanted tokens and a slanted
+token clear of the fence keep their positions.
 
 ##### CanvasNetMathMl-Layout-RowLayout-Stretch: Stretchy Operators
 

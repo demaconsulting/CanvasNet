@@ -29,7 +29,10 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 ///         correction of a large operator base), the superscript at the width of the base + its italic correction (when it
 ///         is not a large operator); SpaceAfterScript follows the scripts. As Chrome, the italic correction is only that of
 ///         an operator drawn with a size variant or an assembly (an operator drawn with its normal glyph and a token such
-///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction), and
+///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction),
+///         except that a superscript whose ink would overlap the ink of a slanted token base (the hook of a zeta) moves
+///         right by the italic correction of the base, or by the overlap when larger (<see cref="MathBox.Clearance"/>),
+///         and widens the element by it, so glyphs never collide; and
 ///         the width is that of the base and the wider script with SpaceAfterScript, without the italic corrections (MathML
 ///         Core adds them), so a subscript of a large operator that is wider than its superscript is followed by
 ///         LargeOpItalicCorrection more space, as in Chrome (verified by the reference fixture
@@ -105,8 +108,13 @@ internal sealed class ScriptLayout
 
         if (sup is not null)
         {
-            children.Add(new PlacedBox(sup, @base.Width + italic, -supShift));
-            scripts = Math.Max(scripts, sup.Width);
+            // A superscript whose ink would collide with the ink of a slanted token base (the hook of a zeta) follows its
+            // italic correction, as MathML Core places it; otherwise it starts at the advance, as Chrome places it
+            var clearance = italic > 0 || @base.Operator is not null || @base.Children.Count > 0
+                ? 0
+                : MathBox.Clearance(@base.InkBounds(), @base.ItalicCorrection, sup, @base.Width, -supShift);
+            children.Add(new PlacedBox(sup, @base.Width + italic + clearance, -supShift));
+            scripts = Math.Max(scripts, clearance + sup.Width);
             ascent = Math.Max(ascent, sup.Ascent + supShift);
             descent = Math.Max(descent, sup.Descent - supShift);
         }

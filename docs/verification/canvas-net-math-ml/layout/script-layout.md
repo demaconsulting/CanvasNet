@@ -39,13 +39,16 @@ script, and SpaceAfterScript, and the operator kept on the box.
 ##### CanvasNetMathMl-Layout-ScriptLayout-Superscript: The Superscript Shift And The Italic Correction
 
 **Tests**: `ScriptLayoutTests.ScriptLayout_LayoutSup_CrampedUsesCrampedShift`,
-`ScriptLayoutTests.ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript`
+`ScriptLayoutTests.ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript`,
+`ScriptLayoutTests.ScriptLayout_LayoutSup_CollidingInkFollowsItalicCorrection`
 
 Asserts that a small superscript is shifted up by SuperscriptShiftUp (39 px), by SuperscriptShiftUpCramped (28 px)
 when `math-shift` is compact, by SuperscriptBottomMin + its descent for a deep script (53.4 px), and by the base's
 ascent − SuperscriptBaselineDropMax for a tall base (66 px); that the superscript of an operator with an italic
-correction of 6 px starts 6 px after its end while its subscript and the width ignore the correction; and that a base
-that is not an operator moves no script.
+correction of 6 px starts 6 px after its end while its subscript and the width ignore the correction; that a base
+that is not an operator and paints nothing moves no script; and that the superscript of a slanted letter whose ink
+reaches 11 px past its advance (italic correction 13 px) starts 13 px after the advance, clear of the ink, with the
+width grown by 13 px, while a letter whose ink stays within its advance keeps the superscript at the advance.
 
 ##### CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript: Both Scripts
 

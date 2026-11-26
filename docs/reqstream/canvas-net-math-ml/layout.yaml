@@ -90,7 +90,8 @@ sections:
           - id: CanvasNetMathMl-Layout-Rows
             title: >-
               The Layout subsystem shall lay out rows and the grouping elements as MathML Core does: the children on a
-              shared baseline with the spacing of their operators, mpadded with its requested size and offsets, merror
+              shared baseline with the spacing of their operators, without the ink of a slanted letter colliding with
+              the ink of what follows it, mpadded with its requested size and offsets, merror
               with its border, mphantom with its size but no ink, semantics and maction with their first child, and the
               text written directly inside a row like an mtext.
             justification: |
@@ -107,6 +108,7 @@ sections:
               - CanvasNetMathMl-Layout-RowLayout-Error
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
 
           - id: CanvasNetMathMl-Layout-Fractions
             title: >-
@@ -150,13 +152,15 @@ sections:
               - CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
             tests:
               - Layout_FractionsAndRadicals_MatchConstants
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
 
           - id: CanvasNetMathMl-Layout-Scripts
             title: >-
               The Layout subsystem shall lay out msub, msup, msubsup and mmultiscripts as MathML Core 3.4.1 and 3.4.3
               do: the scripts shifted by the script constants of the MATH table (the cramped superscript shift in a
               compact math shift), kept apart by the minimum gap, after the base with the italic correction of a
-              stretched or large operator and followed by the space after a script; the prescripts of mmultiscripts
+              stretched or large operator (and of a slanted letter where the inks would otherwise collide) and followed
+              by the space after a script; the prescripts of mmultiscripts
               before the base; the scripts one script level smaller as postfix operators; and an embellished scripted
               element spaced and stretched like its operator.
             justification: |
@@ -175,6 +179,7 @@ sections:
               - CanvasNetMathMl-Layout-MathFont-Constants
             tests:
               - Layout_ScriptsAndLimits_MatchConstants
+              - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
 
           - id: CanvasNetMathMl-Layout-UnderOver
             title: >-

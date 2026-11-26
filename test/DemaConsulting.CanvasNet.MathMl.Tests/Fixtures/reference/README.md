@@ -34,17 +34,18 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
 - **Radicals**: `msqrt-basic` (one and several children, with the forms of their operators), `msqrt-tall` (size
   variants and the glyph assembly of the radical symbol), `mroot-index` (a narrow index, a wide index, and nested
   roots), and `mroot-deep-index` (indexes with a depth, which the ascent of the root counts).
-- **Scripts**: `msub-msup` (letter, italic *f*, digit, and row bases), `msubsup-gap` (the gap of both scripts with
+- **Scripts**: `msub-msup` (letter, italic *b*, digit, and row bases), `msubsup-gap` (the gap of both scripts with
   `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop` (integrals inline
   and in display style), `scripts-largeop-wide-limit` (an integral in display math whose subscript is wider than its
-  superscript), `msup-italic-letter` (digit superscripts of ζ and b, inline and cramped under a radical),
+  superscript), `msup-italic-letter` (digit superscripts of b, inline and cramped under a radical),
   `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and prescripts
   with `none`), and `scripts-embellished-fence` (scripts on a fenced row and embellished scripted operators spaced by
   their operators).
 - **Under- and overscripts**: `munderover-limits` (limits of a summation, a union, and a product in display style),
   `movablelimits-inline` (limits moved to the script positions inline, `movablelimits="false"`, a text operator, and a
-  letter base), `mover-accents` (combining circumflexes stretched over one and three letters, a tilde, an accent
-  `munderover` written `TRUE`, an accent underline, and an overscript that is not an accent), `overbrace-underbrace`
+  letter base), `mover-accents` (combining circumflexes stretched over a letter and a three-letter identifier, a tilde,
+  an accent `munderover` written `TRUE`, an accent underline, and an overscript that is not an accent),
+  `overbrace-underbrace`
   (braces stretched over and under rows, a labeled brace, and a brace base with a label), and `arrow-over` (arrows as
   bases with labels at the stretch stack gaps, a non-stretchy arrow over a wide label, and an arrow overscript).
 - **Tables**: `table-matrix` (a 3 by 3 matrix of letters and digits), `table-spans` (`columnspan`, `rowspan`, and
@@ -58,8 +59,9 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
 These choices of CanvasNet follow Chrome where its behavior differs from a literal reading of MathML Core; the goldens
 pin them:
 
-- The italic correction of a slanted child is not added between the children of a row (MathML Core 3.3.1.2 adds it
-  before the next upright child).
+- The italic correction of a slanted child is not added between the children of a row whose inks stay apart (MathML
+  Core 3.3.1.2 adds it before the next upright child; CanvasNet adds it where the inks would collide, see *Fixtures Not
+  Compared With Chrome*).
 - A token with a space (`tokens-mtext-space`) has the ink ascent and descent of its glyphs, like every other token
   (MathML Core lays such a text out as a line of text).
 - The ink ascent and descent of a token are rounded out to whole CSS pixels, as Chrome rounds the bounds of its glyphs.
@@ -72,13 +74,12 @@ pin them:
   symbol drawn; an assembled symbol is as wide as its ink (`msqrt-tall`).
 - The bottom of the index of a root is raised by RadicalDegreeBottomRaisePercent of the height of the radical symbol,
   the percentage taken at Chrome's 1/64 precision (`mroot-index`).
-- Only the italic correction of an operator drawn with a size variant or an assembly moves a script (`scripts-largeop`;
-  the superscript of an italic *f* starts at its advance, `msub-msup`), and the width of a scripted element is its base
-  and its wider script with SpaceAfterScript, without the italic corrections. Two visible consequences: a large
-  operator whose subscript is wider than its superscript ends LargeOpItalicCorrection plus SpaceAfterScript after its
-  subscript (`scripts-largeop-wide-limit`), and the superscript of an italic letter starts at the advance of the letter
-  with its bottom below the top of a tall letter, so a letter leaning right at its top (ζ, b) may touch it
-  (`msup-italic-letter`).
+- Only the italic correction of an operator drawn with a size variant or an assembly moves a script whose ink stays
+  clear of its base (`scripts-largeop`; the superscript of an italic *b* starts at its advance, `msub-msup`), and the
+  width of a scripted element is its base and its wider script with SpaceAfterScript, without the italic corrections.
+  Two visible consequences: a large operator whose subscript is wider than its superscript ends LargeOpItalicCorrection
+  plus SpaceAfterScript after its subscript (`scripts-largeop-wide-limit`), and the superscript of a tall italic letter
+  clear of its ink starts at the advance of the letter with its bottom beside its ascender (`msup-italic-letter`).
 - The ascent and the descent of a root count the depth of its index (`mroot-deep-index`; MathML Core leaves it out of
   both). Chrome draws an index taller than the raise of its bottom lower than that raise, which CanvasNet does not (a
   known difference), so the fixtures use indexes no taller than the raise.
@@ -140,13 +141,20 @@ pin them:
   an embellished operator that its row stretches; Chrome does not stretch it (it draws the operator at its size,
   centered on the baseline). `scripts-embellished-fence` uses `stretchy="false"` there, and the stretching is verified
   by the unit tests of `LayoutEngine`.
+- **Ink clearance of slanted letters**: Chrome lets the ink of a slanted letter collide with what follows it (the hook
+  of an italic *f* with a closing brace or the parenthesis of `f(x)`, the hook of ζ with its superscript), where
+  MathML Core adds the italic correction of the letter. CanvasNet adds it where the inks would collide, so
+  `tokens-mi-italic` ends with the *f*, `operators-spacing` follows the *f* with a slanted *y*, `msub-msup` uses an
+  italic *b* as the base of a superscript, `msubsup-gap` puts *u* under the radical, `mover-accents` stretches the
+  circumflex over the identifier `xyz`, and `msup-italic-letter` uses *b* only; the clearance is verified by the unit
+  tests of `RowLayout` and `ScriptLayout` and the subsystem tests of the layout.
 - **The form of an operator at the base of a script**: MathML Core gives it the form of the scripted element in its row;
   Chrome infers it from the position of the operator inside the scripted element (prefix), so the fixtures use operators
   without a prefix form there (`=`).
 
 ## Known Differences (Exceptions of the Test)
 
-- **`tokens-mi-italic`, value `1 <mi> height`**, and **`operators-spacing`, value `10 <mi> height`**: Chrome measures
+- **`tokens-mi-italic`, value `4 <mi> height`**, and **`operators-spacing`, value `10 <mi> height`**: Chrome measures
   the ink of an automatic italic `mi` on the untransformed character (the upright `f` has no descender) but draws and
   advances the italic glyph, which descends below the baseline; CanvasNet measures the glyph it draws.
 - **`arrow-over`, values `math height`, `1 <munderover> height`, and `1/1 <mi> y`**, and **`overbrace-underbrace`,

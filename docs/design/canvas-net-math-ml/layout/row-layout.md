@@ -32,8 +32,14 @@ row, and builds the boxes that `mpadded` and `merror` put around a row. The unit
   space before it and its trailing space after it (the `lspace` and `rspace` that the token layout resolved from the
   operator dictionary). A row of space-like children is space-like (3.2.5.1). The italic correction of the last child
   becomes the row's when that child is not an embellished operator (the italic correction of an operator serves only its
-  own scripts), but it is not added between children: MathML Core adds the italic correction of a slanted child before
-  the next upright one, and Chrome, whose layout the reference tests compare with, does not.
+  own scripts). Between children, MathML Core adds the italic correction of a slanted child before the next child that
+  is not slanted, and Chrome, whose layout the reference tests compare with, never does, which lets the hook of an
+  italic *f* collide with a closing brace. CanvasNet adds it only where the inks would collide (`MathBox.Clearance`):
+  when the ink of a slanted token (not an operator, with an italic correction) overlaps the ink at the start of the
+  next child that is not slanted, also across tokens that paint nothing (an invisible function application), the next
+  child moves right by the italic correction, or by the overlap when larger; a child whose ink starts before its origin
+  (a tail to the left) moves right by its overlap with the token before it. Wherever the inks stay apart, the row is
+  laid out as Chrome lays it out.
 - `Stretch(children, relayout)` - MathML Core 3.3.1.1: the children whose embellished operator is stretchy with a block
   stretch axis are laid out again by the relayout function (the engine) with a block stretch size constraint: the
   largest ascent and descent of the boxes of the other children (MathML Core 3.3.1.1 names their ink ascent and

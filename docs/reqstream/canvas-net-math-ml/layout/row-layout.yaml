@@ -16,17 +16,22 @@ sections:
                 title: >-
                   The RowLayout unit shall place the children of a row left to right on a shared baseline with the
                   maximum ascent and descent (at least zero), add the leading and trailing space of an operator child
-                  around it, and give the row the italic correction of its last child (none when that child is an
-                  embellished operator) without adding italic corrections between children.
+                  around it, give the row the italic correction of its last child (none when that child is an
+                  embellished operator), and add the italic correction of a slanted token (or the overlap, when larger)
+                  before the next child that is not slanted only where their inks would otherwise overlap, moving a
+                  child whose ink starts before its origin clear of the token before it.
                 justification: |
-                  MathML Core lays rows out this way; Chrome, which the reference layouts come from, adds no italic
-                  correction between children and lets a row reach down to its baseline.
+                  MathML Core lays rows out this way and adds the italic correction of a slanted child before an upright
+                  one; Chrome, which the reference layouts come from, adds no italic correction between children, which
+                  lets the hook of an italic f collide with a closing brace. Glyphs must never collide, so CanvasNet
+                  adds the correction where the inks would overlap and lays rows out as Chrome elsewhere.
                 tests:
                   - RowLayout_LayoutRow_Children_ShareBaselineAndTakeMaximumExtents
                   - RowLayout_LayoutRow_NegativeExtents_ClampToZero
                   - RowLayout_LayoutRow_Operator_GetsItsSpacing
                   - RowLayout_LayoutRow_OperatorSpacing_FromEmbellishedOperator
                   - RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild
+                  - RowLayout_LayoutRow_CollidingInk_GetsClearance
 
               - id: CanvasNetMathMl-Layout-RowLayout-Stretch
                 title: >-

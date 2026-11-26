@@ -122,6 +122,16 @@ top of the second's, that a one-pixel column line lies between the columns and a
 top of the table, and that the invalid `rowlines` is reported once as `mathml-attribute-invalid` at its line and draws
 no row line. The layout is compared with Firefox at the system level.
 
+#### CanvasNetMathMl-Layout-Rows, Scripts, And Radicals: Glyphs Do Not Collide
+
+**Tests**: `LayoutTests.Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide`
+
+Lays out at 100 px the italic *f* between stretchy and non-stretchy braces and parentheses and before the parenthesis
+of a function application, `√(1 − ζ²)` in display style, and `(√(b² − 4ac))/2` in display style (the radical in the
+compact numerator), and asserts that no two consecutive glyphs of the fenced letters overlap, that the superscript 2 is
+clear of the ink of ζ and of b, and that the overbar of each radical lies at least RadicalDisplayStyleVerticalGap
+(display) or RadicalVerticalGap (compact) above the ink of its content, whose top is the ink of the superscript.
+
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 
 **Tests**: `LayoutTests.Layout_WrongChildCount_IsRowWithWarning`
