@@ -25,8 +25,9 @@ sections:
 
       - id: CanvasNetTool-PandocFilter-PandocFilterShim-FastPath
         title: >-
-          The PandocFilterShim unit shall write into the shim's fast path the code-block classes and picture suffixes
-          the filter engine draws, taken from the engine's own tables, and shall refuse a template whose placeholder
+          The PandocFilterShim unit shall write into the shim's fast path the code-block classes (mermaid, plantuml, and
+          mathml) and picture suffixes (.mml for an equation among them) the filter engine draws, taken from the
+          engine's own tables, and shall refuse a template whose placeholder
           is missing or repeated.
         justification: |
           Starting the tool costs a process per document and makes a document depend on the tool, so the shim starts

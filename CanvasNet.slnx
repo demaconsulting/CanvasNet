@@ -12,6 +12,7 @@
     <Project Path="src/DemaConsulting.CanvasNet.Layout/DemaConsulting.CanvasNet.Layout.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Mermaid/DemaConsulting.CanvasNet.Mermaid.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.PlantUml/DemaConsulting.CanvasNet.PlantUml.csproj" />
+    <Project Path="src/DemaConsulting.CanvasNet.MathMl/DemaConsulting.CanvasNet.MathMl.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Viewer/DemaConsulting.CanvasNet.Viewer.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Tool/DemaConsulting.CanvasNet.Tool.csproj" />
   </Folder>
@@ -31,6 +32,7 @@
     <Project Path="test/DemaConsulting.CanvasNet.Layout.Tests/DemaConsulting.CanvasNet.Layout.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Mermaid.Tests/DemaConsulting.CanvasNet.Mermaid.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.PlantUml.Tests/DemaConsulting.CanvasNet.PlantUml.Tests.csproj" />
+    <Project Path="test/DemaConsulting.CanvasNet.MathMl.Tests/DemaConsulting.CanvasNet.MathMl.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Viewer.Tests/DemaConsulting.CanvasNet.Viewer.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Tool.Tests/DemaConsulting.CanvasNet.Tool.Tests.csproj" />
   </Folder>

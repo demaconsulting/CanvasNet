@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     The images in this folder are pictures the canvasnet tool draws from architecture.svg, the sources in
-    docs/images/showcase, docs/images/hero, docs/images/gears, docs/images/plantuml, and
+    docs/images/showcase, docs/images/hero, docs/images/gears, docs/images/plantuml, docs/images/mathml, and
     docs/images/composition-explained, and the examples of the user guide (docs/user_guide/examples). This script is
     the one place that knows how.
 
@@ -201,6 +201,15 @@ function New-PlantUmlGallery {
     Join-Path $Folder 'plantuml-gallery.png'
 }
 
+# docs/images/mathml-gallery.png: six equations (docs/images/mathml, original) on one SVG page, mathml/gallery.svg,
+# which links each equation with image href at four times its natural size, so every equation is drawn as vector with
+# one font size, at the width of the PlantUML gallery (2496 pixels).
+function New-MathMlGallery {
+    param([string]$Folder)
+    Invoke-ToolOrFail render 'docs/images/mathml/gallery.svg' --strict -o "$Folder/mathml-gallery.png"
+    Join-Path $Folder 'mathml-gallery.png'
+}
+
 # docs/images/architecture.png: the package architecture diagram (architecture.svg, original), drawn at 1800 pixels
 # wide on a transparent background so that its rounded card reads well on light and dark pages.
 function New-Architecture {
@@ -248,6 +257,7 @@ $images = @(
     @{ Path = 'docs/images/vegalite-gallery.png'; Build = ${function:New-VegaLiteGallery} }
     @{ Path = 'docs/images/mermaid-gallery.png'; Build = ${function:New-MermaidGallery} }
     @{ Path = 'docs/images/plantuml-gallery.png'; Build = ${function:New-PlantUmlGallery} }
+    @{ Path = 'docs/images/mathml-gallery.png'; Build = ${function:New-MathMlGallery} }
 )
 
 # --- Run --------------------------------------------------------------------------------------------------------

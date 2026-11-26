@@ -19,6 +19,9 @@ as an embedded resource of this assembly. Internally, `TrueTypeFont` fronts `Sfn
 `CmapTable`, `GlyfLocaReader`, `CffTable`, `CffCharstringInterpreter`, `HmtxHheaReader`,
 `KernTable`, `NameTable`, and `StyleTable` exactly as `PathFiller` fronts `EdgeFlattener` and
 `ScanlineRasterizer`: one public entry point coordinating several independently testable helpers.
+`TrueTypeFont` also captures a font's OpenType `MATH` table and parses it on first use with the
+internal `MathTable` and `OpenTypeCoverage` helpers, so the MathML package reads math layout data
+from the core instead of parsing the font a second time.
 `GlyfLocaReader` and `CffTable` both implement a small internal `IGlyphOutlineSource` abstraction
 so `TrueTypeFont` dispatches `GetGlyphOutline` to whichever outline flavor the loaded font
 actually uses without any type-checking of its own. `SystemFontCatalog` is a much shallower unit
@@ -52,7 +55,10 @@ pixel rendering remain outside this subsystem's boundary.
   outlines, advance widths, and kerning, `GetNameInfo()` for the font's name-table strings, and
   `IsBold`/`IsItalic`/`IsFixedPitch` for its derived style classification. Its unit design
   documents the internal helpers inline because none has an independent public contract beyond
-  supporting `TrueTypeFont`; see *TrueTypeFont Unit Design* (`fonts/true-type-font.md`)
+  supporting `TrueTypeFont`; see *TrueTypeFont Unit Design* (`fonts/true-type-font.md`). For math
+  layout it also reads a font's OpenType `MATH` table lazily through the internal
+  `TryGetMathTable` (helpers `MathTable` and `OpenTypeCoverage`), which only the MathMl package
+  uses, through friend access
 - **SystemFontCatalog** — the second public unit of the subsystem, added this phase. It exposes
   `Fonts` (the lazily-built, process-lifetime-cached OS font catalog), `FindBestMatch` (best-effort
   family-name/style matching against that catalog), `FindInFamily` (exact-family, closest-style

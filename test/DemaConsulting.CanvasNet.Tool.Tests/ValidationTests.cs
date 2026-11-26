@@ -102,7 +102,7 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
         // Act: run the self-validation (the shared run, started on first use)
         var stdOut = _run.StdOut;
 
-        // Assert: each self-test passed and is named in the results file, and nineteen self-tests ran in all
+        // Assert: each self-test passed and is named in the results file, and twenty self-tests ran in all
         Assert.Equal(0, _run.ExitCode);
         var content = File.ReadAllText(resultsFile);
         foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
@@ -111,7 +111,7 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
             Assert.Contains(name, content);
         }
 
-        Assert.Contains("Total Tests: 19", stdOut);
+        Assert.Contains("Total Tests: 20", stdOut);
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
     }
 
     /// <summary>
-    ///     Test that Run executes the Vega-Lite self-test, records it in the results file, and that nineteen self-tests ran.
+    ///     Test that Run executes the Vega-Lite self-test, records it in the results file, and that twenty self-tests ran.
     /// </summary>
     [Fact]
     public void Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded()
@@ -145,12 +145,12 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
         // Act: run the self-validation (the shared run, started on first use)
         var stdOut = _run.StdOut;
 
-        // Assert: the chart self-test passed, is named in the results file, and all nineteen self-tests passed
+        // Assert: the chart self-test passed, is named in the results file, and all twenty self-tests passed
         Assert.Equal(0, _run.ExitCode);
         Assert.Contains("✓ CanvasNetTool_RenderVegaLite - Passed", stdOut);
         Assert.Contains("CanvasNetTool_RenderVegaLite", File.ReadAllText(resultsFile));
-        Assert.Contains("Total Tests: 19", stdOut);
-        Assert.Contains("Passed: 19", stdOut);
+        Assert.Contains("Total Tests: 20", stdOut);
+        Assert.Contains("Passed: 20", stdOut);
         Assert.Contains("Failed: 0", stdOut);
     }
 
@@ -193,11 +193,30 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
     }
 
     /// <summary>
-    ///     Test that Run executes the nineteen self-tests in their documented order, with the Mermaid, PlantUML, and Pandoc
+    ///     Test that Run executes the MathML self-test and records it in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_MathMlSelfTest_PassesAndIsRecorded()
+    {
+        // Arrange: the TRX path of the shared run of a context that is not silent (the fixture deletes the file)
+        var resultsFile = _run.ResultsFile;
+
+        // Act: run the self-validation (the shared run, started on first use)
+        var stdOut = _run.StdOut;
+
+        // Assert: the equation self-test passed, is named in the results file, and no test failed
+        Assert.Equal(0, _run.ExitCode);
+        Assert.Contains("✓ CanvasNetTool_RenderMathMl - Passed", stdOut);
+        Assert.Contains("CanvasNetTool_RenderMathMl", File.ReadAllText(resultsFile));
+        Assert.Contains("Failed: 0", stdOut);
+    }
+
+    /// <summary>
+    ///     Test that Run executes the twenty self-tests in their documented order, with the Mermaid, PlantUML, MathML, and Pandoc
     ///     filter self-tests right after the Vega-Lite one and the help-examples self-test last.
     /// </summary>
     [Fact]
-    public void Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder()
+    public void Validation_Run_TwentySelfTests_RunInTheDocumentedOrder()
     {
         // Arrange: (none - the fixture's context is not silent so every self-test line reaches standard output)
 
@@ -215,6 +234,7 @@ public class ValidationTests : IClassFixture<ValidationRunFixture>
                 "CanvasNetTool_VersionDisplay", "CanvasNetTool_HelpDisplay", "CanvasNetTool_Formats", "CanvasNetTool_RenderPng",
                 "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg", "CanvasNetTool_PdfMinimal",
                 "CanvasNetTool_RenderScad", "CanvasNetTool_RenderVegaLite", "CanvasNetTool_RenderMermaid", "CanvasNetTool_RenderPlantUml",
+                "CanvasNetTool_RenderMathMl",
                 "CanvasNetTool_PandocFilter", "CanvasNetTool_CropResize",
                 "CanvasNetTool_RotateFlipPad", "CanvasNetTool_Compare", "CanvasNetTool_Montage", "CanvasNetTool_Adjustments",
                 "CanvasNetTool_HelpExamples"

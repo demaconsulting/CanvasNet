@@ -11,8 +11,8 @@ selecting an individual face out of a TrueType Collection (`ttcf`) container, wh
 the supporting internal `SfntContainer`, `CmapTable`, `GlyfLocaReader`, `CffTable`,
 `CffCharstringInterpreter`, `Type1Table`, `Type1CharstringInterpreter`,
 `Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`, `Type1StandardGlyphNames`,
-`HmtxHheaReader`, `KernTable`, `NameTable`, and `StyleTable` helpers inline because none has any
-independent public behavior beyond supporting this unit.
+`HmtxHheaReader`, `KernTable`, `NameTable`, `StyleTable`, `MathTable`, and `OpenTypeCoverage`
+helpers inline because none has any independent public behavior beyond supporting this unit.
 
 #### Purpose
 
@@ -31,6 +31,13 @@ metrics) - a charstring using `seac` is rejected with `InvalidDataException` rat
 resolved - and, for standalone `.pfb`/`.pfa` files (which carry no caller-suppliable text
 encoding of their own), only a small curated built-in codepoint-to-glyph-name vocabulary covering
 common Latin/ASCII characters is available as the default encoding.
+
+For math layout, the unit also reads a font's OpenType `MATH` table through the internal
+`TryGetMathTable` method: the global math layout constants, per-glyph italic corrections,
+top-accent attachments, extended-shape flags, and cut-in kerns, and the vertical and horizontal
+size variants and glyph assemblies. This is internal API for the `DemaConsulting.CanvasNet.MathMl`
+package (friend access), because the shape of a public math-font API is not settled; it reads
+values in font design units and does not perform any math layout itself.
 
 #### Data Model
 
@@ -52,6 +59,13 @@ codepoint-to-glyph-name encoding, rather than reading those tables from any SFNT
 since a Type 1 font program has no `cmap`/`hmtx` tables of its own; its `NameTable` is
 `NameTable.Empty`, its `KernTable` is `KernTable.Empty`, `UnitsPerEm` is fixed at `1000` (the
 classic Type 1 convention), and `IsBold`/`IsItalic`/`IsFixedPitch` are all `false`.
+
+`TrueTypeFont` also holds a `Lazy<MathTable>` (thread-safety mode `ExecutionAndPublication`) when
+the font's table directory has a `MATH` entry, and `null` otherwise (always for a Type 1 or bare
+CFF program). The lazy value closes over the font bytes, the `MATH` table range, and
+`maxp.numGlyphs`; it is created at load time but not run, so the `MATH` table is parsed at most
+once, on the first `TryGetMathTable` call, and a parse failure is cached and rethrown like a
+result. The parsed `MathTable` is immutable.
 
 ##### SFNT Offset Table (12 bytes, big-endian)
 
@@ -518,6 +532,40 @@ independently indicate.
 present and at least 16 bytes long. `italicAngle` needs at least 8 bytes to be read; a shorter
 `post` table simply does not contribute to `IsItalic`.
 
+##### `MATH` Table Layout Used
+
+The `MATH` table (version 1.0) is big-endian, and every offset is an Offset16 from the start of the
+subtable that contains it. A MathValueRecord is a signed 16-bit value followed by a device-table
+offset; `MathTable` reads the value and ignores the device table.
+
+- **Header** (10 bytes): `majorVersion` (must be `1`), `minorVersion`, and the offsets of
+  MathConstants, MathGlyphInfo, and MathVariants. A zero constants offset is malformed; a zero
+  glyph-info or variants offset means that information is absent.
+- **MathConstants** (214 bytes): two percentages, two heights, 51 MathValueRecords, and one
+  percentage - all 56 values, in OpenType order, read into `MathConstants`.
+- **MathGlyphInfo** (8-byte header): the offsets of the italic corrections, the top-accent
+  attachments, the extended-shape coverage, and the kern info; each `0` means absent.
+- **MathItalicsCorrectionInfo** and **MathTopAccentAttachment**: a coverage offset, a `count`, and
+  `count` MathValueRecords - the per-glyph italic correction or accent attachment.
+- **MathKernInfo**: a coverage offset, a `count`, and `count` × 4 MathKern offsets (top-right,
+  top-left, bottom-right, bottom-left); a zero offset means that corner has no kern.
+- **MathKern**: `heightCount`, that many correction heights, and `heightCount + 1` kern values - the
+  `MathKern` step function.
+- **MathVariants** (10-byte header): `minConnectorOverlap`, the vertical and horizontal coverage
+  offsets and counts, then the vertical and then the horizontal construction offsets.
+- **MathGlyphConstruction**: an assembly offset (`0` means none), `variantCount`, and the variant
+  records (glyph, advance) - `MathGlyphConstruction.Variants`.
+- **GlyphAssembly**: an italic-correction MathValueRecord, `partCount`, and 10-byte part records
+  (glyph, start and end connector lengths, full advance, flags; flag bit 0 marks an extender) -
+  `MathGlyphAssembly`. An assembly with zero parts is reported as no assembly.
+
+`OpenTypeCoverage` reads the two Coverage formats the per-glyph subtables share. Format 1 is a
+`glyphCount` followed by a glyph array, and a glyph's coverage index is its array position. Format 2
+is a `rangeCount` followed by range records (`startGlyphID`, `endGlyphID`, `startCoverageIndex`),
+and a glyph's index is `startCoverageIndex + glyph - startGlyphID`. Both formats are normalized to
+ranges sorted by first glyph, so a lookup is a binary search. Any other format, or a range that ends
+before it starts, is malformed.
+
 #### Key Methods
 
 ##### Load(Stream stream)
@@ -711,6 +759,22 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 - Never throws; each property degrades to `false` when its underlying optional table(s) are
   absent or too short to contain the relevant field
 
+##### TryGetMathTable(out MathTable table)
+
+Internal (friend access for the MathMl package). Returns `false` with a `null` table when the font
+has no `MATH` table. Otherwise it returns the value of the font's `Lazy<MathTable>`: the first call
+runs `MathTable.Parse` over the captured table range with the font's glyph count, and every later or
+concurrent call returns the same instance. `MathTable` then answers `Constants`,
+`MinConnectorOverlap`, `TryGetItalicsCorrection`, `TryGetTopAccentAttachment`, `IsExtendedShape`,
+`TryGetMathKern`, `GetVerticalConstruction`, and `GetHorizontalConstruction`, each looking the glyph
+up through the subtable's `OpenTypeCoverage`. None of these lookups throws: an uncovered glyph
+reports `false` or `null`.
+
+**Throws:**
+
+- `InvalidDataException` — the font's `MATH` table is malformed (see *MATH Table Bounds and Work
+  Limit* below); the same failure is rethrown on every call
+
 ##### Internal Helper Roles
 
 - `SfntContainer` parses the offset table and table directory, enforces overflow-safe bounds
@@ -745,6 +809,11 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
   preference order into `FamilyName`/`SubfamilyName`/`FullName`/`PostScriptName`
 - `StyleTable` derives `IsBold`/`IsItalic`/`IsFixedPitch` from whichever of `OS/2`, `head.macStyle`,
   and `post` are present
+- `MathTable` parses the whole `MATH` table on first access, with every offset and count
+  bounds-checked, into immutable per-glyph arrays and the `MathConstants`, `MathKern`,
+  `MathGlyphConstruction`, `MathGlyphVariant`, `MathGlyphAssembly`, and `MathGlyphPart` records
+- `OpenTypeCoverage` maps a glyph to its coverage index for Coverage formats 1 and 2; it is separate
+  from `MathTable` so later readers of the glyph substitution and positioning tables can reuse it
 
 #### Error Handling
 
@@ -783,6 +852,7 @@ per the derivation rules described under the `OS/2` and `post` table-layout subs
 - **`IsBold`** (none): Degrades to `false` when `OS/2`/`head.macStyle` cannot indicate boldness.
 - **`IsItalic`** (none): Degrades to `false` when `OS/2`/`head.macStyle`/`post` cannot indicate italics.
 - **`IsFixedPitch`** (none): Degrades to `false` when `post` is absent or too short.
+- **`TryGetMathTable(out MathTable)`** (internal; `InvalidDataException`): The `MATH` table is malformed.
 
 ##### Required vs. Optional Tables
 
@@ -798,6 +868,31 @@ being queried, so `GetKerning` degrades to returning `0`. Similarly, a missing o
 `name`, `OS/2`, or `post` table never prevents the font from loading or being queried for
 metrics/outlines: `GetNameInfo()` degrades to `null` members and `IsBold`/`IsItalic`/
 `IsFixedPitch` degrade to `false` for whichever source table is absent or unusable.
+
+`MATH` is optional too, but it is handled differently: its contents are not read at all during load, so a missing `MATH`
+table, or one whose contents are malformed, never makes `Load` fail. Only its table-directory range is captured; like
+every table-directory entry, that range must lie within the font data, so a `MATH` entry that points outside the file
+still fails the load with `InvalidDataException` (the SFNT container check). It is validated when `TryGetMathTable`
+first parses it, and a malformed table then fails closed with `InvalidDataException` instead of degrading. Math layout
+built from partially read constants or constructions would be silently wrong, so the caller (the MathMl package) is told
+and can report the failure.
+
+##### MATH Table Bounds and Work Limit
+
+`MathTable` resolves every offset as `(long)base + offset` and checks that the fixed part it reads
+ends before the `MATH` table end (the directory length, which `SfntContainer` has already
+validated). It checks every array as `(long)count × recordSize` against the same end, so maximal
+offsets and counts cannot wrap a 32-bit sum. A coverage whose largest index reaches past the count
+of its parallel record array is malformed. So are a variant or part glyph not smaller than
+`maxp.numGlyphs`, a missing coverage for a value or kern subtable, and a missing MathConstants.
+
+Many glyphs can share one subtable, and the offsets of a hostile table can be made to overlap.
+`MathTable` therefore caches each MathKern, MathGlyphConstruction, and GlyphAssembly it reads by
+absolute position, so a shared subtable is read once. It also charges the size of every distinct one
+against a budget of the table length. The subtables of a well-formed table do not overlap, so their
+sizes sum to at most the table length; going over the budget means the offsets overlap to multiply
+the work, and the table is rejected. Parsing has no recursion, so its work and memory are linear in
+the table size.
 
 ##### Overflow-Safe Structural Validation
 
@@ -897,13 +992,18 @@ semantics as the command set a caller later walks if it needs to transform the r
 The unit has no dependency on `Canvas`, `Drawing`, or any runtime NuGet package. This holds
 equally for the Type 1 support added by `Type1Table`, `Type1CharstringInterpreter`,
 `Type1CharstringDecryption`, `Type1PfbReader`, `Type1PfaReader`, and `Type1StandardGlyphNames`:
-all six are pure byte-array/`Geometry` code with no additional dependency of their own.
+all six are pure byte-array/`Geometry` code with no additional dependency of their own. `MathTable`
+and `OpenTypeCoverage` are pure byte-array code as well, using only `SfntContainer`'s big-endian
+readers.
 
 #### Callers
 
 `TrueTypeFont` is called directly by consumers of CanvasNet. Within this repository, its
 immediate callers are the `Fonts` unit tests, the real-font integration tests in
-`TrueTypeFontRealFontIntegrationTests.cs` (real `.ttf`, real CFF/OpenType `.otf`, and a
-locally-assembled multi-face `.ttc`), and the two `CanvasNetTests.cs` system-integration tests
+`TrueTypeFontRealFontIntegrationTests.cs` (real `.ttf`, real CFF/OpenType `.otf`, a
+locally-assembled multi-face `.ttc`, and the bundled Noto Sans Math for the `MATH` table), and the
+two `CanvasNetTests.cs` system-integration tests
 that scale and flip the returned outline before filling it through `Drawing.PathFiller` onto a
-`Canvas.Surface`.
+`Canvas.Surface`. The internal `TryGetMathTable` is reserved for the `DemaConsulting.CanvasNet.MathMl`
+package, which the core grants friend access (`InternalsVisibleTo`); within the core it is called
+only by tests.

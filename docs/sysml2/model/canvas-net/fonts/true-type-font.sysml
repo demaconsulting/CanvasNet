@@ -2,7 +2,7 @@ package CanvasNet_TrueTypeFont {
     private import SoftwareItemMetadata::*;
 
     part def TrueTypeFont {
-        doc /* Public TrueType/CFF/Type 1 font loader/query unit fronting SFNT container parsing (including ttcf collection face selection), cmap lookup, glyf/loca outline decoding, CFF/Type 2 charstring outline decoding, standalone Type 1/PostScript font parsing (PFA/PFB container reading, eexec/charstring decryption, and Type 1 charstring outline decoding with standard glyph name resolution), hhea/hmtx metrics, tolerant format-0 kern lookup, and name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch), with a per-font decoded-outline cache bounded by both entry count and total retained geometry cost. */
+        doc /* Public TrueType/CFF/Type 1 font loader/query unit fronting SFNT container parsing (including ttcf collection face selection), cmap lookup, glyf/loca outline decoding, CFF/Type 2 charstring outline decoding, standalone Type 1/PostScript font parsing (PFA/PFB container reading, eexec/charstring decryption, and Type 1 charstring outline decoding with standard glyph name resolution), hhea/hmtx metrics, tolerant format-0 kern lookup, name/style metadata (family/subfamily/full/PostScript name, bold/italic/fixed-pitch), and a lazily parsed, fail-closed internal OpenType MATH table reader (constants, glyph information, size variants and glyph assemblies, through OpenType coverage tables) for the MathML package, with a per-font decoded-outline cache bounded by both entry count and total retained geometry cost. */
 
         metadata info : SoftwareInfo {
             sourceFiles = (
@@ -24,6 +24,8 @@ package CanvasNet_TrueTypeFont {
                 "src/DemaConsulting.CanvasNet/Fonts/KernTable.cs",
                 "src/DemaConsulting.CanvasNet/Fonts/NameTable.cs",
                 "src/DemaConsulting.CanvasNet/Fonts/StyleTable.cs",
+                "src/DemaConsulting.CanvasNet/Fonts/MathTable.cs",
+                "src/DemaConsulting.CanvasNet/Fonts/OpenTypeCoverage.cs",
                 "src/DemaConsulting.CanvasNet/Fonts/NamespaceDoc.cs"
             );
             testFiles = (
@@ -41,6 +43,8 @@ package CanvasNet_TrueTypeFont {
                 "test/DemaConsulting.CanvasNet.Tests/Fonts/KernTableTests.cs",
                 "test/DemaConsulting.CanvasNet.Tests/Fonts/NameTableTests.cs",
                 "test/DemaConsulting.CanvasNet.Tests/Fonts/StyleTableTests.cs",
+                "test/DemaConsulting.CanvasNet.Tests/Fonts/MathTableTests.cs",
+                "test/DemaConsulting.CanvasNet.Tests/Fonts/OpenTypeCoverageTests.cs",
                 "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontTests.cs",
                 "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs",
                 "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"

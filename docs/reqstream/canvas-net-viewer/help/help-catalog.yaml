@@ -18,11 +18,11 @@ sections:
       - id: CanvasNetViewer-Help-HelpCatalog-Catalog
         title: >-
           The HelpCatalog class shall provide the library catalog, loaded once on first use from content shipped inside
-          the library, whose root cards are scad, vega-lite, mermaid, plantuml, svg, pdf, pptx, vsdx, raster, style,
-          composition, positions, errors, limits, and files in that order, shall list its cards depth first and give
-          each card its identifier (its path), name, parent, title, summary, tags, aliases, body, the cards below it,
-          related cards, and examples as lists that cannot be changed, and shall resolve a card by a path of names or
-          aliases (segments separated by a slash or white space, matched ignoring case), returning nothing for a path
+          the library, whose root cards are scad, vega-lite, mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster,
+          style, composition, positions, errors, limits, and files in that order, shall list its cards depth first and
+          give each card its identifier (its path), name, parent, title, summary, tags, aliases, body, the cards below
+          it, related cards, and examples as lists that cannot be changed, and shall resolve a card by a path of names
+          or aliases (segments separated by a slash or white space, matched ignoring case), returning nothing for a path
           that names no card.
         justification: |
           A host must find a card by the same paths a person types, without an exception for a path that does not
@@ -84,10 +84,10 @@ sections:
       - id: CanvasNetViewer-Help-HelpCatalog-Tags
         title: >-
           The HelpCatalog class shall give every card at least one tag, each from the closed vocabulary of the format
-          tags svg, mermaid, plantuml, scad, vega-lite, pdf, pptx, vsdx, and raster and the scope tags authoring,
-          design, composition, diagnostics, limits, hosting, and file-access, with no tag repeated and at least one
-          scope tag, shall give every card of the tree of a format the tag of that format and no other format tag, and
-          shall report a card that breaks the vocabulary rules as an error naming the file and the line.
+          tags svg, mermaid, plantuml, mathml, scad, vega-lite, pdf, pptx, vsdx, and raster and the scope tags
+          authoring, design, composition, diagnostics, limits, hosting, and file-access, with no tag repeated and at
+          least one scope tag, shall give every card of the tree of a format the tag of that format and no other format
+          tag, and shall report a card that breaks the vocabulary rules as an error naming the file and the line.
         justification: |
           A host chooses the cards its reader may see by tags; a vocabulary that is closed and checked when the cards
           load means a filter written today selects the same kind of cards tomorrow.
@@ -236,9 +236,9 @@ sections:
 
       - id: CanvasNetViewer-Help-HelpCatalog-FormatContent
         title: >-
-          The HelpCatalog class shall give the cards of each format (scad, vega-lite, mermaid, plantuml, svg, pdf,
-          pptx, vsdx, and raster) the sections of what is supported, what is not supported, the library options that
-          apply, the diagnostics and what strict mode does with them, and the known differences from the original
+          The HelpCatalog class shall give the cards of each format (scad, vega-lite, mermaid, plantuml, mathml, svg,
+          pdf, pptx, vsdx, and raster) the sections of what is supported, what is not supported, the library options
+          that apply, the diagnostics and what strict mode does with them, and the known differences from the original
           program, and each drawing format at least two examples.
         justification: |
           Whether a feature will render is the first question about a format; an answer that always has the same
@@ -432,6 +432,64 @@ sections:
           one and not the other would tell one of them something untrue.
         tests:
           - HelpCatalog_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide
+
+      - id: CanvasNetViewer-Help-HelpCatalog-MathMl
+        title: >-
+          The HelpCatalog class shall provide the mathml cards (aliases mml and equation) that teach how to write a
+          good-looking equation: the file and its tokens, fractions and roots, scripts and primes, sums, integrals, and
+          limits, stretchy fences, matrices and case analyses, aligned derivations with equation numbers, units and
+          numbers, Greek letters and named entities, accents and labeled braces, worked engineering formulas, styling,
+          the pitfalls and the markup to write instead, and the composition of an equation in an SVG figure, a Mermaid
+          node, and a Vega-Lite chart; the supported elements and attributes, the library options that apply (the
+          scale, the size, the background, strict mode, the limits, and the display mode) and that the theme and the
+          feature positions do not, the diagnostics and errors with their codes, what is not drawn, and the known
+          differences from browsers; source examples for every authoring task that render under strict mode without a
+          diagnostic; shall quote the limits of the MathML library from the code; shall be linked from the style and
+          composition hubs; and shall list .mml among the file types an image element of an SVG file may link.
+        justification: |
+          Engineers and agents write equations by hand; they must learn from the library itself which MathML is drawn,
+          how to make an equation look right, and how to place it in a figure, and get a working equation for every
+          task to start from.
+        tests:
+          - HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
+          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards
+          - HelpCatalog_StyleAndCompositionHubs_LinkBothWays
+          - HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries
+          - HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - HelpCatalog_MathMlCards_CoverTheAuthoringTasks
+          - HelpCatalog_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation
+          - HelpCatalog_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers
+          - HelpCatalog_MathMlPitfalls_StretchyFalseParentheses_AreNarrower
+
+      - id: CanvasNetViewer-Help-HelpCatalog-MathMlGuideParity
+        title: >-
+          The HelpCatalog class shall give in the mathml elements and attributes cards, row for row and in order, the
+          same supported element and attribute rows, and in the mathml unsupported and diagnostics cards the same
+          unsupported-feature, warning, and error codes as the MathML user guide, worded the same, code spans
+          included.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - HelpCatalog_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide
+
+      - id: CanvasNetViewer-Help-HelpCatalog-MathMlEquations
+        title: >-
+          The HelpCatalog class shall show, in the mathml cards and in the MathML user guide, only whole equations (in
+          xml code blocks and in Pandoc mathml code blocks) that render under strict mode without a diagnostic, and
+          shall state in the guide's rendering example the element count and the sizes the library reports.
+        justification: |
+          An equation an agent copies from the help or a person copies from the guide must draw as shown; an example
+          that warns or fails would teach the mistake it was meant to prevent, and a number the guide states must be
+          the number the library gives.
+        tests:
+          - HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics
+          - HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
+          - HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
 
       - id: CanvasNetViewer-Help-HelpCatalog-Positions
         title: >-

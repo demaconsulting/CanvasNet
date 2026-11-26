@@ -1,0 +1,29 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The connection coefficient Gamma upper lambda lower mu nu equals one half g upper lambda sigma times the sum of the partial derivatives of the metric">
+  <mmultiscripts>
+    <mi mathvariant="normal">&Gamma;</mi>
+    <none/>
+    <mi>&lambda;</mi>
+    <mrow><mi>&mu;</mi><mi>&nu;</mi></mrow>
+    <none/>
+  </mmultiscripts>
+  <mo>=</mo>
+  <mfrac><mn>1</mn><mn>2</mn></mfrac>
+  <mo>&InvisibleTimes;</mo>
+  <msup>
+    <mi>g</mi>
+    <mrow><mi>&lambda;</mi><mi>&sigma;</mi></mrow>
+  </msup>
+  <mrow>
+    <mo stretchy="false">(</mo>
+    <msub><mi mathvariant="normal">&PartialD;</mi><mi>&mu;</mi></msub>
+    <msub><mi>g</mi><mrow><mi>&sigma;</mi><mi>&nu;</mi></mrow></msub>
+    <mo>+</mo>
+    <msub><mi mathvariant="normal">&PartialD;</mi><mi>&nu;</mi></msub>
+    <msub><mi>g</mi><mrow><mi>&sigma;</mi><mi>&mu;</mi></mrow></msub>
+    <mo>&minus;</mo>
+    <msub><mi mathvariant="normal">&PartialD;</mi><mi>&sigma;</mi></msub>
+    <msub><mi>g</mi><mrow><mi>&mu;</mi><mi>&nu;</mi></mrow></msub>
+    <mo stretchy="false">)</mo>
+  </mrow>
+</math>

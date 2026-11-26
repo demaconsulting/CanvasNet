@@ -1,0 +1,37 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mo>&forall;</mo>
+  <mi>&epsilon;</mi>
+  <mo>&gt;</mo>
+  <mn>0</mn>
+  <mspace width="0.5em"/>
+  <mo>&exist;</mo>
+  <mi>&delta;</mi>
+  <mo>&gt;</mo>
+  <mn>0</mn>
+  <mo>:</mo>
+  <mrow>
+    <mo stretchy="false">|</mo>
+    <mi>x</mi>
+    <mo>&minus;</mo>
+    <mi>a</mi>
+    <mo stretchy="false">|</mo>
+  </mrow>
+  <mo>&lt;</mo>
+  <mi>&delta;</mi>
+  <mo>&rArr;</mo>
+  <mrow>
+    <mo stretchy="false">|</mo>
+    <mi>f</mi>
+    <mo stretchy="false">(</mo>
+    <mi>x</mi>
+    <mo stretchy="false">)</mo>
+    <mo>&minus;</mo>
+    <mi>f</mi>
+    <mo stretchy="false">(</mo>
+    <mi>a</mi>
+    <mo stretchy="false">)</mo>
+    <mo stretchy="false">|</mo>
+  </mrow>
+  <mo>&lt;</mo>
+  <mi>&epsilon;</mi>
+</math>

@@ -213,6 +213,229 @@ public class TrueTypeFontRealFontIntegrationTests
     }
 
     /// <summary>
+    ///     Loads the bundled Noto Sans Math font (the shared, cached instance) - the font whose
+    ///     <c>MATH</c> table MathML layout reads. The expected values asserted below were read from
+    ///     this exact font file with a throwaway <c>fonttools</c> (Python) inspection script, not
+    ///     guessed.
+    /// </summary>
+    private static TrueTypeFont LoadNotoSansMath() => SystemFontCatalog.LoadBundledFallbackCore("NotoSansMath-Regular.ttf");
+
+    /// <summary>
+    ///     Gets the <c>MATH</c> table of a font that must have one.
+    /// </summary>
+    private static MathTable RequireMathTable(TrueTypeFont font)
+    {
+        Assert.True(font.TryGetMathTable(out var table));
+        return table;
+    }
+
+    /// <summary>
+    ///     Proves that the real Noto Sans Math <c>MATH</c> table parses and exposes its
+    ///     MathConstants and MinConnectorOverlap as confirmed with <c>fonttools</c>.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMath_ReadsMathConstants()
+    {
+        // Act: parse the real MATH table
+        var table = RequireMathTable(LoadNotoSansMath());
+        var constants = table.Constants;
+
+        // Assert: the fonttools-confirmed values
+        Assert.Equal(278, constants.AxisHeight);
+        Assert.Equal(60, constants.ScriptPercentScaleDown);
+        Assert.Equal(50, constants.ScriptScriptPercentScaleDown);
+        Assert.Equal(2300, constants.DelimitedSubFormulaMinHeight);
+        Assert.Equal(2300, constants.DisplayOperatorMinHeight);
+        Assert.Equal(150, constants.MathLeading);
+        Assert.Equal(71, constants.FractionRuleThickness);
+        Assert.Equal(-450, constants.RadicalKernAfterDegree);
+        Assert.Equal(56, constants.RadicalDegreeBottomRaisePercent);
+        Assert.Equal(100, table.MinConnectorOverlap);
+    }
+
+    /// <summary>
+    ///     Proves that the real vertical constructions of the left parenthesis and the square root
+    ///     sign are read with every variant and every assembly part, including connector lengths
+    ///     and extender flags, as confirmed with <c>fonttools</c>.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction()
+    {
+        // Arrange
+        var font = LoadNotoSansMath();
+        var table = RequireMathTable(font);
+        var parenthesis = font.GetGlyphIndex('(');
+        var radical = font.GetGlyphIndex(0x221A);
+
+        // Act
+        var parenthesisConstruction = table.GetVerticalConstruction(parenthesis);
+        var radicalConstruction = table.GetVerticalConstruction(radical);
+
+        // Assert: '(' has 13 variants from its own glyph up, and a bottom/extender/top assembly
+        Assert.Equal(1864, parenthesis);
+        Assert.NotNull(parenthesisConstruction);
+        Assert.Equal(13, parenthesisConstruction.Variants.Count);
+        Assert.Equal(new MathGlyphVariant(1864, 942), parenthesisConstruction.Variants[0]);
+        Assert.Equal(new MathGlyphVariant(2606, 3768), parenthesisConstruction.Variants[^1]);
+        Assert.NotNull(parenthesisConstruction.Assembly);
+        Assert.Equal(
+            [
+                new MathGlyphPart(1959, 0, 627, 1069, false),
+                new MathGlyphPart(1961, 1069, 1069, 1069, true),
+                new MathGlyphPart(1960, 627, 0, 1069, false)
+            ],
+            parenthesisConstruction.Assembly.Parts);
+
+        // Assert: U+221A has 6 variants and a 3-part assembly
+        Assert.Equal(3196, radical);
+        Assert.NotNull(radicalConstruction);
+        Assert.Equal(6, radicalConstruction.Variants.Count);
+        Assert.Equal(new MathGlyphVariant(3219, 2867), radicalConstruction.Variants[^1]);
+        Assert.NotNull(radicalConstruction.Assembly);
+        Assert.Equal(
+            [
+                new MathGlyphPart(3200, 0, 1333, 1538, false),
+                new MathGlyphPart(3223, 1070, 1070, 1070, true),
+                new MathGlyphPart(3222, 998, 0, 1069, false)
+            ],
+            radicalConstruction.Assembly.Parts);
+
+        // Assert: the integral's assembly carries its italic correction
+        Assert.Equal(90, table.GetVerticalConstruction(font.GetGlyphIndex(0x222B))!.Assembly!.ItalicsCorrection);
+    }
+
+    /// <summary>
+    ///     Proves that the real horizontal constructions are read: the right arrow stretches with
+    ///     a two-part assembly and no variants, and the left-right arrow has no construction.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction()
+    {
+        // Arrange
+        var font = LoadNotoSansMath();
+        var table = RequireMathTable(font);
+
+        // Act
+        var rightArrow = table.GetHorizontalConstruction(font.GetGlyphIndex(0x2192));
+        var leftRightArrow = table.GetHorizontalConstruction(font.GetGlyphIndex(0x2194));
+
+        // Assert
+        Assert.NotNull(rightArrow);
+        Assert.Empty(rightArrow.Variants);
+        Assert.Equal(
+            [new MathGlyphPart(4656, 0, 777, 658, true), new MathGlyphPart(4646, 500, 0, 910, false)],
+            rightArrow.Assembly!.Parts);
+        Assert.Null(leftRightArrow);
+    }
+
+    /// <summary>
+    ///     Proves that the real glyph information is read: an italic correction, a top-accent
+    ///     attachment, extended shapes, and the absence of cut-in kerns (the font has no
+    ///     MathKernInfo), as confirmed with <c>fonttools</c>.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent()
+    {
+        // Arrange
+        var font = LoadNotoSansMath();
+        var table = RequireMathTable(font);
+        var italicF = font.GetGlyphIndex(0x1D453);
+        var a = font.GetGlyphIndex('a');
+
+        // Act
+        var hasItalic = table.TryGetItalicsCorrection(italicF, out var italic);
+        var hasAccent = table.TryGetTopAccentAttachment(a, out var accent);
+
+        // Assert
+        Assert.Equal(1036, italicF);
+        Assert.True(hasItalic);
+        Assert.Equal(145, italic);
+        Assert.Equal(82, a);
+        Assert.True(hasAccent);
+        Assert.Equal(281, accent);
+        Assert.True(table.IsExtendedShape(font.GetGlyphIndex(0x222B)));
+        Assert.False(table.IsExtendedShape(a));
+        Assert.False(table.TryGetMathKern(italicF, MathKernCorner.TopRight, out _));
+    }
+
+    /// <summary>
+    ///     Proves that a real text font without a <c>MATH</c> table reports none.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealOpenSans_HasNoMathTable()
+    {
+        // Act
+        var found = TrueTypeFont.Load(FontPath).TryGetMathTable(out var table);
+
+        // Assert
+        Assert.False(found);
+        Assert.Null(table);
+    }
+
+    /// <summary>
+    ///     Proves that the real Noto Sans Math with a damaged <c>MATH</c> table (one that claims an
+    ///     unsupported major version) still loads and gives the same glyphs, advances, and outlines
+    ///     as the undamaged font, while reading the table fails closed with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable()
+    {
+        // Arrange: the bundled font, and a copy whose MATH table claims major version 2
+        var bytes = ReadBundledFont("NotoSansMath-Regular.ttf");
+        var damaged = (byte[])bytes.Clone();
+        damaged[FindTableOffset(damaged, "MATH") + 1] = 2;
+
+        // Act
+        var original = TrueTypeFont.Load(new MemoryStream(bytes));
+        var font = TrueTypeFont.Load(new MemoryStream(damaged));
+
+        // Assert: the font is used for text exactly as before, and only the MATH table is rejected
+        var plus = original.GetGlyphIndex('+');
+        Assert.NotEqual(0, plus);
+        Assert.Equal(plus, font.GetGlyphIndex('+'));
+        Assert.Equal(original.GetAdvanceWidth(plus), font.GetAdvanceWidth(plus));
+        Assert.Equal(original.GetGlyphOutline(plus).GetBounds(), font.GetGlyphOutline(plus).GetBounds());
+        Assert.True(original.TryGetMathTable(out _));
+        Assert.Throws<InvalidDataException>(() => font.TryGetMathTable(out _));
+    }
+
+    /// <summary>
+    ///     Reads the bytes of a font bundled as an embedded resource of the core library.
+    /// </summary>
+    /// <param name="bundledName">The file name of the bundled font.</param>
+    /// <returns>The bytes of the font file.</returns>
+    private static byte[] ReadBundledFont(string bundledName)
+    {
+        using var source = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream(
+            "DemaConsulting.CanvasNet.Fonts.BundledFonts." + bundledName)!;
+        using var buffer = new MemoryStream();
+        source.CopyTo(buffer);
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    ///     Finds the offset of a table in the table directory of a single-face SFNT font file.
+    /// </summary>
+    /// <param name="font">The bytes of the font file.</param>
+    /// <param name="tag">The four-character table tag.</param>
+    /// <returns>The offset of the table from the start of the file.</returns>
+    private static int FindTableOffset(byte[] font, string tag)
+    {
+        var numTables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(font.AsSpan(4));
+        for (var i = 0; i < numTables; i++)
+        {
+            var entry = 12 + (i * 16);
+            if (System.Text.Encoding.ASCII.GetString(font, entry, 4) == tag)
+            {
+                return (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(font.AsSpan(entry + 8));
+            }
+        }
+
+        throw new InvalidOperationException($"The font has no '{tag}' table.");
+    }
+
+    /// <summary>
     ///     Extracts <paramref name="glyphIndex"/>'s real outline from <paramref name="font"/>,
     ///     confirms its metrics are sane for a real font, transforms it from font design-unit
     ///     space into a small pixel-space canvas, fills it via <see cref="PathFiller"/>, and

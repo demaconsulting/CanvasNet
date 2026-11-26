@@ -26,7 +26,9 @@ It contains eight units:
   `CANVASNET_TOOL`, and `CANVASNET_JOBS`: the file-access arguments, the tool identity, the cache folder, the `src` of a
   picture, and the number of jobs.
 - `PictureCache` - the key (version `17`), the names of the pictures, copies, and markers, and the atomic writes.
-- `PandocFilterEngine` - plans, draws, and applies; the `IPictureDrawer` seam and its production `ToolPictureDrawer`.
+- `PandocFilterEngine` - plans, draws, and applies; the `IPictureDrawer` seam and its production `ToolPictureDrawer`;
+  it gives a MathML equation (a `.mml` picture or a `mathml` code block) that the author does not size its natural
+  display width, so every equation shows at the same text size.
 - `PandocFilterShim` - the shim embedded in the tool, its protocol, and writing it.
 
 The command that runs the subsystem, `PandocFilterCommand`, is a unit of the `Commands` subsystem (see
@@ -48,15 +50,14 @@ environment, the format, the output file, the embed flag, and the resource paths
 **PandocFilterShim** (provided to `PandocFilterCommand`): `Bytes`, `Write(path)`, `CheckProtocol(protocol,
 filterPath)`, and the protocol constants (`Protocol`, `MinProtocol`, and `MaxProtocol`, all 1).
 
-**Lua shim protocol 1** (provided to Pandoc): the shim runs `<prog> pandoc-filter --json --protocol 1 --filter-path
-<PANDOC_SCRIPT_FILE> --format <FORMAT> --pandoc-version <PANDOC_VERSION> [--resource-path <dir>]... [--pandoc-output
-<file>] [--embed-resources]` with `pandoc.pipe` and the document on standard input. Exit code 0 means standard output
-is the document; exit code 1 means standard output is the JSON failure document, whose message and hint the shim
-raises as the error of the build. The shim starts the tool only when the document has a code block of a class the
-engine draws (`mermaid` or `plantuml`) or a local picture whose name ends in a suffix the engine may change (`.svg`,
-`.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, or `.pu`, in any letter
-case); `--write-shim` writes both lists
-from `PictureAttributes`, so the shim is written again after the tool is updated.
+**Lua shim protocol 1** (provided to Pandoc): the shim runs
+`<prog> pandoc-filter --json --protocol 1 --filter-path <PANDOC_SCRIPT_FILE> --format <FORMAT> --pandoc-version <PANDOC_VERSION> [--resource-path <dir>]... [--pandoc-output <file>] [--embed-resources]`
+with `pandoc.pipe` and the document on standard input. Exit code 0 means standard output is the document; exit code 1
+means standard output is the JSON failure document, whose message and hint the shim raises as the error of the build.
+The shim starts the tool only when the document has a code block of a class the engine draws (`mermaid`, `plantuml`, or
+`mathml`) or a local picture whose name ends in a suffix the engine may change (`.svg`, `.vl.json`, `.vl`, `.scad`,
+`.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, or `.mml`, in any letter case);
+`--write-shim` writes both lists from `PictureAttributes`, so the shim is written again after the tool is updated.
 
 **RenderCommand.Execute** and **FlattenCommand.Execute** (consumed, from the `Commands` subsystem): `ToolPictureDrawer`
 draws a picture with the same argument list the Lua filter passed to `canvasnet render ... --json` and `canvasnet

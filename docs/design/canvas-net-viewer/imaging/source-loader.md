@@ -11,6 +11,7 @@ reports a bad file as an expected error. The unit consists of the static class `
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
 `SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.PlantUml.cs`,
+`SourceLoader.MathMl.cs`,
 `SourceLoader.SvgImages.cs`,
 `SourceLoader.Positions.cs`, and
 `SourceLoader.Input.cs`),
@@ -23,13 +24,17 @@ and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that u
 #### Data Model
 
 **SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`,
-`VegaLite`, `Mermaid`, `PlantUml`, in the
+`VegaLite`, `Mermaid`, `PlantUml`, `MathMl`, in the
 order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON
 (`vega-lite` for `VegaLite`, the one name that is not the lower-case member name). `IsChart(kind)` is true for
 `VegaLite`, and `IsDiagram(kind)` is true for `Mermaid` and `PlantUml` (a PlantUML diagram is described by the same
 `DiagramFacts`: the type `sequence`, `activity`, or a recognized type that is not drawn; the participants, messages,
 and boxes of a sequence diagram, or the nodes, arrows, and swimlanes plus partitions of an activity diagram, as the
-nodes, edges, and subgraphs; no direction and no accessible title).
+nodes, edges, and subgraphs; no direction and no accessible title). `IsEquation(kind)` is true for `MathMl`, which is
+described by an `EquationFacts` (`SourceInfo.Equation`): the display mode it was laid out in (`block` or `inline`),
+the element count, the text alternative, the encodings of the annotations, and the row of the baseline. The display
+mode is an option of the load, `SourceOptions.MathMl` (an `EquationOptions` with a nullable `MathMlDisplay Display`),
+which `InputSelection.MathMl` sets from the `display=` fragment of an input.
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
@@ -107,16 +112,16 @@ number, a flag, or a list of strings).
 what `OpenPages` returns.
 
 **ExtensionKinds**: the read-only table (it cannot be changed, not even through a cast) of file name extensions (lower
-case, with the dot) and their kinds (`.vl` is the
-chart extension, `.mmd` and `.mermaid` are the Mermaid diagram extensions, and `.puml`, `.plantuml`, and `.pu` are the
-PlantUML diagram extensions); the `formats` command lists the same extensions
-and a test keeps the two consistent. The two-part suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an
-extension (the extension of such a file is `.json`), so it is checked on the file name and the `formats` listing adds it
-to the extensions of the `vega-lite` row.
+case, with the dot) and their kinds (`.vl` is the chart extension, `.mmd` and `.mermaid` are the Mermaid diagram
+extensions, `.puml`, `.plantuml`, and `.pu` are the PlantUML diagram extensions, and `.mml` is the MathML equation
+extension); the `formats` command lists the same extensions and a test keeps the two consistent. The two-part suffix of
+a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an extension (the extension of such a file is `.json`), so it is
+checked on the file name and the `formats` listing adds it to the extensions of the `vega-lite` row.
 
 The extensions an SVG `image` `href` may link are not a table of the tool: they are `CanvasNetViewer.Extensions`, the
 union of what the image sources of the core and format libraries claim (the raster extensions, `.svg`, `.pdf`,
-`.pptx`, `.vsdx`, `.scad`, `.vl`, `.vl.json`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, and `.pu`; a plain `.json` is
+`.pptx`, `.vsdx`, `.scad`, `.vl`, `.vl.json`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, and `.mml`; a plain
+`.json` is
 not
 linkable). The list is
 documented in the `svg` help topic, and a unit test compares it with the topic in both directions (and with the
@@ -159,7 +164,9 @@ hold SVG markup); the extensions of the text formats that the SVG sniff skips ar
 Mermaid text (`flowchart`, `graph`) is too common: a Markdown or text file that holds a diagram stays
 `unsupported-format`. A PlantUML diagram is recognized the same way, by `.puml`, `.plantuml`, and `.pu` only (all three
 are in `NamedTextExtensions`); `@startuml` is optional in a Pandoc block and so cannot be sniffed, and an include
-fragment named `.iuml` is not a diagram of its own and stays `unsupported-format`. The content wins over the extension,
+fragment named `.iuml` is not a diagram of its own and stays `unsupported-format`. A MathML equation is recognized by
+`.mml` only (in `NamedTextExtensions` too): MathML is XML that HTML and other documents hold among other markup, so
+there is no content sniffing, and `.mathml` is not recognized. The content wins over the extension,
 but a file whose content says nothing keeps its extension's
 kind, so that an empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise
 throws `unsupported-format` with a hint to run `canvasnet formats`.
@@ -204,7 +211,14 @@ reports the size it drew (see the Mermaid load). A PlantUML diagram (`ProbePlant
 `FileAccess` the policy of the probe, so its `!include` files are read under that policy, as a model's includes are) and
 measured with `Measure` without report handlers (`MeasurePlantUml`, which reads an oversized natural size from the same
 "gives a size of W by H;" message as `MeasureDiagram`); the facts come from `DiagramType`, `IsSupported`, `Title`,
-`NodeCount`, `EdgeCount`, and `SubgraphCount`, with a null direction and accessible title. No pixels
+`NodeCount`, `EdgeCount`, and `SubgraphCount`, with a null direction and accessible title. A MathML equation
+(`ProbeMathMl`) is opened with `MathMlDocument.Open(stream, options)` (`SourceName` is the name of the input; it reads
+no other file) and measured with `Measure` at scale 1 without report handlers (`MeasureMathMl`), in the display mode
+asked for or its own; the facts come from `Display`, `ElementCount`, `AltText`, `Annotations`, and the `Baseline` of
+the measure. `Probe(InputReference)` probes an equation again (`ReprobeMathMl`) when the `display=` fragment of the
+input names another display mode, so the facts and the size are those of the render. An equation larger than
+`Surface.MaxDimension` at its natural size is refused by the measure (`mathml-limit-exceeded`, so `budget-exceeded`).
+No pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
@@ -485,6 +499,23 @@ linked picture), and no feature positions (the tool refuses `--theme` and `--pos
 `ArgumentException` of the render (the target size was validated before) is `plantuml-error`. The tests are in
 `SourceLoaderPlantUmlTests.cs`.
 
+A *MathML equation* load (`MathMlPageSource`, `SourceLoader.MathMl.cs`) opens the equation once. The display mode is
+`SourceOptions.MathMl.Display` or, without one, the equation's own; when the probe measured it in another mode (an
+equation embedded by a link is probed before the fragment of the link is read), it is measured again in that mode and
+the size and facts of the load are those of the new measure. Without `Width` and `Height` it is drawn with
+`MathMlDocument.Render(options)` at the natural size times `Scale` (`MathMlRenderOptions.Scale`; with a scale the
+equation is measured at that scale first, because the library rounds the picture at the scale it lays out at); with a
+width, a height, or both it is drawn sharply into the target size with `MathMlDocument.Render(width, height, options)`,
+fitted and centered. The `Background` of the `MathMlRenderOptions` (`CreateMathMlOptions`) is the background option, or
+`DefaultVectorBackground` (opaque white) without one, as for an SVG; a color with zero alpha leaves the equation
+transparent, which is what a link of a document asks for. The surface is charged before the equation is drawn. The
+render operation lists the width, the height, the display mode when one was chosen, and the background when one was
+given. `ThrowOnUnsupportedFeature` is `Strict`; a warning becomes the note (`mathml`, `warning`, `mathml-warning`
+(`MathMlImageSource.WarningCode`), the one-line text), and an unsupported construct a note (`mathml`, `unsupported`,
+the feature code, `file:line:column: message (hint)`, `DescribeMathMlUnsupported`). There is no theme, no picture
+resolver (an equation links no file), and no feature positions (the tool refuses `--theme` and `--positions` for an
+equation). The tests are in `SourceLoaderMathMlTests.cs`.
+
 *Feature positions* (`SourceLoader.Positions.cs`, for a diagram and a chart alike). When `SourceOptions.Positions` is
 set, the load creates one core `PositionCollector` of the selection (`CreatePositionCollector`, with the default cap of
 `PositionCollector.MaxPositions`) and passes its `Offer` as the `PositionHandler` and its `IncludesKind` as the
@@ -531,27 +562,29 @@ limits: `image-fragment-invalid`) and reads it with the **built-in image source 
 and `slide` for a presentation), `ReadScad` (`view`, `azimuth`, `elevation`, `projection`, and the `def.` variables with
 `ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and `ReadChart`
 (the `param.` parameters) and `ReadDiagram` (the `theme` of a diagram, compared with the Mermaid themes without regard
-to case and kept by its canonical name), so a link and an input accept exactly the same parameters with the same values;
-a value that cannot be used is a `ViewerException` with the code `image-fragment-invalid`
-(`ErrorCodes.ImageFragmentInvalid`) whose message names the input, and a page the file does not have is
-`page-out-of-range` (`CheckPage`, at probe time). The notes are the `ReviewParameters` notes of the core `ImageFragment`
-(`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`; the same code that reports them for a link)
-and, for a chart, one `vl-param-unknown` warning for each `param.` name the chart does not declare (the names are
-compared with `SourceInfo.Chart.Parameters`; the unknown names are dropped from the selection, so the loader never sees
-them and the `--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors,
-not even in strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`,
-`VegaLite`, `Mermaid`, `Diagnostics`, and the internal `ProjectionGiven`, set when the fragment of a model has
-`projection`) and `SourceInfo.Specifier` (the path, `#` and the fragment).
-**`InputSelection.ApplyTo(options)`** lays it over the options of a command: the page replaces the page, the view, the
-azimuth, the elevation, and the projection of the fragment each replace those of the command (only the ones the fragment
-sets; the others still apply; the projection is replaced only when `ProjectionGiven` is set, because
-`ScadViewOptions.Perspective` cannot tell an orthographic choice from no choice), the variables and the chart parameters
-are merged by name with
-the fragment winning, the theme of the fragment replaces the theme of the options, and applying it twice gives the same
-options. `Load(info, options)`, `OpenPages`, and so every operation, apply it (`ApplySelection`), `PageSource.ReadPage`
-adds the `Diagnostics` to the notes of the first page that is loaded from the source (once, not for every page), and the
-operations take the page from it (see the units of the operations). Embedded links never go through this path:
-`LoaderImageSource` is given the link's own fragment by the resolver. The tests are in `InputSelectionTests.cs`.
+to case and kept by its canonical name) and `ReadEquation` (the `display` of an equation, `block` or `inline` without
+regard to case), so a link and an input accept exactly the same parameters with the same values; a value that cannot be
+used is a `ViewerException` with the code `image-fragment-invalid` (`ErrorCodes.ImageFragmentInvalid`) whose message
+names the input, and a page the file does not have is `page-out-of-range` (`CheckPage`, at probe time). The notes are
+the `ReviewParameters` notes of the core `ImageFragment` (`image-fragment-unknown-parameter`,
+`image-fragment-duplicate-parameter`; the same code that reports them for a link) and, for a chart, one
+`vl-param-unknown` warning for each `param.` name the chart does not declare (the names are compared with
+`SourceInfo.Chart.Parameters`; the unknown names are dropped from the selection, so the loader never sees them and the
+`--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors, not even in
+strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`, `VegaLite`,
+`Mermaid`, `MathMl`, `Diagnostics`, and the internal `ProjectionGiven`, set when the fragment of a model has
+`projection`) and `SourceInfo.Specifier` (the path, `#` and the fragment). **`InputSelection.ApplyTo(options)`** lays it
+over the options of a command: the page replaces the page, the view, the azimuth, the elevation, and the projection of
+the fragment each replace those of the command (only the ones the fragment sets; the others still apply; the projection
+is replaced only when `ProjectionGiven` is set, because `ScadViewOptions.Perspective` cannot tell an orthographic choice
+from no choice), the variables and the chart parameters are merged by name with the fragment winning, the theme of the
+fragment replaces the theme of the options, the display mode of the fragment replaces that of the options, and applying
+it twice gives the same options; `Probe(InputReference)` probes an equation again in the display mode of the fragment
+(`ReprobeMathMl`), so its size and facts are those of the render. `Load(info, options)`, `OpenPages`, and so every
+operation, apply it (`ApplySelection`), `PageSource.ReadPage` adds the `Diagnostics` to the notes of the first page that
+is loaded from the source (once, not for every page), and the operations take the page from it (see the units of the
+operations). Embedded links never go through this path: `LoaderImageSource` is given the link's own fragment by the
+resolver. The tests are in `InputSelectionTests.cs`.
 
 **Viewport variables.** The camera of a model is `$vpt` (the target, a vector), `$vpr` (the rotation, a vector), `$vpd`
 (the distance) and `$vpf` (the field of view). `ScadEvaluationOptions.Variables` overrides them (an explicit view or
@@ -585,8 +618,9 @@ render of `CanvasNetViewer`. It returns the mapped exception, or `null` for an e
 (see *Error Handling*). It builds a failure of a source with `SourceFailure(code, message, hint, failure, path)`, which
 reads the location and the detail code with `DescribeSourceFailure`.
 
-**DescribeSourceFailure(failure, path)**: the `Location` and `DetailCode` of a failure: for a Mermaid, PlantUML, or
-OpenSCAD exception its location (`ToMermaidLocation`, `ToPlantUmlLocation`, `ToScadLocation`) and its `Code`; for a
+**DescribeSourceFailure(failure, path)**: the `Location` and `DetailCode` of a failure: for a Mermaid, PlantUML, MathML,
+or OpenSCAD exception its location (`ToMermaidLocation`, `ToPlantUmlLocation`, `ToMathMlLocation`, `ToScadLocation`)
+and its `Code`; for a
 Vega-Lite specification or render exception its location with the JSON pointer (`ToVegaLiteLocation`) and no detail
 code, because the library gives such a failure none; for an unsupported-feature exception its location (none for the
 Office and raster libraries) and its `Feature` (a `vl-*` id for a chart); for any other failure whose chain holds an
@@ -603,7 +637,8 @@ height for 5 to 8.
 **Surface.HasTransparency()** (core) says whether any pixel is not opaque; the loader flattens with the first when a
 background was given, and `ImageWriter` uses both for JPEG output.
 
-**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, Mermaid, and PlantUML, the
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, Mermaid, PlantUML, and
+MathML, the
 kinds that
 are rendered at the size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options
 that load a source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and
@@ -640,16 +675,17 @@ enlarge is charged the rest right after the draw, before it is returned), `Scope
 render apply and the resolver's notes are not duplicated), `ReturnFittedPage` (a document page comes back at its
 fitted size without the margin, as a linked page is drawn), and `Limits`. The default context has no hook.
 
-**SourceLimits** (`SourceLoader.Input.cs`, internal record): the `VegaLiteLimits`, `MermaidLimits`, and
-`PlantUmlLimits` a caller sets, each `null` for the library default (`SourceLimits.Default` has all three `null`).
-`ProbeInput` and `OpenInput` take them for the probe (`ProbeVegaLite`, `ProbeMermaid`, and `ProbePlantUml` give them to
-`OpenVegaLite`, `OpenMermaid`, `OpenPlantUml`, and to the measure, `MeasureChart`, `MeasureDiagram`, and
-`MeasurePlantUml`), and `LoadContext.Limits` carries them to the page sources, which give them to the open and render
-options of the library (`VegaLiteOpenOptions.Limits` and `VegaLiteRenderOptions.Limits`, and the same for Mermaid and
-PlantUML; a measure after a parameter or a theme uses them too). The probe and the load of one source must use the
-same limits: a raised limit that only the render used would be refused by the probe, and a lowered one that only the
-probe used would not hold for the render. The public entry points and the command line use the default context and
-the default limits; `LoaderImageSource` of the `CanvasNetViewer` unit gives the limits of `ViewerRenderOptions`.
+**SourceLimits** (`SourceLoader.Input.cs`, internal record): the `VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`,
+and `MathMlLimits` a caller sets, each `null` for the library default (`SourceLimits.Default` has all four `null`).
+`ProbeInput` and `OpenInput` take them for the probe (`ProbeVegaLite`, `ProbeMermaid`, `ProbePlantUml`, and
+`ProbeMathMl` give them to `OpenVegaLite`, `OpenMermaid`, `OpenPlantUml`, `OpenMathMl`, and to the measure,
+`MeasureChart`, `MeasureDiagram`, `MeasurePlantUml`, and `MeasureMathMl`), and `LoadContext.Limits` carries them to the
+page sources, which give them to the open and render options of the library (`VegaLiteOpenOptions.Limits` and
+`VegaLiteRenderOptions.Limits`, and the same for Mermaid, PlantUML, and MathML; a measure after a parameter or a theme
+uses them too). The probe and the load of one source must use the same limits: a raised limit that only the render used
+would be refused by the probe, and a lowered one that only the probe used would not hold for the render. The public
+entry points and the command line use the default context and the default limits; `LoaderImageSource` of the
+`CanvasNetViewer` unit gives the limits of `ViewerRenderOptions`.
 
 **Option validation** (`FindOptionProblem`): `Load(path, options)`, `Load(info, options)`, and `OpenPages` check the
 `SourceOptions` first, before any file is touched, with the ranges of the command-line readers: `Width` and `Height`
@@ -661,7 +697,8 @@ is a defined value, and for a model a known `View`, a finite `Azimuth`, a finite
 parameters that
 `VegaLiteRenderOptions.Parameters` accepts (an empty name, a value nested too deeply or holding too many values;
 `FindChartProblem`), and for a diagram a `Mermaid.Theme` that is one of
-`MermaidRenderOptions.ThemeNames` as written (the canonical name; the tool canonicalizes what the user typed).
+`MermaidRenderOptions.ThemeNames` as written (the canonical name; the tool canonicalizes what the user typed), and for
+an equation a `MathMl.Display` that is a defined `MathMlDisplay`.
 A violation is a
 `ViewerException` with the code `usage-error`; `CanvasNetViewer.Render` calls the same validator and reports the problem
 as
@@ -785,7 +822,14 @@ that cannot be read) and `PlantUmlRenderException` (a diagram that cannot be lai
 include the file-access policy refused (the `FileReferenceException` inner exception, `IsFileAccessDenial`) is
 `file-access-denied` ("PlantUML include denied: ..."), `plantuml-limit-exceeded` is `budget-exceeded`, and every other
 code is `plantuml-error` ("PlantUML syntax error: ..." or "PlantUML render error: ..."), keeping the hint of the
-library; a text longer than the text limit is an `InvalidDataException`, so `corrupt-input`. An `ArgumentException` of
+library; a text longer than the text limit is an `InvalidDataException`, so `corrupt-input`. The MathML library adds
+three more, before the general cases: `MathMlUnsupportedFeatureException` (an `IOException`, strict mode) is
+`unsupported-feature` ("The MathML equation uses a feature that is not supported (feature): ..."), and
+`MathMlSyntaxException` (a `FormatException`: text that is not well-formed or not MathML, a DTD, an unknown entity) and
+`MathMlRenderException` (an equation that cannot be laid out or drawn) go to `MapMathMl`: `mathml-limit-exceeded` is
+`budget-exceeded`, and every other code is `mathml-error` ("MathML syntax error: ..." or "MathML render error: ..."),
+keeping the hint of the library; `DescribeSourceFailure` adds the line and column and the specific `mathml-*` code. An
+`ArgumentException` of
 the library is not on the allow-list of `Read`, because the library throws it for arguments that the caller chose; the
 two places that call the library with arguments the tool chose handle it themselves: `RenderChart` maps any
 `ArgumentException` of a render (the target size was validated by `ComputeTargetSize` before) to `vega-lite-error`
@@ -837,6 +881,10 @@ position handler cannot occur, because the handler only offers the position to t
   `PlantUmlOpenOptions`, `PlantUmlRenderOptions`, `PlantUmlLimits`, the warnings and unsupported features, the stable
   `PlantUmlDiagnosticCodes`, and the exceptions that the loader maps; `PlantUmlImageSource` names the generic warning
   code.
+- **CanvasNet MathML system** - `MathMlDocument` parses, measures, and draws an equation, with `MathMlOpenOptions`,
+  `MathMlRenderOptions`, `MathMlDisplay`, `MathMlLimits`, `MathMlSize`, the warnings and unsupported features, the
+  stable `MathMlDiagnosticCodes`, and the exceptions that the loader maps; `MathMlImageSource` names the generic warning
+  code and the `display` fragment parameter.
 - **CanvasNet core `Positions` subsystem** - `PositionSelection`, `PositionCollector`, `PositionSelector`, and
   `ImagePosition` for the feature positions of a diagram or a chart.
 

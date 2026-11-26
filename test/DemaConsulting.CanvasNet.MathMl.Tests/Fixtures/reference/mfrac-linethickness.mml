@@ -1,0 +1,28 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mfrac linethickness="0">
+    <mi>n</mi>
+    <mi>k</mi>
+  </mfrac>
+  <mfrac linethickness="200%">
+    <mn>1</mn>
+    <mn>2</mn>
+  </mfrac>
+  <mfrac linethickness="3px">
+    <mn>3</mn>
+    <mn>4</mn>
+  </mfrac>
+  <mfrac linethickness="-1px">
+    <mn>5</mn>
+    <mn>6</mn>
+  </mfrac>
+  <mstyle displaystyle="true">
+    <mfrac linethickness="0px">
+      <mi>n</mi>
+      <mi>k</mi>
+    </mfrac>
+    <mfrac linethickness="0.2em">
+      <mn>7</mn>
+      <mn>8</mn>
+    </mfrac>
+  </mstyle>
+</math>

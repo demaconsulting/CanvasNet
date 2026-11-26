@@ -31,12 +31,13 @@ run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_Render
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`,
 `CanvasNetTool_Adjustments`,
-`CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, `CanvasNetTool_RenderPlantUml`, and
-`CanvasNetTool_HelpExamples`), which
+`CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, `CanvasNetTool_RenderPlantUml`,
+`CanvasNetTool_RenderMathMl`, `CanvasNetTool_PandocFilter`, and `CanvasNetTool_HelpExamples`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (nineteen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
+kept small (twenty tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
 (the last runs every photo operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart,
-the Mermaid self-test a smoke test of one three-node flowchart, the help self-test renders
+the Mermaid self-test a smoke test of one three-node flowchart, the MathML self-test a smoke test of one equation (the
+quadratic formula), the help self-test renders
 every source example of the help cards with `--strict`, and the detailed
 coverage of these commands and operations is in the unit,
 subsystem, and system tests.
@@ -44,8 +45,9 @@ The same job guards the package contents (no NuGet dependency at all, a `DotnetT
 start-up files, the library assemblies, and the third-party libraries bundled for every target framework, with the
 Vega-Lite assembly and the licenses folder
 that carries the third-party notices of the Vega-Lite library) and smoke-tests the installed tool (`formats --json`, an
-SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart); the self-validation covers the PDF,
-SCAD (OpenSCAD), Vega-Lite, Mermaid, and PlantUML paths of the bundled libraries.
+SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart, a Mermaid and a PlantUML diagram, and a
+MathML equation); the self-validation covers the PDF, SCAD (OpenSCAD), Vega-Lite, Mermaid, PlantUML, and MathML paths
+of the bundled libraries.
 
 ## Test Environment
 
@@ -75,8 +77,8 @@ argument combination fails its own test.
   text or JSON, `help <topic> --example <name>` prints only the source or command line of an example, and an unknown
   help subject is a usage error that lists the valid subjects.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and
-  PlantUML diagrams) with the documented defaults
+  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid diagrams,
+  PlantUML diagrams, and MathML equations) with the documented defaults
   (overwrite, flatten
   over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
   a stable error for
@@ -94,11 +96,13 @@ hint, and `--theme` on another kind of input is a `usage-error`; a PlantUML diag
 `.plantuml`, or `.pu` file name, drawn at the size PlantUML lays it out at over its own white background with the
 bundled fonts, a type that is not drawn (a legacy activity diagram, for example) is the diagnostic
 `plantuml-diagram-unsupported`, invalid text is a `plantuml-error` with the location, and `--theme` or `--positions`
-on it is a `usage-error`;
+on it is a `usage-error`; a MathML equation is recognized by its `.mml` file name, drawn at its natural size (a 16 pixel
+font size) over white with the bundled math font, invalid text is a `mathml-error` with the location, and `--theme` or
+`--positions` on it is a `usage-error`;
   `info` describes a
   file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, and the
-  type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn), without
-  rendering it.
+  type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn), and the
+  display, elements, baseline, text alternative, and annotations of an equation, without rendering it.
 - `compare` reports exact metrics (MAE, RMSE, PSNR, SSIM, largest channel difference, differing-pixel ratio) and a
   grid of per-cell errors, writes the difference, side-by-side, and overlay pictures, refuses images of different sizes
   unless `--resize-to` is given (rendering a vector source at that size), and with `--threshold` exits 1 with
@@ -296,7 +300,9 @@ drawing, and a model are rendered twice to every output format at a given width;
 
 **CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors**: a missing file, a text file, and a truncated file
 and garbage of every supported format (a model is only given garbage, because a truncated model is usually still a
-valid one, and its code is `scad-error`; a truncated or garbage chart has the code `vega-lite-error`) are rendered
+valid one, and its code is `scad-error`; a Mermaid or PlantUML diagram likewise, with `mermaid-error` or
+`plantuml-error`; a truncated or garbage chart has the code `vega-lite-error`, and a truncated or garbage MathML
+equation `mathml-error`) are rendered
 in-process; each returns exit code 1 (an unexpected exception
 would escape and fail the test) with the stable error code in the message and in the JSON document, and no output
 exists.
@@ -462,6 +468,21 @@ described, rendered, and explained by real processes (so the PlantUML assembly b
 `sequence`, supported, with two nodes and two edges; `render --strict --json` writes a PNG of the size `info` reported
 with a white corner and the participant fill `#E2E2F0`; and `help puml` starts with `# PlantUML diagrams`; every
 process exits with 0.
+
+**CanvasNetTool_MathMl_RenderAsProcess_DescribesAndWritesImage**: the quadratic formula is listed, described,
+rendered, and explained by real processes (so the MathML assembly bundled next to the tool is loaded): `formats --json`
+lists the `mathml` format; `info --json` names the `mathml` format and the `equation` object with the display `block`
+and more than ten elements; `render --strict --json` reports no diagnostic and writes a PNG of the size `info` reported
+with a white corner and dark ink; and `help equation` starts with `# MathML equations`; every process exits with 0.
+
+**CanvasNetTool_MathMl_SyntaxError_IsMathMlErrorWithLocation**: an equation whose third line closes the wrong element
+is rendered by a real process: it returns exit code 1 with an `Error: mathml-error: MathML syntax error:` line that
+names `broken.mml:3:` and a `Hint:` line, with `--json` a failure document with the code `mathml-error`, and no output
+file is written.
+
+**CanvasNetTool_MathMl_ToolGuideBlocks_RenderStrictWithoutDiagnostics**: every equation that the tool guide writes in
+a Pandoc code block of class `mathml` (the copy shown inside a `markdown` block included; there is at least one) is
+rendered by a real process with `render --strict --json`: it exits with 0, reports no diagnostic, and writes the PNG.
 
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`

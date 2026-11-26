@@ -1,0 +1,36 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msubsup>
+    <mi>x</mi>
+    <mi>i</mi>
+    <mn>2</mn>
+  </msubsup>
+  <mo>+</mo>
+  <msub>
+    <mi>a</mi>
+    <mrow><mi>i</mi><mi>j</mi></mrow>
+  </msub>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>f</mi>
+  <mo>&prime;</mo>
+  <mo stretchy="false">(</mo>
+  <mi>x</mi>
+  <mo stretchy="false">)</mo>
+  <mo>=</mo>
+  <msup>
+    <mi>e</mi>
+    <mrow>
+      <mo>&minus;</mo>
+      <msup><mi>x</mi><mn>2</mn></msup>
+    </mrow>
+  </msup>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mmultiscripts>
+    <mi>R</mi>
+    <none/>
+    <mi>&mu;</mi>
+    <mi>&nu;</mi>
+    <none/>
+  </mmultiscripts>
+</math>

@@ -26,7 +26,7 @@ public class SourceLoaderTests
         get
         {
             var data = new TheoryData<string, string>();
-            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid" and not "plantuml"))
+            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid" and not "plantuml" and not "mathml"))
             {
                 foreach (var damage in new[] { "empty", "garbage", "one-byte", "header-only", "half", "missing-last-byte" })
                 {
@@ -34,8 +34,8 @@ public class SourceLoaderTests
                 }
             }
 
-            // A model or a diagram is text, so cutting it often leaves a valid (shorter) one: SourceLoaderScadTests and
-            // SourceLoaderMermaidTests do their own sweeps
+            // A model, a diagram or an equation is text, so cutting it often leaves a valid (shorter) one: SourceLoaderScadTests,
+            // SourceLoaderMermaidTests and SourceLoaderMathMlTests do their own sweeps
             return data;
         }
     }
@@ -184,6 +184,8 @@ public class SourceLoaderTests
     [InlineData(".puml", "plantuml")]
     [InlineData(".PlantUML", "plantuml")]
     [InlineData(".pu", "plantuml")]
+    [InlineData(".mml", "mathml")]
+    [InlineData(".MML", "mathml")]
     public void SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension(string extension, string expected)
     {
         // Arrange: a file with content no signature matches
@@ -332,7 +334,7 @@ public class SourceLoaderTests
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
-            "vega-lite" or "mermaid" or "plantuml" => (info.Width, info.Height),
+            "vega-lite" or "mermaid" or "plantuml" or "mathml" => (info.Width, info.Height),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -904,6 +906,7 @@ public class SourceLoaderTests
             "vega-lite" => ErrorCodes.VegaLiteError,
             "mermaid" => ErrorCodes.MermaidError,
             "plantuml" => ErrorCodes.PlantUmlError,
+            "mathml" => ErrorCodes.MathMlError,
             _ => ErrorCodes.CorruptInput
         };
         Assert.Equal(expectedCode, exception.Code);
@@ -1006,8 +1009,8 @@ public class SourceLoaderTests
     ///     Test that the loader the command-line tool reads its files with fills in the location and the detail code of a
     ///     source error from the same mapping as <c>CanvasNetViewer.Render</c>: a Mermaid, a PlantUML, a model and a chart
     ///     error (the chart without a detail code, which the library gives none), malformed SVG markup (located by its XML
-    ///     line and column, without a detail code), and a strict chart with an unsupported mark (its <c>vl-*</c> feature);
-    ///     a failure outside a source has neither.
+    ///     line and column, without a detail code), a MathML syntax error (with the code of the library), and a strict
+    ///     chart with an unsupported mark (its <c>vl-*</c> feature); a failure outside a source has neither.
     /// </summary>
     [Fact]
     public void SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode()
@@ -1019,10 +1022,11 @@ public class SourceLoaderTests
         var scad = FixtureFactory.WriteText(directory.Path, "model.scad", "cube([10, 10, 10]\nsphere(5);\n");
         var chart = FixtureFactory.WriteText(directory.Path, "chart.vl.json", "{\n  \"mark\": \"bar\",\n  \"encoding\": {\n");
         var svg = FixtureFactory.WriteText(directory.Path, "figure.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\">\n<rect></svg>\n");
+        var mathMl = FixtureFactory.WriteText(directory.Path, "eq.mml", "<math>\n<mi>x</mo>\n</math>\n");
         var geo = FixtureFactory.WriteText(directory.Path, "geo.vl.json", "{\"data\": {\"values\": []}, \"mark\": \"geoshape\"}");
 
         // Act
-        var failures = new[] { mermaid, plantUml, scad, chart, svg }
+        var failures = new[] { mermaid, plantUml, scad, chart, svg, mathMl }
             .Select(path => Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions())))
             .ToList();
         var missing = Assert.Throws<ViewerException>(() => SourceLoader.Load(directory.Combine("missing.png"), new SourceOptions()));
@@ -1030,7 +1034,7 @@ public class SourceLoaderTests
 
         // Assert: the codes of the tool, the library's codes, and the lines of the errors
         Assert.Equal(
-            [ErrorCodes.MermaidError, ErrorCodes.PlantUmlError, ErrorCodes.ScadError, ErrorCodes.VegaLiteError, ErrorCodes.CorruptInput],
+            [ErrorCodes.MermaidError, ErrorCodes.PlantUmlError, ErrorCodes.ScadError, ErrorCodes.VegaLiteError, ErrorCodes.CorruptInput, ErrorCodes.MathMlError],
             failures.Select(f => f.Code));
         Assert.Equal(["mermaid-syntax-error", "plantuml-syntax-error", "scad-syntax-error"], failures.Take(3).Select(f => f.DetailCode));
         Assert.Null(failures[3].DetailCode);
@@ -1041,6 +1045,7 @@ public class SourceLoaderTests
         Assert.Equal((svg, 2), (failures[4].Location?.File, failures[4].Location?.Line));
         Assert.NotNull(failures[4].Location?.Column);
         Assert.IsType<InvalidDataException>(failures[4].InnerException);
+        Assert.Equal(("mathml-syntax-error", mathMl, 2), (failures[5].DetailCode, failures[5].Location?.File, failures[5].Location?.Line));
         Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
         Assert.Null(missing.Location);
         Assert.Null(missing.DetailCode);

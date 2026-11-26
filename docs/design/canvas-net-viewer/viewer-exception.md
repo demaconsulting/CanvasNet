@@ -28,7 +28,8 @@ failures of `CanvasNetViewer.Render` name no option of the command-line tool in 
 **ErrorCodes** (static): the constants `UsageError`, `OperationFailed`, `InputNotFound`, `InputUnreadable`,
 `UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `ImageFragmentInvalid`, `SizeLimit`,
 `SameInputOutput`,
-`OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `PlantUmlError`, `BudgetExceeded`,
+`OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `MermaidError`, `PlantUmlError`, `MathMlError`,
+`BudgetExceeded`,
 `FileAccessDenied`,
 `SizeMismatch`, `ThresholdFailed`,
 `PositionsUnmatched`, `SvgBindingFailed`, and `PandocFilterError`, with the strings `usage-error`, `operation-failed`,
@@ -36,7 +37,7 @@ failures of `CanvasNetViewer.Render` name no option of the command-line tool in 
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`,
-`budget-exceeded`,
+`mathml-error`, `budget-exceeded`,
 `file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`, `svg-binding-failed`, and
 `pandoc-filter-error`. The
 strings are the contract: they

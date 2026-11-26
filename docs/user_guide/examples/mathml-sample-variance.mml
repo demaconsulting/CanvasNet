@@ -1,0 +1,32 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The sample variance s squared is 1 over n minus 1 times the sum of the squared deviations of x i from the mean x bar">
+  <msup><mi>s</mi><mn>2</mn></msup>
+  <mo>=</mo>
+  <mfrac>
+    <mn>1</mn>
+    <mrow><mi>n</mi><mo>&minus;</mo><mn>1</mn></mrow>
+  </mfrac>
+  <munder>
+    <munder>
+      <mrow>
+        <munderover>
+          <mo>&sum;</mo>
+          <mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow>
+          <mi>n</mi>
+        </munderover>
+        <msup>
+          <mrow>
+            <mo stretchy="false">(</mo>
+            <msub><mi>x</mi><mi>i</mi></msub>
+            <mo>&minus;</mo>
+            <mover accent="true"><mi>x</mi><mo>&#xAF;</mo></mover>
+            <mo stretchy="false">)</mo>
+          </mrow>
+          <mn>2</mn>
+        </msup>
+      </mrow>
+      <mo>&#x23DF;</mo>
+    </munder>
+    <mtext>squared deviations</mtext>
+  </munder>
+</math>

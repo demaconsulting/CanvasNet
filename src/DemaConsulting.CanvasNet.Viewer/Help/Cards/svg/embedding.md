@@ -24,15 +24,16 @@ examples:
   .jpg, .jpeg, .bmp, .tif, .tiff, .gif, .jp2, .j2k, or .j2c (a raster picture),
   .svg (another SVG file), .scad (an OpenSCAD model), .vl.json or .vl (a
   Vega-Lite chart), .mmd or .mermaid (a Mermaid diagram), .puml, .plantuml, or
-  .pu (a PlantUML diagram), or .pdf, .pptx, or .vsdx (a page of a document: a
-  PDF page, a PowerPoint slide, or a Visio page; page 1 unless the href chooses
-  another one, see page fragment below). The format is decided by the file name,
-  not by the content, so a Vega-Lite chart in a file whose extension is only
-  json is not linked; a raster file is still decoded by its content. Any other
-  file is not drawn.
-- **size**: A model, a chart, a Mermaid or PlantUML diagram, a document page,
-  and an SVG file are drawn at the size of the image element (its width and
-  height on the output), so they stay sharp at any scale; a raster is fitted
+  .pu (a PlantUML diagram), .mml (a MathML equation), or .pdf, .pptx, or .vsdx
+  (a page of a document: a PDF page, a PowerPoint slide, or a Visio page; page 1
+  unless the href chooses another one, see page fragment below). The format is
+  decided by the file name, not by the content, so a Vega-Lite chart in a file
+  whose extension is only json is not linked; a raster file is still decoded by
+  its content. Any other file is not drawn.
+- **size**: A model, a chart, a Mermaid or PlantUML diagram, a MathML
+  equation, a document page, and an SVG file are drawn at the size of the image
+  element (its width and height on the output), so they stay sharp at any
+  scale; a raster is fitted
   into the element by preserveAspectRatio. An embedded model uses the library's
   own view of the model (isometric for a 3D model, top-down for a flat 2D model)
   over a transparent background.

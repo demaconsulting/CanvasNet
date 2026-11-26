@@ -1,0 +1,22 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow>
+    <mo>(</mo>
+    <mspace width="10px" height="0.5em" depth="0.1em"/>
+    <mo>)</mo>
+  </mrow>
+  <mrow>
+    <mo>(</mo>
+    <mspace width="10px" height="1em" depth="0.5em"/>
+    <mo>)</mo>
+  </mrow>
+  <mrow>
+    <mo>(</mo>
+    <mspace width="10px" height="2em" depth="1em"/>
+    <mo>)</mo>
+  </mrow>
+  <mrow>
+    <mo>(</mo>
+    <mspace width="10px" height="4em" depth="3em"/>
+    <mo>)</mo>
+  </mrow>
+</math>

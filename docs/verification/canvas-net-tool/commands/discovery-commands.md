@@ -6,7 +6,9 @@
 `DiscoveryCommandsDocumentTests.cs` (the page options and the documents), and `DiscoveryCommandsModelTests.cs` (the
 description of an OpenSCAD model and the link between the format table and the loader), and
 `DiscoveryCommandsChartTests.cs` (the listing of the chart format and the description of a Vega-Lite chart), and
-`DiscoveryCommandsDiagramTests.cs` (the listing of the diagram format and the description of a Mermaid diagram). The
+`DiscoveryCommandsDiagramTests.cs` (the listing of the diagram format and the description of a Mermaid diagram), and
+`DiscoveryCommandsPlantUmlTests.cs` and `DiscoveryCommandsMathMlTests.cs` (the listing and the description of a
+PlantUML diagram and of a MathML equation). The
 `formats` command is run in-process with fixed versions (through its `internal` constructor) so that the output does not
 depend on the build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
@@ -38,6 +40,10 @@ console.
   mindmap its nodes, the edges to them, and no subgraphs, a packet diagram its blocks as written, and a git graph its
   commits and the links to their parents); a
   theme fragment is checked and does not change the description.
+- The listing names the `mathml` format (kind `equation`, extension `.mml`, help topic `mathml`) in text and JSON,
+  and `info` describes an equation as one text line and as the `image` and `equation` objects (display, elements,
+  baseline, the text alternative only when there is one, and the annotation encodings), in the display a
+  `display=` fragment names.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
 
@@ -85,7 +91,9 @@ one row per `OutputFormat`, in order, with the
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
 listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
 multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden
-document includes the `vega-lite` and `mermaid` rows.
+document includes the `vega-lite`, `mermaid`, `plantuml`, and `mathml` rows (the last of the kind `equation`, listing
+`.mml`, with the help topic `mathml`), and every row has one of the kinds `raster`, `vector`, `document`, `model`,
+`chart`, `diagram`, and `equation`.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
 command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default
@@ -241,6 +249,24 @@ in a package, a database, an interface named only by a link, and a hidden link) 
 (the hidden link counted), and 1 subgraph; and a deployment diagram (a node that holds an artifact, a database, and a
 cloud) as `deployment` with 3 nodes, 2 edges, and 1 subgraph; each with the text `<type>, <n> nodes, <m> edges, 1
 subgraph`.
+
+**DiscoveryCommands_Formats_IncludesMathMlEquation** (`DiscoveryCommandsMathMlTests.cs`): the `mathml` row of the
+table has the kind `equation`, is a vector format, is not multi-page, lists `.mml`, and has the help topic `mathml`;
+the JSON listing has the row with the kind `equation`, and the text listing a matching line.
+
+**DiscoveryCommands_Info_MathMlEquation_ReportsDisplayElementsAndBaseline** (`DiscoveryCommandsMathMlTests.cs`): a
+block equation `x = 1` with a text alternative is described in JSON with the `mathml` format, the natural size of a
+probe, and the `equation` members `display`, `elements`, `baseline`, `altText`, and `annotations` in that order
+(`block`, 4, the probe's baseline inside the picture, `x equals 1`, and an empty array), and as the one text line
+`{path}: mathml, {w}x{h} px (laid out), equation, block, 4 elements, baseline {b}, alttext "x equals 1", {bytes} bytes`;
+with `#display=inline` the display is `inline`, the `fragment` of the `input` object is `display=inline`, and the
+width is the width of an inline probe; the usage text names MathML equations and the example
+`canvasnet info quadratic.mml --json`.
+
+**DiscoveryCommands_Info_MathMlAnnotations_ListsAltTextAndEncodings** (`DiscoveryCommandsMathMlTests.cs`): an inline
+equation in `semantics` with a LaTeX annotation and an annotation without an encoding has the display `inline`, no
+`altText` member, and the annotations `application/x-tex` and the empty string, in order; its text line holds
+`, 2 annotations (application/x-tex, no encoding), ` and no `alttext`.
 
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the

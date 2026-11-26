@@ -1,0 +1,85 @@
+---
+# Software Unit Requirements for StretchyGlyphs
+#
+# These requirements describe the design-level behavior of the StretchyGlyphs unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the size variants and glyph assemblies of MathML Core 5.3, the
+# Unicode-based assemblies of B.4, the rule of a line character, the large variant of an operator, and the assembly
+# limit. See docs/verification/canvas-net-math-ml/layout/stretchy-glyphs.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: StretchyGlyphs Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-Variants
+                title: >-
+                  The StretchyGlyphs unit shall keep the base glyph of a character when it covers the target size, else
+                  take the first size variant of the MATH table whose advance measurement covers it, and shall find the
+                  large variant of an operator as the first variant other than the base glyph at least
+                  DisplayOperatorMinHeight tall, else the largest.
+                justification: |
+                  Fonts draw delimiters and large operators at ready-made sizes, which MathML Core 5.3.2 and 3.2.4.3
+                  prefer to an assembly.
+                tests:
+                  - StretchyGlyphs_Stretch_SmallTarget_UsesBaseGlyph
+                  - StretchyGlyphs_Stretch_MediumTarget_UsesFirstCoveringVariant
+                  - StretchyGlyphs_LargeVariant_Sum_IsTallerThanBase
+
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-Assembly
+                title: >-
+                  The StretchyGlyphs unit shall build the glyph assembly of a target beyond the largest variant with the
+                  fewest repetitions of every extender that reach it and one overlap between MinConnectorOverlap and the
+                  shortest connector that joins two glyphs, along the block or the inline axis (an inline assembly
+                  taking the ink of its parts, rounded out, as its ascent and descent), and shall give the preferred
+                  inline size as the widest of the base glyph, the variants, and the parts.
+                justification: |
+                  Assemblies draw delimiters of any size without gaps, as MathML Core 5.3.1 specifies.
+                tests:
+                  - StretchyGlyphs_Stretch_LargeTarget_AssemblesWithMinimalRepetitions
+                  - StretchyGlyphs_Stretch_Assembly_OverlapWithinConnectorBounds
+                  - StretchyGlyphs_Stretch_Assembly_SizeCoversTargetExactlyWhenPossible
+                  - StretchyGlyphs_Stretch_HorizontalArrow_Assembles
+                  - StretchyGlyphs_Stretch_HorizontalAssembly_HasInkExtents
+                  - StretchyGlyphs_PreferredInlineSize_IsMaximumOverConstructions
+
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-UnicodeFallback
+                title: >-
+                  The StretchyGlyphs unit shall stretch a character that the math font has no construction for with its
+                  Unicode-based glyph assembly of MathML Core B.4, with zero connectors.
+                justification: |
+                  The bundled math font cannot stretch every character that MathML Core lists as stretchy; B.4 assembles
+                  them from other characters.
+                tests:
+                  - StretchyGlyphs_Stretch_NoMathConstruction_UsesUnicodeFallback
+
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-RuleFallback
+                title: >-
+                  The StretchyGlyphs unit shall stretch a line character (low line, macron, combining low line,
+                  horizontal bar, overline) that the math font has no construction for as a rule of the target size, as
+                  thick as the ink of its glyph.
+                justification: |
+                  A line repeated from glyphs with side bearings has gaps; a rule draws it seamlessly.
+                tests:
+                  - StretchyGlyphs_Stretch_MissingGlyphLine_UsesRuleFallback
+
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-Limit
+                title: >-
+                  The StretchyGlyphs unit shall refuse an assembly that needs more glyphs than
+                  MathMlLimits.MaxAssemblyParts with a located mathml-limit-exceeded render exception before it places
+                  any glyph.
+                justification: |
+                  The number of glyphs of an assembly grows with the content around the operator; a hostile equation
+                  must not make it unbounded.
+                tests:
+                  - StretchyGlyphs_Stretch_HugeTarget_ThrowsLimitExceeded
+
+              - id: CanvasNetMathMl-Layout-StretchyGlyphs-Failure
+                title: >-
+                  The StretchyGlyphs unit shall fail to stretch a character that neither the math font, nor B.4, nor
+                  the rule fallback can stretch, so that its caller keeps the glyph.
+                justification: |
+                  The caller must know that the character cannot stretch to report it.
+                tests:
+                  - StretchyGlyphs_Stretch_NothingAvailable_Fails

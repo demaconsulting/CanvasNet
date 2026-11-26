@@ -1,6 +1,7 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
@@ -254,6 +255,34 @@ public class InputSelectionTests
     }
 
     /// <summary>
+    ///     Test that the display mode of an equation's fragment is read when the input is probed (its facts and size are
+    ///     those of that display mode), replaces the display mode of the command, and is applied to the render: an inline
+    ///     equation is drawn at the probed, smaller size.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_ProbeInputReference_MathMlDisplay_IsAppliedToTheRender()
+    {
+        // Arrange: the quadratic formula, which says display="block"
+        using var directory = new TempDirectory();
+        var equation = FixtureFactory.WriteSource(directory.Path, "mathml");
+
+        // Act
+        var block = SourceLoader.Probe(InputReference.Parse(equation));
+        var inline = SourceLoader.Probe(InputReference.Parse(equation + "#display=inline"));
+        var options = inline.Selection!.ApplyTo(new SourceOptions { MathMl = new EquationOptions { Display = MathMlDisplay.Block } });
+        using var drawn = SourceLoader.Load(inline, inline.Selection.ApplyTo(new SourceOptions()));
+
+        // Assert: the facts follow the fragment, and the render has the probed size of the inline layout
+        Assert.Equal("block", block.Equation!.Display);
+        Assert.Equal("inline", inline.Equation!.Display);
+        Assert.Equal(MathMlDisplay.Inline, inline.Selection.MathMl!.Display);
+        Assert.Equal(MathMlDisplay.Inline, options.MathMl!.Display);
+        Assert.True(inline.Height < block.Height);
+        Assert.Equal((inline.Width, inline.Height), (drawn.Surface.Width, drawn.Surface.Height));
+        Assert.Empty(inline.Selection.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a value that cannot be used, and a fragment over its limits, is <c>image-fragment-invalid</c> with a message
     ///     that names the input.
     /// </summary>
@@ -271,6 +300,7 @@ public class InputSelectionTests
     [InlineData("chart.vl.json", "param.cutoff={bad")]
     [InlineData("source.pdf", "page=x")]
     [InlineData("flow.mmd", "theme=midnight")]
+    [InlineData("source.mml", "display=sideways")]
     public void SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid(string name, string fragment)
     {
         // Arrange
@@ -279,6 +309,7 @@ public class InputSelectionTests
         FixtureFactory.WriteText(directory.Path, "part.scad", Model);
         FixtureFactory.WriteText(directory.Path, "chart.vl.json", Chart);
         FixtureFactory.WriteSource(directory.Path, "pdf");
+        FixtureFactory.WriteSource(directory.Path, "mathml");
 
         // Act
         var ex = Assert.Throws<ViewerException>(() => SourceLoader.Probe(InputReference.Parse(directory.Combine(name) + "#" + fragment)));

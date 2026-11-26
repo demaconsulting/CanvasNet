@@ -146,8 +146,11 @@ even when the host machine has no fonts installed whatsoever.
   original plan text (which specified only an internal scoring entry point), added because it is
   necessary to exercise `Fonts`'s own tolerance behavior deterministically.
 
-All three internal entry points are visible to `DemaConsulting.CanvasNet.Tests` only, via the
-existing `InternalsVisibleTo` attribute on the core project.
+All three internal entry points are visible to `DemaConsulting.CanvasNet.Tests` through the
+`InternalsVisibleTo` attributes of the core project. Those attributes also make them visible to the
+other friend assemblies of the core, of which two call `LoadBundledFallbackCore`:
+`DemaConsulting.CanvasNet.Pdf` (its Noto substitute fonts) and `DemaConsulting.CanvasNet.MathMl` (the
+Noto Sans Math font of its `MathFont` unit); see *Callers*.
 
 #### Error Handling
 
@@ -158,8 +161,9 @@ exception this unit ever throws is `InvalidOperationException` from `LoadBundled
 a defensive, effectively-unreachable packaging-integrity guard under normal operation, since all
 15 bundled files (the 12 Liberation Sans/Serif/Mono style variants `LoadBundledFallback` itself
 can request, plus the 3 Noto substitute fonts `DemaConsulting.CanvasNet.Pdf` requests
-cross-assembly through the same `LoadBundledFallbackCore` entry point) are guaranteed present at
-build time as embedded resources of this assembly.
+cross-assembly through the same `LoadBundledFallbackCore` entry point, Noto Sans Math of which
+`DemaConsulting.CanvasNet.MathMl` also requests through it) are guaranteed present at build time as
+embedded resources of this assembly. The callers from other assemblies are therefore Pdf and MathMl.
 
 #### Dependencies
 
@@ -186,12 +190,12 @@ sourcing/licensing provenance).
 
 #### Callers
 
-`SystemFontCatalog` is called by `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument`
-(`PdfDocument.FontFallback.cs`'s `ResolveFallbackFont`) when resolving a `/Subtype /TrueType`
-simple font lacking an embedded `/FontFile2` stream; see *PdfDocument Unit Design*
-(`../../canvas-net-pdf/pdf-document.md`). `Load` is also what `PptxDocument` and `VsdxDocument`
-(text-font resolution and, for Visio, the per-code-point glyph fallback) and `SvgCodec`
-(installed-font lookup, which uses `FindInFamily` to match the family exactly) use to load a
-matched face. The unit's public API is intentionally
-format-agnostic and generic, so a future non-PDF document-format consumer could call it directly
+`SystemFontCatalog` is called by `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument` (`PdfDocument.FontFallback.cs`'s
+`ResolveFallbackFont`) when resolving a `/Subtype /TrueType` simple font lacking an embedded `/FontFile2` stream; see
+*PdfDocument Unit Design* (`../../canvas-net-pdf/pdf-document.md`). `Load` is also what `PptxDocument` and
+`VsdxDocument` (text-font resolution and, for Visio, the per-code-point glyph fallback) and `SvgCodec` (installed-font
+lookup, which uses `FindInFamily` to match the family exactly) use to load a matched face. The internal
+`LoadBundledFallbackCore` is also called, through friend access, by the `MathFont` unit of
+`DemaConsulting.CanvasNet.MathMl`, which takes the shared cached Noto Sans Math as its math font. The unit's public API
+is intentionally format-agnostic and generic, so a future non-PDF document-format consumer could call it directly
 without any change to this unit.

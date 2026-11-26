@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Scad;
@@ -192,6 +193,11 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly bool _acceptsTheme;
 
     /// <summary>
+    ///     Whether the fragment parameter <c>display</c> chooses the display mode of a MathML equation.
+    /// </summary>
+    private readonly bool _acceptsDisplay;
+
+    /// <summary>
     ///     The resource limits of a chart and a diagram that this source draws with, at every level of nesting.
     /// </summary>
     private readonly SourceLoader.SourceLimits _limits;
@@ -206,7 +212,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <param name="limits">The resource limits of a chart and a diagram, or <see langword="null"/> for the library defaults.</param>
     /// <remarks>
     ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
-    ///     and <c>theme</c> for a Mermaid diagram; a PlantUML diagram takes no parameter of its own.
+    ///     <c>theme</c> for a Mermaid diagram, and <c>display</c> for a MathML equation; a PlantUML diagram takes no parameter
+    ///     of its own.
     /// </remarks>
     public LoaderImageSource(IImageSource claims, SourceKind[] kinds, string[] pageParameters, bool acceptsView, SourceLoader.SourceLimits? limits = null)
     {
@@ -216,8 +223,14 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         _acceptsView = acceptsView;
         _limits = limits ?? SourceLoader.SourceLimits.Default;
         _acceptsTheme = kinds is [SourceKind.Mermaid];
+        _acceptsDisplay = kinds is [SourceKind.MathMl];
         FragmentParameters = new ReadOnlyCollection<string>(
-            [.. pageParameters, .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter, ProjectionParameter } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
+            [
+                .. pageParameters,
+                .. acceptsView ? new[] { "view", AzimuthParameter, ElevationParameter, ProjectionParameter } : [],
+                .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : [],
+                .. _acceptsDisplay ? new[] { MathMlImageSource.DisplayParameter } : []
+            ]);
         if (kinds is [SourceKind.Scad])
         {
             _prefixes = [ScadImageSource.DefinePrefix];
@@ -464,6 +477,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Scad = scad,
             VegaLite = chart,
             Mermaid = ReadDiagram(request.Fragment),
+            MathMl = ReadEquation(request.Fragment),
 
             // The file a caller renders directly reports what its --positions select; a picture a document embeds reports
             // only what the position bindings of that document select (ImageSourceRequest.Positions)
@@ -571,6 +585,33 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             : throw new ImageSourceRefusedException(
                 FolderImageResolver.FragmentInvalidCode,
                 $"the fragment parameter '{MermaidImageSource.ThemeParameter}' must be one of {string.Join(", ", MermaidRenderOptions.ThemeNames)}, not {Show(name)}");
+    }
+
+    /// <summary>
+    ///     Reads the display mode of a MathML equation from the <c>display=</c> parameter of a fragment.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link or of the input.</param>
+    /// <returns>The options, or <see langword="null"/> when the source is not an equation or the fragment names no display mode.</returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when the value is not <c>block</c> or <c>inline</c>.</exception>
+    /// <remarks>The value is matched ASCII case-insensitively after trimming, as the library matches it.</remarks>
+    internal EquationOptions? ReadEquation(ImageFragment fragment)
+    {
+        if (!_acceptsDisplay || fragment.GetValue(MathMlImageSource.DisplayParameter) is not { } value)
+        {
+            return null;
+        }
+
+        var text = value.Trim();
+        if (text.Equals("block", StringComparison.OrdinalIgnoreCase))
+        {
+            return new EquationOptions { Display = MathMlDisplay.Block };
+        }
+
+        return text.Equals("inline", StringComparison.OrdinalIgnoreCase)
+            ? new EquationOptions { Display = MathMlDisplay.Inline }
+            : throw new ImageSourceRefusedException(
+                FolderImageResolver.FragmentInvalidCode,
+                $"the fragment parameter '{MathMlImageSource.DisplayParameter}' must be block or inline, not {Show(value)}");
     }
 
     /// <summary>

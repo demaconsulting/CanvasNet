@@ -1,0 +1,31 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The geometric mean G is the n-th root of x 1 times x 2 times and so on times x n">
+  <mi>G</mi>
+  <mo>=</mo>
+  <mroot>
+    <mrow>
+      <msub><mi>x</mi><mn>1</mn></msub>
+      <mo>&InvisibleTimes;</mo>
+      <msub><mi>x</mi><mn>2</mn></msub>
+      <mo>&InvisibleTimes;</mo>
+      <mi>&ctdot;</mi>
+      <mo>&InvisibleTimes;</mo>
+      <msub><mi>x</mi><mi>n</mi></msub>
+    </mrow>
+    <mi>n</mi>
+  </mroot>
+  <mo>=</mo>
+  <msup>
+    <mrow>
+      <mo>(</mo>
+      <munderover>
+        <mo>&prod;</mo>
+        <mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow>
+        <mi>n</mi>
+      </munderover>
+      <msub><mi>x</mi><mi>i</mi></msub>
+      <mo>)</mo>
+    </mrow>
+    <mrow><mn>1</mn><mo>/</mo><mi>n</mi></mrow>
+  </msup>
+</math>

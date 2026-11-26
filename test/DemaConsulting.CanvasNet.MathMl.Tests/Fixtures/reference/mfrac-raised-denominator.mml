@@ -1,0 +1,13 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>x</mi>
+  <mfrac>
+    <mi>a</mi>
+    <mi>&#x2DA;</mi>
+  </mfrac>
+  <mi>x</mi>
+  <mfrac linethickness="0">
+    <mi>a</mi>
+    <mi>&#x2DA;</mi>
+  </mfrac>
+  <mi>x</mi>
+</math>

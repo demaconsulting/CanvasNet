@@ -1,0 +1,33 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow>
+    <mo>-</mo>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mi>y</mi>
+    <mo>!</mo>
+  </mrow>
+  <mrow>
+    <mi>a</mi>
+    <mo form="prefix">+</mo>
+    <mi>b</mi>
+    <mo lspace="1em" rspace="0">+</mo>
+    <mi>c</mi>
+    <mo rspace="50%">+</mo>
+    <mi>d</mi>
+  </mrow>
+  <mrow>
+    <mo>&#x2211;</mo>
+    <mo>sin</mo>
+    <mi>x</mi>
+    <mo>&#x2032;</mo>
+  </mrow>
+  <mrow>
+    <mi>p</mi>
+    <mo>|</mo>
+    <mi>q</mi>
+    <mo>&lt;=</mo>
+    <mi>r</mi>
+    <mo>&amp;&amp;</mo>
+    <mi>s</mi>
+  </mrow>
+</math>

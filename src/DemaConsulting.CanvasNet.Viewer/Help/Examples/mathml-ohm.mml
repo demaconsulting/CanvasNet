@@ -1,0 +1,18 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="V equals I R, and P equals I squared R">
+  <mi>V</mi>
+  <mo>=</mo>
+  <mi>I</mi>
+  <mo>&InvisibleTimes;</mo>
+  <mi>R</mi>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>P</mi>
+  <mo>=</mo>
+  <msup>
+    <mi>I</mi>
+    <mn>2</mn>
+  </msup>
+  <mo>&InvisibleTimes;</mo>
+  <mi>R</mi>
+</math>

@@ -74,6 +74,10 @@ When using CanvasNet, we recommend following these security best practices:
 - No document can make CanvasNet use the network: a remote URL in an SVG image, a Vega-Lite `data.url`, or a PlantUML
   `!include` (`!include https://...`, `!includeurl`, or the standard library `!include <...>`) is never fetched; it is
   reported and left out
+- A MathML equation (`.mml`) is untrusted XML: a document type declaration (DTD) is refused, so there are no external
+  or custom entities; the named character references are expanded from a built-in table by a bounded pre-pass; an
+  `href` or `xlink:href` is reported and never followed; the equation reads no other file and never the network; and
+  the text size, element count, nesting depth, table cells, and layout work are limited (`MathMlLimits`)
 - Use the latest version of CanvasNet to benefit from security updates
 
 ### Dependencies

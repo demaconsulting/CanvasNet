@@ -82,6 +82,9 @@ embedded resource would be a packaging defect and surfaces as the `InvalidOperat
 - The Pdf, Pptx, and Vsdx renderers. Pdf consults the chain lazily, only for a character that neither
   its primary substitute nor the plain Liberation Sans covers; Pptx and Vsdx append it to their own
   candidate lists.
+- The `MathFont` unit of `DemaConsulting.CanvasNet.MathMl`, which resolves every character of a MathML token
+  against Noto Sans Math first; its `TokenLayout` unit reports the characters that stay missing
+  (`mathml-text-missing-glyph`).
 
 #### Thread Safety
 

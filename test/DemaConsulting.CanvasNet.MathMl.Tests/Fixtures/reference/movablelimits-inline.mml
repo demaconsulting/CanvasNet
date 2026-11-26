@@ -1,0 +1,20 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <munderover>
+    <mo>&#x2211;</mo>
+    <mi>i</mi>
+    <mi>n</mi>
+  </munderover>
+  <munder>
+    <mo>lim</mo>
+    <mi>x</mi>
+  </munder>
+  <munderover>
+    <mo movablelimits="false">&#x2211;</mo>
+    <mi>i</mi>
+    <mi>n</mi>
+  </munderover>
+  <munder>
+    <mi>X</mi>
+    <mi>k</mi>
+  </munder>
+</math>

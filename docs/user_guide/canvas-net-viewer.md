@@ -6,7 +6,7 @@
 
 `CanvasNetViewer` is distributed via the separate `DemaConsulting.CanvasNet.Viewer` NuGet package (namespace
 `DemaConsulting.CanvasNet.Viewer`), which references the core `DemaConsulting.CanvasNet` package and the Svg, Pdf, Pptx,
-Vsdx, Scad, VegaLite, Mermaid, and PlantUml packages - see the Installation section of the project README.
+Vsdx, Scad, VegaLite, Mermaid, PlantUml, and MathMl packages - see the Installation section of the project README.
 
 > **Breaking change.** The files a document references are no longer confined to its folder by default: links,
 > includes and data files are followed the way Pandoc follows them. Set `ViewerRenderOptions.FileAccess` (or
@@ -51,7 +51,7 @@ An example that catches a `ViewerException` therefore needs both `using DemaCons
 public static class CanvasNetViewer
 {
     public static IReadOnlyList<IImageSource> ImageSources { get; }   // raster, svg, pdf, pptx, vsdx, scad, vega-lite,
-                                                                      // mermaid, plantuml
+                                                                      // mermaid, plantuml, mathml
     public static IReadOnlyList<string> Extensions { get; }           // every extension they claim, sorted
 
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null);
@@ -71,7 +71,7 @@ the format packages (which stay public for use without the viewer). The file typ
 extensions in `CanvasNetViewer.Extensions`: `.png`, `.jpg`, `.jpeg`, `.bmp`,
 `.tif`, `.tiff`, `.gif`, `.jp2`, `.j2k`, `.j2c` (rasters), `.svg`, `.scad` (an OpenSCAD model), `.vl.json` and `.vl`
 (a Vega-Lite chart), `.mmd` and `.mermaid` (a Mermaid diagram), `.puml`, `.plantuml`, and `.pu` (a PlantUML
-diagram), and `.pdf`, `.pptx`, and `.vsdx` (a page of the
+diagram), `.mml` (a MathML equation), and `.pdf`, `.pptx`, and `.vsdx` (a page of the
 document: page 1, or the page the fragment of the
 link names, see *Choosing a page, slide, or view with a fragment* below). The type is decided by the
 file name; a chart in a plain `.json` file is not linked.
@@ -136,7 +136,8 @@ resolver of the document that embeds the diagram. A link that is not drawn is `s
 were drawn are listed in `Embedded` (each once per drawing, although the diagram measures a picture before it draws
 it), and probing a diagram lays it out without loading any picture. A PlantUML diagram
 reads its `!include` files from its own folder under the same file-access policy, so a denied include is
-`file-access-denied` (see the PlantUML user guide, *Preprocessor and Includes*).
+`file-access-denied` (see the PlantUML user guide, *Preprocessor and Includes*). A MathML equation reads no other file:
+its links are reported and never followed (see the MathML user guide).
 
 Every note carries an `Origin`, the chain of embedded files that it is about, outermost first: for a link that was not
 drawn it is the file that contains the link, and for a note that an embedded model or chart reported it is the embedding
@@ -195,6 +196,9 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
   another name is `image-fragment-invalid`;
 - a PlantUML diagram (`flow.puml`) takes no parameter: `flow.puml#theme=dark` is drawn in the default look with the
   warning `image-fragment-unknown-parameter`;
+- `eq.mml#display=inline` lays a MathML equation out in inline style (smaller fractions, limits beside a sum) and
+  `display=block` in display style, whatever the `display` attribute of its `math` element says (`block` or `inline`,
+  in any letter case; another value is `image-fragment-invalid`);
 - a raster and an SVG file take no parameter.
 
 The `def.` and `param.` prefixes keep the names a link author chooses from colliding with `view=` and `page=`; the
@@ -289,8 +293,8 @@ value below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dp
 sized at, 96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color
 transparent areas are flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box,
 whose anchors follow the picture; null, when not set, draws a vector picture - an SVG file, a PDF, PPTX, or VSDX page, a
-model, a chart, or a diagram - over opaque white, as the `canvasnet` tool does (a PlantUML diagram and a Vega-Lite chart
-keep their own background, white unless the source sets another), and leaves a raster unchanged; set
+model, a chart, a diagram, or an equation - over opaque white, as the `canvasnet` tool does (a PlantUML diagram and a
+Vega-Lite chart keep their own background, white unless the source sets another), and leaves a raster unchanged; set
 `new Rgba32(0, 0, 0, 0)` to keep a vector picture transparent, for example to place it on a page of another color;
 pictures the file embeds are always drawn transparent, so the file shows through), `Scad` (the `ScadViewOptions` of a
 model: the view, angles, projection, `Defines`, time, and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite
@@ -304,20 +308,20 @@ fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels the ren
 resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render one larger image; when a
 raster is resized to the requested size, the final picture is a second buffer that counts against the same budget, so a
 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit is `budget-exceeded`), `VegaLiteLimits`,
-`MermaidLimits`, and `PlantUmlLimits` (the resource limits of a chart and a diagram, at every level of nesting; null
-keeps the defaults of each library; see *Limits of charts and diagrams* below), `ExtraSources` (see *`ExtraSources` or
-`CreateImageResolver`?* below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the
-surface) and carries `Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk
-a document), `Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared,
-with their pixels; empty for every other file), and `Embedded`. Every failure of the file is a `ViewerException` with
-the code the `canvasnet` tool reports for the same file (see *Handling render errors* below); only a mistake in the
-options (`ArgumentOutOfRangeException`, `ArgumentNullException`), a stream that cannot be read (`ArgumentException`),
-and a cancellation (`OperationCanceledException`) have other types. Render a file that is not on disk with
-`Render(stream, fileName)`; the extension of the file name chooses the source. With both `Width` and `Height`, `Render`
-fits a raster inside the box over a transparent margin (or the `Background`), whereas `SourceOptions.Width` and `Height`
-of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file embeds
-chooses its own page or view, and sets its own variables or parameters, with the fragment of its link; it never inherits
-`Page`, `Dpi`, `Scad`, or `VegaLite`.
+`MermaidLimits`, `PlantUmlLimits`, and `MathMlLimits` (the resource limits of a chart, a diagram, and an equation, at
+every level of nesting; null keeps the defaults of each library; see *Limits of charts and diagrams* below),
+`ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?* below), and `CancellationToken`. The `ViewerImage` owns
+the `Surface` (disposing it disposes the surface) and carries `Format`, `Page` (the page that was drawn) and `PageCount`
+(how many the file has, so you can walk a document), `Diagnostics`, `Echo` (the text a model printed with `echo`),
+`Anchors` (the named points a model declared, with their pixels; empty for every other file), and `Embedded`. Every
+failure of the file is a `ViewerException` with the code the `canvasnet` tool reports for the same file (see *Handling
+render errors* below); only a mistake in the options (`ArgumentOutOfRangeException`, `ArgumentNullException`), a stream
+that cannot be read (`ArgumentException`), and a cancellation (`OperationCanceledException`) have other types. Render a
+file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
+`Width` and `Height`, `Render` fits a raster inside the box over a transparent margin (or the `Background`), whereas
+`SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model
+that the rendered file embeds chooses its own page or view, and sets its own variables or parameters, with the fragment
+of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 #### Handling render errors
 
@@ -326,7 +330,7 @@ message, or a model can fix the source it wrote, without parsing the text:
 
 - `Code` is the stable code of `ErrorCodes`, the same the `canvasnet` tool prints for the same file: `input-not-found`,
   `unsupported-format`, `input-unreadable` (not a regular file, larger than 16 MiB, or unreadable), `corrupt-input`,
-  `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`, `unsupported-feature` (with
+  `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`, `mathml-error`, `unsupported-feature` (with
   `ThrowOnUnsupportedFeature`), `file-access-denied`, `budget-exceeded` (a limit of a format library, or
   `MaxDecodedPixels`), `page-out-of-range`, `size-limit`, `usage-error`, `positions-unmatched` (with
   `ThrowOnUnsupportedFeature`, a selector of `Positions` that matched nothing), `svg-binding-failed` (with
@@ -336,8 +340,8 @@ message, or a model can fix the source it wrote, without parsing the text:
   (1-based, null when unknown) and, for a chart, the JSON `Pointer`. Malformed SVG markup has the line and column of the
   XML error.
 - `DetailCode` is the code of the format library, or null: `mermaid-syntax-error`, `plantuml-syntax-error`,
-  `scad-syntax-error`, or the feature of an `unsupported-feature` failure (a `vl-*` id for a chart). A Vega-Lite
-  specification or render error has none: the library gives it no code.
+  `mathml-syntax-error`, `scad-syntax-error`, or the feature of an `unsupported-feature` failure (a `vl-*` id for a
+  chart). A Vega-Lite specification or render error has none: the library gives it no code.
 - `Hint` suggests a fix. Neither it nor the message names an option of the command-line tool.
 - `InnerException` is the original exception: the exception of the format library (`MermaidSyntaxException`,
   `VegaLiteRenderException`, ...), or the `ImageSourceBudgetException` with its pixel counts. A denied include or data
@@ -380,29 +384,32 @@ as its `InnerException`.
 
 #### Limits of charts and diagrams
 
-Every Vega-Lite chart, Mermaid diagram, and PlantUML diagram is drawn under the resource limits of its library
-(`VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`: the length of the source, nodes, edges, data rows, fields,
-includes, layout work, painted pixels, and so on), so a hostile source fails instead of exhausting memory and time.
-`ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, and `PlantUmlLimits` set them for one render: tighter for
-source written by a user or a model, or looser for a large diagram you trust. They apply to the rendered file and to
-every chart and diagram it embeds, at any level, and the probe of a file uses them as well as its render, so a raised
-limit is not refused early. Null (the default) keeps the defaults of the library.
+Every Vega-Lite chart, Mermaid diagram, PlantUML diagram, and MathML equation is drawn under the resource limits of its
+library (`VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, `MathMlLimits`: the length of the source, nodes, edges,
+elements, data rows, fields, includes, table cells, layout work, painted pixels, and so on), so a hostile source fails
+instead of exhausting memory and time. `ViewerRenderOptions.VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, and
+`MathMlLimits` set them for one render: tighter for source written by a user or a model, or looser for a large diagram
+you trust. They apply to the rendered file and to every chart, diagram, and equation it embeds, at any level, and the
+probe of a file uses them as well as its render, so a raised limit is not refused early. Null (the default) keeps the
+defaults of the library.
 
 <!-- compile -->
 
 ```csharp
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
-// Tighter limits for charts and diagrams that a model writes
+// Tighter limits for charts, diagrams, and equations that a model writes
 var options = new ViewerRenderOptions
 {
     VegaLiteLimits = new VegaLiteLimits { MaxDataRows = 10_000, MaxSceneItems = 20_000 },
     MermaidLimits = new MermaidLimits { MaxNodes = 200, MaxEdges = 300 },
-    PlantUmlLimits = new PlantUmlLimits { MaxNodes = 200, MaxEdges = 300, MaxIncludes = 4 }
+    PlantUmlLimits = new PlantUmlLimits { MaxNodes = 200, MaxEdges = 300, MaxIncludes = 4 },
+    MathMlLimits = new MathMlLimits { MaxElements = 5_000, MaxNestingDepth = 64 }
 };
 
 try
@@ -423,11 +430,12 @@ Any value the limit types accept may be set, lower or higher than the default. T
 set (a value below 1 throws `ArgumentOutOfRangeException`) and cap the depths that bound recursion, whatever you ask:
 `VegaLiteLimits.MaxJsonDepth` and `MaxExpressionDepth` at 256 and `MaxCompositionDepth` at 64,
 `MermaidLimits.MaxNestingDepth` and `MaxYamlDepth` at 256, and `PlantUmlLimits.MaxNestingDepth` at 256 and
-`MaxIncludeDepth` at 64. A source over a limit is a `ViewerException` whose message names the limit: `budget-exceeded`
-for most limits (with the detail code `mermaid-limit-exceeded` or `plantuml-limit-exceeded` for a diagram),
+`MaxIncludeDepth` at 64; `MathMlLimits.MaxNestingDepth` refuses a value above 1,024. A source over a limit is a
+`ViewerException` whose message names the limit: `budget-exceeded` for most limits (with the detail code
+`mermaid-limit-exceeded`, `plantuml-limit-exceeded`, or `mathml-limit-exceeded` for a diagram or an equation),
 `corrupt-input` for a source longer than `MaxTextSize` or `MaxSourceLength`, and `vega-lite-error` for a limit of the
 structure met while a specification is read, such as its JSON depth. The triangle limit of a model is
-`ScadViewOptions.MaxTriangles` of `ViewerRenderOptions.Scad`; unlike these three limits, it applies only to the
+`ScadViewOptions.MaxTriangles` of `ViewerRenderOptions.Scad`; unlike these limits, it applies only to the
 rendered model, not to a model the file embeds. The `canvasnet` tool always uses the defaults of the libraries.
 
 #### Choosing which linked files may be read
@@ -784,8 +792,8 @@ per kind:
 - an **SVG** is drawn at that size and fitted by its own `preserveAspectRatio` (by default the aspect ratio is kept and
   the drawing is centered);
 - a **PDF, PPTX, or VSDX** page is fitted inside the box and centered, never stretched, with `Background` in the margin;
-- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart or a **Mermaid** or **PlantUML**
-  diagram is scaled uniformly and centered over its background.
+- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart, a **Mermaid** or **PlantUML**
+  diagram, or a **MathML** equation is scaled uniformly and centered over its background.
 
 `Scale` takes precedence: when it is set, `Width` and `Height` are ignored (the command line rejects the combination).
 `CanvasNetViewer.Render` is different for a raster: with both sizes it fits the picture inside the box over a
@@ -1144,7 +1152,7 @@ foreach (var note in image.Diagnostics)
 
 **Diagnostics: `Code`, `Detail`, `Location`, and `Origin`.** Test the `Code` of a note, never its message. The code of a
 note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`, a diagram warning
-`mermaid-warning` or `plantuml-warning`); the finer identifier of
+`mermaid-warning` or `plantuml-warning`, and an equation warning `mathml-warning`); the finer identifier of
 the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a
 chart
 warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note
@@ -1177,9 +1185,9 @@ stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`,
-`budget-exceeded`, `file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`,
-`threshold-failed`, and `positions-unmatched` (a position selector that matched nothing, in strict mode), and
-`pandoc-filter-error` (used only by the `pandoc-filter` command of the tool). `ViewerException` is in
+`mathml-error`, `budget-exceeded`, `file-access-denied` (a referenced file the file-access policy denied),
+`size-mismatch`, `threshold-failed`, and `positions-unmatched` (a position selector that matched nothing, in strict
+mode), and `pandoc-filter-error` (used only by the `pandoc-filter` command of the tool). `ViewerException` is in
 `DemaConsulting.CanvasNet.Viewer` and the operations are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that
 catches it lists both:
 
@@ -1421,9 +1429,9 @@ The catalog is made for programs that give knowledge to an AI. Choose the cards 
 hand it the index, a card's Markdown, or a card as JSON. Every card has tags from a closed vocabulary, the constants of
 `HelpTags`:
 
-- **Format tags** (`HelpTags.FormatTags`): `svg`, `mermaid`, `plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`,
-  and `raster`. A card about one format has the tag of that format (and every card below the root card of a format
-  has it); a card without a format tag is general.
+- **Format tags** (`HelpTags.FormatTags`): `svg`, `mermaid`, `plantuml`, `mathml`, `scad`, `vega-lite`, `pdf`, `pptx`,
+  `vsdx`, and `raster`. A card about one format has the tag of that format (and every card below the root card of a
+  format has it); a card without a format tag is general.
 - **Scope tags** (`HelpTags.ScopeTags`; every card has at least one): `authoring` (what to write in a file: syntax,
   supported features, examples), `design` (making it look good: style, palettes, arrows, framed figures),
   `composition` (files in files: embedding, fragments, bindings, positions), `diagnostics` (codes, diagnostics,

@@ -1,0 +1,31 @@
+{
+  "chrome": "Chrome/157.0.8103.78",
+  "fontSize": 100,
+  "math": {
+    "width": 217.5,
+    "height": 78,
+    "baseline": 77
+  },
+  "elements": [
+    {
+      "path": "0",
+      "tag": "ms",
+      "box": [
+        0,
+        0,
+        165.5,
+        78
+      ]
+    },
+    {
+      "path": "1",
+      "tag": "mi",
+      "box": [
+        165.5,
+        23,
+        52,
+        54
+      ]
+    }
+  ]
+}

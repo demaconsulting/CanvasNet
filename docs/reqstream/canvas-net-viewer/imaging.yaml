@@ -23,11 +23,12 @@ sections:
       - id: CanvasNetViewer-Imaging-Load
         title: >-
           The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
-          VSDX, SCAD, Vega-Lite, Mermaid, or PlantUML file (a chosen page of a document, a named view of a model, a
-          chart, a diagram) into pixels at the size and resolution the options ask for, and shall report the
-          facts of a file, including the pages of a document, the declarations of a model, the marks, data,
-          and parameters of a chart, and the type, direction, titles, and numbers of nodes, edges, and
-          subgraphs of a diagram, without decoding or rendering it.
+          VSDX, SCAD, Vega-Lite, Mermaid, PlantUML, or MathML file (a chosen page of a document, a named view of a
+          model, a chart, a diagram, an equation) into pixels at the size and resolution the options ask for, and
+          shall report the facts of a file, including the pages of a document, the declarations of a model, the
+          marks, data, and parameters of a chart, the type, direction, titles, and numbers of nodes, edges, and
+          subgraphs of a diagram, and the display mode, elements, text alternative, annotations, and baseline of an
+          equation, without decoding or rendering it.
         justification: |
           Every command needs one place that recognizes a file, reads its header, and produces the
           pixels, so that the formats behave consistently.
@@ -63,6 +64,10 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlProbe
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlRender
           - CanvasNetViewer-Imaging-SourceLoader-PlantUmlErrors
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlRender
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlErrors
           - CanvasNetViewer-Imaging-SourceLoader-Sizing
           - CanvasNetViewer-Imaging-SourceLoader-Background
           - CanvasNetViewer-Imaging-SourceLoader-Exif
@@ -365,6 +370,22 @@ sections:
           - SourceLoader_Load_MermaidPictureUnresolvable_IsRefused
           - SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails
           - SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault
+
+      - id: CanvasNetViewer-Imaging-EquationImages
+        title: >-
+          The Imaging subsystem shall draw a MathML equation that an SVG drawing, a Mermaid node, or a Vega-Lite image
+          mark links, transparent and fitted to its placement, in the display mode that the display fragment of the
+          link or the input names, and list it as an embed operation of the format mathml.
+        justification: |
+          An equation belongs in the figures, diagrams, and charts of an engineering document; one image source for
+          every linking format keeps the equations of a document drawn the same way wherever they appear.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MathMlRender
+          - CanvasNetViewer-Imaging-SourceLoader-InputFragments
+        tests:
+          - Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds
+          - Imaging_Load_EquationLinkWithDisplayFragment_DrawsTheChosenLayout
+          - SourceLoader_ProbeInputReference_MathMlDisplay_IsAppliedToTheRender
 
       - id: CanvasNetViewer-Imaging-FileAccess
         title: >-

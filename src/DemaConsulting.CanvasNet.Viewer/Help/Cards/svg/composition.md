@@ -31,9 +31,9 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
 ## Placing pictures
 
 - `<image href="styled-flow.mmd" x="64" y="164" width="872" height="252"/>`: a
-  Mermaid or PlantUML diagram, a chart, a model, another SVG file, or a document
-  page is drawn at the size of the placement, so it stays sharp at any output
-  size.
+  Mermaid or PlantUML diagram, a MathML equation, a chart, a model, another SVG
+  file, or a document page is drawn at the size of the placement, so it stays
+  sharp at any output size.
 - Size each placement from the picture's natural size (the size it is drawn at
   when no size is asked for): keep its aspect ratio, and stay near its natural
   size so its text matches the text of the page; a placement twice as large
@@ -46,7 +46,8 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
 
 - A fragment after the file name sets the options of that placement only:
   `flow.mmd#theme=neutral`, `part.scad#view=top`, `chart.vl.json#param.t=5`,
-  `report.pdf#page=2`, `deck.pptx#slide=3`, `drawing.vsdx#page=2` (see
+  `report.pdf#page=2`, `deck.pptx#slide=3`, `drawing.vsdx#page=2`,
+  `eq.mml#display=inline` (see
   [[svg/fragments]]). The options of the render do not reach an
   embedded file.
 
@@ -55,8 +56,8 @@ and [[vega-lite/style#styled]] (`styled-chart.vl.json`).
 - Write titles and captions as SVG `<text>` in the layout. A picture keeps its
   own title (the frontmatter `title` of a diagram, the `title` of a chart), so
   let the caption add what the title does not say: the finding or the source.
-- A diagram and a model stay transparent in the figure, so a card shows through
-  them; a chart keeps its own background unless the chart sets
+- A diagram, an equation, and a model stay transparent in the figure, so a card
+  shows through them; a chart keeps its own background unless the chart sets
   `"background": "transparent"`.
 
 ## Framed figures and callouts

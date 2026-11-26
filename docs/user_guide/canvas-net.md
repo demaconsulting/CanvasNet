@@ -2473,7 +2473,7 @@ The `DemaConsulting.CanvasNet.ImageSources` namespace lets a document that links
 `<image href="...">`, for example) draw them without the program that draws the document knowing any format. The core
 package supplies the contract, one safe resolver for folders, and a raster source; each format package supplies a source
 for its own format (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
-`PlantUmlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), and the
+`PlantUmlImageSource`, `MathMlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), and the
 `DemaConsulting.CanvasNet.Viewer` package lists them all. Nothing is registered globally and nothing is discovered: a
 source is used only when you pass it in.
 

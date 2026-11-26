@@ -137,6 +137,33 @@ public class SvgFlattenerTests
     }
 
     /// <summary>
+    ///     Test that a linked MathML equation is replaced by a PNG picture of its placement size, like a diagram, because
+    ///     only CanvasNet draws it.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_MathMlImage_ReplacedWithPngDataUri()
+    {
+        // Arrange: a 120 by 40 placement of the equation
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("mathml/quadratic.mml"), directory.Combine("eq.mml"));
+        var input = WriteSvg(directory, "figure.svg", "<image href='eq.mml' x='10' y='10' width='120' height='40'/>");
+        var output = directory.Combine("flat.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert: one picture of the placement size replaces the link
+        Assert.True(result.Flattened);
+        var replaced = Assert.Single(result.Replaced);
+        Assert.Equal(("eq.mml", "mathml", 1), (replaced.Href, replaced.Format, replaced.Elements));
+        Assert.Equal((120, 40), (replaced.Width, replaced.Height));
+        var text = File.ReadAllText(output);
+        Assert.Equal([(120, 40)], PictureSizes(text));
+        Assert.DoesNotContain("eq.mml", text, StringComparison.Ordinal);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a link is classified as the resolver reads it, percent-decoded: <c>flow%2Emmd</c> is the Mermaid
     ///     diagram flow.mmd, so it is replaced; hidden, it is reported as not drawn.
     /// </summary>

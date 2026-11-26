@@ -42,7 +42,8 @@ internal static partial class FixtureFactory
         ("scad", ".scad"),
         ("vega-lite", ".vl.json"),
         ("mermaid", ".mmd"),
-        ("plantuml", ".puml")
+        ("plantuml", ".puml"),
+        ("mathml", ".mml")
     ];
 
     /// <summary>
@@ -199,6 +200,9 @@ internal static partial class FixtureFactory
                 break;
             case "plantuml":
                 File.Copy(FixturePath(Path.Combine("plantuml", "sequence.puml")), path);
+                break;
+            case "mathml":
+                File.Copy(FixturePath(Path.Combine("mathml", "quadratic.mml")), path);
                 break;
             default:
                 File.Copy(FixturePath("shapes.svg"), path);

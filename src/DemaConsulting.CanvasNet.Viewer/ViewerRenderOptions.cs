@@ -62,14 +62,15 @@ public sealed record ViewerRenderOptions
     /// <summary>
     ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> (not set) for the default,
     ///     the same as the <c>canvasnet</c> tool's: a vector picture (an SVG file, a PDF, PPTX or VSDX page, an OpenSCAD
-    ///     model, a Vega-Lite chart, a Mermaid or PlantUML diagram) comes back over <b>opaque white</b> (a PlantUML
-    ///     diagram and a Vega-Lite chart keep their own background, white unless the source sets another), and a raster
-    ///     comes back unchanged, with its transparency. A color with alpha 0, such as <c>new Rgba32(0, 0, 0, 0)</c>, is
-    ///     set explicitly and keeps a vector picture transparent; any other color flattens the picture over it (a raster
-    ///     with transparency too). Pictures the file embeds (in an SVG file, a Mermaid diagram or a chart) are always
-    ///     drawn transparent, so the file shows through them. When <see cref="Width"/> and <see cref="Height"/> fit the
-    ///     picture into a box, the margin around it has this color (when not set: white for a vector picture, transparent
-    ///     for a raster), and the pixel positions in <see cref="ViewerImage.Anchors"/> follow the picture into the box.
+    ///     model, a Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation) comes back over <b>opaque white</b>
+    ///     (a PlantUML diagram and a Vega-Lite chart keep their own background, white unless the source sets another),
+    ///     and a raster comes back unchanged, with its transparency. A color with alpha 0, such as
+    ///     <c>new Rgba32(0, 0, 0, 0)</c>, is set explicitly and keeps a vector picture transparent; any other color
+    ///     flattens the picture over it (a raster with transparency too). Pictures the file embeds (in an SVG file, a
+    ///     Mermaid diagram or a chart) are always drawn transparent, so the file shows through them. When
+    ///     <see cref="Width"/> and <see cref="Height"/> fit the picture into a box, the margin around it has this color
+    ///     (when not set: white for a vector picture, transparent for a raster), and the pixel positions in
+    ///     <see cref="ViewerImage.Anchors"/> follow the picture into the box.
     /// </summary>
     public DemaConsulting.CanvasNet.Canvas.Rgba32? Background { get; init; }
 
@@ -280,6 +281,26 @@ public sealed record ViewerRenderOptions
     ///     </para>
     /// </remarks>
     public DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits? PlantUmlLimits { get; init; }
+
+    /// <summary>
+    ///     Gets the resource limits of a MathML equation (text size, elements, nesting, token length, table cells, layout
+    ///     work, painted glyphs, and so on), or <see langword="null"/> (default) for
+    ///     <see cref="DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default"/>. They apply to the rendered equation and to
+    ///     every equation the rendered file embeds, at any level of nesting.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Any value the type accepts may be set, lower or higher than the default. The type checks each value when
+    ///         it is set (a value below 1 throws <see cref="ArgumentOutOfRangeException"/>) and caps the nesting depth
+    ///         that bounds recursion at 1,024. <b>Raise a limit only for content you trust</b>.
+    ///     </para>
+    ///     <para>
+    ///         An equation over a limit fails the render with a <see cref="ViewerException"/> whose message names the
+    ///         limit: <c>budget-exceeded</c> with the detail code <c>mathml-limit-exceeded</c>, or <c>corrupt-input</c>
+    ///         for a text longer than <c>MaxTextSize</c>.
+    ///     </para>
+    /// </remarks>
+    public DemaConsulting.CanvasNet.MathMl.MathMlLimits? MathMlLimits { get; init; }
 
     /// <summary>
     ///     Gets the token that cancels the render. The default is <see cref="CancellationToken.None"/>.

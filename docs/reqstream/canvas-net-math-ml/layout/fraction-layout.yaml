@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for FractionLayout
+#
+# These requirements describe the design-level behavior of the FractionLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the layout of mfrac from the boxes of its numerator and
+# denominator (MathML Core 3.3.2) and the resolution of its linethickness attribute. See
+# docs/verification/canvas-net-math-ml/layout/fraction-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: FractionLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-FractionLayout-Bar
+                title: >-
+                  The FractionLayout unit shall, for a nonzero line thickness, shift the numerator up by the larger of
+                  the numerator shift of the MATH table and the gap that keeps the minimum numerator gap above the bar,
+                  shift the denominator down likewise below the bar, choose the display-style constants in display
+                  style and the others in compact style, give the fraction a descent of at least zero, and paint a bar
+                  of the line thickness centered on the math axis across the content box in the color of the fraction.
+                justification: |
+                  MathML Core 3.3.2.1 positions the children of a fraction by these constants, and the bar marks the
+                  fraction on the math axis.
+                tests:
+                  - FractionLayout_Layout_DisplayStyle_UsesDisplayShiftsAndGaps
+                  - FractionLayout_Layout_Compact_UsesTextShiftsAndGaps
+                  - FractionLayout_Layout_TallChildren_PushedByGapRules
+                  - FractionLayout_Layout_Bar_IsCenteredOnAxisWithItsThickness
+                  - FractionLayout_Layout_RaisedDenominator_DescentIsZero
+
+              - id: CanvasNetMathMl-Layout-FractionLayout-Stack
+                title: >-
+                  The FractionLayout unit shall, for a zero line thickness, place the children with the stack shifts of
+                  the MATH table, increase both shifts by half of the gap missing to the minimum stack gap, give the
+                  fraction a descent of at least zero, and paint no bar.
+                justification: |
+                  MathML Core 3.3.2.2 lays a fraction without a bar out as a stack, as binomial coefficients are
+                  written.
+                tests:
+                  - FractionLayout_Layout_ZeroThickness_UsesStackShiftsAndGap
+                  - FractionLayout_Layout_RaisedDenominator_DescentIsZero
+
+              - id: CanvasNetMathMl-Layout-FractionLayout-LineThickness
+                title: >-
+                  The FractionLayout unit shall resolve linethickness as a length or as a percentage of the default rule
+                  thickness of the MATH table, treat a negative value as zero, and keep the default for an absent value
+                  and, with a mathml-attribute-invalid warning, for an invalid one.
+                justification: |
+                  MathML Core defines linethickness as a length-percentage of the default thickness; Chrome draws no bar
+                  for a negative value, and an invalid value must be reported.
+                tests:
+                  - FractionLayout_ResolveThickness_LengthPercentNegativeAndInvalid
+
+              - id: CanvasNetMathMl-Layout-FractionLayout-Placement
+                title: >-
+                  The FractionLayout unit shall center each child in a content box as wide as the wider child, pad the
+                  fraction by 1 CSS pixel on each side, and keep the operator of an embellished fraction on its box.
+                justification: |
+                  The user agent stylesheet of MathML Core pads fractions, and the row of an embellished fraction spaces
+                  and stretches it like its operator.
+                tests:
+                  - FractionLayout_Layout_ChildrenCenteredAndPaddedByOnePixel

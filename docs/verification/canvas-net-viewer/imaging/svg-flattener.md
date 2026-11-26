@@ -33,6 +33,9 @@ N/A - standard test environment; the tests write only to temporary directories t
 **SvgFlattener_Execute_PlantUmlImage_ReplacedWithPngDataUri**: a 60 by 40 placement of a PlantUML sequence diagram is
 replaced the same way, with the format `plantuml`, one PNG of 60 by 40 pixels, the link gone, and no note.
 
+**SvgFlattener_Execute_MathMlImage_ReplacedWithPngDataUri**: a 120 by 40 placement of a MathML equation is replaced the
+same way, with the format `mathml`, one element, one PNG of 120 by 40 pixels, the link gone, and no note.
+
 **SvgFlattener_Execute_ReplacedLink_OnlyAttributeValueChanges** and
 **SvgFlattener_Execute_BomAndLineEndings_Preserved**: a comment that contains an `image` tag, an unknown element,
 character data, odd spacing around `=`, single quotes, a byte order mark, and CRLF and lone CR line breaks are kept; the

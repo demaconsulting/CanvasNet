@@ -1,0 +1,24 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mtable columnlines="solid dashed" rowlines="dashed" frame="solid">
+    <mtr>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+  </mtable>
+  <mtable frame="dashed">
+    <mtr>
+      <mtd><mspace width="1em" height="1.2em" depth="0.5em"/></mtd>
+    </mtr>
+  </mtable>
+</math>

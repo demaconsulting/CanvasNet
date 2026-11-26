@@ -28,6 +28,7 @@ public partial class FilesTests
         ["DemaConsulting.CanvasNet/Codecs/TiffCodec.cs"] = "Load and Save of a file the caller names.",
         ["DemaConsulting.CanvasNet/Fonts/FontDirectoryScanner.cs"] = "Font folders the host configures, not documents.",
         ["DemaConsulting.CanvasNet/Fonts/TrueTypeFont.cs"] = "Font files the host configures, not documents.",
+        ["DemaConsulting.CanvasNet.MathMl/MathMlDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Mermaid/MermaidDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.Pdf/PdfDocument.cs"] = "Open of the top-level document the caller names.",
         ["DemaConsulting.CanvasNet.PlantUml/PlantUmlDocument.cs"] = "Open of the top-level document the caller names.",

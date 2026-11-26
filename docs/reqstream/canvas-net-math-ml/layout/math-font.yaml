@@ -1,0 +1,59 @@
+---
+# Software Unit Requirements for MathFont
+#
+# These requirements describe the design-level behavior of the MathFont unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the bundled math font, its MATH constants, the glyph fallback, and
+# the glyph metrics. See docs/verification/canvas-net-math-ml/layout/math-font.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: MathFont Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-MathFont-Constants
+                title: >-
+                  The MathFont unit shall provide the bundled Noto Sans Math with the constants of its OpenType MATH
+                  table, raw in font units and scaled to a font size, and shall refuse a font without a MATH table.
+                justification: |
+                  The constants drive the spacing and the script sizes of the layout; a font without them cannot lay
+                  math out.
+                tests:
+                  - MathFont_Default_HasMathConstants
+                  - MathFont_RawConstant_FractionAndRadicalConstants_MatchTheFont
+                  - MathFont_RawConstant_ScriptAndLimitConstants_MatchTheFont
+                  - MathFont_Constructor_FontWithoutMathTable_ThrowsInvalidDataException
+
+              - id: CanvasNetMathMl-Layout-MathFont-Fallback
+                title: >-
+                  The MathFont unit shall resolve a character to the math font when it has the glyph, else to the first
+                  bundled fallback font that has it, else to the missing-glyph box of the math font, the same on every
+                  machine.
+                justification: |
+                  Text in equations uses letters the math font lacks, and installed fonts must never change a picture.
+                tests:
+                  - MathFont_Resolve_FallsBackDeterministically
+
+              - id: CanvasNetMathMl-Layout-MathFont-Metrics
+                title: >-
+                  The MathFont unit shall give the ink bounds of a glyph scaled from its outline (empty for a glyph
+                  without contours, the same on every lookup), and the italic correction and the top accent attachment
+                  of a glyph of the math font from its MATH table (none for a fallback glyph).
+                justification: |
+                  Token boxes are measured on the ink of the glyphs, and scripts and accents attach where the MATH table
+                  says.
+                tests:
+                  - MathFont_InkBounds_ScaleTheOutlineBounds
+                  - MathFont_ItalicCorrectionAndTopAccent_ComeFromTheMathTable
+
+              - id: CanvasNetMathMl-Layout-MathFont-Constructions
+                title: >-
+                  The MathFont unit shall give the vertical and horizontal constructions of a glyph of the math font
+                  (its size variants and the parts of its glyph assembly with their connectors), the assembly italic
+                  correction, and MinConnectorOverlap, scaled to a font size, and no construction for a glyph of a
+                  fallback font.
+                justification: |
+                  Stretchy operators are drawn from the constructions of the MATH table.
+                tests:
+                  - MathFont_TryGetConstruction_ScalesVariantsAndParts

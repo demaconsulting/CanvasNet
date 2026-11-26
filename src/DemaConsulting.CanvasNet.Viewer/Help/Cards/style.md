@@ -6,6 +6,7 @@ tags:
 see-also:
   - mermaid/style
   - plantuml/style
+  - mathml/style
   - vega-lite/style
   - svg/style
   - scad/style
@@ -15,6 +16,7 @@ see-also:
 Decide the final size first, choose a small palette, and check every change in
 the rendered picture. The style card of each format shows the syntax:
 [[mermaid/style]], [[plantuml/style]],
+[[mathml/style]],
 [[vega-lite/style]], [[svg/style]], and
 [[scad/style]].
 
@@ -38,9 +40,10 @@ the rendered picture. The style card of each format shows the syntax:
 - An embedded picture is drawn at the size of its placement, and its text scales
   with it: place it near its natural size (the size it is drawn at when no size
   is asked for) so its text matches the text around it.
-- Mermaid, PlantUML, and Vega-Lite text is always drawn with the bundled fonts;
-  in SVG use the generic families (`sans-serif`, `serif`, `monospace`), which
-  are bundled too, because an installed family differs between machines.
+- Mermaid, PlantUML, MathML, and Vega-Lite text is always drawn with the
+  bundled fonts; in SVG use the generic families (`sans-serif`, `serif`,
+  `monospace`), which are bundled too, because an installed family differs
+  between machines.
 
 ## Spacing
 

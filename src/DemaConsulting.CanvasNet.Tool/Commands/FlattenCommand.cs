@@ -49,7 +49,7 @@ internal sealed class FlattenCommand : ICommand
         "canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict] [--file-access <mode>] [--allow-root <folder>] [--no-clobber]" + Environment.NewLine
         + Environment.NewLine
         + "Writes a copy of an SVG drawing in which every <image> link to a file only CanvasNet draws (a Mermaid or PlantUML" + Environment.NewLine
-        + "diagram, an OpenSCAD model, a Vega-Lite chart, a PDF, PowerPoint, or Visio page, with or without a fragment, and a" + Environment.NewLine
+        + "diagram, a MathML equation, an OpenSCAD model, a Vega-Lite chart, a PDF, PowerPoint, or Visio page, with or without a fragment, and a" + Environment.NewLine
         + "nested SVG file that links one) is a PNG picture of its placement size, as a data: URI. Nothing else in the file changes;" + Environment.NewLine
         + "relative links that are left are rewritten when the copy is in another folder. When the drawing links no such" + Environment.NewLine
         + "picture, nothing is written and the exit code is 0. See 'canvasnet help svg' for the rules." + Environment.NewLine

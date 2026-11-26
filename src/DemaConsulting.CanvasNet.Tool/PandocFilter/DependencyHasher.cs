@@ -26,7 +26,9 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///         a file the mode denies (outside the folders, or reached through a link the mode refuses) is never read
 ///         (<see cref="ReadFile"/>). The walks live in <c>DependencyHasher.Chart.cs</c>, <c>DependencyHasher.Mermaid.cs</c>,
 ///         <c>DependencyHasher.PlantUml.cs</c>,
-///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk). An instance is not
+///         <c>DependencyHasher.Svg.cs</c>, and this file (models and the shared picture walk). A MathML equation references
+///         no other file: its own content is its only part, and an equation a drawing, chart, or diagram links is hashed as
+///         a leaf file. An instance is not
 ///         thread-safe; the static entry points are, as each call has its own instance.
 ///     </para>
 /// </remarks>
@@ -149,6 +151,7 @@ internal sealed partial class DependencyHasher
                 hasher.AddPlantUml(source, root, 0);
                 break;
             default:
+                // A document, or an equation (MathML Core references no other file): its content is the only part
                 var content = hasher.ReadFile(source) ?? throw Fail($"cannot read '{name}'");
                 hasher.AddPart(FilterPaths.FileName(source), content);
                 break;

@@ -296,3 +296,31 @@ sections:
               - CanvasNet-Fonts-GlyphFallback-FindMissing
             tests:
               - GlyphFallback_Resolve_CharacterMissingInPrimary_UsesNotoSansMath
+
+          - id: CanvasNet-Fonts-MathTable
+            title: >-
+              The Fonts subsystem shall read a loaded font's OpenType MATH table - its global math
+              layout constants, its per-glyph italic corrections, top-accent attachments,
+              extended-shape flags, and cut-in kerns, and its vertical and horizontal size variants
+              and glyph assemblies - for math layout by the sibling packages, reporting a font
+              without the table without throwing, and loading a font whose table is malformed as
+              before while rejecting the table itself with InvalidDataException when it is read.
+            justification: |
+              MathML layout needs the math data of a math font (the bundled Noto Sans Math); the
+              Fonts subsystem already owns SFNT parsing and the loaded font's data, so it reads the
+              table once instead of each consumer re-parsing the font, and it must not let a broken
+              math table make an otherwise usable font fail to load.
+            children:
+              - CanvasNet-Fonts-TrueTypeFont-MathTableConstants
+              - CanvasNet-Fonts-TrueTypeFont-MathTableGlyphInfo
+              - CanvasNet-Fonts-TrueTypeFont-MathTableVariants
+              - CanvasNet-Fonts-TrueTypeFont-MathTableAbsent
+              - CanvasNet-Fonts-TrueTypeFont-MathTableMalformed
+              - CanvasNet-Fonts-TrueTypeFont-MathTableThreadSafe
+            tests:
+              - TrueTypeFont_RealNotoSansMath_ReadsMathConstants
+              - TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction
+              - TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction
+              - TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent
+              - TrueTypeFont_RealOpenSans_HasNoMathTable
+              - TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable

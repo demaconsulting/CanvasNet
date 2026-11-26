@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.PlantUml;
@@ -89,6 +90,9 @@ public class ImagingSubsystemTests
 
             case "plantuml":
                 return PlantUmlDocument.Open(path).Render(cancellationToken: TestContext.Current.CancellationToken);
+
+            case "mathml":
+                return MathMlDocument.Open(path).Render(new MathMlRenderOptions { Background = new Rgba32(255, 255, 255, 255) }, TestContext.Current.CancellationToken);
 
             case "vega-lite":
                 var chart = VegaLiteDocument.Open(path);
@@ -702,6 +706,102 @@ public class ImagingSubsystemTests
         Assert.Equal(2, text.Split("data:image/png;base64,").Length - 1);
         var info = SourceLoader.Probe(output);
         Assert.Equal((SourceKind.Svg, 200, 100), (info.Format, info.Width, info.Height));
+    }
+
+    /// <summary>
+    ///     Test that the loader draws an equation linked from an SVG drawing, a Mermaid node and a Vega-Lite image mark:
+    ///     each picture shows the equation's black ink, and each load lists the equation as an <c>embed</c> operation of
+    ///     the format <c>mathml</c>, with nothing reported.
+    /// </summary>
+    [Fact]
+    public void Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds()
+    {
+        // Arrange: the quadratic formula beside a drawing, a flowchart and a chart that link it
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")), directory.Combine("eq.mml"));
+        var drawing = FixtureFactory.WriteText(
+            directory.Path,
+            "figure.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'><image href='eq.mml' width='200' height='80'/></svg>");
+        var flow = FixtureFactory.WriteText(directory.Path, "flow.mmd", "flowchart LR\n    q@{ img: \"eq.mml\", w: 140, h: 50 }\n");
+        var chart = FixtureFactory.WriteText(
+            directory.Path,
+            "chart.vl.json",
+            "{ \"width\": 200, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+            + "\"mark\": { \"type\": \"image\", \"width\": 140, \"height\": 50 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+            + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+            + "\"url\": { \"value\": \"eq.mml\" } } }");
+        static bool IsInk(Rgba32 pixel) => pixel.A == 255 && pixel.R < 80 && pixel.G < 80 && pixel.B < 80;
+
+        foreach (var path in new[] { drawing, flow, chart })
+        {
+            // Act
+            using var loaded = SourceLoader.Load(path, new SourceOptions());
+
+            // Assert
+            var surface = loaded.Surface;
+            Assert.Contains(Enumerable.Range(0, surface.Height), y => Enumerable.Range(0, surface.Width).Any(x => IsInk(surface[x, y])));
+            var embed = Assert.Single(loaded.Operations, operation => operation.Op == "embed");
+            Assert.Equal("eq.mml", embed.Fields.Single(field => field.Key == "href").Value);
+            Assert.Equal("mathml", embed.Fields.Single(field => field.Key == "format").Value);
+            Assert.Empty(loaded.Diagnostics);
+        }
+    }
+
+    /// <summary>
+    ///     Test that the loader draws an equation linked from an SVG drawing, a Mermaid node and a Vega-Lite image mark in
+    ///     the display mode of the <c>display</c> fragment of the link: <c>eq.mml#display=inline</c> draws exactly the
+    ///     picture of a copy of the equation that says <c>display="inline"</c> itself, which differs from the block
+    ///     picture, and <c>eq.mml#display=BLOCK</c> exactly the picture of the link without a fragment.
+    /// </summary>
+    [Fact]
+    public void Imaging_Load_EquationLinkWithDisplayFragment_DrawsTheChosenLayout()
+    {
+        // Arrange: the quadratic formula (display="block"), a copy that says display="inline", and for each way of
+        // linking an equation a file that links it plainly, as BLOCK, as inline, and the copy
+        using var directory = new TempDirectory();
+        var block = File.ReadAllText(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")));
+        FixtureFactory.WriteText(directory.Path, "eq.mml", block);
+        FixtureFactory.WriteText(directory.Path, "eq-inline.mml", block.Replace("display=\"block\"", "display=\"inline\"", StringComparison.Ordinal));
+        var links = new[] { "eq.mml", "eq.mml#display=BLOCK", "eq.mml#display=inline", "eq-inline.mml" };
+        var linkers = new (string Extension, Func<string, string> Text)[]
+        {
+            (".svg", href => $"<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'><image href='{href}' width='200' height='80'/></svg>"),
+            (".mmd", href => $"flowchart LR\n    q@{{ img: \"{href}\", w: 140, h: 50 }}\n"),
+            (".vl.json", href => "{ \"width\": 200, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+                                 + "\"mark\": { \"type\": \"image\", \"width\": 140, \"height\": 50 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+                                 + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+                                 + $"\"url\": {{ \"value\": \"{href}\" }} }} }}"),
+        };
+
+        foreach (var (extension, text) in linkers)
+        {
+            // Act
+            var pictures = links
+                .Select((href, i) => SourceLoader.Load(FixtureFactory.WriteText(directory.Path, $"linker{i}{extension}", text(href)), new SourceOptions()))
+                .ToList();
+
+            try
+            {
+                // Assert: BLOCK draws the block picture, inline the inline picture, which differs from it, with no notes
+                List<Rgba32> Pixels(int i) => [.. Enumerable.Range(0, pictures[i].Surface.Width * pictures[i].Surface.Height)
+                    .Select(p => pictures[i].Surface[p % pictures[i].Surface.Width, p / pictures[i].Surface.Width])];
+                Assert.Equal(Pixels(0), Pixels(1));
+                Assert.Equal(Pixels(3), Pixels(2));
+                Assert.NotEqual(Pixels(0), Pixels(2));
+                Assert.Equal(
+                    links,
+                    pictures.Select(picture => Assert.Single(picture.Operations, operation => operation.Op == "embed").Fields.Single(field => field.Key == "href").Value));
+                Assert.All(pictures, picture => Assert.Empty(picture.Diagnostics));
+            }
+            finally
+            {
+                foreach (var picture in pictures)
+                {
+                    picture.Dispose();
+                }
+            }
+        }
     }
 
     /// <summary>

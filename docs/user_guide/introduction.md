@@ -10,10 +10,10 @@ alone for images and drawing, add the format packages you need, use the Viewer t
 `canvasnet` command-line tool, which bundles all of them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
-the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also
-uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package
-(the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with
-its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+the nine format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML); PowerPoint
+also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, Mermaid and PlantUML use the Layout package
+(the shared graph layout, which needs only .NET), and MathML uses the core alone; the format packages build on the
+DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
 
 ## Scope
 
@@ -28,6 +28,8 @@ This user guide covers:
 - Rendering PlantUML sequence, activity, class, object, state, use case, component, and deployment diagrams
   (`DemaConsulting.CanvasNet.PlantUml`) with
   PlantUML's default look, local `!include` files, and a gallery of original diagrams
+- Rendering MathML Core equations (`DemaConsulting.CanvasNet.MathMl`) as a browser lays them out, with the bundled Noto
+  Sans Math font, advice on writing good-looking equations, and a gallery of original equations
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References
@@ -60,8 +62,8 @@ dotnet add package DemaConsulting.CanvasNet
 ```
 
 To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents, OpenSCAD
-models, Vega-Lite charts, and Mermaid and PlantUML diagrams, from scripts or AI agents), install the `canvasnet` .NET
-tool, which bundles the libraries. The chapter on the command-line tool describes it in full:
+models, Vega-Lite charts, Mermaid and PlantUML diagrams, and MathML equations, from scripts or AI agents), install the
+`canvasnet` .NET tool, which bundles the libraries. The chapter on the command-line tool describes it in full:
 
 ```bash
 dotnet tool install --global DemaConsulting.CanvasNet.Tool

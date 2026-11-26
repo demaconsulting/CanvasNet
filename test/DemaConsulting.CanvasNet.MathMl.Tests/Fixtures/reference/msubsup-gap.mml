@@ -1,0 +1,33 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <msubsup>
+    <mi>u</mi>
+    <mi>i</mi>
+    <mi>k</mi>
+  </msubsup>
+  <msubsup>
+    <mi>A</mi>
+    <mspace width="0.3em" height="0.6em" depth="0em"/>
+    <mspace width="0.4em" height="0.1em" depth="0.3em"/>
+  </msubsup>
+  <msubsup>
+    <mi>B</mi>
+    <mi>a</mi>
+    <mi>b</mi>
+  </msubsup>
+  <msqrt>
+    <msup>
+      <mi>u</mi>
+      <mi>a</mi>
+    </msup>
+  </msqrt>
+  <mfrac>
+    <msup>
+      <mi>u</mi>
+      <mi>c</mi>
+    </msup>
+    <msup>
+      <mi>u</mi>
+      <mi>c</mi>
+    </msup>
+  </mfrac>
+</math>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
@@ -121,6 +122,45 @@ public class PandocFilterSubsystemTests
         Assert.EndsWith("it is left as written and not drawn", Assert.Single(PandocDoc.Warnings(first)), StringComparison.Ordinal);
         using var json = JsonDocument.Parse(first);
         Assert.Equal(["Para", "Figure", "CodeBlock"], json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+    }
+
+    /// <summary>
+    ///     Test that a captioned MathML code block and a <c>.mml</c> picture are drawn by the tool at scale 2, that the block
+    ///     becomes a figure, that both show at their natural width, and that the drawing reports nothing.
+    /// </summary>
+    [Fact]
+    public void PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure()
+    {
+        // Arrange: the quadratic formula as a picture and as a captioned block, and its natural size
+        using var tree = new FilterTree();
+        var fixture = FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml"));
+        File.Copy(fixture, Path.Combine(tree.Guide, "quadratic.mml"));
+        var natural = SourceLoader.Probe(fixture);
+        var text = File.ReadAllText(fixture).ReplaceLineEndings("\n").TrimEnd('\n');
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Image("quadratic.mml")),
+            PandocDoc.CodeBlock("fig-roots", ["mathml"], text, ("caption", "The roots")));
+
+        // Act
+        var output = tree.Run(new ToolPictureDrawer(), document);
+
+        // Assert: no warnings, a paragraph and a figure, and the natural width on both pictures
+        Assert.Empty(PandocDoc.Warnings(output));
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        Assert.Equal(["Para", "Figure"], blocks.EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+        Assert.Equal("fig-roots", blocks[1].GetProperty("c")[0][0].GetString());
+        Assert.Equal(2, Regex.Count(Encoding.UTF8.GetString(output), $"""\["width","{natural.Width}px"\]""", RegexOptions.None, TimeSpan.FromSeconds(5)));
+
+        // Assert: the pictures are twice the natural size, rounded out at that scale
+        var pictures = tree.CacheFiles().Where(name => name.EndsWith(".png", StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, pictures.Count);
+        foreach (var name in pictures)
+        {
+            using var image = PngCodec.Load(Path.Combine(tree.Cache, name));
+            Assert.InRange(image.Width, (natural.Width * 2) - 2, natural.Width * 2);
+            Assert.InRange(image.Height, (natural.Height * 2) - 2, natural.Height * 2);
+        }
     }
 
     /// <summary>

@@ -969,6 +969,383 @@ internal sealed class SyntheticFontBuilder
     public readonly record struct NameRecord(int PlatformId, int EncodingId, int LanguageId, int NameId, string Value);
 
     /// <summary>
+    ///     Builds an OpenType Coverage table covering <paramref name="glyphs"/> (sorted and
+    ///     de-duplicated first), in format 1 (a glyph array) or format 2 (ranges of consecutive
+    ///     glyphs, each with the coverage index of its first glyph).
+    /// </summary>
+    public static byte[] Coverage(IEnumerable<int> glyphs, int format)
+    {
+        var sorted = glyphs.Distinct().Order().ToList();
+        var buf = new List<byte>();
+        WriteUInt16(buf, format);
+        if (format == 1)
+        {
+            WriteUInt16(buf, sorted.Count);
+            foreach (var glyph in sorted)
+            {
+                WriteUInt16(buf, glyph);
+            }
+
+            return [.. buf];
+        }
+
+        // Group the sorted glyphs into runs of consecutive IDs
+        var ranges = new List<(int Start, int End, int StartIndex)>();
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            if (ranges.Count > 0 && ranges[^1].End == sorted[i] - 1)
+            {
+                ranges[^1] = (ranges[^1].Start, sorted[i], ranges[^1].StartIndex);
+            }
+            else
+            {
+                ranges.Add((sorted[i], sorted[i], i));
+            }
+        }
+
+        WriteUInt16(buf, ranges.Count);
+        foreach (var (start, end, startIndex) in ranges)
+        {
+            WriteUInt16(buf, start);
+            WriteUInt16(buf, end);
+            WriteUInt16(buf, startIndex);
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Describes one MathKern subtable built by <see cref="MathTableBytes"/>: correction heights and one
+    ///     more kern value than heights.
+    /// </summary>
+    public sealed record MathKernSpec(IReadOnlyList<int> Heights, IReadOnlyList<int> Values)
+    {
+        /// <summary>When set, written as <c>heightCount</c> instead of the real count (for malformed tables).</summary>
+        public int? HeightCountOverride { get; init; }
+    }
+
+    /// <summary>
+    ///     Describes one glyph's MathKernInfoRecord built by <see cref="MathTableBytes"/>: a kern per corner,
+    ///     each optional.
+    /// </summary>
+    public sealed record MathKernInfoSpec(
+        int Glyph,
+        MathKernSpec? TopRight,
+        MathKernSpec? TopLeft = null,
+        MathKernSpec? BottomRight = null,
+        MathKernSpec? BottomLeft = null);
+
+    /// <summary>
+    ///     Describes one GlyphAssembly subtable built by <see cref="MathTableBytes"/>.
+    /// </summary>
+    public sealed record MathAssemblySpec(
+        int ItalicsCorrection,
+        IReadOnlyList<(int Glyph, int StartConnector, int EndConnector, int FullAdvance, bool Extender)> Parts)
+    {
+        /// <summary>When set, written as <c>partCount</c> instead of the real count (for malformed tables).</summary>
+        public int? PartCountOverride { get; init; }
+    }
+
+    /// <summary>
+    ///     Describes one glyph's MathGlyphConstruction built by <see cref="MathTableBytes"/>.
+    /// </summary>
+    public sealed record MathConstructionSpec(
+        int Glyph,
+        IReadOnlyList<(int Glyph, int Advance)> Variants,
+        MathAssemblySpec? Assembly = null)
+    {
+        /// <summary>When set, written as <c>variantCount</c> instead of the real count (for malformed tables).</summary>
+        public int? VariantCountOverride { get; init; }
+    }
+
+    /// <summary>
+    ///     Describes a whole <c>MATH</c> table built by <see cref="MathTableBytes"/>. Every list defaults to
+    ///     empty, which omits the corresponding subtable (a zero offset); each coverage format is
+    ///     selectable so both formats are exercised.
+    /// </summary>
+    public sealed record MathTableSpec
+    {
+        /// <summary>The 56 MathConstants values, in OpenType order (defaults to all zero).</summary>
+        public IReadOnlyList<int> Constants { get; init; } = new int[56];
+
+        /// <summary>The italic corrections.</summary>
+        public IReadOnlyList<(int Glyph, int Value)> ItalicsCorrections { get; init; } = [];
+
+        /// <summary>The coverage format of the italic corrections.</summary>
+        public int ItalicsCoverageFormat { get; init; } = 1;
+
+        /// <summary>When set, written as the italic-correction count instead of the real count.</summary>
+        public int? ItalicsCountOverride { get; init; }
+
+        /// <summary>The top-accent attachments.</summary>
+        public IReadOnlyList<(int Glyph, int Value)> TopAccentAttachments { get; init; } = [];
+
+        /// <summary>The coverage format of the top-accent attachments.</summary>
+        public int TopAccentCoverageFormat { get; init; } = 2;
+
+        /// <summary>The extended-shape glyphs.</summary>
+        public IReadOnlyList<int> ExtendedShapes { get; init; } = [];
+
+        /// <summary>The coverage format of the extended shapes.</summary>
+        public int ExtendedShapeCoverageFormat { get; init; } = 1;
+
+        /// <summary>The cut-in kerns.</summary>
+        public IReadOnlyList<MathKernInfoSpec> Kerns { get; init; } = [];
+
+        /// <summary>When true, the MathGlyphInfo offset in the header is zero.</summary>
+        public bool OmitGlyphInfo { get; init; }
+
+        /// <summary>When true, the MathVariants offset in the header is zero.</summary>
+        public bool OmitVariants { get; init; }
+
+        /// <summary>The MathVariants <c>minConnectorOverlap</c>.</summary>
+        public int MinConnectorOverlap { get; init; }
+
+        /// <summary>The vertical constructions.</summary>
+        public IReadOnlyList<MathConstructionSpec> Vertical { get; init; } = [];
+
+        /// <summary>The coverage format of the vertical constructions.</summary>
+        public int VerticalCoverageFormat { get; init; } = 2;
+
+        /// <summary>The horizontal constructions.</summary>
+        public IReadOnlyList<MathConstructionSpec> Horizontal { get; init; } = [];
+
+        /// <summary>The coverage format of the horizontal constructions.</summary>
+        public int HorizontalCoverageFormat { get; init; } = 1;
+    }
+
+    /// <summary>
+    ///     Builds a version-1.0 <c>MATH</c> table from <paramref name="spec"/>, laid out as the
+    ///     header, MathConstants (at offset 10), MathGlyphInfo, then MathVariants, with every
+    ///     subtable's children appended after it and addressed by offsets from it.
+    /// </summary>
+    public static byte[] MathTableBytes(MathTableSpec spec)
+    {
+        // Header, then the fixed-size MathConstants at offset 10
+        var buf = new List<byte>();
+        WriteUInt16(buf, 1); // majorVersion
+        WriteUInt16(buf, 0); // minorVersion
+        WriteUInt16(buf, 10); // mathConstantsOffset
+        WriteUInt16(buf, 0); // mathGlyphInfoOffset (patched)
+        WriteUInt16(buf, 0); // mathVariantsOffset (patched)
+        buf.AddRange(MathConstantsBytes(spec.Constants));
+
+        // MathGlyphInfo and MathVariants follow, each addressed from the table start
+        if (!spec.OmitGlyphInfo)
+        {
+            WriteUInt16At(buf, 6, buf.Count);
+            buf.AddRange(MathGlyphInfoBytes(spec));
+        }
+
+        if (!spec.OmitVariants)
+        {
+            WriteUInt16At(buf, 8, buf.Count);
+            buf.AddRange(MathVariantsBytes(spec));
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds the 214-byte MathConstants subtable: four plain 16-bit values, 51
+    ///     MathValueRecords (with no device table), and one plain 16-bit value.
+    /// </summary>
+    private static byte[] MathConstantsBytes(IReadOnlyList<int> constants)
+    {
+        var buf = new List<byte>();
+        for (var i = 0; i < 56; i++)
+        {
+            WriteInt16(buf, constants[i]);
+            if (i is >= 4 and < 55)
+            {
+                WriteUInt16(buf, 0); // deviceTableOffset
+            }
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds the MathGlyphInfo subtable and its four optional children.
+    /// </summary>
+    private static byte[] MathGlyphInfoBytes(MathTableSpec spec)
+    {
+        var buf = new List<byte>();
+        for (var i = 0; i < 4; i++)
+        {
+            WriteUInt16(buf, 0); // child offsets (patched)
+        }
+
+        AppendChild(buf, 0, spec.ItalicsCorrections.Count == 0
+            ? null
+            : MathValueTableBytes(spec.ItalicsCorrections, spec.ItalicsCoverageFormat, spec.ItalicsCountOverride));
+        AppendChild(buf, 2, spec.TopAccentAttachments.Count == 0
+            ? null
+            : MathValueTableBytes(spec.TopAccentAttachments, spec.TopAccentCoverageFormat, null));
+        AppendChild(buf, 4, spec.ExtendedShapes.Count == 0
+            ? null
+            : Coverage(spec.ExtendedShapes, spec.ExtendedShapeCoverageFormat));
+        AppendChild(buf, 6, spec.Kerns.Count == 0 ? null : MathKernInfoBytes(spec.Kerns));
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a coverage-keyed MathValueRecord table (MathItalicsCorrectionInfo or
+    ///     MathTopAccentAttachment), with the coverage after the records.
+    /// </summary>
+    private static byte[] MathValueTableBytes(IReadOnlyList<(int Glyph, int Value)> entries, int coverageFormat, int? countOverride)
+    {
+        var sorted = entries.OrderBy(e => e.Glyph).ToList();
+        var buf = new List<byte>();
+        WriteUInt16(buf, 4 + sorted.Count * 4); // coverageOffset
+        WriteUInt16(buf, countOverride ?? sorted.Count);
+        foreach (var (_, value) in sorted)
+        {
+            WriteInt16(buf, value);
+            WriteUInt16(buf, 0); // deviceTableOffset
+        }
+
+        buf.AddRange(Coverage(sorted.Select(e => e.Glyph), coverageFormat));
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds the MathKernInfo subtable: coverage offset, count, four corner offsets per
+    ///     glyph, then the coverage and every MathKern.
+    /// </summary>
+    private static byte[] MathKernInfoBytes(IReadOnlyList<MathKernInfoSpec> kerns)
+    {
+        var sorted = kerns.OrderBy(k => k.Glyph).ToList();
+        var buf = new List<byte>();
+        WriteUInt16(buf, 0); // coverageOffset (patched)
+        WriteUInt16(buf, sorted.Count);
+        for (var i = 0; i < sorted.Count * 4; i++)
+        {
+            WriteUInt16(buf, 0); // corner offsets (patched)
+        }
+
+        AppendChild(buf, 0, Coverage(sorted.Select(k => k.Glyph), 1));
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var corners = new[] { sorted[i].TopRight, sorted[i].TopLeft, sorted[i].BottomRight, sorted[i].BottomLeft };
+            for (var c = 0; c < 4; c++)
+            {
+                AppendChild(buf, 4 + (i * 4 + c) * 2, corners[c] is { } kern ? MathKernBytes(kern) : null);
+            }
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a MathKern subtable: height count, heights, then kern values.
+    /// </summary>
+    private static byte[] MathKernBytes(MathKernSpec kern)
+    {
+        var buf = new List<byte>();
+        WriteUInt16(buf, kern.HeightCountOverride ?? kern.Heights.Count);
+        foreach (var value in kern.Heights.Concat(kern.Values))
+        {
+            WriteInt16(buf, value);
+            WriteUInt16(buf, 0); // deviceTableOffset
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds the MathVariants subtable: header, vertical then horizontal construction offsets,
+    ///     then both coverages and every construction.
+    /// </summary>
+    private static byte[] MathVariantsBytes(MathTableSpec spec)
+    {
+        var vertical = spec.Vertical.OrderBy(c => c.Glyph).ToList();
+        var horizontal = spec.Horizontal.OrderBy(c => c.Glyph).ToList();
+        var buf = new List<byte>();
+        WriteUInt16(buf, spec.MinConnectorOverlap);
+        WriteUInt16(buf, 0); // vertGlyphCoverageOffset (patched)
+        WriteUInt16(buf, 0); // horizGlyphCoverageOffset (patched)
+        WriteUInt16(buf, vertical.Count);
+        WriteUInt16(buf, horizontal.Count);
+        for (var i = 0; i < vertical.Count + horizontal.Count; i++)
+        {
+            WriteUInt16(buf, 0); // construction offsets (patched)
+        }
+
+        AppendChild(buf, 2, vertical.Count == 0 ? null : Coverage(vertical.Select(c => c.Glyph), spec.VerticalCoverageFormat));
+        AppendChild(buf, 4, horizontal.Count == 0 ? null : Coverage(horizontal.Select(c => c.Glyph), spec.HorizontalCoverageFormat));
+        var constructions = vertical.Concat(horizontal).ToList();
+        for (var i = 0; i < constructions.Count; i++)
+        {
+            AppendChild(buf, 10 + i * 2, MathGlyphConstructionBytes(constructions[i]));
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Builds a MathGlyphConstruction subtable with its variants and, when present, its
+    ///     GlyphAssembly appended after them.
+    /// </summary>
+    private static byte[] MathGlyphConstructionBytes(MathConstructionSpec construction)
+    {
+        var buf = new List<byte>();
+        WriteUInt16(buf, 0); // glyphAssemblyOffset (patched)
+        WriteUInt16(buf, construction.VariantCountOverride ?? construction.Variants.Count);
+        foreach (var (glyph, advance) in construction.Variants)
+        {
+            WriteUInt16(buf, glyph);
+            WriteUInt16(buf, advance);
+        }
+
+        if (construction.Assembly is { } assembly)
+        {
+            var parts = new List<byte>();
+            WriteInt16(parts, assembly.ItalicsCorrection);
+            WriteUInt16(parts, 0); // deviceTableOffset
+            WriteUInt16(parts, assembly.PartCountOverride ?? assembly.Parts.Count);
+            foreach (var (glyph, startConnector, endConnector, fullAdvance, extender) in assembly.Parts)
+            {
+                WriteUInt16(parts, glyph);
+                WriteUInt16(parts, startConnector);
+                WriteUInt16(parts, endConnector);
+                WriteUInt16(parts, fullAdvance);
+                WriteUInt16(parts, extender ? 1 : 0);
+            }
+
+            AppendChild(buf, 0, [.. parts]);
+        }
+
+        return [.. buf];
+    }
+
+    /// <summary>
+    ///     Appends <paramref name="child"/> to <paramref name="buf"/> and writes its offset (from
+    ///     the start of <paramref name="buf"/>) into the Offset16 field at
+    ///     <paramref name="fieldIndex"/>; a <see langword="null"/> child leaves the field zero.
+    /// </summary>
+    private static void AppendChild(List<byte> buf, int fieldIndex, byte[]? child)
+    {
+        if (child is null)
+        {
+            return;
+        }
+
+        WriteUInt16At(buf, fieldIndex, buf.Count);
+        buf.AddRange(child);
+    }
+
+    /// <summary>
+    ///     Overwrites 2 bytes at an absolute index within an in-progress buffer with a big-endian
+    ///     unsigned 16-bit integer - used to backfill offsets once a child's position is known.
+    /// </summary>
+    private static void WriteUInt16At(List<byte> buf, int index, int value)
+    {
+        buf[index] = (byte)((value >> 8) & 0xFF);
+        buf[index + 1] = (byte)(value & 0xFF);
+    }
+
+    /// <summary>
     ///     Builds a format-0 <c>name</c> table from an ordered list of records, encoding each
     ///     record's string as big-endian UTF-16 for a Windows platform record
     ///     (<see cref="NameRecord.PlatformId"/> <c>3</c>) or as ASCII for a Macintosh platform

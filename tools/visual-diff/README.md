@@ -285,3 +285,38 @@ jar; the committed goldens were made with `plantuml-mit-1.2026.10.jar` on Java 2
 `Fixtures/reference/README.md`). To compare pictures by eye, render the same fixture with the jar (`-tpng`) and with
 CanvasNet, and compare them with `canvasnet compare <plantuml.png> <canvasnet.png>`; PlantUML's PNG is one pixel
 narrower and lower than its SVG, whose size CanvasNet follows.
+
+## MathML
+
+`update-mathml-goldens.ps1` regenerates the reference layouts that `MathMlReferenceLayoutTests` compares CanvasNet's
+MathML layout with:
+
+```powershell
+pwsh tools/visual-diff/update-mathml-goldens.ps1 [-Fixture <name>...] [-PngDirectory <folder>] [-Browser Chrome|Firefox]
+```
+
+It runs `render-mathml.mjs` on every original fixture (`*.mml`) of the folder
+`test/DemaConsulting.CanvasNet.MathMl.Tests/Fixtures/reference/`, or only on the named ones. The script lays each
+equation out with MathML Core in headless Chrome, through the puppeteer that the pinned mermaid-cli brings (no
+`package.json` change), with the Noto Sans Math font that CanvasNet bundles at 100 CSS pixels, and writes
+`<name>.layout.json` next to the fixture: the Chrome version, the width, height, and baseline of the `math` element, and
+the box of every element inside it, relative to the `math` element. `-PngDirectory` also writes Chrome's picture of each
+fixture for a comparison by eye (not committed); render the same fixture with `canvasnet` and compare them with
+`canvasnet compare`. It needs Node.js 20 or later and `npm install` in the repository root.
+`Fixtures/reference/README.md` records the Chrome version of the committed goldens, the tolerance, the Chrome behaviors
+CanvasNet matches, and the known differences; a golden change in a pull request is reviewed like code.
+
+`-Browser Firefox` lays out the fixtures of `Fixtures/reference-firefox/` in headless Firefox instead (through the same
+puppeteer, `render-mathml.mjs --browser firefox`), writing goldens whose version key is `firefox`. Firefox is the
+reference of the MathML 3 table attributes (`columnalign`, `rowalign`, `columnspacing`, `rowspacing`, `framespacing`,
+`columnlines`, `rowlines`, `frame`) that CanvasNet draws and Chrome ignores. It needs a one-time install of the Firefox
+version the pinned puppeteer expects into the puppeteer cache (outside the repository; nothing is committed):
+
+```powershell
+npx puppeteer browsers install firefox
+```
+
+Firefox cannot omit the page background of a screenshot, so its `-PngDirectory` pictures are on the page background.
+`Fixtures/reference-firefox/README.md` records the Firefox version, what `MathMlReferenceLayoutTests` compares (the
+boxes of the tables, rows, cells, and `mspace` contents relative to their table), and why the fixtures are written as
+they are.

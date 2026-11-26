@@ -57,7 +57,8 @@ host assembly layered on this one; the `HelpTopics` unit of the tool calls it wi
 
 **Consumed**: the constants the cards quote as tokens (`Surface.MaxDimension` of the core `Canvas` subsystem,
 `SourceLoader.MaxDpi` and the qualities of `ImageWriter` of the `Imaging` subsystem, `ScadLimits.Default`,
-`VegaLiteLimits.Default`, `MermaidLimits.Default`, and `PlantUmlLimits.Default` of the format packages, `ImageFragment`
+`VegaLiteLimits.Default`, `MermaidLimits.Default`, `PlantUmlLimits.Default`, and `MathMlLimits.Default` of the format
+packages, `ImageFragment`
 of the core `ImageSources` subsystem, and `PositionCollector`, `PositionSelection`, `PositionSelector`, and
 `ImagePosition` of the core `Positions` subsystem), and `System.Text.Json`'s `Utf8JsonWriter` for the JSON.
 
@@ -71,8 +72,8 @@ body against the tree. Every problem is an `InvalidOperationException` that name
 line, so the errors of both units read the same.
 
 **Tags.** Every card has tags from a closed vocabulary defined in code (`HelpTags`): the format tags `svg`, `mermaid`,
-`plantuml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, and `raster` (each also the identifier of the root card of that
-format; a card without a format tag is general), and the scope tags (at least one per card):
+`plantuml`, `mathml`, `scad`, `vega-lite`, `pdf`, `pptx`, `vsdx`, and `raster` (each also the identifier of the root
+card of that format; a card without a format tag is general), and the scope tags (at least one per card):
 
 | Scope tag | What the card is about |
 | --- | --- |

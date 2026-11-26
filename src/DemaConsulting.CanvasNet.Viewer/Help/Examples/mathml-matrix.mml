@@ -1,0 +1,35 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>A</mi>
+  <mo>=</mo>
+  <mrow>
+    <mo>[</mo>
+    <mtable>
+      <mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr>
+      <mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr>
+    </mtable>
+    <mo>]</mo>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mi>det</mi>
+  <mo>&ApplyFunction;</mo>
+  <mspace width="0.1667em"/>
+  <mi>A</mi>
+  <mo>=</mo>
+  <mrow>
+    <mo>|</mo>
+    <mtable>
+      <mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr>
+      <mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr>
+    </mtable>
+    <mo>|</mo>
+  </mrow>
+  <mo>=</mo>
+  <mi>a</mi>
+  <mo>&InvisibleTimes;</mo>
+  <mi>d</mi>
+  <mo>&minus;</mo>
+  <mi>b</mi>
+  <mo>&InvisibleTimes;</mo>
+  <mi>c</mi>
+</math>

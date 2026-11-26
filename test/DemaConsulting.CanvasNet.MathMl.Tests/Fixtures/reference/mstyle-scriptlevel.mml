@@ -1,0 +1,15 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>a</mi>
+  <mstyle scriptlevel="1">
+    <mi>b</mi>
+    <mstyle scriptlevel="+1">
+      <mi>c</mi>
+    </mstyle>
+  </mstyle>
+  <mstyle mathsize="200%">
+    <mi>d</mi>
+  </mstyle>
+  <mstyle scriptlevel="-1">
+    <mi>e</mi>
+  </mstyle>
+</math>

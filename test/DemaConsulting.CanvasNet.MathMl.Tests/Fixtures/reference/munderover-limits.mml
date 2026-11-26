@@ -1,0 +1,25 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mstyle displaystyle="true">
+    <munderover>
+      <mo>&#x2211;</mo>
+      <mrow>
+        <mi>i</mi>
+        <mi>k</mi>
+      </mrow>
+      <mi>n</mi>
+    </munderover>
+    <msub>
+      <mi>a</mi>
+      <mi>i</mi>
+    </msub>
+    <munder>
+      <mo>&#x22C3;</mo>
+      <mi>k</mi>
+    </munder>
+    <mi>g</mi>
+    <mover>
+      <mo>&#x220F;</mo>
+      <mi>m</mi>
+    </mover>
+  </mstyle>
+</math>

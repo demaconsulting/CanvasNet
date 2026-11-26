@@ -1,0 +1,79 @@
+---
+# Software Unit Requirements for ScriptLayout
+#
+# These requirements describe the design-level behavior of the ScriptLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the layout of msub, msup, msubsup (MathML Core 3.4.1) and
+# mmultiscripts (3.4.3) from the boxes of their base and scripts. See
+# docs/verification/canvas-net-math-ml/layout/script-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: ScriptLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-ScriptLayout-Subscript
+                title: >-
+                  The ScriptLayout unit shall shift a subscript down by the largest of the subscript shift of the MATH
+                  table, its ascent less the maximum subscript top, and, unless the base is a single character (a
+                  token that is not an operator and draws one glyph), the minimum baseline drop below the descent of
+                  the base, and pull it back by the italic correction of a large operator base.
+                justification: |
+                  MathML Core 3.4.1.2 positions a subscript by these constants, and the italic correction of a large
+                  operator moves its lower script under its slant. MathML Core and Chrome also drop the subscript of a
+                  letter with a descender (γ, y, ψ) below the descender, which sets it almost twice as low as the
+                  subscript of x; TeX keeps the subscript of a single character at the shift of the font, and so does
+                  CanvasNet (a documented known difference).
+                tests:
+                  - ScriptLayout_LayoutSub_ShiftFromConstantsAndScriptAscent
+                  - ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript
+                  - ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent
+
+              - id: CanvasNetMathMl-Layout-ScriptLayout-Superscript
+                title: >-
+                  The ScriptLayout unit shall shift a superscript up by the largest of the superscript shift of the MATH
+                  table (the cramped one when the math-shift of the element is compact), the minimum bottom above its
+                  descent, and the ascent of the base less the maximum baseline drop, move it right by the italic
+                  correction of an operator base drawn with a size variant or an assembly, and move it right by the
+                  italic correction of a base that is not an operator (or the overlap, when larger) when its ink would
+                  otherwise overlap the ink at the end of the base, whatever the two glyphs.
+                justification: |
+                  MathML Core 3.4.1.3 positions a superscript by these constants and lowers it in cramped styles, and
+                  places it after the italic correction of its base; Chrome, the reference of the layout tests, applies
+                  only the italic correction of a stretched or large operator and lets the superscript of a letter such
+                  as a zeta or y collide with it, which must not happen, so CanvasNet adds the italic correction where
+                  the inks would collide.
+                tests:
+                  - ScriptLayout_LayoutSup_CrampedUsesCrampedShift
+                  - ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript
+                  - ScriptLayout_LayoutSup_CollidingInkFollowsItalicCorrection
+
+              - id: CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript
+                title: >-
+                  The ScriptLayout unit shall, with a subscript and a superscript, keep the minimum gap of the MATH
+                  table between them by first raising the superscript while its bottom stays below the maximum bottom
+                  with a subscript and then lowering the subscript, end the element the space after a script after the
+                  base or the script that ends last as placed, and give it an ascent and a descent of at least zero.
+                justification: |
+                  MathML Core 3.4.1.4 keeps the scripts of msubsup apart and adds SpaceAfterScript; Chrome counts the
+                  whole of the wider script after the base, which leaves the italic correction of an integral as extra
+                  space after its lower limit (nearly 1em before the integrand with the operator spacing), so CanvasNet
+                  ends the element after the scripts as placed, closer to TeX; Chrome clamps the extents at zero.
+                tests:
+                  - ScriptLayout_LayoutSubSup_GapIsEnforced
+                  - ScriptLayout_Layout_SpaceAfterScriptIsAdded
+                  - ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript
+
+              - id: CanvasNetMathMl-Layout-ScriptLayout-Multiscripts
+                title: >-
+                  The ScriptLayout unit shall lay mmultiscripts out with the largest shifts over its script pairs, each
+                  prescript pair after the space after a script and aligned right in its column, the base and the
+                  mprescripts box after the prescripts, and each postscript pair after the base followed by the space
+                  after a script, so that one postscript pair is laid out as msubsup.
+                justification: |
+                  MathML Core 3.4.3.1 defines this layout for tensor indices and prescripts such as the nuclide
+                  notation.
+                tests:
+                  - ScriptLayout_LayoutMultiscripts_PrescriptsAndPostscriptsArePlaced
+                  - ScriptLayout_LayoutMultiscripts_OnePair_MatchesSubSup

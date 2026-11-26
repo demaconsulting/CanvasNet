@@ -40,11 +40,11 @@ repository writes its shim again after updating the tool.
 `Generate`, and encoded as UTF-8 without a byte order mark.
 
 **Shim constants**: `PROTOCOL` = `"1"`; `CLASSES`, the code-block classes the engine draws (generated:
-`{ "mermaid", "plantuml" }`); and `SUFFIXES`, the lowercase picture name ends the engine may change (generated:
-`{ ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu" }`,
-that is `.svg`, which the
-engine flattens when it links a picture only the tool draws, then the inputs it draws). The header comment names the
-oldest tool release that has the `pandoc-filter` command, says it is written by
+`{ "mermaid", "plantuml", "mathml" }`); and `SUFFIXES`, the lowercase picture name ends the engine may change
+(generated:
+`{ ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu", ".mml" }`,
+that is `.svg`, which the engine flattens when it links a picture only the tool draws, then the inputs it draws). The
+header comment names the oldest tool release that has the `pandoc-filter` command, says it is written by
 `dotnet canvasnet pandoc-filter --write-shim <path>`, must not be edited, and that `CANVASNET_TOOL` replaces
 `dotnet canvasnet`; the comment above the lists says `--write-shim` fills them from the tool's tables, so the shim is
 written again after the tool is updated.

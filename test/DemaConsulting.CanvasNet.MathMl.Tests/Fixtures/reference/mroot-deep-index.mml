@@ -1,0 +1,12 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mroot>
+    <mi>x</mi>
+    <mspace height="0.2em" depth="0.25em" width="0.2em"/>
+  </mroot>
+  <mi>x</mi>
+  <mroot>
+    <mi>x</mi>
+    <mspace height="0.2em" depth="0.5em" width="0.2em"/>
+  </mroot>
+  <mi>x</mi>
+</math>

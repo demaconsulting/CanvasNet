@@ -66,7 +66,10 @@ software items, specifically:
   `CffStandardEncoding`/`Type1Table`/`Type1CharstringInterpreter`/`Type1CharstringDecryption`/
   `Type1PfbReader`/`Type1PfaReader`/`Type1StandardGlyphNames`/`HmtxHheaReader`/`KernTable`/
   `NameTable`/`StyleTable` helpers,
-  producing `Geometry.Path` glyph outlines plus metrics and kerning; and (added Phase 6 of the
+  producing `Geometry.Path` glyph outlines plus metrics and kerning, and the internal
+  `MathTable`/`OpenTypeCoverage` reader of a font's OpenType `MATH` table (granted to the
+  `DemaConsulting.CanvasNet.MathMl` friend assembly, with the shared bundled Noto Sans Math through
+  `SystemFontCatalog.LoadBundledFallbackCore`); and (added Phase 6 of the
   `CanvasNetPdf` roadmap) the `SystemFontCatalog` unit, providing directory-scan-only discovery
   of fonts installed on the host operating system, best-effort family-name/style matching against
   that catalog, and a bundled, always-available Liberation Sans/Serif/Mono last-resort fallback
@@ -102,7 +105,8 @@ software items, specifically:
   allocate, forwards notes, and
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
   ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
-  `PlantUmlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that
+  `PlantUmlImageSource`, `MathMlImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the
+  direct unit of that
   package
 - **Positions (Subsystem)** — Feature positions of a rendered picture (where a node, an edge, a bar, or an axis is, so
   that a caller can place a callout without probing pixels), depending only on `ImageSources` (the bare selector values
@@ -411,6 +415,24 @@ software items, specifically:
   on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources`
   subsystems through their public API and on the `CanvasNetLayout` system's `Graphlib` and `Dagre` subsystems (the
   graph layout of the diagrams that PlantUML lays out with Graphviz) through internal friend access
+- **CanvasNetMathMl (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.MathMl`)
+  providing a static, offline, deterministic renderer of MathML Core equations with the bundled Noto Sans Math font and
+  its OpenType `MATH` table (five data tables are derived with attribution from W3C and Unicode data; their license
+  texts ship in the package). It contains two direct units, `MathMlDocument` (the public `Parse`/`Open`, describe,
+  `Measure`, and `Render` API with `MathMlDisplay`, `MathMlAnnotation`, `MathMlOpenOptions`, `MathMlRenderOptions`,
+  `MathMlLimits`, `MathMlLocation`, `MathMlDiagnostic`, `MathMlUnsupportedFeature`, `MathMlSize`,
+  `MathMlDiagnosticCodes`, `MathMlSyntaxException`, `MathMlRenderException`, `MathMlUnsupportedFeatureException`, and
+  the internal report sink, and the image source `MathMlImageSource` for `.mml` links) and `MathMlPainter` (the painter
+  of the laid-out boxes), and the internal subsystems `Syntax` (`MathMlReader`, `CharacterReferences`, `MathTree`, and
+  `AttributeValues`) and `Layout` (`LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`, `RowLayout`,
+  `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, `OperatorDictionary`, and
+  `StretchyGlyphs`). Every element of MathML Core is drawn (the token elements, the rows, the operator dictionary,
+  stretchy and large operators, fractions, radicals, scripts, under- and overscripts, and tables, with the MathML 3
+  table attributes as Firefox draws them); every other element is laid out as a row of its children and reported as
+  unsupported — see *CanvasNetMathMl System Design* (`canvas-net-math-ml.md`) for the known differences from browsers
+  and its Phase Plan. `CanvasNetMathMl` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`,
+  `Packaging`, and `ImageSources` subsystems through
+  their public API and, for the `MATH` table reader and the cached bundled font, through internal friend access
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -442,7 +464,8 @@ software items, specifically:
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
   units and two subsystems. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
-  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML) and the
+  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML) and
+  the
   extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that
   an SVG document can embed every format, renders any file by path or from a stream, returns the feature positions that
   the selectors of its options match for a Mermaid diagram or a Vega-Lite chart (through the core `Positions`
@@ -450,7 +473,8 @@ software items, specifically:
   of their own (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every
   expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which
   recognizes, probes, and loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX
-  documents, views of OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and PlantUML diagrams, the `ImagePipeline`
+  documents, views of OpenSCAD models, Vega-Lite charts, Mermaid diagrams, PlantUML diagrams, and MathML equations, the
+  `ImagePipeline`
   unit, which crops,
   resizes, fits, rotates by any angle, flips, pads, adjusts, deskews, trims, and grids pixels in the order the
   operations are given, the `GridOverlay` unit, which does the grid work for it (the flip, pad, trim, tone, rotation,
@@ -460,7 +484,8 @@ software items, specifically:
   operation units that chain them: `ImageRenderer` (render the pages of a source), `ImageInspector` (colors and pixels),
   `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
   that other SVG readers can show). It references the core package and the
-  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, Mermaid, and PlantUml packages, is referenced only by the tool, and
+  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, Mermaid, PlantUml, and MathMl packages, is referenced only by the
+  tool, and
   has no plug-in mechanism of its own — see *CanvasNetViewer System Design* (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
@@ -509,10 +534,10 @@ direct subsystems and units, the diagram shows only the NuGet packages, which pa
 applications and the `canvasnet` tool reach them.
 
 ![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
-the eight format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML); PowerPoint also
-uses the SVG and Charts packages, OpenSCAD uses the Render3D package, and Mermaid and PlantUML use the Layout package
-(the shared graph layout, which needs only .NET); the format packages build on the DemaConsulting.CanvasNet core with
-its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+the nine format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML); PowerPoint
+also uses the SVG and Charts packages, OpenSCAD uses the Render3D package, Mermaid and PlantUML use the Layout package
+(the shared graph layout, which needs only .NET), and MathML uses the core alone; the format packages build on the
+DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
 
 CanvasNet is organized into ten subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
@@ -704,26 +729,25 @@ name). In the SysML2 model the subsystem `part def` names carry the prefix `Merm
 `MermaidConfiguration`, `MermaidRendering`, `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`,
 `MermaidState`, `MermaidEr`, `MermaidPie`, `MermaidGantt`, `MermaidMindmap`, `MermaidCose`, `MermaidPacket`, and
 `MermaidGitGraph`) and the scene units are `MermaidSceneModel`, `MermaidScenePainter`, and `MermaidScenePositions`,
-because part def names stay unique across the model (the design views import every system's package) and
-`Rendering`, `SceneModel`, `ScenePainter`, and `ScenePositions` are already taken. It depends on the `CanvasNet`
-system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`,
-`ImageSources`, and `Positions` subsystems through their public API, and on the `CanvasNetLayout` system (its graph
-layout and work meter) through internal friend access. See the Folder Layout section below and *CanvasNetMermaid System
-Design* (`canvas-net-mermaid.md`). A further sibling top-level system, `CanvasNetPlantUml`, likewise lives in this same
-repository alongside `CanvasNet` and is distributed as its own NuGet package. It is a static, offline renderer for the
-PlantUML diagram language, derived with attribution from the MIT-licensed distribution of PlantUML (the license ships in
-the package): its direct unit, `PlantUmlDocument` (namespace `DemaConsulting.CanvasNet.PlantUml`), is the public API and
-the image source; its internal `Syntax` subsystem holds the `Preprocessor` and `DiagramDetector` units, its internal
-`Styling` subsystem holds the `SkinTheme` and `SkinParams` units, its internal `Scenegraph` subsystem holds the
-`SceneModel`, `TextLayout`, and `ScenePainter` units, its internal `Sequence` subsystem holds the `SequenceParser`,
-`SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Activity` subsystem holds the
-`ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer` units, its internal `Svek` subsystem
-(the shared engine of the diagrams that PlantUML lays out with Graphviz) holds the `SvekModel`, `SvekSyntax`,
-`SvekLayout`, `SvekGeometry`, and `SvekRenderer` units, its internal `Class` subsystem holds the `ClassParser`,
-`ClassModel`, and `ClassRenderer` units, its internal `State` subsystem holds the `StateParser`, `StateModel`, and
-`StateRenderer` units, and its internal `Description` subsystem holds the `DescriptionParser`, `DescriptionModel`, and
-`DescriptionRenderer` units (each in the sub-namespace and the sub-folder of its name). In
-the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix
+because part def names stay unique across the model (the design views import every system's package) and `Rendering`,
+`SceneModel`, `ScenePainter`, and `ScenePositions` are already taken. It depends on the `CanvasNet` system's `Canvas`,
+`Geometry`, `Drawing`, `Fonts`, `Rendering`, `ImageSources`, and `Positions` subsystems through their public API, and on
+the `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout
+section below and *CanvasNetMermaid System Design* (`canvas-net-mermaid.md`). A further sibling top-level system,
+`CanvasNetPlantUml`, likewise lives in this same repository alongside `CanvasNet` and is distributed as its own NuGet
+package. It is a static, offline renderer for the PlantUML diagram language, derived with attribution from the
+MIT-licensed distribution of PlantUML (the license ships in the package): its direct unit, `PlantUmlDocument` (namespace
+`DemaConsulting.CanvasNet.PlantUml`), is the public API and the image source; its internal `Syntax` subsystem holds the
+`Preprocessor` and `DiagramDetector` units, its internal `Styling` subsystem holds the `SkinTheme` and `SkinParams`
+units, its internal `Scenegraph` subsystem holds the `SceneModel`, `TextLayout`, and `ScenePainter` units, its internal
+`Sequence` subsystem holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its
+internal `Activity` subsystem holds the `ActivityParser`, `ActivityModel`, `ActivityLayout`, and `ActivityRenderer`
+units, its internal `Svek` subsystem (the shared engine of the diagrams that PlantUML lays out with Graphviz) holds the
+`SvekModel`, `SvekSyntax`, `SvekLayout`, `SvekGeometry`, and `SvekRenderer` units, its internal `Class` subsystem holds
+the `ClassParser`, `ClassModel`, and `ClassRenderer` units, its internal `State` subsystem holds the `StateParser`,
+`StateModel`, and `StateRenderer` units, and its internal `Description` subsystem holds the `DescriptionParser`,
+`DescriptionModel`, and `DescriptionRenderer` units (each in the sub-namespace and the sub-folder of its name). In the
+SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and unit `part def` names carry the prefix
 `PlantUml` (`PlantUmlSyntax`, `PlantUmlPreprocessor`, `PlantUmlDiagramDetector`, `PlantUmlStyling`, `PlantUmlSkinTheme`,
 `PlantUmlSkinParams`, `PlantUmlScenegraph`, `PlantUmlSceneModel`, `PlantUmlTextLayout`, `PlantUmlScenePainter`,
 `PlantUmlSequence`, `PlantUmlSequenceParser`, `PlantUmlSequenceModel`, `PlantUmlSequenceLayout`,
@@ -734,29 +758,43 @@ the SysML2 model the system is `CanvasNetPlantUmlSystem` and its subsystem and u
 `PlantUmlStateRenderer`, `PlantUmlDescription`, `PlantUmlDescriptionParser`, `PlantUmlDescriptionModel`, and
 `PlantUmlDescriptionRenderer`), because part def names stay unique across the model (the design views import every
 system's package) and the Mermaid system already uses the short names. It depends on the `CanvasNet` system's `Canvas`,
-`Geometry`,
-`Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
+`Geometry`, `Drawing`, `Fonts`, `Rendering`, `Files`, and `ImageSources` subsystems through their public API, and on the
 `CanvasNetLayout` system (its graph layout and work meter) through internal friend access. See the Folder Layout section
 below and *CanvasNetPlantUml System Design* (`canvas-net-plant-uml.md`). A further sibling top-level system,
-`CanvasNetViewer`, likewise lives in this same repository and is distributed as its own NuGet package
-(`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library form of the
-`canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in
-sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, and PlantUML), creates the `FolderImageResolver` of
-the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
-a picture (with the feature positions of a diagram or a chart that the core `Positions` selectors of its options match);
-its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its
-`Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`,
-`ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels
-(grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn
-pixels into files, check the comparison of two images against thresholds, and compose a contact sheet, and the
-`ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the
-render, inspect, compare, montage, and flatten operations; and its `Help` subsystem (namespace
-`DemaConsulting.CanvasNet.Viewer.Help`) holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help
-cards about the formats that a host reads programmatically and extends with its own cards, and the `HelpFrontMatter`
-unit, the parser of a card's front matter. It references the core package and the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, and `CanvasNetPlantUml` packages; the tool references it. See the Folder Layout section below and
-*CanvasNetViewer System Design* (`canvas-net-viewer.md`).
+`CanvasNetMathMl`, likewise lives in this same repository and is distributed as its own NuGet package. It is a static,
+offline renderer of MathML Core equations: its direct unit `MathMlDocument` (namespace
+`DemaConsulting.CanvasNet.MathMl`) is the public API, its direct unit `MathMlPainter` paints the laid-out boxes, its
+internal `Syntax` subsystem holds the `MathMlReader`, `CharacterReferences`, `MathTree`, and `AttributeValues` units,
+and its internal `Layout` subsystem holds the `LayoutEngine`, `StyleResolver`, `MathFont`, `MathBox`, `TokenLayout`,
+`RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, `OperatorDictionary`,
+and `StretchyGlyphs` units (each in the sub-namespace and the sub-folder of its name). In the SysML2 model the system is
+`CanvasNetMathMlSystem` and its subsystem and unit `part def` names carry the prefix `MathMl` (`MathMlSyntax`,
+`MathMlReader`, `MathMlCharacterReferences`, `MathMlMathTree`, `MathMlAttributeValues`, `MathMlLayout`,
+`MathMlLayoutEngine`, `MathMlStyleResolver`, `MathMlMathFont`, `MathMlMathBox`, `MathMlTokenLayout`, `MathMlRowLayout`,
+`MathMlFractionLayout`, `MathMlRadicalLayout`, `MathMlScriptLayout`, `MathMlUnderOverLayout`, `MathMlTableLayout`,
+`MathMlOperatorDictionary`, and `MathMlStretchyGlyphs`; the direct units are `MathMlDocument` and `MathMlPainter`),
+because part def names stay unique across the model. It depends on the `CanvasNet` system's `Canvas`, `Geometry`,
+`Drawing`, `Fonts`, `Packaging`, and `ImageSources` subsystems, through their public API and, for the OpenType `MATH`
+table reader and the cached bundled font, through internal friend access. See the Folder Layout section below and
+*CanvasNetMathMl System Design* (`canvas-net-math-ml.md`). A further sibling top-level system, `CanvasNetViewer`,
+likewise lives in this same repository and is distributed as its own NuGet package (`DemaConsulting.CanvasNet.Viewer`).
+It aggregates the image sources of every format and is the library form of the `canvasnet` tool: its direct unit
+`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in sources (raster, SVG, PDF, PPTX,
+VSDX, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML), creates the `FolderImageResolver` of the core `ImageSources`
+subsystem for one render so that an SVG document can embed all of them, and renders any file as a picture (with the
+feature positions of a diagram or a chart that the core `Positions` selectors of its options match); its direct unit
+`ViewerException` is the exception of every expected failure with the stable `ErrorCodes`; and its `Imaging` subsystem
+(namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`,
+`ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels, transform pixels (grid, and the
+ordered operations over the core library's flip, pad, trim, tone, rotation, and skew operations), turn pixels into
+files, check the comparison of two images against thresholds, and compose a contact sheet, and the `ImageRenderer`,
+`ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the render, inspect,
+compare, montage, and flatten operations; and its `Help` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Help`)
+holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help cards about the formats that a host reads
+programmatically and extends with its own cards, and the `HelpFrontMatter` unit, the parser of a card's front matter. It
+references the core package and the `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`,
+`CanvasNetRender3D`, `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` packages; the
+tool references it. See the Folder Layout section below and *CanvasNetViewer System Design* (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -773,7 +811,7 @@ process for the Lua shim `docs/filters/canvasnet.lua`. It is a thin shell: the c
 `Imaging` subsystem of the `CanvasNetViewer` system with request records built from the command line, and print the
 results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetViewer` systems
+`CanvasNetMermaid`, `CanvasNetPlantUml`, `CanvasNetMathMl`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and *CanvasNetTool System Design* (`canvas-net-tool.md`).
 
@@ -899,6 +937,8 @@ src/DemaConsulting.CanvasNet/
 │   ├── NameTable.cs                     — Parses the name table and resolves family/subfamily/full/PostScript name
 │   │                                       strings
 │   ├── StyleTable.cs                    — Derives bold/italic/fixed-pitch style metadata from OS/2/post/head.macStyle
+│   ├── MathTable.cs                     — Internal OpenType MATH table reader (constants, glyph info, variants)
+│   ├── OpenTypeCoverage.cs              — Internal OpenType Coverage (formats 1 and 2) glyph-to-index lookup
 │   ├── SystemFontCatalog.cs             — OS font discovery, best-effort matching, cached font load, bundled fallback
 │   ├── FontDirectoryScanner.cs          — Deterministic, bounded, link-safe header-only font directory scan
 │   ├── FontScanLimits.cs                — Bounds (directories, entries, font files, faces) of a font directory scan
@@ -1874,6 +1914,65 @@ Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation.
 `CanvasNet` system through its public API and the `CanvasNetLayout` system through internal friend access, and declares
 both as its package dependencies.
 
+The `CanvasNetMathMl` system lives in the `src/DemaConsulting.CanvasNet.MathMl/` project folder (the separate
+`DemaConsulting.CanvasNet.MathMl` package). The `MathMlDocument` and `MathMlPainter` units occupy the project root and
+each internal subsystem occupies the sub-folder whose name equals its sub-namespace (see *CanvasNetMathMl System
+Design*, `canvas-net-math-ml.md`):
+
+```text
+src/DemaConsulting.CanvasNet.MathMl/
+├── DemaConsulting.CanvasNet.MathMl.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable; ships third-party/)
+├── NamespaceDoc.cs                — MathMlDocument: namespace-level XML documentation
+├── MathMlDocument.cs              — MathMlDocument: Parse/Open entry points and the description properties
+├── MathMlDocument.Render.cs       — MathMlDocument: Measure, Render, the picture frame, and report delivery
+├── MathMlDisplay.cs               — MathMlDocument: the display mode
+├── MathMlAnnotation.cs            — MathMlDocument: an annotation and its encoding
+├── MathMlOpenOptions.cs           — MathMlDocument: validated open options
+├── MathMlRenderOptions.cs         — MathMlDocument: validated render options
+├── MathMlLimits.cs                — MathMlDocument: resource limits
+├── MathMlLocation.cs              — MathMlDocument: source, line, and column value
+├── MathMlDiagnostic.cs            — MathMlDocument: warning record
+├── MathMlUnsupportedFeature.cs    — MathMlDocument: unsupported-feature report record
+├── MathMlSize.cs                  — MathMlDocument: size and baseline in pixels
+├── MathMlDiagnosticCodes.cs       — MathMlDocument: the stable mathml-* codes
+├── MathMlSyntaxException.cs       — MathMlDocument: located syntax exception
+├── MathMlRenderException.cs       — MathMlDocument: located render exception
+├── MathMlUnsupportedFeatureException.cs — MathMlDocument: strict-mode exception
+├── MathMlReportSink.cs            — MathMlDocument: ordered, de-duplicated, capped reports and pending reports
+├── MathMlImageSource.cs           — MathMlDocument: the image source of .mml links with the display fragment
+├── MathMlPainter.cs               — MathMlPainter: the placement and the painting of the boxes
+├── third-party/                   — The W3C and Unicode license texts and the provenance table
+├── Syntax/                        — Syntax subsystem
+│   ├── MathMlReader.cs            — MathMlReader: the text into the equation tree, with locations and limits
+│   ├── CharacterReferences.cs     — CharacterReferences: the named-reference pre-pass and the location map
+│   ├── CharacterReferences.Table.cs — CharacterReferences: the generated W3C HTML+MathML names (data)
+│   ├── MathTree.cs                — MathTree: the equation model
+│   ├── AttributeValues.cs         — AttributeValues: lengths, booleans, integers, script levels, and colors
+│   └── StyleDeclarations.cs       — AttributeValues: the supported subset of the inline style attribute
+└── Layout/                        — Layout subsystem
+    ├── LayoutEngine.cs            — LayoutEngine: the walk, the dispatch, the reports, and the bounds
+    ├── LayoutEngine.Elements.cs   — LayoutEngine: fractions, radicals, scripts, tables, in-flow children, child counts
+    ├── StyleResolver.cs           — StyleResolver: the computed styles
+    ├── MathFont.cs                — MathFont: the bundled Noto Sans Math and its MATH data
+    ├── MathBox.cs                 — MathBox: the boxes and the paint items
+    ├── TokenLayout.cs             — TokenLayout: the token elements
+    ├── MathVariants.cs            — TokenLayout: the automatic italic and the mathvariant mappings
+    ├── MathVariants.Data.cs       — TokenLayout: the generated italic and mathvariant tables (data)
+    ├── RowLayout.cs               — RowLayout: rows, stretching, grouping, mpadded, and merror
+    ├── FractionLayout.cs          — FractionLayout: mfrac with a bar or as a stack, and linethickness
+    ├── RadicalLayout.cs           — RadicalLayout: msqrt and mroot
+    ├── ScriptLayout.cs            — ScriptLayout: msub, msup, msubsup, mmultiscripts, and movable limits
+    ├── UnderOverLayout.cs         — UnderOverLayout: munder, mover, munderover, and inline stretching
+    ├── TableLayout.cs             — TableLayout: mtable, mtr, mtd, spans, and the MathML 3 table attributes
+    ├── OperatorDictionary.cs      — OperatorDictionary: categories, forms, and the stretch axis
+    ├── OperatorDictionary.Data.cs — OperatorDictionary: the generated MathML Core B.1 tables (data)
+    ├── StretchyGlyphs.cs          — StretchyGlyphs: size variants, glyph assemblies, and the rule fallback
+    └── StretchyGlyphs.Fallback.cs — StretchyGlyphs: the generated MathML Core B.4 assemblies (data)
+```
+
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMathMl` uses the `CanvasNet`
+system through its public API and internal friend access, and declares it as its package dependency.
+
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
 project root, and its `Imaging` and `Help` subsystems occupy the `Imaging/` and `Help/` sub-folders, whose names equal
@@ -1904,6 +2003,7 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
     ├── SourceLoader.Mermaid.cs    — SourceLoader: Mermaid diagrams
     ├── SourceLoader.PlantUml.cs   — SourceLoader: PlantUML diagrams
+    ├── SourceLoader.MathMl.cs     — SourceLoader: MathML equations
     ├── SourceLoader.Positions.cs  — SourceLoader: the collector of the feature positions and the unmatched selectors
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
@@ -1933,12 +2033,13 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── HelpFrontMatter.cs         — HelpFrontMatter: the strict parser of the YAML front matter of a card
     ├── Cards/                     — HelpCatalog: the embedded library cards, one Markdown file each, in folders that
     │                                mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
-    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, and SVG)
+    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, MathML, SVG)
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`,
-`CanvasNetMermaid`, and `CanvasNetPlantUml` packages for the image source each one supplies, the operations of
+`CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` packages for the image source each one supplies, the
+operations of
 `Imaging`, and the limits that the help cards quote; no package references it except the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
@@ -2008,7 +2109,8 @@ by CI (see `tools/README.md`):
 tools/
 ├── README.md                    — What each tool is for, when to run it, its prerequisites, and adding a tool
 ├── DemaConsulting.CanvasNet.VegaLite.Benchmarks/ — Profiling: Stopwatch Vega-Lite benchmarks (built by the solution)
-└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli; PlantUML goldens
+├── mathml-data/                 — Data: the generator of the MathML package's W3C and Unicode data tables
+└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli; PlantUML and MathML goldens
     └── mermaid/                 — Generators of the Mermaid test goldens and upstream vectors
 ```
 
@@ -2192,6 +2294,27 @@ layouts with their provenance README are in `Fixtures/reference/`; they are gene
 `tools/visual-diff/update-plantuml-goldens.ps1` (run by hand, never in CI). The attribution record and license text are
 in `src/DemaConsulting.CanvasNet.PlantUml/third-party/`.
 
+For the `CanvasNetMathMl` system the parallel paths are, for example for the `CharacterReferences` unit in the `Syntax`
+subsystem: requirements `docs/reqstream/canvas-net-math-ml/syntax/character-references.yaml`, design
+`docs/design/canvas-net-math-ml/syntax/character-references.md`, verification
+`docs/verification/canvas-net-math-ml/syntax/character-references.md`, SysML2 model
+`docs/sysml2/model/canvas-net-math-ml/syntax/character-references.sysml` (`part def MathMlCharacterReferences`), source
+`src/DemaConsulting.CanvasNet.MathMl/Syntax/CharacterReferences.cs` (with the generated `CharacterReferences.Table.cs`),
+and tests `test/DemaConsulting.CanvasNet.MathMl.Tests/Syntax/CharacterReferencesTests.cs`. The subsystem tests are
+`SyntaxTests.cs` and `LayoutTests.cs` in the test folders of the subsystems, the direct units `MathMlDocument` and
+`MathMlPainter` have no subsystem folder (`docs/design/canvas-net-math-ml/math-ml-document.md` and
+`math-ml-painter.md`), and the system itself is `docs/design/canvas-net-math-ml.md` with
+`docs/sysml2/model/canvas-net-math-ml.sysml`; its system tests are `MathMlSystemIntegrationTests.cs`,
+`MathMlReferenceLayoutTests.cs`, `MathMlHardeningTests.cs`, and `MathMlGalleryTests.cs` (the equations of the user
+guide gallery, `docs/user_guide/examples/mathml-*.mml`, and of the README gallery, `docs/images/mathml/*.mml`) in the
+root of its test project, with the shared
+`MathMlTestHelpers.cs`. The original fixtures and their Chrome reference layouts, with their provenance README, are in
+`Fixtures/reference/`, and the fixtures of the MathML 3 table attributes with their Firefox reference layouts in
+`Fixtures/reference-firefox/`; they are generated by `tools/visual-diff/update-mathml-goldens.ps1` (run by hand, never
+in CI; `-Browser Firefox` for the second folder). The generated data tables are
+written by `tools/mathml-data/update-mathml-tables.ps1` (run by hand, never in CI), and the attribution record and
+license texts are in `src/DemaConsulting.CanvasNet.MathMl/third-party/`.
+
 The feature positions follow the same pattern. For the `Positions` subsystem of the `CanvasNet` system: requirements
 `docs/reqstream/canvas-net/positions.yaml`, design `docs/design/canvas-net/positions.md`, verification
 `docs/verification/canvas-net/positions.md`, and SysML2 model `docs/sysml2/model/canvas-net/positions.sysml`; for its
@@ -2210,3 +2333,10 @@ unit of the `Scenegraph` subsystem of each renderer has `scenegraph/scene-positi
 - CanvasNet User Guide — the compiled User Guide document for this repository.
 - CanvasNet Repository — the CanvasNet source repository hosted on
   GitHub.
+- MathML Core — W3C Candidate Recommendation, 24 June 2025 (`https://www.w3.org/TR/2025/CR-mathml-core-20250624/`),
+  the specification that CanvasNetMathMl implements.
+- OpenType MATH table — the Microsoft OpenType specification of the `MATH` table, version 1.9.
+- Unicode Technical Report #25, Unicode Support for Mathematics — the Mathematical Alphanumeric Symbols and the
+  styles of the `mathvariant` values.
+- XML Entity Definitions for Characters — W3C Recommendation (`https://www.w3.org/2003/entities/2007/htmlmathml-f.ent`),
+  the named character references of the HTML+MathML set.

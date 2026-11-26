@@ -143,7 +143,7 @@ internal static partial class HelpTopics
     /// </remarks>
     public static IReadOnlyList<string> TopicNames { get; } =
     [
-        "scad", "vega-lite", "mermaid", "plantuml", "svg", "pdf", "pptx", "vsdx", "raster",
+        "scad", "vega-lite", "mermaid", "plantuml", "mathml", "svg", "pdf", "pptx", "vsdx", "raster",
         "style", "composition", "positions", "json", "errors", "limits", "files", "pandoc"
     ];
 
@@ -151,7 +151,7 @@ internal static partial class HelpTopics
     ///     Gets the names of the topics that describe one format (and so list supported and unsupported features).
     /// </summary>
     public static IReadOnlyList<string> FormatTopicNames { get; } =
-        ["scad", "vega-lite", "mermaid", "plantuml", "svg", "pdf", "pptx", "vsdx", "raster"];
+        ["scad", "vega-lite", "mermaid", "plantuml", "mathml", "svg", "pdf", "pptx", "vsdx", "raster"];
 
     /// <summary>
     ///     Gets the values of the tool's own <c>{{name}}</c> tokens, taken from the constants of the tool; the library

@@ -1,0 +1,20 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The sum over k from 0 to infinity of r to the k equals 1 over 1 minus r, for the absolute value of r less than 1">
+  <munderover>
+    <mo>&sum;</mo>
+    <mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow>
+    <mi>&infin;</mi>
+  </munderover>
+  <msup><mi>r</mi><mi>k</mi></msup>
+  <mo>=</mo>
+  <mfrac>
+    <mn>1</mn>
+    <mrow><mn>1</mn><mo>&minus;</mo><mi>r</mi></mrow>
+  </mfrac>
+  <mspace width="2em"/>
+  <mtext>for</mtext>
+  <mspace width="0.5em"/>
+  <mrow><mo stretchy="false">|</mo><mi>r</mi><mo stretchy="false">|</mo></mrow>
+  <mo>&lt;</mo>
+  <mn>1</mn>
+</math>

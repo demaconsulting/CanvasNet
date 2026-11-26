@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for StyleResolver
+#
+# These requirements describe the design-level behavior of the StyleResolver unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the computed style of each element, with the user agent rules
+# that a layout element applies to its children by position. See
+# docs/verification/canvas-net-math-ml/layout/style-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: StyleResolver Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-StyleResolver-MathStyle
+                title: >-
+                  The StyleResolver unit shall give the math element the normal math style in block display and the
+                  compact math style in inline display, with the display option overriding the attribute, the attribute
+                  matched ASCII case-insensitively and exactly, and an invalid display value (one with whitespace around
+                  it included) reported as a warning, shall give mtable the compact math style of the user agent
+                  stylesheet, and shall apply displaystyle to the other elements and over that rule.
+                justification: |
+                  The math style decides how large operators and scripts are drawn; MathML Core draws the cells of a
+                  table in compact style even in a displayed equation, and matches math[display="block" i] exactly, so
+                  a browser draws a padded value inline.
+                tests:
+                  - StyleResolver_ResolveRoot_Display_SetsMathStyle
+                  - StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle
+                  - StyleResolver_Resolve_Mtable_IsCompact
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-MathDepth
+                title: >-
+                  The StyleResolver unit shall change the math depth by the three forms of scriptlevel and clamp it, so
+                  that the font size stays finite.
+                justification: |
+                  The script level decides the font size of nested content, and an untrusted level must stay bounded.
+                tests:
+                  - StyleResolver_Resolve_ScriptLevelAndDisplayStyle_SetDepthAndStyle
+                  - StyleResolver_Resolve_ExtremeScriptLevel_IsClamped
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-FontSize
+                title: >-
+                  The StyleResolver unit shall scale the font size by a change of math depth with the
+                  ScriptPercentScaleDown and ScriptScriptPercentScaleDown constants of the font and 0.71 per further
+                  level, in both directions, and let mathsize set it as a percentage or a length of the inherited size,
+                  reporting an invalid value.
+                justification: |
+                  MathML Core defines font-size: math with the constants of the math font.
+                tests:
+                  - StyleResolver_ScaleFactor_UsesScriptPercentScaleDownConstants
+                  - StyleResolver_Resolve_MathSize_SetsFontSize
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-Colors
+                title: >-
+                  The StyleResolver unit shall inherit mathcolor and not mathbackground, give merror a light yellow
+                  background unless an attribute overrides it, and report invalid colors.
+                justification: |
+                  Colors are inherited as CSS inherits color, and the backgrounds belong to their element.
+                tests:
+                  - StyleResolver_Resolve_Colors_InheritColorNotBackground
+                  - StyleResolver_Resolve_Merror_HasLightYellowBackground
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-Variant
+                title: >-
+                  The StyleResolver unit shall inherit mathvariant, resolve normal as a value of its own, and report an
+                  invalid value (one with whitespace around it included).
+                justification: |
+                  mathvariant styles the letters of a subtree; the token layout cancels the automatic italic for normal
+                  (CanvasNetMathMl-Layout-TokenLayout-AutoItalic), and MathML Core matches the values exactly.
+                tests:
+                  - StyleResolver_Resolve_MathVariant_IsInherited
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-InlineStyle
+                title: >-
+                  The StyleResolver unit shall let the supported declarations of the inline style attribute override the
+                  attributes, set the math depth and the font style, hide an element with display: none, and report the
+                  declarations outside the subset as mathml-css-unsupported.
+                justification: |
+                  The inline style wins over the presentational attributes in CSS, and what is not applied must be
+                  reported.
+                tests:
+                  - StyleResolver_Resolve_InlineStyle_OverridesAttributes
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-ChildRules
+                title: >-
+                  The StyleResolver unit shall apply the user agent rules of MathML Core to the children of a layout
+                  element by position (math-depth: auto-add and math-style: compact for the children of mfrac, add(2)
+                  and compact for the index of mroot) before the hints and the inline style of the child, which replace
+                  them, a relative scriptlevel being relative to the depth of the parent.
+                justification: |
+                  The numerators and denominators of inline fractions and the indices of roots are drawn at script size
+                  as in a browser, and the cascade of CSS lets an author override the user agent rules.
+                tests:
+                  - StyleResolver_ResolveChild_FractionChildren_AutoAddAndCompact
+                  - StyleResolver_ResolveChild_RootIndex_AddsTwoLevels
+                  - StyleResolver_ResolveChild_Hints_ReplaceUaRules
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-MathShift
+                title: >-
+                  The StyleResolver unit shall compute math-shift: normal for the math element, compact for the
+                  denominator of mfrac and for msqrt and mroot, and inherited otherwise.
+                justification: |
+                  MathML Core uses the cramped superscript shift under a fraction bar and a radical; the style carries
+                  it to the scripts.
+                tests:
+                  - StyleResolver_ResolveChild_MathShift_CompactAndInherited
+
+              - id: CanvasNetMathMl-Layout-StyleResolver-ScriptRules
+                title: >-
+                  The StyleResolver unit shall give every child of a scripted element but the first math-depth: add(1)
+                  and math-style: compact, keep the font size of the parent for an accent script (accent or accentunder
+                  an ASCII case-insensitive match to true), and give math-shift: compact to the subscript of msub and
+                  msubsup, to the subscripts of mmultiscripts by their positions around mprescripts, and to the base of
+                  an accent mover or munderover.
+                justification: |
+                  The user agent stylesheet of MathML Core (3.4.4) draws scripts one level smaller, accents at the size
+                  of their base, and subscripts and accented bases in a cramped style.
+                tests:
+                  - StyleResolver_ResolveChild_Scripts_AddOneAndCompact
+                  - StyleResolver_ResolveChild_AccentScript_KeepsFontSize
+                  - StyleResolver_ResolveChild_Multiscripts_MathShiftByPosition

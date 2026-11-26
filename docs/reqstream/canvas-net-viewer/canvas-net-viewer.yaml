@@ -6,9 +6,9 @@
 # picture (with the ViewerRenderOptions and ViewerImage types it uses).
 #
 # Packaging note: CanvasNetViewer is distributed as the separate DemaConsulting.CanvasNet.Viewer NuGet package
-# (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx,
-# Scad, VegaLite, Mermaid, and PlantUml packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
-# "tests" entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
+# (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx, Scad,
+# VegaLite, Mermaid, PlantUml, and MathMl packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system.
+# Every "tests" entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
 # docs/verification/canvas-net-viewer/canvas-net-viewer.md for the test-evidence mapping.
 
 sections:
@@ -18,9 +18,8 @@ sections:
         requirements:
           - id: CanvasNetViewer-CanvasNetViewer-ImageSources
             title: >-
-              The CanvasNetViewer class shall expose the built-in image sources as a fixed, read-only list
-              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, and PlantUML, in that order, with
-              shared
+              The CanvasNetViewer class shall expose the built-in image sources as a fixed, read-only list (raster, SVG,
+              PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, and MathML, in that order, with shared
               instances) and the extensions they claim as the sorted union of their claims.
             justification: |
               One fixed list is the single place where the supported file types are decided, and the help of
@@ -98,14 +97,13 @@ sections:
             title: >-
               Render shall report every failure of the input (a missing file, an unknown extension, a file that cannot
               be read or is larger than 16 MiB, a picture over the pixel budget, a damaged file, an error in the source
-              of a model, chart or diagram, malformed SVG markup, a reference the file-access policy denied, an
-              unsupported feature in strict mode, and the failure of a source at any level of nesting) as a
-              ViewerException with the code the command-line tool reports for the same failure (operation-failed for
-              a failure that has no more specific code), the location (file, line, column, and JSON pointer) and the
-              code of the format library for an error in a source, and the original exception as the inner exception;
-              its message and hint shall name no option of the command-line tool, and a mistake in the options shall
-              stay an ArgumentNullException or ArgumentOutOfRangeException and a cancellation an
-              OperationCanceledException.
+              of a model, chart, diagram or equation, malformed SVG markup, a reference the file-access policy denied,
+              an unsupported feature in strict mode, and the failure of a source at any level of nesting) as a
+              ViewerException with the code the command-line tool reports for the same failure (operation-failed for a
+              failure that has no more specific code), the location (file, line, column, and JSON pointer) and the code
+              of the format library for an error in a source, and the original exception as the inner exception; its
+              message and hint shall name no option of the command-line tool, and a mistake in the options shall stay an
+              ArgumentNullException or ArgumentOutOfRangeException and a cancellation an OperationCanceledException.
             justification: |
               A host that renders source written by a user or a model needs one exception type with a stable code and a
               structured location to report or fix the error, without matching exception types of every format or
@@ -113,6 +111,7 @@ sections:
             tests:
               - CanvasNetViewer_Render_MermaidSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
               - CanvasNetViewer_Render_PlantUmlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
+              - CanvasNetViewer_Render_MathMlSyntaxError_ThrowsViewerExceptionWithLocationAndDetailCode
               - CanvasNetViewer_Render_ScadSyntaxError_ThrowsViewerExceptionWithLocation
               - CanvasNetViewer_Render_ChartErrors_ThrowVegaLiteErrorWithLocation
               - CanvasNetViewer_Render_MalformedSvg_ThrowsCorruptInputWithXmlLineAndColumn
@@ -136,7 +135,8 @@ sections:
               view= and its angles from azimuth= and elevation= (degrees, the elevation from -90 to 90, replacing
               the angles of the view as --azimuth and --elevation do) and its projection from projection= (ortho,
               orthographic, or perspective, in any case, as --projection takes), and the theme of a Mermaid diagram from
-              theme= (one of Mermaid's themes, in any case; a PlantUML diagram takes no parameter), keep
+              theme= (one of Mermaid's themes, in any case; a PlantUML diagram takes no parameter), the display mode
+              of a MathML equation from display= (block or inline, in any case), keep
               the options of an embedding document away from an embedded file, report a page that does not exist
               as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
               image-fragment-invalid without drawing the image, report notes with their detail, location, page and
@@ -157,6 +157,7 @@ sections:
               - CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid
               - CanvasNetViewer_Render_ScadAngleFragments_TurnTheViewOrAreInvalid
               - CanvasNetViewer_Render_ScadProjectionFragment_ChoosesTheProjectionOrIsInvalid
+              - CanvasNetViewer_Render_MathMlDisplayFragment_ChoosesTheLayout
               - CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment
               - CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment
               - CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver
@@ -171,7 +172,8 @@ sections:
             title: >-
               The ViewerRenderOptions class shall let Render draw a chosen page (Page, from 1, default 1) at a chosen
               resolution (Dpi), over a chosen background (Background; when not set, the default the command-line tool
-              uses: opaque white for an SVG file, a document page, a model, and a Mermaid diagram, the own background
+              uses: opaque white for an SVG file, a document page, a model, a Mermaid diagram, and a MathML equation,
+              the own background
               of a PlantUML diagram and a chart, white unless the source sets another, and no flattening for a raster;
               a fully transparent color, set explicitly, keeps a vector picture transparent; the pictures the file
               embeds are always drawn transparent), and an OpenSCAD model with chosen view options
@@ -226,7 +228,8 @@ sections:
           - id: CanvasNetViewer-CanvasNetViewer-ResourceLimits
             title: >-
               The ViewerRenderOptions class shall carry the resource limits of a Vega-Lite chart (VegaLiteLimits), a
-              Mermaid diagram (MermaidLimits) and a PlantUML diagram (PlantUmlLimits), each null by default for the
+              Mermaid diagram (MermaidLimits), a PlantUML diagram (PlantUmlLimits) and a MathML equation
+              (MathMlLimits), each null by default for the
               defaults of its library and otherwise any value its type accepts, lower or higher than the default, and
               CanvasNetViewer shall apply them to the probe and the render of the rendered file and of every chart and
               diagram it embeds, at any level of nesting, so that a source over a lower limit fails with a
@@ -245,6 +248,8 @@ sections:
               - CanvasNetViewer_Render_RaisedMermaidLimits_AdmitALargerDiagram
               - CanvasNetViewer_Render_LowerPlantUmlLimits_ThrowBudgetExceeded
               - CanvasNetViewer_Render_RaisedPlantUmlLimits_AdmitALargerDiagram
+              - CanvasNetViewer_Render_LowerMathMlLimits_ThrowBudgetExceeded
+              - CanvasNetViewer_Render_RaisedMathMlLimits_AdmitALargerEquation
               - CanvasNetViewer_Render_Limits_ApplyToEmbeddedChartsAndDiagrams
 
           - id: CanvasNetViewer-CanvasNetViewer-FileAccess

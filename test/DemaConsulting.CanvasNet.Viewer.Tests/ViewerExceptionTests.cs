@@ -85,6 +85,7 @@ public class ViewerExceptionTests
         Assert.Equal("vega-lite-error", ErrorCodes.VegaLiteError);
         Assert.Equal("mermaid-error", ErrorCodes.MermaidError);
         Assert.Equal("plantuml-error", ErrorCodes.PlantUmlError);
+        Assert.Equal("mathml-error", ErrorCodes.MathMlError);
         Assert.Equal("budget-exceeded", ErrorCodes.BudgetExceeded);
         Assert.Equal("file-access-denied", ErrorCodes.FileAccessDenied);
         Assert.Equal("size-mismatch", ErrorCodes.SizeMismatch);

@@ -32,8 +32,9 @@ How a failure is reported, the stable error codes, and what strict mode changes.
 Strict mode is `ViewerRenderOptions.ThrowOnUnsupportedFeature`
 (`SourceOptions.Strict` for the operations of the Imaging namespace):
 
-- `scad, vega-lite, mermaid, plantuml, vsdx`: Every unsupported-feature
-  diagnostic becomes an unsupported-feature error and no output is written.
+- `scad, vega-lite, mermaid, plantuml, mathml, vsdx`: Every
+  unsupported-feature diagnostic becomes an unsupported-feature error and no
+  output is written.
 - `pptx`: A skipped EMF or WMF picture becomes an error. Other unsupported
   shapes, fills, and pictures are errors with or without strict mode.
 - `svg`: An image that was not drawn (svg-image-unresolved, or

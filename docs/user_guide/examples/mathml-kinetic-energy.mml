@@ -1,0 +1,33 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The kinetic energy of 2 kilograms at 3 meters per second is 9 joules">
+  <msub><mi>E</mi><mi mathvariant="normal">k</mi></msub>
+  <mo>=</mo>
+  <mfrac><mn>1</mn><mn>2</mn></mfrac>
+  <mo>&InvisibleTimes;</mo>
+  <mi>m</mi>
+  <mo>&InvisibleTimes;</mo>
+  <msup><mi>v</mi><mn>2</mn></msup>
+  <mo>=</mo>
+  <mfrac><mn>1</mn><mn>2</mn></mfrac>
+  <mo>&sdot;</mo>
+  <mn>2.0</mn>
+  <mspace width="0.1667em"/>
+  <mi>kg</mi>
+  <mo>&sdot;</mo>
+  <msup>
+    <mrow>
+      <mo stretchy="false">(</mo>
+      <mn>3.0</mn>
+      <mspace width="0.1667em"/>
+      <mi mathvariant="normal">m</mi>
+      <mo>/</mo>
+      <mi mathvariant="normal">s</mi>
+      <mo stretchy="false">)</mo>
+    </mrow>
+    <mn>2</mn>
+  </msup>
+  <mo>=</mo>
+  <mn>9.0</mn>
+  <mspace width="0.1667em"/>
+  <mi mathvariant="normal">J</mi>
+</math>

@@ -1,0 +1,104 @@
+---
+# Software Subsystem Requirements for Syntax
+#
+# These requirements decompose the CanvasNetMathMl system's input responsibility into the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Syntax): the rewriting of the named character references with every
+# position mapped back to the original text (CharacterReferences), the reading of the text into the equation tree
+# (MathMlReader and MathTree), and the parsing of attribute values (AttributeValues). Each requirement here links down
+# to the unit requirements that implement it. See docs/verification/canvas-net-math-ml/syntax.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Syntax Requirements
+        requirements:
+          - id: CanvasNetMathMl-Syntax-Reading
+            title: >-
+              The Syntax subsystem shall read the text of one math element into the equation tree (its elements, their
+              attributes, and the collapsed text of the tokens, with literal characters of every Unicode plane read as
+              written), shall refuse another root, shall skip and report the elements of other namespaces and the
+              markup inside tokens, shall keep the annotations raw without laying them out, and shall bound the number
+              of elements, the nesting depth, the length of a token, and the number of reports kept.
+            justification: |
+              The layout must read exactly the equation that was written, every construct it cannot use must be
+              reported, and a hostile text must be refused early.
+            children:
+              - CanvasNetMathMl-Syntax-MathMlReader-Root
+              - CanvasNetMathMl-Syntax-MathMlReader-ForeignContent
+              - CanvasNetMathMl-Syntax-MathMlReader-Whitespace
+              - CanvasNetMathMl-Syntax-MathMlReader-TextOutsideTokens
+              - CanvasNetMathMl-Syntax-MathMlReader-Annotations
+              - CanvasNetMathMl-Syntax-MathMlReader-Characters
+              - CanvasNetMathMl-Syntax-MathMlReader-Limits
+              - CanvasNetMathMl-Syntax-MathTree-Model
+            tests:
+              - Syntax_Read_MixedText_IsReadInPlaceWithMappedLocations
+              - Syntax_Read_LiteralUnicodeText_IsReadAsWritten
+              - Syntax_Read_WrongRootAndUnknownName_AreRefusedLocated
+              - Syntax_Read_Limits_AreEnforcedAndLocatedInOriginalText
+
+          - id: CanvasNetMathMl-Syntax-CharacterReferences
+            title: >-
+              The Syntax subsystem shall decode the named character references of the full W3C HTML+MathML set and the
+              numeric references in text and attribute values without a document type, shall leave the content of
+              comments and CDATA sections as written, and shall refuse an unknown name, a document type declaration, and
+              an XML declaration of an encoding other than UTF-8 (US-ASCII included) with located syntax errors.
+            justification: |
+              Named references are how MathML is written, and untrusted XML must be read with document types
+              prohibited; a declared encoding that differs from the UTF-8 the text was decoded with would be misread.
+            children:
+              - CanvasNetMathMl-Syntax-CharacterReferences-Named
+              - CanvasNetMathMl-Syntax-CharacterReferences-Numeric
+              - CanvasNetMathMl-Syntax-CharacterReferences-Markup
+              - CanvasNetMathMl-Syntax-CharacterReferences-Unknown
+              - CanvasNetMathMl-Syntax-CharacterReferences-Doctype
+              - CanvasNetMathMl-Syntax-CharacterReferences-Encoding
+            tests:
+              - Syntax_Read_MixedText_IsReadInPlaceWithMappedLocations
+              - Syntax_Read_RefusedDeclarations_AreLocated
+              - Syntax_Read_WrongRootAndUnknownName_AreRefusedLocated
+
+          - id: CanvasNetMathMl-Syntax-Locations
+            title: >-
+              The Syntax subsystem shall locate every element, attribute, text, report, and error in the original text
+              (line and column in UTF-16 code units), through the rewriting of the references.
+            justification: |
+              Every later error and report must point into the text the author wrote, not into the rewritten text.
+            children:
+              - CanvasNetMathMl-Syntax-CharacterReferences-Locations
+              - CanvasNetMathMl-Syntax-MathMlReader-Locations
+            tests:
+              - Syntax_Read_MixedText_IsReadInPlaceWithMappedLocations
+              - Syntax_Read_ErrorAfterReferences_IsLocatedInOriginalText
+              - Syntax_Read_LiteralUnicodeText_IsReadAsWritten
+              - Syntax_Read_Limits_AreEnforcedAndLocatedInOriginalText
+
+          - id: CanvasNetMathMl-Syntax-Links
+            title: >-
+              The Syntax subsystem shall report the href and xlink link attributes at their locations and shall not keep
+              them in the equation tree.
+            justification: |
+              A link must never be followed by an offline renderer, and the caller must learn that it was not.
+            children:
+              - CanvasNetMathMl-Syntax-MathMlReader-Links
+            tests:
+              - Syntax_ReadAndParse_AttributesOfTheTree_AreParsedAndLinksReported
+
+          - id: CanvasNetMathMl-Syntax-AttributeValues
+            title: >-
+              The Syntax subsystem shall parse the attribute values of the equation tree as MathML Core reads them
+              (lengths and percentages with the legacy named spaces, booleans, unsigned integers, scriptlevel values,
+              and CSS colors) and the supported subset of the inline style attribute, refusing every other value.
+            justification: |
+              The layout needs the values of the style and length attributes, and an invalid value must be recognized
+              so that it can be reported and ignored.
+            children:
+              - CanvasNetMathMl-Syntax-AttributeValues-Lengths
+              - CanvasNetMathMl-Syntax-AttributeValues-Booleans
+              - CanvasNetMathMl-Syntax-AttributeValues-ScriptLevel
+              - CanvasNetMathMl-Syntax-AttributeValues-Colors
+              - CanvasNetMathMl-Syntax-AttributeValues-Style
+            tests:
+              - Syntax_ReadAndParse_AttributesOfTheTree_AreParsedAndLinksReported
+              - Syntax_ReadAndParse_InvalidAttributeValues_AreRefused

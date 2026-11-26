@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Pptx;
@@ -25,8 +26,8 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <c>SourceLoader.Documents.cs</c> holds what the page-based sources share, and <c>SourceLoader.Pdf.cs</c>,
 ///         <c>SourceLoader.Pptx.cs</c>, and <c>SourceLoader.Vsdx.cs</c> handle the documents; <c>SourceLoader.Scad.cs</c>
 ///         handles an OpenSCAD model drawn from one viewpoint, <c>SourceLoader.VegaLite.cs</c> handles a Vega-Lite
-///         chart, <c>SourceLoader.Mermaid.cs</c> handles a Mermaid diagram, and <c>SourceLoader.PlantUml.cs</c> handles a
-///         PlantUML diagram. A further source kind is
+///         chart, <c>SourceLoader.Mermaid.cs</c> handles a Mermaid diagram, <c>SourceLoader.PlantUml.cs</c> handles a
+///         PlantUML diagram, and <c>SourceLoader.MathMl.cs</c> handles a MathML equation. A further source kind is
 ///         added by a new partial file with a probe method and a page source and one new case in each of
 ///         <see cref="Probe(string)"/> and <see cref="OpenPages"/>.
 ///     </para>
@@ -159,7 +160,14 @@ public static partial class SourceLoader
                 ex);
         }
 
-        return input.Fragment.Length == 0 ? info : info with { Selection = InputSelection.Create(input, info) };
+        if (input.Fragment.Length == 0)
+        {
+            return info;
+        }
+
+        // An equation is laid out again in the display mode the fragment names, so its facts and size are those of the render
+        var selected = info with { Selection = InputSelection.Create(input, info) };
+        return selected.Selection?.MathMl?.Display is { } display ? ReprobeMathMl(selected, display) : selected;
     }
 
     /// <summary>
@@ -187,6 +195,7 @@ public static partial class SourceLoader
             SourceKind.VegaLite => ProbeVegaLite(input, bytes, fileAccess, limits.VegaLite),
             SourceKind.Mermaid => ProbeMermaid(input, bytes, limits.Mermaid),
             SourceKind.PlantUml => ProbePlantUml(input, bytes, fileAccess, limits.PlantUml),
+            SourceKind.MathMl => ProbeMathMl(input, bytes, null, limits.MathMl),
             _ => throw UnhandledKind(kind)
         };
         return info with { FileAccess = fileAccess };
@@ -373,6 +382,7 @@ public static partial class SourceLoader
             SourceKind.VegaLite => VegaLitePageSource.Open(input, info, options, context),
             SourceKind.Mermaid => MermaidPageSource.Open(input, info, options, context),
             SourceKind.PlantUml => PlantUmlPageSource.Open(input, info, options, context),
+            SourceKind.MathMl => MathMlPageSource.Open(input, info, options, context),
             _ => throw UnhandledKind(info.Format)
         };
     }
@@ -751,13 +761,16 @@ public static partial class SourceLoader
     ///     (<c>unsupported-feature</c>), a PlantUML diagram that is not valid or whose include cannot be read -
     ///     <see cref="PlantUmlSyntaxException"/> - or that cannot be laid out or drawn - <see cref="PlantUmlRenderException"/>
     ///     (<c>plantuml-error</c> with the hint of the library, <c>budget-exceeded</c>, or <c>file-access-denied</c>; see
-    ///     <see cref="MapPlantUml"/>), invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
+    ///     <see cref="MapPlantUml"/>), <see cref="MathMlUnsupportedFeatureException"/> (<c>unsupported-feature</c>), a MathML
+    ///     equation that is not valid - <see cref="MathMlSyntaxException"/> - or that cannot be laid out or drawn -
+    ///     <see cref="MathMlRenderException"/> (<c>mathml-error</c> with the hint of the library, or <c>budget-exceeded</c>;
+    ///     see <see cref="MapMathMl"/>), invalid, truncated, or malformed data - <see cref="InvalidDataException"/>,
     ///     <see cref="XmlException"/>, <see cref="EndOfStreamException"/>, and <see cref="FormatException"/>
     ///     (<c>corrupt-input</c>), and any other I/O failure (<c>input-unreadable</c>).
     /// </returns>
     /// <remarks>
-    ///     The order matters: the unsupported features of Mermaid and PlantUML are <see cref="IOException"/>s and their
-    ///     syntax errors are <see cref="FormatException"/>s, so they come before the general mappings. A truncated or
+    ///     The order matters: the unsupported features of Mermaid, PlantUML, and MathML are <see cref="IOException"/>s and
+    ///     their syntax errors are <see cref="FormatException"/>s, so they come before the general mappings. A truncated or
     ///     garbage file that produces an exception outside the list is a gap in the list and is fixed by extending it.
     ///     No hint names an option of the command-line tool, so the result fits every caller.
     /// </remarks>
@@ -846,6 +859,22 @@ public static partial class SourceLoader
             case PlantUmlRenderException diagram:
                 return MapPlantUml(diagram.Code, "render", Named(path, diagram.Message, diagram.Location.IsKnown), diagram.Hint, diagram);
 
+            case MathMlUnsupportedFeatureException equation:
+                // An IOException, so it comes before the input-unreadable mapping; the message already names the file and the position
+                return SourceFailure(
+                    ErrorCodes.UnsupportedFeature,
+                    $"The MathML equation uses a feature that is not supported ({equation.Feature}): {OneLine(equation.Message)}",
+                    equation.Hint is { } mathMlHint ? $"{mathMlHint}. {StrictModeHint}" : StrictModeHint,
+                    equation,
+                    path);
+
+            case MathMlSyntaxException equation:
+                // A FormatException, so it comes before the corrupt-input mapping
+                return MapMathMl(equation.Code, "syntax", Named(path, equation.Message, equation.Location.IsKnown), equation.Hint, equation);
+
+            case MathMlRenderException equation:
+                return MapMathMl(equation.Code, "render", Named(path, equation.Message, equation.Location.IsKnown), equation.Hint, equation);
+
             case InvalidDataException or XmlException or EndOfStreamException or FormatException:
                 return SourceFailure(ErrorCodes.CorruptInput, $"'{path}' is not a valid {what} file: {OneLine(exception.Message)}", null, exception, path);
 
@@ -880,7 +909,7 @@ public static partial class SourceLoader
     /// <param name="path">The path or name of the file, the file of the location of malformed XML; or <see langword="null"/>.</param>
     /// <returns>
     ///     The location and the detail code, each <see langword="null"/> when the failure has none: the location and the
-    ///     <c>Code</c> of a Mermaid, PlantUML, or OpenSCAD failure; the location (with the JSON pointer) of a Vega-Lite
+    ///     <c>Code</c> of a Mermaid, PlantUML, MathML, or OpenSCAD failure; the location (with the JSON pointer) of a Vega-Lite
     ///     specification or render failure, which the library gives no code; the location and the feature of an unsupported
     ///     feature (the Office and raster libraries give no location); the line and the column of the
     ///     <see cref="XmlException"/> found in the chain of a failure of SVG markup (no detail code).
@@ -895,6 +924,9 @@ public static partial class SourceLoader
             case PlantUmlSyntaxException ex: return (ToPlantUmlLocation(ex.Location), ex.Code);
             case PlantUmlRenderException ex: return (ToPlantUmlLocation(ex.Location), ex.Code);
             case PlantUmlUnsupportedFeatureException ex: return (ToPlantUmlLocation(ex.Location), ex.Feature);
+            case MathMlSyntaxException ex: return (ToMathMlLocation(ex.Location), ex.Code);
+            case MathMlRenderException ex: return (ToMathMlLocation(ex.Location), ex.Code);
+            case MathMlUnsupportedFeatureException ex: return (ToMathMlLocation(ex.Location), ex.Feature);
             case ScadSyntaxException ex: return (ToScadLocation(ex.Location), ex.Code);
             case ScadEvaluationException ex: return (ToScadLocation(ex.Location), ex.Code);
             case ScadUnsupportedFeatureException ex: return (ToScadLocation(ex.Location), ex.Feature);

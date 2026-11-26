@@ -292,6 +292,29 @@ includes:
   - docs/reqstream/canvas-net-plant-uml/description/description-parser.yaml
   - docs/reqstream/canvas-net-plant-uml/description/description-model.yaml
   - docs/reqstream/canvas-net-plant-uml/description/description-renderer.yaml
+  - docs/reqstream/canvas-net-math-ml.yaml
+  - docs/reqstream/canvas-net-math-ml/platform-requirements.yaml
+  - docs/reqstream/canvas-net-math-ml/math-ml-document.yaml
+  - docs/reqstream/canvas-net-math-ml/math-ml-painter.yaml
+  - docs/reqstream/canvas-net-math-ml/syntax.yaml
+  - docs/reqstream/canvas-net-math-ml/syntax/math-ml-reader.yaml
+  - docs/reqstream/canvas-net-math-ml/syntax/character-references.yaml
+  - docs/reqstream/canvas-net-math-ml/syntax/math-tree.yaml
+  - docs/reqstream/canvas-net-math-ml/syntax/attribute-values.yaml
+  - docs/reqstream/canvas-net-math-ml/layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/layout-engine.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/style-resolver.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/math-font.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/math-box.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/token-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/row-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/fraction-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/radical-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/script-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/under-over-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/table-layout.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.yaml
+  - docs/reqstream/canvas-net-math-ml/layout/stretchy-glyphs.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

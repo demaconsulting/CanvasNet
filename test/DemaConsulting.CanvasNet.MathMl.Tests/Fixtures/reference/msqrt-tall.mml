@@ -1,0 +1,26 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <msqrt>
+    <mfrac>
+      <mi>a</mi>
+      <mi>b</mi>
+    </mfrac>
+  </msqrt>
+  <mstyle displaystyle="true">
+    <msqrt>
+      <mfrac>
+        <mrow>
+          <mi>x</mi>
+          <mo>+</mo>
+          <mn>1</mn>
+        </mrow>
+        <mn>2</mn>
+      </mfrac>
+    </msqrt>
+    <msqrt>
+      <mspace width="20px" height="2em" depth="1em"/>
+    </msqrt>
+    <msqrt>
+      <mspace width="20px" height="4em" depth="2em"/>
+    </msqrt>
+  </mstyle>
+</math>

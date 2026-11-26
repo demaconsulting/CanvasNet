@@ -1,0 +1,115 @@
+---
+# Software Unit Requirements for TableLayout
+#
+# These requirements describe the design-level behavior of the TableLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the layout of mtable, mtr and mtd from the boxes of the contents
+# of the cells (MathML Core 3.5), with the HTML spans, the MathML Core padding and axis centering, and the MathML 3
+# alignment, spacing, line and frame attributes drawn as Firefox draws them. See
+# docs/verification/canvas-net-math-ml/layout/table-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: TableLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-TableLayout-Grid
+                title: >-
+                  The TableLayout unit shall pad every cell by 0.4em on the left and right and 0.5ex on the top and
+                  bottom at its font size (an anonymous cell not at all), make every column as wide as its widest padded
+                  cell of one column, center the content in its cell, make every row as tall as the largest padded
+                  ascent of its baseline-aligned cells plus their largest padded descent and at least as tall as its
+                  other cells, and give the rows and the cells boxes that cover their whole rectangles.
+                justification: |
+                  The user agent stylesheet of MathML Core lays a table out as a CSS table with this padding, and the
+                  boxes must match what a browser reports for the rows and cells.
+                tests:
+                  - TableLayout_Layout_Grid_CellsArePaddedAndCentered
+                  - TableLayout_Layout_Row_AlignsCellBaselines
+                  - TableLayout_Layout_EmptyTable_HasNoSize
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Spans
+                title: >-
+                  The TableLayout unit shall place each cell in the first column of its row that no cell of an earlier
+                  row spans into, with a columnspan from 1 to 1,000 and a rowspan from 0 to 65,534 (0 and any span past
+                  the last row ending at the last row) read with the HTML rules for parsing non-negative integers
+                  (whitespace and a plus sign before the digits allowed, characters after them ignored), and spread the
+                  excess of a cell that spans several columns or rows over them in proportion to their sizes, equally
+                  when they are empty.
+                justification: |
+                  MathML Core gives rowspan and columnspan the semantics and the parsing of HTML, as browsers read them,
+                  and Chrome spreads the excess of a spanning cell in proportion to the spanned sizes.
+                tests:
+                  - TableLayout_Layout_Spans_SpreadTheirExcess
+                  - TableLayout_Layout_RowSpanZero_SpansToTheEnd
+                  - TableLayout_Layout_SpanValues_ReadAsHtmlIntegers
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Axis
+                title: >-
+                  The TableLayout unit shall center the table on the math axis: its ascent is half its height plus the
+                  AxisHeight of the MATH table at its font size.
+                justification: |
+                  MathML Core 3.5 centers a table on the math axis, so that a matrix sits between its parentheses and
+                  next to an equals sign.
+                tests:
+                  - TableLayout_Layout_Table_IsCenteredOnTheAxis
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Alignment
+                title: >-
+                  The TableLayout unit shall align the content of a cell horizontally by columnalign (left, center or
+                  right; a list over the columns on mtable and mtr, the last value repeated, one value on mtd, the
+                  innermost winning) and vertically by rowalign (top, bottom, center, baseline or axis; a list over the
+                  rows on mtable, one value on mtr and mtd).
+                justification: |
+                  Aligned systems of equations and matrices of numbers need these alignments; Firefox draws them as the
+                  MathML 3 attributes define them.
+                tests:
+                  - TableLayout_Layout_ColumnAlign_LeftCenterRight
+                  - TableLayout_Layout_RowAlign_TopBottomCenterBaselineAxis
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Spacing
+                title: >-
+                  The TableLayout unit shall, when columnspacing, rowspacing or framespacing is given, put the column
+                  and row spacing (0.8em and 1.0ex by default) between the cells instead of their inner padding, keep
+                  the outer padding of MathML Core, and with a frame put the frame spacing (0.4em and 0.5ex by default)
+                  between the frame and the rows.
+                justification: |
+                  This is the spacing model Firefox applies to these attributes; the outer padding of MathML Core keeps
+                  a table the same size in Chrome's model when only the alignment changes.
+                tests:
+                  - TableLayout_Layout_Spacing_ReplacesPadding
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Lines
+                title: >-
+                  The TableLayout unit shall draw columnlines and rowlines (none, solid or dashed; lists over the gaps)
+                  as one-pixel rules in the middle of their gaps, which grow by the line, except across a cell that
+                  spans the gap, and frame as a one-pixel rule around the table, in the color of the table, dashed
+                  lines as dashes of three pixels.
+                justification: |
+                  Augmented matrices and framed tables are drawn with these lines, which Firefox draws one pixel wide.
+                tests:
+                  - TableLayout_Layout_LinesAndFrame_AreRules
+
+              - id: CanvasNetMathMl-Layout-TableLayout-InvalidValues
+                title: >-
+                  The TableLayout unit shall report an invalid value of an alignment, spacing, line, frame or span
+                  attribute as a mathml-attribute-invalid warning at the attribute and ignore it (a span larger than its
+                  maximum is clamped), and report characters after the digits of a span at the attribute while using
+                  its number.
+                justification: |
+                  The author must learn that a value was not applied or was read differently than written; HTML clamps
+                  large spans and ignores what follows their digits.
+                tests:
+                  - TableLayout_Layout_InvalidAttributes_AreReported
+                  - TableLayout_Layout_SpanValues_ReadAsHtmlIntegers
+
+              - id: CanvasNetMathMl-Layout-TableLayout-Limit
+                title: >-
+                  The TableLayout unit shall refuse a table whose grid has more slots (rows times columns after the
+                  spans) than MaxTableCells with a located mathml-limit-exceeded error before the grid is allocated,
+                  and charge every slot of the grid to the work budget.
+                justification: |
+                  A few cells with large spans make a huge grid; it must fail closed before memory is allocated for it.
+                tests:
+                  - TableLayout_Layout_TooManyCells_FailsBeforeAllocation

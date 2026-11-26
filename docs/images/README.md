@@ -4,7 +4,7 @@ This folder holds the images used by the project README and the tool user guide.
 
 ## architecture.png
 
-`architecture.png` (1800x1260) is the package architecture diagram: the core package, the format packages and the
+`architecture.png` (1800x1260) is the package architecture diagram: the core package, the nine format packages and the
 three shared building blocks they use, the Viewer, and the `canvasnet` tool, with arrows from each package to the
 packages it references. Its source is `architecture.svg` (original to this repository, MIT), which the user guide and
 the design document embed directly; the README shows the PNG by an absolute URL, like `showcase.png`, because the
@@ -98,6 +98,20 @@ its 800x600 cell rather than scaled from a PNG. It is referenced from the README
 `docs/images/plantuml`, authored for the gallery with landscape layouts and larger fonts so that each fills its cell
 (the user guide examples are mostly tall). Every file in `docs/images/plantuml` is **original to this repository**
 (MIT). `render-images.ps1` draws it with `--strict` and checks it like the other images.
+
+## mathml-gallery.png
+
+`mathml-gallery.png` (2496x1576) shows six equations (the quadratic formula, the binomial theorem, the Fourier
+transform, a transfer function, Maxwell's equations, and a state-space model) in a 2x3 grid at the width of
+`plantuml-gallery.png`. It is one SVG page, `mathml/gallery.svg`, that links each equation with `<image href>`, so every
+equation is drawn as vector rather than scaled from a PNG. Each image box is four times the natural size of its
+equation (the size that `canvasnet info x.mml --json` reports), centered in its cell, so all six share one 64 pixel
+font; the rows are as tall as their equations need. Update the box of an equation whenever its natural size changes.
+It is referenced from the README by an absolute URL. The equations are `quadratic.mml`, `binomial-theorem.mml`,
+`fourier-transform.mml`, `transfer-function.mml`, `maxwell.mml`, and `state-space.mml` in `docs/images/mathml`, written
+with the advice of `canvasnet help mathml pitfalls`; a test (`MathMlGalleryTests`) renders each of them in strict mode
+and fails on any report. Every file in `docs/images/mathml` is **original to this repository** (MIT).
+`render-images.ps1` draws it with `--strict` and checks it like the other images.
 
 ## montage-explode.png
 

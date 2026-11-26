@@ -1,8 +1,8 @@
 ---
 # Software Unit Requirements for the PictureAttributes Class
 #
-# The PictureAttributes class reads the attributes of a picture or a Mermaid or PlantUML code block for the Pandoc
-# filter: it
+# The PictureAttributes class reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the
+# Pandoc filter: it
 # decides which kind of input a picture names, checks every drawing attribute with the messages of the Lua filter
 # (version 16), adds the defaults of each kind, writes the sorted tool options, and keeps the attributes that stay on
 # the picture. It also names Mermaid code blocks for messages and splits off their caption. The supporting record
@@ -121,4 +121,23 @@ sections:
           A code block has no file name, so a message needs another way to point the author at the block; the caption
           becomes the caption of the figure rather than an attribute of the picture.
         tests:
+          - PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-MathMl
+        title: >-
+          The PictureAttributes unit shall classify a picture whose name ends in .mml, in any letter case, as a MathML
+          equation and draw a code block of class mathml (exact) as one, listing .mml among the picture name ends and
+          mathml among the code-block classes; shall draw an equation at scale 2 unless size or scale is given, keeping
+          an author's size, scale, and background as written; shall refuse theme, page, dpi, and the attributes of the
+          other kinds on an equation with the message of the filter; and shall tell the engine to show an equation at
+          its natural width only when none of size, width, and height is given.
+        justification: |
+          An equation printed at twice its natural pixel size stays sharp on paper; showing it at its natural width
+          keeps the 16 pixel font size of the equation in the document whatever scale it was drawn at, so every
+          equation of a document has the same text size, while an author who sizes an equation keeps that size.
+        tests:
+          - PictureAttributes_KindOf_Mml_IsMathMl
+          - PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo
+          - PictureAttributes_Build_MathMlTheme_IsRefused
+          - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
           - PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter

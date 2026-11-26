@@ -208,6 +208,29 @@ sections:
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
           - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
 
+      - id: CanvasNetTool-Commands-DiscoveryCommands-MathMl
+        title: >-
+          The formats command shall list the MathML format (mathml, the kind equation, the extension .mml, vector, not
+          multi-page, the help topic mathml) in its text and JSON listings, and the info command shall describe a MathML
+          equation by parsing it and measuring it at its natural size (a 16 pixel font size, scale 1), without drawing
+          it, in the display mode the display= fragment of the input names or else its own: as one text line with its
+          path, the size it is laid out at, the word equation, its display (block or inline), its number of elements,
+          its baseline, its text alternative when it has one, its annotations with their encodings when it has any,
+          and its size in bytes; and as the image object of the JSON document followed by an equation object with the
+          display, the number of elements (the math element included), the baseline (the row of the alphabetic
+          baseline in the natural picture), the altText when the math element has one, and the annotations (the
+          encoding of each annotation in document order, an empty string for one without); the usage text of info
+          shall name MathML equations with an example.
+        justification: |
+          An agent places an equation in a figure or a document from its natural size and baseline, and checks its
+          display and text alternative before it renders; reporting them without drawing keeps the question cheap.
+        tests:
+          - DiscoveryCommands_Formats_IncludesMathMlEquation
+          - DiscoveryCommands_Info_MathMlEquation_ReportsDisplayElementsAndBaseline
+          - DiscoveryCommands_Info_MathMlAnnotations_ListsAltTextAndEncodings
+          - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
+
       - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         title: >-
           The info command shall report a missing, corrupt, or unsupported input (including a damaged

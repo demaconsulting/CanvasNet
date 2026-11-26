@@ -43,9 +43,9 @@ examples:
   pixelated drawing.
 - image elements with an href to a local file, relative to the folder of the SVG
   file: a raster, an SVG file, an OpenSCAD model (.scad), a Vega-Lite chart
-  (.vl.json), a Mermaid diagram (.mmd), a PlantUML diagram (.puml), or a page of
-  a PDF, PPTX, or VSDX document (page 1 unless the href ends in #page=N). The
-  format is decided by the file name. A model, chart, or diagram is drawn at the
+  (.vl.json), a Mermaid diagram (.mmd), a PlantUML diagram (.puml), an equation
+  (.mml), or a page of a PDF, PPTX, or VSDX document (page 1 unless the href
+  ends in #page=N), by file name. A model, chart, or diagram is drawn at the
   size of the image, a raster at its own size and then fitted; under a skew or a
   non-uniform scale the picture is laid out in the image and then transformed
   with it, as in browsers; a local file: URI and a percent-encoded path also

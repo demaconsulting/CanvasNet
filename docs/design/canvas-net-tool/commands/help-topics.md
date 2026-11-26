@@ -5,11 +5,11 @@
 #### Purpose
 
 `HelpTopics` is the tree of help cards that `canvasnet help <topic> [<card> ...]` prints. A card is a short Markdown
-text about one subject. The seventeen root cards (the help topics) are one per format the tool reads (`scad`,
-`vega-lite`, `mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs (`style` and
-`composition`), the feature-positions topic (`positions`), the cross-cutting subjects (`json`, `errors`, `limits`, and
-`files`), and the Pandoc filter (`pandoc`, alias `filter`). A large topic is split into cards below its root, for
-example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs.
+text about one subject. The eighteen root cards (the help topics) are one per format the tool reads (`scad`,
+`vega-lite`, `mermaid`, `plantuml`, `mathml`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`), the two guidance hubs
+(`style` and `composition`), the feature-positions topic (`positions`), the cross-cutting subjects (`json`, `errors`,
+`limits`, and `files`), and the Pandoc filter (`pandoc`, alias `filter`). A large topic is split into cards below its
+root, for example `mermaid gantt` and `mermaid gantt settings`, so an agent reads only the part it needs.
 
 The knowledge about the drawing and file formats is not owned here: it is the help catalog of the Viewer library
 (`HelpCatalog.Default`, see *Help Subsystem Design* and *HelpCatalog Unit Design* of the `CanvasNetViewer` system),
@@ -40,9 +40,10 @@ overlay's). It derives `Name`, `RootId`, `ParentId`, `Depth`, `Path` (the identi
 alias `LibraryCard`.
 
 **TopicNames**: the root card identifiers in the order they are listed: `scad`, `vega-lite`, `mermaid`, `plantuml`,
-`svg`, `pdf`, `pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`, `files`, and
-`pandoc`. The loader requires the roots of the combined catalog to be exactly this set, so the tool keeps its own order
-and lists its topics among the library's. **FormatTopicNames** is the first nine, the topics that describe one format.
+`mathml`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`, `style`, `composition`, `positions`, `json`, `errors`, `limits`,
+`files`, and `pandoc`. The loader requires the roots of the combined catalog to be exactly this set, so the tool keeps
+its own order and lists its topics among the library's. **FormatTopicNames** is the first ten, the topics that describe
+one format.
 
 **Tokens**: the tool's own `{{name}}` tokens, passed to `HelpCatalog.Extend`: `schemaVersion`
 (`ResultWriter.SchemaVersion`). Every other token (the limits, `maxDpi`, the qualities) belongs to the library, which
@@ -201,7 +202,12 @@ the overlay's `## Command line` section maps it to the tool:
   standard error, the `--json` failure document, the codes only the tool reports (`operation-failed`,
   `threshold-failed`, and `pandoc-filter-error`), and the meaning of `usage-error` on the command line;
 - `files`: the `--file-access` and `--allow-root` options and the Pandoc filter's variables;
-- `limits`: the flags that set or reach the limits and the `formats` listing.
+- `limits`: the flags that set or reach the limits and the `formats` listing;
+- the MathML cards `mathml`, `mathml/options`, `mathml/composition`, and `mathml/diagnostics`: the `render` and
+  `info` commands of an equation, the `display=` fragment, the refused `--theme` and `--positions`, how a warning
+  and an error print, and the Pandoc filter's natural display width of an equation (`width="138px"` for the quadratic
+  formula of the `mathml/fractions` card, a width a test measures), with `json/results` (the `equation` object of
+  `info`), `json/diagnostics` (the `mathml` source), and the `pandoc` card (the `mathml` class and `.mml`).
 
 The CLI user therefore reads one card per topic, the library text first and the command line after it. The parity of
 the `svg/flatten` and `files` cards with the user guide compares the merged bullets (the library's, then the

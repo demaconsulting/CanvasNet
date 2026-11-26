@@ -35,6 +35,11 @@ public static class HelpTags
     public const string PlantUml = "plantuml";
 
     /// <summary>
+    ///     The format tag of MathML equations.
+    /// </summary>
+    public const string MathMl = "mathml";
+
+    /// <summary>
     ///     The format tag of OpenSCAD models.
     /// </summary>
     public const string Scad = "scad";
@@ -101,11 +106,11 @@ public static class HelpTags
 
     /// <summary>
     ///     Gets the format tags, in a fixed order: <see cref="Svg"/>, <see cref="Mermaid"/>, <see cref="PlantUml"/>,
-    ///     <see cref="Scad"/>, <see cref="VegaLite"/>, <see cref="Pdf"/>, <see cref="Pptx"/>, <see cref="Vsdx"/>, and
+    ///     <see cref="MathMl"/>, <see cref="Scad"/>, <see cref="VegaLite"/>, <see cref="Pdf"/>, <see cref="Pptx"/>, <see cref="Vsdx"/>, and
     ///     <see cref="Raster"/>.
     /// </summary>
     public static IReadOnlyList<string> FormatTags { get; } =
-        Array.AsReadOnly([Svg, Mermaid, PlantUml, Scad, VegaLite, Pdf, Pptx, Vsdx, Raster]);
+        Array.AsReadOnly([Svg, Mermaid, PlantUml, MathMl, Scad, VegaLite, Pdf, Pptx, Vsdx, Raster]);
 
     /// <summary>
     ///     Gets the scope tags, in a fixed order: <see cref="Authoring"/>, <see cref="Design"/>,

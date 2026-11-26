@@ -36,13 +36,12 @@ exception are `null`.
 (requirement `CanvasNetViewer-CanvasNetViewer-RenderErrors`) and `SourceLoader`
 (`CanvasNetViewer-Imaging-SourceLoader-ErrorDetails`).
 
-**ErrorCodes_Constants_AreTheDocumentedStableStrings**: each of the 20 constants equals its string
+**ErrorCodes_Constants_AreTheDocumentedStableStrings**: each of the 25 constants equals its string
 (`usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`,
 `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`, `size-limit`, `same-input-output`,
-`output-exists`, `output-write-failed`,
-`scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`, `budget-exceeded`, `file-access-denied`,
-`size-mismatch`,
-`threshold-failed`).
+`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `plantuml-error`,
+`mathml-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, `threshold-failed`, `positions-unmatched`,
+`svg-binding-failed`, and `pandoc-filter-error`).
 
 **CanvasNetViewer-ViewerException-PositionsUnmatched**: verified by
 `SourceLoaderPositionTests.SourceLoader_Load_UnmatchedSelector_WarnsOrFailsWhenStrict` and

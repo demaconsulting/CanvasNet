@@ -60,6 +60,8 @@ see-also:
   !include that cannot be read (plantuml-include-failed), or cannot be laid out;
   the message has file, line, column, and the plantuml-* code (also in
   `Location` and `DetailCode`), and the hint suggests the fix.
+- `mathml-error`: A MathML equation is invalid (mathml-syntax-error) or
+  cannot be laid out; located like plantuml-error.
 - `file-access-denied`: A file the document references (a model's include or use
   file, a chart's data file, a PlantUML diagram's !include file, or in strict
   mode a linked picture) was denied by the file-access policy of the render, or
@@ -67,11 +69,12 @@ see-also:
   mode, and why. The default policy, any (`FileAccessPolicy.AllowAll`), reads
   every regular local file; see [[files]].
 - `budget-exceeded`: A model exceeds a rendering limit such as its triangle
-  limit (`MaxTriangles`), a chart or diagram exceeds a limit of its library
-  (mermaid-limit-exceeded or plantuml-limit-exceeded for a diagram), or the
-  picture does not fit in `ViewerRenderOptions.MaxDecodedPixels`. Raise the
-  limit (a model, the pixel budget, the limits of a chart or diagram in
-  `ViewerRenderOptions`) or simplify the model, chart, or diagram.
+  limit (`MaxTriangles`), a chart, diagram, or equation exceeds a limit of its
+  library (mermaid-limit-exceeded, plantuml-limit-exceeded, or
+  mathml-limit-exceeded), or the picture does not fit in
+  `ViewerRenderOptions.MaxDecodedPixels`. Raise the limit in
+  `ViewerRenderOptions` (such as `MathMlLimits` or the pixel budget) or
+  simplify the source.
 - `size-mismatch`: A comparison (`ImageComparer`) was given two images of
   different sizes and no resize target (`Resize`).
 - `positions-unmatched`: In strict mode, a position selector matched no feature

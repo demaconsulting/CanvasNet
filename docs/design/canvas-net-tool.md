@@ -168,7 +168,8 @@ Each interface, with its direction and format, and its constraints:
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
 `size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`,
-`mermaid-error`, `plantuml-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, `threshold-failed`,
+`mermaid-error`, `plantuml-error`, `mathml-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`,
+`threshold-failed`,
 `positions-unmatched`,
 `svg-binding-failed`, and `pandoc-filter-error`
 (the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also *Program Unit Design*). A code is
@@ -192,7 +193,13 @@ cannot be read, or a diagram the library cannot lay out (with the location and t
 `file-access-denied` is an include the file-access mode denies; `budget-exceeded`, `corrupt-input`, `size-limit`, and
 `unsupported-feature` are as for a Mermaid diagram (without `--strict` a type that is not drawn is the diagnostic
 `plantuml-diagram-unsupported` and an empty picture); and `usage-error` is `--theme` or `--positions` on a PlantUML
-diagram, which take no theme and report no positions. For `--positions` (a diagram or a
+diagram, which take no theme and report no positions. For a MathML equation `mathml-error` is text that is not a
+valid equation (not well-formed XML, a document type, an unknown named reference, a root that is not `math`; an empty
+file is located at line 1, column 1) or an equation the library cannot lay out, with the location, the specific
+`mathml-*` code, and the hint of the library; `budget-exceeded`, `corrupt-input`, `size-limit`, and
+`unsupported-feature` are as for a Mermaid diagram (without `--strict` an element, attribute, or style that is not drawn
+is a diagnostic named by its `mathml-*-unsupported` code); and `usage-error` is `--theme` or `--positions` on an
+equation. For `--positions` (a diagram or a
 chart) `usage-error` is a malformed selector, more than the selectors allowed, the option without `--json`, or the
 option for another kind of input, and `positions-unmatched` is a selector that matched nothing, with `--strict`
 (without it a warning of the same code). See *SourceLoader Unit Design* for the
@@ -205,7 +212,8 @@ mapping.
   Integration Design* (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
-  `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetViewer` systems. The tool calls the
+  `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, `CanvasNetMathMl`, and `CanvasNetViewer` systems. The
+  tool calls the
   operations of the `Imaging`
   subsystem of `CanvasNetViewer` for everything that touches an image; that subsystem calls
   `CanvasNetViewer.CreateImageResolver` to let an SVG file embed the files beside it (the tool passes no extra sources:
@@ -222,7 +230,10 @@ mapping.
   `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
   tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
   its help), and the `PlantUmlLimits` type of the `CanvasNetPlantUml` system for the limits it quotes in its help (the
-  `PlantUmlDocument` that parses, measures, and draws a PlantUML diagram is called by the `Imaging` subsystem). The core
+  `PlantUmlDocument` that parses, measures, and draws a PlantUML diagram is called by the `Imaging` subsystem), and the
+  `CanvasNetMathMl` system, whose `MathMlDocument` parses, measures, and draws an equation with the bundled math font
+  (it is called by the `Imaging` subsystem; the tool uses no type of it directly and reports the `EquationFacts` of a
+  probe, which the Viewer library fills from it). The core
   `Positions` subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the
   positions the `render` command writes and the limits its help quotes. The core `Fonts` and `Rendering` subsystems also
   supply the
@@ -235,8 +246,8 @@ mapping.
   both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
   everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
   libraries and the transitively used `CanvasNetCharts` and `CanvasNetLayout` assemblies), if it is not a `DotnetTool`
-  package, or if a library assembly (the `CanvasNetVegaLite`, `CanvasNetLayout`, `CanvasNetMermaid`, and
-  `CanvasNetPlantUml` assemblies included), the
+  package, or if a library assembly (the `CanvasNetVegaLite`, `CanvasNetLayout`, `CanvasNetMermaid`,
+  `CanvasNetPlantUml`, and `CanvasNetMathMl` assemblies included), the
   tool's dependency manifest
   (`.deps.json`) or runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target
   framework. The package also carries the third-party license notices of the `CanvasNetVegaLite` system (the
@@ -246,7 +257,10 @@ mapping.
   (its provenance README as `Layout-third-party-README.md`; its dagre and lodash texts are the same files as Mermaid's
   `LICENSE-dagre.txt` and `LICENSE-lodash.txt`, so they are packed once) and of the `CanvasNetPlantUml`
   system (the MIT notice of PlantUML as `LICENSE-plantuml.txt`, with its provenance README as
-  `PlantUml-third-party-README.md`) in its `licenses` folder, because
+  `PlantUml-third-party-README.md`) and of the `CanvasNetMathMl` system (the W3C Software and Document License as
+  `LICENSE-w3c.txt` and the Unicode License v3 as `LICENSE-unicode.txt`, for the operator dictionary, the mapping
+  tables, and the entity names, with its provenance README as `MathMl-third-party-README.md`) in its `licenses` folder,
+  because
   binary distributions must reproduce them, and the same job checks that they are present. The test
   project references the libraries directly, which is what places their assemblies next to the tool
   assembly for the out-of-process system tests.

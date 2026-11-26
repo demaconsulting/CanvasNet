@@ -11,7 +11,7 @@ see-also:
   - svg/diagnostics
 ---
 
-A browser or WeasyPrint cannot draw a linked `.mmd`, `.puml`, `.scad`,
+A browser or WeasyPrint cannot draw a linked `.mmd`, `.puml`, `.mml`, `.scad`,
 `.vl.json`, or document page. Flattening (`SvgFlattener.Execute` of the Imaging
 namespace) writes a copy of the drawing that replaces each such link with a PNG
 drawn at its placement.
@@ -19,11 +19,12 @@ drawn at its placement.
 ## Reference
 
 - replaced: An `image` whose link names a file only CanvasNet draws: a Mermaid
-  or PlantUML diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF,
-  PPTX, or VSDX document, with or without a fragment (`#page=2`,
-  `#def.width=20`, `#param.t=5`, `#theme=dark`), and an SVG file that links such
-  a file directly or through further SVG files. Its `href` (or its `xlink:href`
-  when it has no `href`) becomes a `data:image/png;base64` URI of the picture.
+  or PlantUML diagram, a MathML equation, an OpenSCAD model, a Vega-Lite chart,
+  or a page of a PDF, PPTX, or VSDX document, with or without a fragment
+  (`#page=2`, `#def.width=20`, `#param.t=5`, `#theme=dark`, `#display=inline`),
+  and an SVG file that links such a file directly or through further SVG files.
+  Its `href` (or its `xlink:href` when it has no `href`) becomes a
+  `data:image/png;base64` URI of the picture.
 - kept: Everything else, byte for byte: comments, formatting, line endings, a
   byte order mark, raster pictures, SVG files that link only rasters and SVG
   files, `data:` URIs (never followed), same-document `#` links, and network

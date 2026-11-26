@@ -15,8 +15,8 @@ environment, which is a dictionary of the test. The Lua shim running inside real
 
 ### Test Environment
 
-N/A - standard test environment. The fixtures `cube.scad`, `baskets.vl.json`, and `mermaid/flow.mmd` of the shared
-test support are copied into the temporary tree.
+N/A - standard test environment. The fixtures `cube.scad`, `baskets.vl.json`, `mermaid/flow.mmd`, and
+`mathml/quadratic.mml` of the shared test support are copied into the temporary tree.
 
 ### Acceptance Criteria
 
@@ -24,6 +24,8 @@ test support are copied into the temporary tree.
 - A model, a chart, a diagram, a composite drawing, and a captioned diagram block are drawn into the cache and the
   document points at them; one job and four jobs give the same document and the same cache files.
 - An unchanged document draws nothing on the second run, and a changed include draws its picture again.
+- A `.mml` picture and a captioned `mathml` block are drawn at scale 2, the block becomes a figure, and both show at
+  the natural width of the equation.
 - A mistake in a picture stops the run with `pandoc-filter-error` and a message that names the picture; a picture the
   filter does not handle is left alone.
 - A restrictive file-access mode denies a picture outside its folders with `file-access-denied`.
@@ -49,6 +51,10 @@ warning
 `CodeBlock`); a second run draws nothing and gives the same document; after the included file changes, a third run
 draws the picture once more with a new name while the block keeps its picture.
 
+**PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure**: with the real drawer, the quadratic formula as a `.mml`
+picture and as a captioned `mathml` block (`fig-roots`) gives no warning, a `Para` and a `Figure` with the identifier
+`fig-roots`, the attribute `width` of the probe's natural width (`<w>px`) on both pictures, and two PNG pictures in the
+cache, each twice the natural size rounded out at that scale (at most 2 pixels smaller).
 **PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning**: with the real drawer, the chart of issue #165 (a field
 without a type, which the tool reports as the informational note `vega-lite-info`) is drawn into the cache and the run
 returns no warning, so a build that treats Pandoc warnings as errors does not fail for a note.

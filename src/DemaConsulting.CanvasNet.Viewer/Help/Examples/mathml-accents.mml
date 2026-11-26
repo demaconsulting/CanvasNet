@@ -1,0 +1,42 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#x2C6;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#xAF;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mi>v</mi>
+    <mo>&rarr;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#x2D9;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#xA8;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#x2DC;</mo>
+  </mover>
+  <mo>,</mo>
+  <mspace width="1em"/>
+  <mover accent="true">
+    <mrow><mi>A</mi><mi>B</mi></mrow>
+    <mo>&#x203E;</mo>
+  </mover>
+</math>

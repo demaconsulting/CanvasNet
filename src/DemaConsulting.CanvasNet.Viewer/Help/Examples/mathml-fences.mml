@@ -1,0 +1,32 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow>
+    <mo>|</mo>
+    <mfrac><mi>a</mi><mi>b</mi></mfrac>
+    <mo>|</mo>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mrow>
+    <mo>&#x2016;</mo>
+    <mi mathvariant="bold">v</mi>
+    <mo>&#x2016;</mo>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mrow>
+    <mo stretchy="false">&lang;</mo>
+    <mi>&psi;</mi>
+    <mo stretchy="false" lspace="0" rspace="0">|</mo>
+    <mi>&phi;</mi>
+    <mo stretchy="false">&rang;</mo>
+  </mrow>
+  <mo>,</mo>
+  <mspace width="2em"/>
+  <mrow>
+    <mo minsize="2.4em">(</mo>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mn>1</mn>
+    <mo minsize="2.4em">)</mo>
+  </mrow>
+</math>

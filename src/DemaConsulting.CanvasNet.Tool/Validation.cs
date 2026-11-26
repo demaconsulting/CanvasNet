@@ -53,6 +53,7 @@ internal static class Validation
         RunRenderVegaLiteTest(context, testResults);
         RunRenderMermaidTest(context, testResults);
         RunRenderPlantUmlTest(context, testResults);
+        RunRenderMathMlTest(context, testResults);
         RunPandocFilterTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
@@ -671,6 +672,77 @@ internal static class Validation
             }
 
             return rendered[0, 0] == white && fill > 200 ? null : "The rendered diagram has the wrong pixels";
+        });
+    }
+
+    /// <summary>
+    ///     The quadratic formula in MathML Core: the equation the MathML self-test describes and renders (original work).
+    /// </summary>
+    private const string QuadraticMathMl =
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\">"
+        + "<mi>x</mi><mo>=</mo><mfrac>"
+        + "<mrow><mo>&#x2212;</mo><mi>b</mi><mo>&#xB1;</mo><msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>&#x2212;</mo>"
+        + "<mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow>"
+        + "<mrow><mn>2</mn><mi>a</mi></mrow></mfrac></math>\n";
+
+    /// <summary>
+    ///     Runs a test that describes and renders the quadratic formula written by the test as a MathML equation, and checks
+    ///     the picture.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderMathMlTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderMathMl", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "quadratic.mml");
+            var output = PathHelpers.SafePathCombine(directory, "quadratic.png");
+            File.WriteAllText(input, QuadraticMathMl);
+
+            // The equation is parsed and measured, not drawn: a block equation with its baseline inside the picture
+            var json = RunCommand(directory, "info", input, "--json");
+            int width;
+            int height;
+            int baseline;
+            using (var document = JsonDocument.Parse(json))
+            {
+                var equation = document.RootElement.GetProperty("equation");
+                var image = document.RootElement.GetProperty("image");
+                width = image.GetProperty("width").GetInt32();
+                height = image.GetProperty("height").GetInt32();
+                baseline = equation.GetProperty("baseline").GetInt32();
+                if (document.RootElement.GetProperty("input").GetProperty("format").GetString() != "mathml"
+                    || equation.GetProperty("display").GetString() != "block"
+                    || equation.GetProperty("elements").GetInt32() <= 10
+                    || baseline <= 0 || baseline > height)
+                {
+                    return "The info document does not describe the equation";
+                }
+            }
+
+            // The picture has the laid-out size and a white background, without any report in strict mode
+            RunCommand(directory, "render", input, "-o", output, "--strict");
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != width || rendered.Height != height || width <= height)
+            {
+                return "The rendered equation has the wrong size";
+            }
+
+            // The fraction bar sits on the math axis just above the baseline: a row of dark ink across half the picture
+            var white = new Rgba32(255, 255, 255, 255);
+            var bar = false;
+            for (var y = Math.Max(0, baseline - 12); y <= baseline && !bar; y++)
+            {
+                var dark = 0;
+                for (var x = 0; x < width; x++)
+                {
+                    dark += rendered[x, y].R < 96 ? 1 : 0;
+                }
+
+                bar = dark >= width / 2;
+            }
+
+            return rendered[0, 0] == white && bar ? null : "The rendered equation has the wrong pixels";
         });
     }
 

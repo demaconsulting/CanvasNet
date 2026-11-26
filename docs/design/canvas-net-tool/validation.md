@@ -20,11 +20,12 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
 `CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
 chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-tests `CanvasNetTool_RenderMermaid` and
-`CanvasNetTool_RenderPlantUml`, and the Pandoc filter self-test `CanvasNetTool_PandocFilter`, and the help self-test
-`CanvasNetTool_HelpExamples` (nineteen in total;
+`CanvasNetTool_RenderPlantUml`, and the equation self-test `CanvasNetTool_RenderMathMl`, and the Pandoc filter self-test
+`CanvasNetTool_PandocFilter`, and the help self-test `CanvasNetTool_HelpExamples` (twenty in total;
 the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests). They run in a
 fixed, documented order: `VersionDisplay`, `HelpDisplay`, `Formats`, `RenderPng`, `ConvertFormats`, `Info`,
-`RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `RenderPlantUml`, `PandocFilter`,
+`RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `RenderPlantUml`, `RenderMathMl`,
+`PandocFilter`,
 `CropResize`,
 `RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples` (each with the prefix `CanvasNetTool_`).
 Each is
@@ -100,7 +101,7 @@ and in the file, white padding at the corner, the image fitted and centered in t
 label strip. These exercise the comparison, the
 contact sheet with its bundled-font labels, the picture creators, and the commands together.
 
-**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 18th self-test).
+**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 19th self-test).
 It generates a 160x100 PNG sketch with `CreateSketchSurface` (light-gray paper `#C8C8C8` with four dark two-pixel lines
 tilted 3 degrees clockwise, drawn with plain arithmetic, so that the pixel at 80,19 is ink and the pixel at 0,0 is
 paper) and runs the checks of four helpers in turn, stopping at the first failure. `CheckToneOperations` runs
@@ -150,10 +151,23 @@ corner pixel (0, 0) is white (PlantUML's own background), and that more than 200
 diagram by its file name, the source loader, the `diagram` object of `info`, and the `render` command together; it
 needs no other file, no Java, no network, and no installed font.
 
-**RunHelpExamplesTest**: the help self-test (the 19th and last self-test, `CanvasNetTool_HelpExamples`), run through
+**RunRenderMathMlTest**: the MathML self-test (the 13th self-test, right after the PlantUML self-test,
+`CanvasNetTool_RenderMathMl`), run through `RunSelfTest` and `RunCommand`. It writes the quadratic formula, an original
+MathML Core equation in block display (the constant `QuadraticMathMl`, with numeric character references only), to
+`quadratic.mml` in its temporary directory. It runs `info --json` and requires the `mathml` format of the `input`
+object and, in the `equation` object, the display `block`, more than ten elements, and a baseline inside the picture,
+and reads the natural size of the `image` object; then it renders the equation with `--strict` to a PNG and requires
+that the file has exactly the size `info` reported, that it is wider than it is tall, that the corner pixel (0, 0) is
+white, and that a row of dark ink across at least half the picture (the fraction bar on the math axis) lies within 12
+pixels above the baseline. This exercises the bundled MathML library and its math font, the detection of an equation
+by its file name, the source loader, the `equation` object of `info`, and the `render` command together; it needs no
+other file, no network, and no installed font.
+
+**RunHelpExamplesTest**: the help self-test (the 20th and last self-test, `CanvasNetTool_HelpExamples`), run through
 `RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
 writes every source example of the help cards (`HelpTopics.SourceExamples`, the examples of the library cards: the
-OpenSCAD models, the Vega-Lite charts, the Mermaid and PlantUML diagrams, and the SVG drawings) to a file named
+OpenSCAD models, the Vega-Lite charts, the Mermaid and PlantUML diagrams, the MathML equations, and the SVG drawings) to
+a file named
 `<root>-<file name>` and runs `render <file> --strict --json -o <root>-<example>.png` (with `--size 64x64` for a model,
 which only needs to render), requiring `ok` true and no diagnostic: the documented examples are accepted by the shipped
 renderers even under `--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that the output,

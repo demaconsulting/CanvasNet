@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using DemaConsulting.CanvasNet.Geometry;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
@@ -46,7 +47,8 @@ public readonly record struct FontNameInfo(
 ///     rather than parsing font data); it fronts several internal, independently-parsed helpers
 ///     (<see cref="SfntContainer"/>,
 ///     <see cref="CmapTable"/>, <see cref="GlyfLocaReader"/>, <see cref="CffTable"/>,
-///     <see cref="CffCharstringInterpreter"/>, <see cref="HmtxHheaReader"/>, <see cref="KernTable"/>)
+///     <see cref="CffCharstringInterpreter"/>, <see cref="HmtxHheaReader"/>, <see cref="KernTable"/>,
+///     <see cref="MathTable"/>, <see cref="OpenTypeCoverage"/>)
 ///     exactly as <see cref="Codecs.PngCodec"/> internally parses chunks as one unit, and as
 ///     <see cref="Drawing.PathFiller"/> fronts <see cref="Drawing.EdgeFlattener"/>/
 ///     <see cref="Drawing.ScanlineRasterizer"/>. <see cref="GlyfLocaReader"/> and
@@ -65,7 +67,12 @@ public readonly record struct FontNameInfo(
 ///     <c>kern</c> are optional: many legitimately embedded/subsetted fonts omit <c>cmap</c>
 ///     entirely, and most fonts have no <c>kern</c> table at all. Absence of <c>cmap</c> means
 ///     <see cref="GetGlyphIndex"/> always returns <c>0</c> (<c>.notdef</c>); absence of
-///     <c>kern</c> means <see cref="GetKerning"/> always returns <c>0</c>.
+///     <c>kern</c> means <see cref="GetKerning"/> always returns <c>0</c>. <c>MATH</c> is optional
+///     too, and its contents are not validated at load: its range is captured when the font loads
+///     (like every table-directory entry, it must lie within the font data, or the load fails) and it
+///     is parsed by the internal <see cref="MathTable"/> reader only on the first call to the
+///     internal <see cref="TryGetMathTable"/>, which throws <see cref="InvalidDataException"/> for
+///     malformed contents instead of <see cref="Load(Stream)"/> failing.
 ///     </para>
 ///     <para>
 ///     A CFF-outline font whose Top DICT declares a CID-keyed font (the <c>ROS</c> operator) is
@@ -120,6 +127,15 @@ public sealed class TrueTypeFont
     private readonly CmapTable _cmap;
     private readonly KernTable _kern;
     private readonly NameTable _name;
+
+    /// <summary>
+    ///     The font's <c>MATH</c> table, parsed on first access by <see cref="TryGetMathTable"/>, or
+    ///     <see langword="null"/> when the font has no <c>MATH</c> table. Parsing is deferred so a
+    ///     font that is never used for math layout pays nothing and so a malformed table cannot
+    ///     fail <see cref="Load(Stream)"/>; <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>
+    ///     parses at most once and caches a parse failure as well as a result.
+    /// </summary>
+    private readonly Lazy<MathTable>? _math;
 
     /// <summary>
     ///     The most outlines <see cref="_outlineCache"/> retains per font. The cache is a pure
@@ -206,6 +222,10 @@ public sealed class TrueTypeFont
     /// <param name="Cmap">The character map.</param>
     /// <param name="Kern">The kerning table.</param>
     /// <param name="Name">The name table.</param>
+    /// <param name="Math">
+    ///     The deferred <c>MATH</c> table parse, or <see langword="null"/> when the font has no
+    ///     <c>MATH</c> table (always for Type 1 and bare CFF programs).
+    /// </param>
     private readonly record struct FontComponents(
         int UnitsPerEm,
         int GlyphCount,
@@ -213,11 +233,12 @@ public sealed class TrueTypeFont
         IGlyphOutlineSource Glyphs,
         CmapTable Cmap,
         KernTable Kern,
-        NameTable Name);
+        NameTable Name,
+        Lazy<MathTable>? Math = null);
 
     private TrueTypeFont(FontComponents parts, bool isBold, bool isItalic, bool isFixedPitch)
     {
-        var (unitsPerEm, glyphCount, metrics, glyphs, cmap, kern, name) = parts;
+        var (unitsPerEm, glyphCount, metrics, glyphs, cmap, kern, name, math) = parts;
         UnitsPerEm = unitsPerEm;
         GlyphCount = glyphCount;
         Ascender = metrics.Ascender;
@@ -231,6 +252,7 @@ public sealed class TrueTypeFont
         _cmap = cmap;
         _kern = kern;
         _name = name;
+        _math = math;
     }
 
     /// <summary>
@@ -632,6 +654,37 @@ public sealed class TrueTypeFont
     public FontNameInfo GetNameInfo() => new(_name.FamilyName, _name.SubfamilyName, _name.FullName, _name.PostScriptName);
 
     /// <summary>
+    ///     Gets this font's parsed OpenType <c>MATH</c> table - the layout constants, glyph
+    ///     information, and size variants with glyph assemblies that math layout needs.
+    /// </summary>
+    /// <remarks>
+    ///     Internal, for the <c>DemaConsulting.CanvasNet.MathMl</c> package (friend access): the
+    ///     shape of a public math-font API is not settled. The table range is captured at load
+    ///     time, but the table is parsed only on the first call, so loading a font is unaffected
+    ///     by its <c>MATH</c> table. The first call parses the table once
+    ///     (<see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>); every later or concurrent
+    ///     call returns the same instance, or rethrows the same parse failure. Thread-safe.
+    /// </remarks>
+    /// <param name="table">
+    ///     The parsed table when this method returns <see langword="true"/>; otherwise
+    ///     <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="true"/> when the font has a <c>MATH</c> table; <see langword="false"/>
+    ///     when it has none (including every Type 1 and bare CFF program).
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    ///     Thrown when the font has a <c>MATH</c> table that is malformed (see
+    ///     <see cref="MathTable.Parse"/>); the caller should treat the font as having no usable
+    ///     math data.
+    /// </exception>
+    internal bool TryGetMathTable([NotNullWhen(true)] out MathTable? table)
+    {
+        table = _math?.Value;
+        return table is not null;
+    }
+
+    /// <summary>
     ///     Validates a glyph index argument shared by <see cref="GetGlyphOutline"/> and
     ///     <see cref="GetAdvanceWidth"/>.
     /// </summary>
@@ -807,8 +860,9 @@ public sealed class TrueTypeFont
 
     /// <summary>
     ///     Parses one face's SFNT container, validates and parses every required table (branching
-    ///     on the font's outline flavor - see this class's remarks), and parses the optional
-    ///     <c>cmap</c>/<c>kern</c> tables tolerantly.
+    ///     on the font's outline flavor - see this class's remarks), parses the optional
+    ///     <c>cmap</c>/<c>kern</c> tables tolerantly, and captures the optional <c>MATH</c> table
+    ///     for deferred parsing.
     /// </summary>
     private static TrueTypeFont LoadFromBytes(byte[] data, int offsetTableStart)
     {
@@ -862,8 +916,16 @@ public sealed class TrueTypeFont
         var post = container.TryGetTable("post", out var postRange) ? postRange : ((int, int)?)null;
         var style = StyleTable.Parse(data, macStyle, os2, post);
 
+        // MATH is captured here but parsed only on first access (TryGetMathTable), so a
+        // malformed MATH table can never fail loading a font that is not used for math layout
+        var math = container.TryGetTable("MATH", out var mathRange)
+            ? new Lazy<MathTable>(
+                () => MathTable.Parse(data, mathRange.Offset, mathRange.Length, numGlyphs),
+                LazyThreadSafetyMode.ExecutionAndPublication)
+            : null;
+
         return new TrueTypeFont(
-            new FontComponents(unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern, name),
+            new FontComponents(unitsPerEm, numGlyphs, metrics, glyphs, cmap, kern, name, math),
             style.IsBold, style.IsItalic, style.IsFixedPitch);
     }
 

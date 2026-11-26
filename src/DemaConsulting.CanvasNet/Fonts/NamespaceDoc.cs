@@ -24,7 +24,9 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     provided by <see cref="SystemFontCatalog"/> (installed fonts, bundled Liberation fallback),
 ///     <see cref="FontDirectoryScanner"/> (a deterministic, bounded scan of font directories) and
 ///     <see cref="FontResolver"/> (a CSS <c>font-family</c> list to a loaded font, with
-///     <see cref="GenericFontFamilies"/> as its generic-family policy).
+///     <see cref="GenericFontFamilies"/> as its generic-family policy). For math layout, the
+///     internal <see cref="MathTable"/> reader parses a font's OpenType <c>MATH</c> table lazily,
+///     through the internal <see cref="TrueTypeFont.TryGetMathTable"/>, for the MathML package.
 /// </summary>
 /// <remarks>
 ///     See <see cref="SystemFontCatalog"/> to find and load an installed font or the bundled fallback,

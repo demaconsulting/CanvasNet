@@ -11,6 +11,7 @@ see-also:
   - files
   - mermaid
   - plantuml
+  - mathml
   - svg
 examples:
   - name: write-shim
@@ -36,24 +37,29 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   list the file under filters in the Pandoc defaults file. Write it again after
   each update of the tool: the shim lists what that tool draws (see fast path),
   so an old shim keeps working but may start the tool when it is not needed or
-  miss a new format. The tool also says when the protocol of the shim changed.
-- `fast path`: The shim starts the tool only for a code block of class mermaid
-  or plantuml (exact), or a local picture whose name ends in .svg, .vl.json,
-  .vl, .scad, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml, or .pu in
-  any letter case (a name with a #fragment or ?query does not). Any other
-  document is left as it is without starting the tool, so code-only documents
-  build without it.
+  miss a new format: with a shim from before MathML, a document whose only
+  pictures are equations (mathml code blocks, .mml pictures) never starts the
+  tool and its MathML is left as it is. Run --write-shim again after updating.
+  The tool also says when the protocol of the shim changed.
+- `fast path`: The shim starts the tool only for a code block of class mermaid,
+  plantuml, or mathml (exact), or a local picture whose name ends in .svg,
+  .vl.json, .vl, .scad, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml,
+  .pu, or .mml in any letter case (a name with a #fragment or ?query does not).
+  Any other document is left as it is without starting the tool, so code-only
+  documents build without it.
 - `pictures`: A picture of a .scad model, a .vl.json or .vl chart, a .vsdx,
-  .pptx, or .pdf page, a .mmd or .mermaid diagram, or a .puml, .plantuml, or .pu
-  diagram is drawn as a PNG picture, for example ![Part](part.scad){view=iso}.
-  An .svg drawing that links one is flattened. Any other picture is left alone.
+  .pptx, or .pdf page, a .mmd or .mermaid diagram, a .puml, .plantuml, or .pu
+  diagram, or a .mml equation is drawn as a PNG picture, for example
+  ![Part](part.scad){view=iso}. An .svg drawing that links one is flattened.
+  Any other picture is left alone.
 
 ## Attributes
 
 - `size`: WIDTHxHEIGHT in pixels, each 1 to 8192 (not for .svg). A model is
   1600x1200 unless size or scale is given.
 - `scale`: A number from 0.001 up to 8192, not together with size. For .svg it
-  sizes the pictures that replace the links.
+  sizes the pictures that replace the links. An equation is drawn at scale 2
+  unless size or scale is given.
 - `background`: #RRGGBB, #RRGGBBAA, a color name, or transparent (not for .svg).
   A model is white unless one is given.
 - `page, dpi`: .vsdx, .pptx, and .pdf: the page counted from 1 (default 1), and
@@ -67,15 +73,19 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 - `others`: Every other attribute (width, an id, a class) stays on the picture.
   An attribute of another input type is an error, not ignored.
 
-## Mermaid and PlantUML blocks
+## Mermaid, PlantUML, and MathML blocks
 
 - `code block`: A fenced code block of class mermaid is drawn like a .mmd
-  picture, and one of class plantuml like a .puml picture (@startuml is
-  optional). With caption="..." it becomes a figure whose caption is read as
-  Markdown and which takes the id; otherwise a paragraph holds the picture.
+  picture, one of class plantuml like a .puml picture (@startuml is optional),
+  and one of class mathml like a .mml picture. With caption="..." it becomes a
+  figure whose caption is read as Markdown and which takes the id; otherwise a
+  paragraph holds the picture.
 - `not drawn`: A diagram type the tool does not draw
   (mermaid-diagram-unsupported, plantuml-diagram-unsupported) is left as
   written, with a warning.
+- `natural width`: A .mml picture or mathml block without a size, width, or
+  height attribute gets width="Npx", the width of its natural size, so every
+  equation shows at the 16 px font size; an author's attribute is kept.
 - `includes`: A changed !include file draws its .puml picture again; a
   plantuml block finds no relative include (use a .puml picture).
 

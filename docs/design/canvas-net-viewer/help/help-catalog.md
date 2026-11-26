@@ -23,7 +23,8 @@ is embedded in the Viewer assembly, so an installed library needs no other file.
 
 **Public types** (immutable; constructors internal, so only the catalog creates them):
 
-- `HelpTags` (static class): the constants `Svg`, `Mermaid`, `PlantUml`, `Scad`, `VegaLite`, `Pdf`, `Pptx`, `Vsdx`, and
+- `HelpTags` (static class): the constants `Svg`, `Mermaid`, `PlantUml`, `MathMl`, `Scad`, `VegaLite`, `Pdf`, `Pptx`,
+  `Vsdx`, and
   `Raster` (the format tags), `Authoring`, `Design`, `Composition`, `Diagnostics`, `Limits`, `Hosting`, and `FileAccess`
   (the scope tags, written `file-access`), and the read-only lists `FormatTags`, `ScopeTags`, and `All` (the format
   tags, then the scope tags).
@@ -43,9 +44,9 @@ is embedded in the Viewer assembly, so an installed library needs no other file.
 parsed into text parts and resolved links, the root order, and the tokens), the set of visible identifiers (null when
 every card is visible), and the `HelpCard` of each visible card, built once for the view.
 
-**LibraryRootOrder** (internal): `scad`, `vega-lite`, `mermaid`, `plantuml`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`,
-`style`, `composition`, `positions`, `errors`, `limits`, and `files`. The loader requires the embedded root cards to be
-exactly this set.
+**LibraryRootOrder** (internal): `scad`, `vega-lite`, `mermaid`, `plantuml`, `mathml`, `svg`, `pdf`, `pptx`, `vsdx`,
+`raster`, `style`, `composition`, `positions`, `errors`, `limits`, and `files`. The loader requires the embedded root
+cards to be exactly this set.
 
 **Embedded resources**: the Viewer project embeds the content with two `EmbeddedResource` items with
 `WithCulture="false"`:
@@ -75,7 +76,10 @@ heading of the generated footer (`## Cards`, `## Examples`, `## See also`; `Foot
 
 **The tree**: each format root has the cards of its subjects below it - `mermaid` one card per diagram type (with a
 `settings` card below each type that has settings), `plantuml` the sequence, activity, class, object, state, usecase,
-component, and deployment cards and the preprocessor, `svg` the supported, embedding, fragments, units, flatten,
+component, and deployment cards and the preprocessor, `mathml` (aliases `mml` and `equation`) the basics, fractions,
+scripts, large-operators, fences, matrices, aligned, units, symbols, accents, formulas, pitfalls, elements, and
+attributes cards (the elements and attributes cards are the lists the parity tests compare with the user guide), `svg`
+the supported, embedding, fragments, units, flatten,
 bindings, arrows, and framed-figure cards, `vega-lite` the data, marks, encodings, transforms, params, layout, and
 warnings cards, and `scad` the language, views, and anchors cards; each drawing format also has `style`,
 `composition`, `options`, and `diagnostics` cards, and `differences` and `unsupported` cards where its lists are long.
@@ -91,7 +95,9 @@ from the live constants of the code and formatted with the invariant culture wit
 `qualityDefault` (`ImageWriter`), `scadMaxTriangles` (`ScadLimits.Default`), the `vlMax*` limits
 (`VegaLiteLimits.Default`: source length, JSON depth, data files, data bytes, data rows, images, painted pixels), the
 `mmdMax*` limits (`MermaidLimits.Default`: text size, edges, nodes, images), the `pumlMax*` limits
-(`PlantUmlLimits.Default`: text size, nodes, edges, includes, include depth), `fragmentMaxLength` and
+(`PlantUmlLimits.Default`: text size, nodes, edges, includes, include depth), the `mmlMax*` limits
+(`MathMlLimits.Default`: text size, elements, nesting depth, table cells, token length, layout work, painted glyphs),
+`fragmentMaxLength` and
 `fragmentMaxParameters` (`ImageFragment`), and `positionsMax` (`PositionCollector.MaxPositions`),
 `positionsMaxSelectors` (`PositionSelection.MaxSelectors`), `positionsMaxSelectorLength` and `positionsMaxPredicates`
 (`PositionSelector`), and `positionsMaxDataFields` (`ImagePosition.MaxDataFields`). A host adds its own tokens in
@@ -191,8 +197,8 @@ Nothing is handled locally; every error propagates to the caller.
 - **SourceLoader** and **ImageWriter** (Imaging) - `MaxDpi` and the quality constants, for tokens.
 - **Core library** - `Surface.MaxDimension` (Canvas), `ImageFragment` (ImageSources), and `PositionCollector`,
   `PositionSelection`, `PositionSelector`, and `ImagePosition` (Positions), for tokens.
-- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), **MermaidLimits** (Mermaid), and **PlantUmlLimits** (PlantUml) -
-  the resource limits, for tokens.
+- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), **MermaidLimits** (Mermaid), **PlantUmlLimits** (PlantUml),
+  and **MathMlLimits** (MathMl) - the resource limits, for tokens.
 - **System.Text.Json** (BCL) - `Utf8JsonWriter` for `RenderJson` and `RenderIndexJson`.
 
 #### Callers

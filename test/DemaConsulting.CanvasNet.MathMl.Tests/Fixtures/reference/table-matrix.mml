@@ -1,0 +1,19 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mtable>
+    <mtr>
+      <mtd><mi>a</mi></mtd>
+      <mtd><mn>0</mn></mtd>
+      <mtd><mi>x</mi></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mn>0</mn></mtd>
+      <mtd><mi>b</mi></mtd>
+      <mtd><mi>y</mi></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mi>u</mi></mtd>
+      <mtd><mi>v</mi></mtd>
+      <mtd><mi>c</mi></mtd>
+    </mtr>
+  </mtable>
+</math>

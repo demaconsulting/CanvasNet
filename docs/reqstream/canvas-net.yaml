@@ -1872,6 +1872,23 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_TextWithMathSigns_UsesBundledFallbackGlyphsAndReportsUncovered
 
+      - id: CanvasNet-Lib-FontsMathTable
+        title: >-
+          The library shall read a font's OpenType MATH table (layout constants, glyph information,
+          and size variants with glyph assemblies) for the math layout of the sibling packages,
+          without changing how fonts without, or with a malformed, MATH table load.
+        tags: [system]
+        justification: |
+          The MathML package lays out mathematics with the constants, glyph information, and
+          stretchy glyph constructions of a math font. The core owns SFNT parsing and the loaded
+          font's data, so the table is read here once rather than by a second parser in the
+          package, and existing callers that load text fonts must see no change.
+        children:
+          - CanvasNet-Fonts-MathTable
+        tests:
+          - CanvasNet_SystemIntegration_LoadMathFontAndReadMathTable_ReturnsMathLayoutData
+          - CanvasNet_SystemIntegration_LoadFontWithDamagedMathTable_LoadsAndRejectsTheTable
+
   - title: Rendering API
     requirements:
       - id: CanvasNet-Lib-RenderingTransformStack

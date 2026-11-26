@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.PlantUml;
@@ -59,7 +60,7 @@ public partial class HelpCatalogTests
     ///     Matches the diagnostic identifiers a card may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|mermaid|plantuml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|plantuml|mathml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -133,6 +134,8 @@ public partial class HelpCatalogTests
             ["vl"] = "vega-lite",
             ["mmd"] = "mermaid",
             ["puml"] = "plantuml",
+            ["mml"] = "mathml",
+            ["equation"] = "mathml",
             ["powerpoint"] = "pptx",
             ["visio"] = "vsdx",
             ["png"] = "raster",
@@ -187,6 +190,12 @@ public partial class HelpCatalogTests
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxNodes} nodes (participants or activity nodes)", limits);
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxTextSize} characters of statements", limits);
         Assert.Contains($"At most {PlantUmlLimits.Default.MaxIncludes} !include directives", limits);
+        Assert.Contains($"At most {MathMlLimits.Default.MaxTextSize} characters; a longer text", limits);
+        Assert.Contains($"At most {MathMlLimits.Default.MaxElements} elements nested at most {MathMlLimits.Default.MaxNestingDepth} deep", limits);
+        Assert.Contains($"at most {MathMlLimits.Default.MaxTableCells} cells in one table", limits);
+        Assert.Contains($"and at most {MathMlLimits.Default.MaxTokenLength} characters in one token", limits);
+        Assert.Contains($"At most {MathMlLimits.Default.MaxLayoutWork} units of layout work", limits);
+        Assert.Contains($"{MathMlLimits.Default.MaxPaintedGlyphs} painted glyphs; beyond that", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
@@ -410,6 +419,7 @@ public partial class HelpCatalogTests
             ["vega-lite"] = ".vl.json",
             ["mermaid"] = ".mmd",
             ["plantuml"] = ".puml",
+            ["mathml"] = ".mml",
             ["svg"] = ".svg"
         };
         var files = typeof(HelpCatalog).Assembly.GetManifestResourceNames()
@@ -449,7 +459,7 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
-    ///     Test that every source example (SCAD, Vega-Lite, Mermaid, PlantUML, SVG) renders through
+    ///     Test that every source example (SCAD, Vega-Lite, Mermaid, PlantUML, MathML, SVG) renders through
     ///     <see cref="CanvasNetViewer.Render(string, ViewerRenderOptions?)"/> in strict mode and reports no diagnostic.
     /// </summary>
     /// <param name="cardId">The card of the example.</param>
@@ -1044,6 +1054,7 @@ public partial class HelpCatalogTests
         typeof(VegaLiteDocument).Assembly,
         typeof(MermaidDocument).Assembly,
         typeof(PlantUmlDocument).Assembly,
+        typeof(MathMlDocument).Assembly,
         typeof(PdfDocument).Assembly,
         typeof(PptxDocument).Assembly,
         typeof(VsdxDocument).Assembly,

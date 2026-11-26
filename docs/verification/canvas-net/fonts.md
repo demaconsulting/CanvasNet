@@ -184,3 +184,23 @@ supplies a non-zero glyph with contours, and (in the other unit scenarios) that 
 not replaced, that characters nothing covers keep the primary font's missing glyph, and that
 `FindMissing` lists them. The unit-level behavior is verified by the `GlyphFallback` unit's own
 verification design (`fonts/glyph-fallback.md`).
+
+#### CanvasNet-Fonts-MathTable: The Bundled Math Font's MATH Table Is Read for Math Layout
+
+**Tests**: `TrueTypeFont_RealNotoSansMath_ReadsMathConstants`,
+`TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction`,
+`TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction`,
+`TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent`,
+`TrueTypeFont_RealOpenSans_HasNoMathTable`,
+`TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable`
+
+Loads the bundled Noto Sans Math through `SystemFontCatalog`'s cached bundled-font loader and reads
+its `MATH` table through `TrueTypeFont`. Asserts its constants, `MinConnectorOverlap`, the vertical
+constructions of `(`, U+221A, and U+222B, the horizontal construction of U+2192, an italic
+correction, a top-accent attachment, and extended shapes against values confirmed with `fonttools`,
+and that the real Open Sans text font reports no `MATH` table. A copy of Noto Sans Math whose `MATH` table claims
+major version 2 loads with the same glyph index, advance, and outline bounds of `+` as the original, while reading its
+table throws `InvalidDataException`. The unit-level behavior (every
+constant, both coverage formats, absent parts, malformed-table rejection, the work budget, and
+concurrent access) is verified by the `TrueTypeFont` unit's own verification design
+(`fonts/true-type-font.md`).

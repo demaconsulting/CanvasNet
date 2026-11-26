@@ -8,7 +8,8 @@ the units it calls (`PandocAst`, `FilterSettings`, `FilterPaths`, `PictureAttrib
 Pandoc JSON documents and reads the image sources and the `canvasnet-warnings` metadata of an output; `FilterTree`, a
 temporary document tree with the sources in `docs/guide`, the cache in `docs/generated/canvasnet`, HTML output to
 `out/doc.html`, and its own environment variables; and `StubDrawer`, an `IPictureDrawer` that records each call as
-`render NAME` or `flatten NAME`, throws a configured failure, or returns a configured `PictureDrawing` and writes a
+`render NAME` or `flatten NAME` with the arguments it was given, throws a configured failure, or returns a
+configured `PictureDrawing` and writes a
 fixed picture when it is flattened. `ToolPictureDrawer` is not exercised here; the drawing itself is verified with the
 render and flatten commands and through the subsystem and system tests of the filter.
 
@@ -22,6 +23,8 @@ N/A - standard test environment. The tests use a temporary folder each and do no
 - A picture is drawn once per key and found in the cache on the next run; the elements point at the cached files.
 - Diagrams left as written and drawings with nothing to flatten are recorded in markers and warned about on every run.
 - Mermaid code blocks become a figure or a paragraph of the documented shape.
+- An equation (a `.mml` picture or a `mathml` block) is drawn at scale 2 unless the author scales or sizes it, and shows
+  at its natural width unless the author gives a size, width, or height, on every run.
 - One job and four jobs give the same output, warnings, cache files, and reported failure, also after a failure that
   later jobs ran past.
 - Every failure has the documented message and code, and the one of the lowest position is reported.
@@ -63,6 +66,22 @@ activity block for which the tool reports `plantuml-diagram-unsupported` stays a
 `plantuml block (@startuml): activity-legacy diagrams are not drawn; it is left as written and not drawn`; two `.puml`
 files are
 written to the cache, one `.unsupported` marker is left, and both blocks were drawn once.
+
+**PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth**: Ohm's law as a `.mml` picture with the
+attribute `id`, and the quadratic formula as a captioned `mathml` block, are drawn once each with `--scale=2`, and one
+`.mml` block source is in the cache; the picture keeps `id` and gets `width` of its probed natural width (`<w>px`), the
+block becomes a `Figure` whose image has only `width` of the quadratic formula's natural width, which is wider; a second
+run draws nothing and gives the same document.
+
+**PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth**: one equation shown with `width=50%`, `height=2em`,
+`size=400x100`, and `scale=3`, and a text that is not an equation, keep `width=50%`, `height=2em`, nothing, the natural
+`width` (with `scale=3`), and nothing (the probe fails, so the attributes stay as written) respectively; the draws are
+given `--scale=2` (the width and height pictures share one draw, and the broken file has its own), `--scale=3`, and
+`--size=400x100`.
+
+**PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile**: one equation shown plainly and with
+`width=50%` is drawn once with `--scale=2` into one PNG of the cache, which both pictures show; the plain picture gets
+the natural `width` and the other keeps `width=50%`, so the added natural width is not part of the cache key.
 
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine

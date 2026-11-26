@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
 /// <summary>
 ///     What the fragment of an input chose: a page, a viewpoint and variables for a model, parameters for a chart, a theme
-///     for a diagram. It is
+///     for a diagram, a display mode for an equation. It is
 ///     created by <see cref="SourceLoader.Probe(InputReference)"/> and carried by <see cref="SourceInfo.Selection"/>, so
 ///     every operation that loads the input (render, inspect, compare, montage) applies it.
 /// </summary>
@@ -15,7 +15,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         of the file (the one that draws <c>&lt;image href="part.scad#view=top&amp;def.width=20"&gt;</c>), so an input and a
 ///         link accept the same parameters with the same values: <c>page</c> (and <c>slide</c> for a presentation) for a
 ///         document, <c>view</c>, <c>azimuth</c>, <c>elevation</c>, <c>projection</c>, and <c>def.&lt;name&gt;</c> for a model, <c>param.&lt;name&gt;</c> for a chart, <c>theme</c> for a
-///         Mermaid diagram; the values
+///         Mermaid diagram, <c>display</c> (<c>block</c> or <c>inline</c>) for a MathML equation; the values
 ///         of <c>def.</c> are read like <c>-D</c> (vectors such as <c>def.$vpt=[0,0,20]</c> included) and those of
 ///         <c>param.</c> like <c>--param</c>.
 ///     </para>
@@ -24,13 +24,13 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         replaces the page of the command; the view, the azimuth, the elevation, and the projection each replace those of
 ///         the command (one the fragment does not set keeps the value of the command); a variable replaces a variable of
 ///         the same name of the command (the others are kept); a parameter replaces a parameter of the same name; the theme
-///         replaces the theme.
+///         replaces the theme; the display mode replaces the display mode.
 ///     </para>
 ///     <para>
 ///         <b>Errors and warnings.</b> A value that cannot be used (the fragment is too long or has too many parameters, a
 ///         page is not a whole number, a vector is not valid, a variable name is not an identifier, a view is not one of the
 ///         views, an azimuth or elevation is not a number of degrees or an elevation is outside -90 to 90, a projection is
-///         not ortho, orthographic, or perspective, a theme is not a Mermaid theme) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
+///         not ortho, orthographic, or perspective, a theme is not a Mermaid theme, a display mode is not block or inline) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
 ///         not have is <see cref="ErrorCodes.PageOutOfRange"/>. A parameter the kind does not use is the warning
 ///         <c>image-fragment-unknown-parameter</c>, a name given twice with different values is
 ///         <c>image-fragment-duplicate-parameter</c> (the last wins), and a <c>param.</c> name that the chart does not
@@ -81,6 +81,12 @@ public sealed record InputSelection
     public DiagramOptions? Mermaid { get; internal init; }
 
     /// <summary>
+    ///     Gets the display mode the fragment names for a MathML equation (<c>eq.mml#display=inline</c>); <see langword="null"/>
+    ///     when it names none (and for every other kind).
+    /// </summary>
+    public EquationOptions? MathMl { get; internal init; }
+
+    /// <summary>
     ///     Gets the notes about the fragment: the warnings listed in the remarks; empty when there are none.
     /// </summary>
     public IReadOnlyList<ImageDiagnostic> Diagnostics { get; internal init; } = [];
@@ -90,8 +96,8 @@ public sealed record InputSelection
     /// </summary>
     /// <param name="options">The options of the command, which apply to every input.</param>
     /// <returns>
-    ///     A copy of <paramref name="options"/> with the page, the viewpoint, projection, and variables of a model, and the parameters of a chart
-    ///     that the fragment chose; what the fragment does not name is left as it is. Applying the selection twice gives the same result.
+    ///     A copy of <paramref name="options"/> with the page, the viewpoint, projection, and variables of a model, the parameters of a chart,
+    ///     the theme of a diagram, and the display mode of an equation that the fragment chose; what the fragment does not name is left as it is. Applying the selection twice gives the same result.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
     public SourceOptions ApplyTo(SourceOptions options)
@@ -103,7 +109,8 @@ public sealed record InputSelection
             Page = Page ?? options.Page,
             Scad = MergeScad(options.Scad),
             VegaLite = MergeChart(options.VegaLite),
-            Mermaid = Mermaid ?? options.Mermaid
+            Mermaid = Mermaid ?? options.Mermaid,
+            MathMl = MathMl ?? options.MathMl
         };
     }
 
@@ -130,12 +137,14 @@ public sealed record InputSelection
         ScadViewOptions? scad;
         ChartOptions? chart;
         DiagramOptions? diagram;
+        EquationOptions? equation;
         try
         {
             page = source.ReadPage(fragment);
             scad = source.ReadScad(fragment);
             chart = source.ReadChart(fragment);
             diagram = source.ReadDiagram(fragment);
+            equation = source.ReadEquation(fragment);
         }
         catch (ImageSourceRefusedException ex)
         {
@@ -161,6 +170,7 @@ public sealed record InputSelection
             ProjectionGiven = scad is not null && fragment.GetValue(LoaderImageSource.ProjectionParameter) is not null,
             VegaLite = chart,
             Mermaid = diagram,
+            MathMl = equation,
             Diagnostics = new ReadOnlyCollection<ImageDiagnostic>(notes)
         };
     }
@@ -208,7 +218,7 @@ public sealed record InputSelection
         return new ViewerException(
             ErrorCodes.ImageFragmentInvalid,
             $"The fragment '#{fragment}' of the input '{file}' cannot be used: {reason}",
-            "A fragment is name=value parameters joined by &, as in an SVG link: page=3, view=top, def.width=20, param.cutoff=5. Quote the input in a shell so that & is not read as a command separator.");
+            "A fragment is name=value parameters joined by &, as in an SVG link: page=3, view=top, def.width=20, param.cutoff=5, display=inline. Quote the input in a shell so that & is not read as a command separator.");
     }
 
     /// <summary>

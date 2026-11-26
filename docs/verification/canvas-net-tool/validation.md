@@ -41,10 +41,10 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
 (`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
-reported as passed, are named in the TRX file, and the run reports nineteen tests in all.
+reported as passed, are named in the TRX file, and the run reports twenty tests in all.
 
 **Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded**: the chart self-test (`CanvasNetTool_RenderVegaLite`) passes
-(exit code 0), is reported as passed, is named in the TRX file, and the run reports nineteen tests, nineteen passed,
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports twenty tests, twenty passed,
 and none failed.
 
 **Validation_Run_MermaidSelfTest_PassesAndIsRecorded**: the diagram self-test (`CanvasNetTool_RenderMermaid`) passes
@@ -59,11 +59,19 @@ itself describes a two-participant sequence diagram with `info --json` (the `pla
 `supported`, two nodes, and two edges) and renders it with `--strict`, requiring the size `info` reported, a white
 corner, and more than 200 pixels of the participant fill `#E2E2F0`.
 
-**Validation_Run_NineteenSelfTests_RunInTheDocumentedOrder**: the passed lines of a run name the nineteen self-tests in
+**Validation_Run_MathMlSelfTest_PassesAndIsRecorded**: the MathML self-test (`CanvasNetTool_RenderMathMl`) passes (exit
+code 0), is reported as passed, is named in the TRX file, and the run reports no failed test. The self-test itself
+describes the quadratic formula with `info --json` (the `mathml` format, the display `block`, more than ten elements,
+and a baseline inside the picture) and renders it with `--strict`, requiring the size `info` reported, a picture wider
+than tall, a white corner, and a row of dark ink across half the picture (the fraction bar) just above the baseline.
+
+**Validation_Run_TwentySelfTests_RunInTheDocumentedOrder**: the passed lines of a run name the twenty self-tests in
 the documented order (`VersionDisplay`, `HelpDisplay`, `Formats`, `RenderPng`, `ConvertFormats`, `Info`, `RenderSvg`,
-`PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `RenderPlantUml`, `PandocFilter`, `CropResize`,
+`PdfMinimal`, `RenderScad`, `RenderVegaLite`, `RenderMermaid`, `RenderPlantUml`, `RenderMathMl`, `PandocFilter`,
+`CropResize`,
 `RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples`, each with the prefix `CanvasNetTool_`): the
-Mermaid, PlantUML, and Pandoc filter self-tests run right after the Vega-Lite one and the help self-test is last; the
+Mermaid, PlantUML, MathML, and Pandoc filter self-tests run right after the Vega-Lite one and the help self-test is
+last; the
 exit code is 0. The Pandoc filter
 self-test (`CanvasNetTool_PandocFilter`) runs the `pandoc-filter` command on a document with a captioned Mermaid block
 and requires a figure whose picture is the one PNG in `generated/canvasnet`, wider than it is tall.

@@ -79,6 +79,26 @@ public class PictureCacheTests
     }
 
     /// <summary>
+    ///     Test that the text of a MathML block is written to a <c>.mml</c> file named by the SHA-1 of the text after a prefix
+    ///     that names the kind, so the same text in a Mermaid block gets another file.
+    /// </summary>
+    [Fact]
+    public void PictureCache_BlockSourceFile_MathMlBlock_HasMmlExtension()
+    {
+        // Arrange: the cache folder, an equation, and the name its text and prefix give
+        const string cache = "/docs/generated/canvasnet";
+        const string text = "<math><mi>x</mi></math>\n";
+        var hash = FilterSettings.Sha1Hex(System.Text.Encoding.UTF8.GetBytes("canvasnet.lua mathml block\n" + text));
+
+        // Act
+        var file = PictureCache.BlockSourceFile(cache, text, PictureAttributes.MathMl);
+
+        // Assert: the hash of the prefixed text with the .mml extension, and another file than a Mermaid block's
+        Assert.Equal(FilterPaths.Join([cache, hash + ".mml"]), file);
+        Assert.NotEqual(Path.GetFileNameWithoutExtension(PictureCache.BlockSourceFile(cache, text)), Path.GetFileNameWithoutExtension(file));
+    }
+
+    /// <summary>
     ///     Test the atomic text write: a new file is written without a partial file left, and an existing one is kept.
     /// </summary>
     [Fact]

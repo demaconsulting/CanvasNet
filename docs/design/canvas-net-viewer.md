@@ -9,7 +9,8 @@ This document provides the system-level design for CanvasNetViewer.
 CanvasNetViewer is a .NET library that aggregates the image sources of every CanvasNet format package, distributed as
 its own NuGet package (`DemaConsulting.CanvasNet.Viewer`, namespace `DemaConsulting.CanvasNet.Viewer`). It exists so
 that an application (or the command-line tool) can draw "any file CanvasNet can read" and let an SVG diagram embed
-models, charts, Mermaid and PlantUML diagrams, other SVG files, document pages, and pictures with one call, without
+models, charts, Mermaid and PlantUML diagrams, MathML equations, other SVG files, document pages, and pictures with one
+call, without
 referencing and
 wiring each format package itself. It is also the library form of the `canvasnet` command-line tool: everything the tool
 does with images - report the facts of a file, render it with an ordered pipeline of transformations, inspect its colors
@@ -52,7 +53,8 @@ examples of the cards through the other two.
 The dependency direction is one-way. The core `ImageSources` subsystem defines the contract (`IImageSource`,
 `IImageResolver`) and the resolver; each format package ships a small source that references only the core package
 (`SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`, `ScadImageSource`, `VegaLiteImageSource`,
-`MermaidImageSource`, `PlantUmlImageSource`); the viewer is the one place that knows all of them. No package references
+`MermaidImageSource`, `PlantUmlImageSource`, `MathMlImageSource`); the viewer is the one place that knows all of
+them. No package references
 the viewer except the
 command-line tool, and the viewer has no plug-in mechanism: the built-in list is fixed and explicit (no reflection, no
 discovery, no global registry). A **library user** who needs another format, an override, or a live source passes extra
@@ -63,7 +65,8 @@ sources for one render.
 The system exposes the following public API:
 
 - **`CanvasNetViewer.ImageSources`** / **`CanvasNetViewer.Extensions`**: the fixed, read-only list of the built-in
-  sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML) and the sorted union of the file
+  sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid, PlantUML, MathML) and the sorted union of
+  the file
   name
   extensions they claim. The command-line tool's `svg` help topic is checked against `Extensions`.
 - **`CanvasNetViewer.CreateImageResolver(folder, options)`** / **`CreateImageResolver(folder, extraSources, options)`**:
@@ -133,10 +136,11 @@ format systems, each through a project reference from
   `Positions` subsystem's `PositionSelection`, `PositionCollector`, and `ImagePosition` (the feature positions of a
   diagram or a chart).
 - The `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`,
-  `CanvasNetMermaid`, and `CanvasNetPlantUml` systems: the `SvgImageSource`, `PdfImageSource`, `PptxImageSource`,
-  `VsdxImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`, and `PlantUmlImageSource` of each
-  package, and for the `Imaging` operations the codecs and documents of the same packages (`SvgCodec`, `PdfDocument`,
-  `PptxDocument`, `VsdxDocument`, `ScadDocument`, `VegaLiteDocument`, `MermaidDocument`, `PlantUmlDocument`).
+  `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` systems: the `SvgImageSource`, `PdfImageSource`,
+  `PptxImageSource`, `VsdxImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
+  `PlantUmlImageSource`, and `MathMlImageSource` of each package, and for the `Imaging` operations the codecs and
+  documents of the same packages (`SvgCodec`, `PdfDocument`, `PptxDocument`, `VsdxDocument`, `ScadDocument`,
+  `VegaLiteDocument`, `MermaidDocument`, `PlantUmlDocument`, `MathMlDocument`).
 - The `CanvasNetRender3D` system (`SceneRendering`, used by the OpenSCAD view loading of `SourceLoader`), referenced
   explicitly. `CanvasNetCharts` arrives transitively.
 
@@ -144,8 +148,8 @@ No other system depends on `CanvasNetViewer` except `CanvasNetTool`, which is a 
 operations, creates the resolver for the SVG files it renders, and layers its command-line help cards on the help
 catalog with `HelpCatalog.Extend`; a format package must never reference the viewer. The `Help` subsystem reads the
 limits it quotes from the constants of the core library and the format packages (`Surface.MaxDimension`,
-`ImageFragment`, the `Positions` limits, and `ScadLimits`, `VegaLiteLimits`, `MermaidLimits`, and
-`PlantUmlLimits`).
+`ImageFragment`, the `Positions` limits, and `ScadLimits`, `VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, and
+`MathMlLimits`).
 
 ## Risk Control Measures
 

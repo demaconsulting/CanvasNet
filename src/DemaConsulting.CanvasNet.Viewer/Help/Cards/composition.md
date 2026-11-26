@@ -12,6 +12,7 @@ see-also:
   - positions
   - mermaid/composition
   - plantuml/composition
+  - mathml/composition
   - vega-lite/composition
   - scad/composition
   - style
@@ -35,6 +36,9 @@ size, then render, look, and fix.
   ([[mermaid/composition]]); a PlantUML diagram (sequence,
   activity, class, state, use case, component, or deployment) can be such
   a picture ([[plantuml/composition]]).
+- An equation in a figure, a node, or a chart: a MathML equation placed like
+  any picture, sized at one multiple of its natural size so every equation
+  has one text size ([[mathml/composition]]).
 - Several charts of one data set: one Vega-Lite specification with `layer`,
   `concat`, or `facet` ([[vega-lite/composition]]).
 - Labels and leader lines on a model: anchors and an SVG overlay
@@ -68,9 +72,9 @@ size, then render, look, and fix.
 
 - A fragment after the file name sets the options of one placement:
   `flow.mmd#theme=dark`, `part.scad#view=front&amp;def.width=20` (`&amp;` in
-  XML), `chart.vl.json#param.t=5`, `report.pdf#page=2`, `deck.pptx#slide=3`. The
-  same fragment works on an input path and in a contact sheet (see
-  [[svg/fragments]]).
+  XML), `chart.vl.json#param.t=5`, `report.pdf#page=2`, `deck.pptx#slide=3`,
+  `eq.mml#display=inline`. The same fragment works on an input path and in a
+  contact sheet (see [[svg/fragments]]).
 
 ## Limits and file access
 

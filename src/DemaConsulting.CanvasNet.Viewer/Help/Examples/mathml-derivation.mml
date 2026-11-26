@@ -1,0 +1,41 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left" columnspacing="0" displaystyle="true">
+    <mtr>
+      <mtd>
+        <msubsup><mo>&int;</mo><mn>0</mn><mn>1</mn></msubsup>
+        <msup><mi>x</mi><mn>2</mn></msup>
+        <mspace width="0.1667em"/>
+        <mi mathvariant="normal">d</mi>
+        <mi>x</mi>
+      </mtd>
+      <mtd>
+        <mo>=</mo>
+        <msubsup>
+          <mrow>
+            <mo>[</mo>
+            <mfrac><msup><mi>x</mi><mn>3</mn></msup><mn>3</mn></mfrac>
+            <mo>]</mo>
+          </mrow>
+          <mn>0</mn>
+          <mn>1</mn>
+        </msubsup>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd></mtd>
+      <mtd>
+        <mo>=</mo>
+        <mfrac><mn>1</mn><mn>3</mn></mfrac>
+        <mo>&minus;</mo>
+        <mn>0</mn>
+      </mtd>
+    </mtr>
+    <mtr>
+      <mtd></mtd>
+      <mtd>
+        <mo>=</mo>
+        <mfrac><mn>1</mn><mn>3</mn></mfrac>
+      </mtd>
+    </mtr>
+  </mtable>
+</math>

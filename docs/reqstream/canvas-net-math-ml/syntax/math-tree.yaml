@@ -1,0 +1,27 @@
+---
+# Software Unit Requirements for MathTree
+#
+# These requirements describe the design-level behavior of the MathTree unit of the Syntax subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Syntax): the immutable equation model. See
+# docs/verification/canvas-net-math-ml/syntax/math-tree.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: MathTree Requirements
+            requirements:
+              - id: CanvasNetMathMl-Syntax-MathTree-Model
+                title: >-
+                  The MathTree unit shall represent an equation as immutable elements (name, attributes with their
+                  locations, children in document order) and text runs with their locations, give the element children,
+                  the text content, and the value of an attribute of an element, know which elements are text tokens,
+                  and compare text runs and attribute values by value.
+                justification: |
+                  One model, free of XML types, is read by the layout from every front end, and must be safe to share
+                  between threads.
+                tests:
+                  - MathTree_Element_ExposesChildrenTextAndAttributes
+                  - MathTree_IsTextTokenName_KnowsTheTokenElements
+                  - MathTree_TextAndAttribute_HaveValueEquality

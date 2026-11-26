@@ -1,0 +1,21 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <msqrt>
+    <mn>2</mn>
+  </msqrt>
+  <mo>+</mo>
+  <msqrt>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mn>1</mn>
+  </msqrt>
+  <msqrt>
+    <mo>&#x2212;</mo>
+    <mi>y</mi>
+  </msqrt>
+  <mstyle displaystyle="true">
+    <msqrt>
+      <mi>a</mi>
+      <mi>b</mi>
+    </msqrt>
+  </mstyle>
+</math>

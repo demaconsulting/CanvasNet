@@ -84,6 +84,7 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.PlantUml\DemaConsulting.CanvasNet.PlantUml.csproj" />
+    <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.MathMl\DemaConsulting.CanvasNet.MathMl.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" />
   </ItemGroup>
 

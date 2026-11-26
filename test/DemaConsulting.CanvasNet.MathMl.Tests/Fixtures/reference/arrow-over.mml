@@ -1,0 +1,24 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>A</mi>
+  <munderover>
+    <mo>&#x2192;</mo>
+    <mi>a</mi>
+    <mi>b</mi>
+  </munderover>
+  <mi>B</mi>
+  <munder>
+    <mo stretchy="false">&#x2192;</mo>
+    <mspace width="2.5em" height="0.5em" depth="0.1em"/>
+  </munder>
+  <mover>
+    <mrow>
+      <mi>v</mi>
+      <mi>w</mi>
+    </mrow>
+    <mo>&#x2192;</mo>
+  </mover>
+  <munder>
+    <mo>&#x2190;</mo>
+    <mi>x</mi>
+  </munder>
+</math>

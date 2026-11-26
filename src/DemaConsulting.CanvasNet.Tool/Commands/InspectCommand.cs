@@ -103,7 +103,7 @@ internal sealed partial class InspectCommand : ICommand
                 "Remove it, or inspect a .vl.json file.");
         }
 
-        // A PlantUML diagram is a diagram too, but it has no theme
+        // A PlantUML diagram is a diagram too, and a MathML equation a vector source, but neither has a theme
         if (settings.Source.Mermaid != null && info.Format != SourceKind.Mermaid)
         {
             throw new ToolException(

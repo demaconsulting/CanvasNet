@@ -1,0 +1,176 @@
+## MathMlDocument Unit Verification Design
+
+This document describes the unit-level verification strategy for the `MathMlDocument` unit in the
+`DemaConsulting.CanvasNet.MathMl` namespace: the entry points, the description, measuring and rendering, the options and
+limits, the records and exceptions, the report sink, and the image source.
+
+### Verification Approach
+
+The unit is verified through its public API and, for the internal report sink, the defect classification, the layout
+box, and the pipeline `Run` (to drive a defect through it), through the test assembly's `InternalsVisibleTo` access. The
+Syntax and Layout subsystems, the painter, and the bundled font are
+used as is; no mocking is required. The handler tests use collecting and throwing handlers; the limit tests use small
+limits instead of large inputs. The image source is verified with in-memory `ImageSourceRequest`s (content bytes, a
+fragment, a requested size, a pixel budget, and a cancellation token), as the image sources of the other formats are.
+Unit tests reside in `MathMlDocumentTests.cs`, `MathMlRenderOptionsTests.cs`, `MathMlLimitsTests.cs`,
+`MathMlRecordsAndExceptionsTests.cs`, `MathMlReportSinkTests.cs`, and `MathMlImageSourceTests.cs`.
+
+### Test Environment
+
+- **Framework**: xUnit v3 running under the .NET SDK
+- **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
+- **Mocking**: None required
+- **Isolation**: In-memory text and streams and one temporary path that does not exist; no shared state
+
+### Acceptance Criteria
+
+A unit-level test run passes when every scenario below passes. An exception type, a code, a location, a value, a size,
+or an order of reports that differs from the expected one constitutes a failure.
+
+### Unit-Level Test Scenarios
+
+#### CanvasNetMathMl-MathMlDocument-ParseOpen: Arguments, Encodings, And Streams
+
+**Tests**: `MathMlDocumentTests.MathMlDocument_Parse_NullText_ThrowsArgumentNullException`,
+`MathMlDocumentTests.MathMlDocument_Open_NullArguments_AreRejected`,
+`MathMlDocumentTests.MathMlDocument_Open_UnreadableStream_ThrowsArgumentException`,
+`MathMlDocumentTests.MathMlDocument_Open_MissingFile_ThrowsFileNotFoundException`,
+`MathMlDocumentTests.MathMlDocument_Open_StreamWithByteOrderMark_DropsIt`,
+`MathMlDocumentTests.MathMlDocument_Open_InvalidUtf8_ThrowsSyntaxException`
+
+Asserts the exceptions of a null text, a null, empty, or whitespace path, a null stream, a stream that cannot be read,
+and a missing file; that a stream with a byte-order mark reads and stays open; and that bytes that are not UTF-8 throw a
+`mathml-syntax-error` instead of being replaced.
+
+#### CanvasNetMathMl-MathMlDocument-Describe: The Defaults Of The Description
+
+**Tests**: `MathMlDocumentTests.MathMlDocument_Parse_DescriptionDefaults_AreInlineAndEmpty`,
+`MathMlDocumentTests.MathMlDocument_Parse_Description_ReadsDisplayCountAltTextAndAnnotations`
+
+Asserts an inline display, no alternative text, no annotations, and no source name for a plain equation, and that an
+invalid `display` value reads as inline; and, for an equation that sets them all, the block display, the element count
+of 6 (the `annotation` element counted, not its content), the alternative text, the source name of the options, and the
+TeX annotation with its encoding.
+
+#### CanvasNetMathMl-MathMlDocument-MeasureRender: The Picture Frame
+
+**Tests**: `MathMlDocumentTests.MathMlDocument_Measure_EmptyMath_IsOnePixel`,
+`MathMlDocumentTests.MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded`,
+`MathMlDocumentTests.MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow`,
+`MathMlDocumentTests.MathMlDocument_Render_TallStretchedInk_IsNeverCutAtTheEdges`
+
+Asserts that an empty `math` measures 1 by 1 and renders transparent, and that an `mspace` wider than a surface can be
+fails with `mathml-limit-exceeded` while the fitting overload still renders it into a small size. For an italic f,
+whose ink reaches outside its content box, at scale 1.5 asserts that the measured size is the union of the content box
+and the ink grown by the antialiasing allowance with its edges rounded out (floor of the left and top, ceiling of the
+right and bottom), that the baseline row is the rounded-out top above the origin, that the rendered surface has the
+measured size, and that the row just above the baseline holds ink. For nested stretched parentheses around a sum and
+fractions, a radical around a shallow row (the damped frequency, whose radical tail reaches the bottom of the content
+box), a radical around tall nested fractions, and a display integral with infinite limits, each at scales 0.5, 1, 1.5,
+2, 3, and 6, asserts that the measured size and baseline are the rendered ones, that painting the same layout unclipped
+into a surface 8 pixels larger on every side at the same pixel offset puts no ink outside the picture and matches the
+picture inside it (within 4 levels of alpha, the rounding of the moved pen positions), and that the outermost rows and
+columns of the picture are fully transparent; and fitted into exact sizes (four times the natural size, two by five
+times, three times the width plus 7 by the natural height, and half the natural size) that the outermost rows and
+columns stay transparent while the picture holds ink.
+
+#### CanvasNetMathMl-MathMlDocument-RenderOptions: Defaults And Validation
+
+**Tests**: `MathMlRenderOptionsTests.MathMlRenderOptions_Defaults_AreBrowserDefaults`,
+`MathMlRenderOptionsTests.MathMlRenderOptions_FontSizeAndScale_InvalidValue_Throws`,
+`MathMlRenderOptionsTests.MathMlRenderOptions_Limits_Null_ThrowsArgumentNullException`,
+`MathMlRenderOptionsTests.MathMlOpenOptions_SourceNameAndLimits_AreValidated`
+
+Asserts 16 px, scale 1, the document's display, black, and a transparent background; that zero, negative, infinite,
+not-a-number, and too large font sizes and scales throw (boundary values from a theory); that null limits throw; and
+that a whitespace source name throws while no limits mean the defaults.
+
+#### CanvasNetMathMl-MathMlDocument-Limits: Values And The Work Limit
+
+**Tests**: `MathMlLimitsTests.MathMlLimits_Default_HasDocumentedValues`,
+`MathMlLimitsTests.MathMlLimits_ValueBelowOne_Throws`,
+`MathMlLimitsTests.MathMlLimits_MaxNestingDepth_OutsideRange_Throws`,
+`MathMlDocumentTests.MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException`
+
+Asserts every documented default (`MaxAssemblyParts` 1,000 and `MaxTableCells` 100,000 among them), that zero throws
+for every limit (with the property name, `MaxTableCells` included, which accepts 1), that a nesting depth of 0
+or 1,025 throws, and that a small `MaxLayoutWork` fails a render with a located `mathml-limit-exceeded` naming the
+property.
+
+#### CanvasNetMathMl-MathMlDocument-Records: Records, Exceptions, And Codes
+
+**Tests**: `MathMlRecordsAndExceptionsTests.MathMlLocation_ToString_FormatsEditorPosition`,
+`MathMlRecordsAndExceptionsTests.MathMlDiagnostic_ToString_PrefixesKnownLocation`,
+`MathMlRecordsAndExceptionsTests.MathMlSize_AndAnnotation_HaveValueEquality`,
+`MathMlRecordsAndExceptionsTests.MathMlExceptions_LocatedConstructors_CarryCodeLocationAndHint`,
+`MathMlRecordsAndExceptionsTests.MathMlExceptions_StandardConstructors_UseDefaultCodes`,
+`MathMlRecordsAndExceptionsTests.MathMlDiagnosticCodes_AllCodes_AreDistinctMathMlIdentifiers`
+
+Asserts the `name:line:column` formatting with and without a name and position, the location prefix of the reports, the
+value equality of the size and the annotation, the code, location, hint, and message of the located exceptions, the
+default codes and unknown location of the standard constructors, and that every published code is a distinct
+`mathml-*` identifier (eleven of them, `mathml-stretch-unavailable` and `mathml-child-count` among them).
+
+#### CanvasNetMathMl-MathMlDocument-Reports: Ordered, De-Duplicated, Capped Delivery
+
+**Tests**: `MathMlReportSinkTests.MathMlReportSink_Deliver_KeepsOrderAcrossKinds`,
+`MathMlReportSinkTests.MathMlReportSink_Warn_Duplicate_IsRecordedOnce`,
+`MathMlReportSinkTests.MathMlReportSink_BeyondCap_AddsSingleSuppressedNotice`,
+`MathMlReportSinkTests.MathMlReportSink_BeyondCap_StopsRememberingReports`,
+`MathMlReportSinkTests.MathMlReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException`,
+`MathMlReportSinkTests.MathMlPendingReport_Replay_RecordsItsKind`,
+`MathMlDocumentTests.MathMlDocument_Render_HandlerFailures_FollowTheDeliveryRules`
+
+Asserts the order across warnings and unsupported features, that an identical report is recorded once, that the
+reports beyond the cap collapse into one `mathml-diagnostics-suppressed` notice, that after the notice a thousand
+further distinct reports of both kinds are neither kept nor remembered for de-duplication (the count of remembered
+reports stays at three), that a failing handler is ignored after a failure and propagates otherwise (through the sink
+and through a render, where the handler of a failed render is still called once), and that pending reports replay as
+their kind.
+
+#### CanvasNetMathMl-MathMlDocument-StrictMode: The First Unsupported Feature Throws
+
+**Tests**: `MathMlReportSinkTests.MathMlReportSink_Unsupported_Strict_RecordsAndThrows`
+
+Asserts that in strict mode the first unsupported feature is recorded, even beyond the cap, and thrown as a
+`MathMlUnsupportedFeatureException` with its code and location.
+
+#### CanvasNetMathMl-MathMlDocument-FailClosed: Defects Become Render Failures
+
+**Tests**: `MathMlDocumentTests.MathMlDocument_IsLayoutDefect_ClassifiesExceptions`,
+`MathMlDocumentTests.MathMlDocument_Run_LayoutDefect_BecomesLocatedRenderFailure`
+
+Asserts that malformed font data and the runtime's programming-error exceptions are classified as defects (which become
+located `mathml-render-failed` errors), and that `MathMlRenderException`, `MathMlUnsupportedFeatureException`,
+`OperationCanceledException`, and `ObjectDisposedException` are not. Drives a defect through the pipeline of a call
+(an `IndexOutOfRangeException` thrown while the result is produced from the laid-out box, through the internal `Run`)
+and asserts a `MathMlRenderException` with `mathml-render-failed`, located at the `math` element in the original text
+(line 2, column 2 of the named source), with a hint, naming the exception type, and carrying the original exception as
+its inner exception; that an `OperationCanceledException` and an `ObjectDisposedException` pass unchanged; and that the
+report of reading (a link) is delivered on each of the failed calls.
+
+#### CanvasNetMathMl-MathMlDocument-ImageSource: The Image Source Of .mml Links
+
+**Tests**: `MathMlImageSourceTests.MathMlImageSource_Properties_ClaimMmlAndTheDisplayFragment`,
+`MathMlImageSourceTests.MathMlImageSource_Render_DrawsTheEquationOnTransparent`,
+`MathMlImageSourceTests.MathMlImageSource_Render_DisplayFragment_SetsBlockOrInline`,
+`MathMlImageSourceTests.MathMlImageSource_Render_InvalidDisplay_IsRefused`,
+`MathMlImageSourceTests.MathMlImageSource_Render_ReportsNotesAndStrictMode`,
+`MathMlImageSourceTests.MathMlImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth`,
+`MathMlImageSourceTests.MathMlImageSource_Render_InvalidText_ThrowsSyntaxException`,
+`MathMlImageSourceTests.MathMlImageSource_Render_NullRequest_Throws`,
+`MathMlImageSourceTests.MathMlImageSource_Render_PreCanceled_Throws`,
+`MathMlImageSourceTests.MathMlImageSource_Render_OverBudget_IsRefused`,
+`MathMlDocumentTests.MathMlDocument_MeasureNatural_BeyondSurface_ReturnsTheSize`
+
+Asserts that the source is named `mathml`, claims `.mml` only, no scheme, and the `display` parameter; that a summation
+is drawn at the size `Measure` gives, with a transparent corner and ink, and at a requested 120 by 90; that
+`#display=block` and `#display=BLOCK` draw it at the measured block size and `#display=inline` at the inline size of a
+`display="block"` document; that `#display=wide` is refused with the invalid-fragment code before text that is not
+MathML is read; that a child-count warning becomes a `mathml-warning` note with the code in `Detail` at line 2, column 2
+and an unsupported attribute a note under its own code at line 3, and that a strict request throws
+`MathMlUnsupportedFeatureException`; that a space wider than a surface, which `Measure` refuses, is drawn 200 pixels
+wide with the height of its aspect ratio; that invalid XML throws a `MathMlSyntaxException` named after the file; that a
+null request throws `ArgumentNullException`, a pre-canceled one `OperationCanceledException`, and a size over the pixel
+budget `ImageSourceBudgetException`; and that `MeasureNatural` equals `Measure` for a small equation at scale 2 and
+returns 100,000 by 10 pixels for a space wider than a surface.

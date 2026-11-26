@@ -1,0 +1,490 @@
+---
+# Software System Requirements for CanvasNetMathMl
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.MathMl package (root
+# namespace DemaConsulting.CanvasNet.MathMl; internal subsystem namespaces Syntax and Layout) from the perspective of
+# its consumers, without specifying implementation details.
+#
+# CanvasNetMathMl is an independent software system distributed as its own NuGet package. It reads MathML equations
+# and renders a static, deterministic picture onto a CanvasNet Surface using only managed code, the public CanvasNet
+# APIs (and the internal OpenType MATH table reader of the core, through friend access), and the fonts bundled with
+# CanvasNet: there is no browser and no network access. Every element of MathML Core is drawn; the elements outside
+# MathML Core are laid out as rows of their children and reported with a stable mathml-* identifier instead of failing
+# (see docs/design/canvas-net-math-ml.md, Known Differences, and the Phase Plan). The data tables derived from W3C and
+# Unicode data files are attributed in the package's third-party notice (src/DemaConsulting.CanvasNet.MathMl/
+# third-party).
+#
+# Every requirement below links down to the subsystem and unit requirements that implement it; the test evidence is
+# described in docs/verification/canvas-net-math-ml.md.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    requirements:
+      - id: CanvasNetMathMl-Open
+        title: >-
+          The library shall parse a MathML equation supplied as a string, a readable stream, or a file path into a
+          MathMlDocument that is identical whichever entry point is used, shall read the literal characters of every
+          Unicode plane as written, shall ignore a leading byte-order mark, shall refuse bytes that are not valid UTF-8,
+          and shall reject null arguments and unreadable sources with the documented exception contract.
+        tags: [system]
+        justification: |
+          Callers hold equations in different forms (a string in a document, an embedded resource, a .mml file); every
+          entry point must yield the same validated result, an equation written with literal Greek letters or
+          operators must read as written, and invalid arguments must fail closed with a predictable exception rather
+          than being coerced.
+        children:
+          - CanvasNetMathMl-MathMlDocument-ParseOpen
+          - CanvasNetMathMl-Syntax-Reading
+        tests:
+          - CanvasNetMathMl_Open_StringStreamAndPath_Agree
+          - CanvasNetMathMl_Open_LiteralUnicodeCharacters_AreReadAndRendered
+
+      - id: CanvasNetMathMl-LocatedErrors
+        title: >-
+          The library shall refuse text that is not well-formed XML, declares a document type, has a root other than
+          math, uses an unknown named character reference, or declares an encoding other than UTF-8 (US-ASCII
+          included) with a syntax exception that carries a stable mathml-* code, the source name, line, and column of
+          the problem in the original text, and a hint.
+        tags: [system]
+        justification: |
+          Equations are written by hand and by tools and checked in builds; an author or an agent can only fix an
+          error that points into the text that was written, and a tool can only react to a stable code.
+        children:
+          - CanvasNetMathMl-Syntax-Locations
+          - CanvasNetMathMl-Syntax-Reading
+          - CanvasNetMathMl-Syntax-CharacterReferences
+          - CanvasNetMathMl-MathMlDocument-Records
+        tests:
+          - CanvasNetMathMl_Open_InvalidXml_FailsLocated
+          - CanvasNetMathMl_Open_UnknownNamedReference_FailsLocatedWithHint
+          - CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused
+          - CanvasNetMathMl_Open_ForeignEncodingDeclaration_IsRefused
+
+      - id: CanvasNetMathMl-CharacterReferences
+        title: >-
+          The library shall decode the named character references of the full W3C HTML+MathML set and the numeric
+          character references, in text and in attribute values, without a document type declaration.
+        tags: [system]
+        justification: |
+          MathML is usually written with named references such as &alpha; and &InvisibleTimes;, which an XML reader
+          only knows from a document type, while untrusted XML must be read with document types prohibited.
+        children:
+          - CanvasNetMathMl-Syntax-CharacterReferences
+        tests:
+          - CanvasNetMathMl_Open_NamedReferences_AreDecoded
+          - CanvasNetMathMl_Open_UnknownNamedReference_FailsLocatedWithHint
+
+      - id: CanvasNetMathMl-Describe
+        title: >-
+          The library shall describe an equation without drawing it: its display mode (inline or block), its number of
+          MathML elements, its text alternative, and its annotations with their encodings.
+        tags: [system]
+        justification: |
+          A host must be able to place an equation in a line or as a block, offer its text alternative for
+          accessibility, and read its TeX or other annotations without rendering it.
+        children:
+          - CanvasNetMathMl-MathMlDocument-Describe
+          - CanvasNetMathMl-Syntax-Reading
+        tests:
+          - CanvasNetMathMl_Describe_ReportsDisplayCountAltTextAndAnnotations
+
+      - id: CanvasNetMathMl-Tokens
+        title: >-
+          The library shall draw the token elements mi, mn, mo, mtext, ms, and mspace as MathML Core lays them out,
+          with the mathematical italic of a single-character mi and the styled Mathematical Alphanumeric Symbols of
+          every mathvariant value.
+        tags: [system]
+        justification: |
+          Tokens are the leaves of every equation; identifiers, numbers, operators, and text must be drawn with the
+          letters and the metrics a browser uses, so that an equation looks the same in a document and in a web page.
+        children:
+          - CanvasNetMathMl-Layout-Tokens
+        tests:
+          - CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels
+          - CanvasNetMathMl_Render_AutoItalicAndMathVariant_UseMathAlphanumerics
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+          - CanvasNetMathMl_ReferenceGoldens_CoverEveryFixture
+
+      - id: CanvasNetMathMl-Rows
+        title: >-
+          The library shall lay out mrow and the inferred rows, and the grouping elements mstyle, mpadded, mphantom,
+          merror, semantics, and maction, as MathML Core lays them out.
+        tags: [system]
+        justification: |
+          Rows and grouping elements structure every equation; their placement decides where every token is drawn.
+        children:
+          - CanvasNetMathMl-Layout-Rows
+        tests:
+          - CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Operators
+        title: >-
+          The library shall space every mo by the operator dictionary of MathML Core for its text and its form (prefix,
+          infix, or postfix, inferred from its position in its row, and postfix for a script, unless the form attribute
+          sets it), and shall apply
+          the form, fence, separator, lspace, rspace, stretchy, symmetric, largeop, movablelimits, minsize, and maxsize
+          attributes of the mo over the dictionary.
+        tags: [system]
+        justification: |
+          The spacing around operators, signs, fences, and separators is what makes an equation read as mathematics;
+          it must be the spacing of a browser that implements MathML Core, and authors must be able to override it.
+        children:
+          - CanvasNetMathMl-Layout-Operators
+        tests:
+          - CanvasNetMathMl_Operators_SpacingFollowsDictionary
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-StretchyOperators
+        title: >-
+          The library shall stretch the stretchy operators of a row (fences, bars, vertical arrows, and every mo with
+          stretchy="true") vertically to the height of their neighbors, symmetrically about the math axis for symmetric
+          operators and within their minsize and maxsize, with the size variants and glyph assemblies of the math font,
+          the Unicode-based glyph assemblies of MathML Core, or a rule for a line character; shall stretch the stretchy
+          operators of an under- or overscript element (braces, arrows, and wide accents) horizontally to the width of
+          the widest other child; shall draw large operators larger in display style; and shall report an operator
+          that cannot stretch as mathml-stretch-unavailable (horizontally, only when it has stretchy="true").
+        tags: [system]
+        justification: |
+          Parentheses, brackets, and bars must enclose tall content, braces and arrows must span what they annotate,
+          and sums and integrals must be drawn large in displayed equations, as in a browser; an operator that cannot
+          grow must be reported instead of silently drawn too small, except the accents the bundled font cannot widen,
+          which a browser draws at their size too.
+        children:
+          - CanvasNetMathMl-Layout-Stretching
+          - CanvasNetMathMl-MathMlPainter-Rules
+        tests:
+          - CanvasNetMathMl_Render_StretchedParentheses_PaintsExactPixels
+          - CanvasNetMathMl_Render_LargeOperatorInDisplayStyle_IsTaller
+          - CanvasNetMathMl_StretchUnavailable_IsReported
+          - CanvasNetMathMl_Render_Overbrace_StretchesHorizontally
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Fractions
+        title: >-
+          The library shall draw mfrac as MathML Core lays it out: the numerator over the denominator, centered, with a
+          fraction bar on the math axis whose thickness is the font's default or the linethickness attribute (a length,
+          or a percentage of the default; a negative value draws no bar), as a stack without a bar for a zero
+          thickness, with the display-style or compact shifts and gaps of the math font, and shall report the legacy
+          bevelled, numalign, and denomalign attributes as mathml-attribute-unsupported.
+        tags: [system]
+        justification: |
+          Fractions, binomial-style stacks, and continued fractions are among the most common constructs of written
+          mathematics; they must be drawn with the positions a browser computes, and the MathML 3 attributes that
+          MathML Core dropped must be reported instead of silently ignored.
+        children:
+          - CanvasNetMathMl-Layout-Fractions
+          - CanvasNetMathMl-Layout-UnsupportedFeatures
+        tests:
+          - CanvasNetMathMl_Render_FractionBar_PaintsExactPixels
+          - CanvasNetMathMl_Fractions_LegacyAttributes_AreReported
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Radicals
+        title: >-
+          The library shall draw msqrt and mroot as MathML Core lays them out: the radical symbol stretched with the
+          size variants or the glyph assembly of the math font to cover the base, the gap, and the overbar, the overbar
+          over the base, and the index of a root kerned and raised by the constants of the math font.
+        tags: [system]
+        justification: |
+          Square roots and roots of other degrees are common constructs; the symbol must grow with its base and the
+          index must sit where a browser puts it.
+        children:
+          - CanvasNetMathMl-Layout-Radicals
+        tests:
+          - CanvasNetMathMl_Render_SquareRoot_PaintsSurdAndOverbar
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Scripts
+        title: >-
+          The library shall draw msub, msup, msubsup and mmultiscripts as MathML Core lays them out: subscripts and
+          superscripts one script level smaller, shifted by the script constants of the math font (the cramped
+          superscript shift under a fraction bar, a radical, or in a subscript), kept apart by the minimum gap, after
+          their base and followed by the space after a script; and the postscript and prescript pairs of mmultiscripts
+          around their base, with none for a missing script and mprescripts before the prescripts.
+        tags: [system]
+        justification: |
+          Indices, exponents, tensor indices, and the nuclide notation are everyday constructs of written mathematics
+          and science; they must be drawn where a browser draws them.
+        children:
+          - CanvasNetMathMl-Layout-Scripts
+        tests:
+          - CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-UnderOver
+        title: >-
+          The library shall draw munder, mover and munderover as MathML Core lays them out: the scripts centered under
+          and over their base, as limits of a large operator, as accents at the size of their base when accent or
+          accentunder is true, or at the gaps of the math font otherwise; the limits of an operator with movablelimits
+          drawn as scripts outside display style; and the stretchy operators among the children stretched horizontally
+          to the widest other child.
+        tags: [system]
+        justification: |
+          Limits of sums, products, and integrals, accents such as hats and tildes, braces with labels, and labeled
+          arrows are drawn with these elements; inline equations move limits to the script positions as a browser
+          does.
+        children:
+          - CanvasNetMathMl-Layout-UnderOver
+          - CanvasNetMathMl-Layout-Stretching
+        tests:
+          - CanvasNetMathMl_Render_ScriptsAndLimits_PlaceScripts
+          - CanvasNetMathMl_Render_MovableLimits_FollowDisplayStyle
+          - CanvasNetMathMl_Render_Overbrace_StretchesHorizontally
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Tables
+        title: >-
+          The library shall draw mtable, mtr and mtd as MathML Core lays them out: a grid of cells placed with the
+          rowspan and columnspan of HTML, each cell padded by 0.4em and 0.5ex with its content centered, the cells of a
+          row on a shared baseline, a spanning cell spreading the room it needs over the rows or columns it spans, and
+          the table centered on the math axis in compact math style.
+        tags: [system]
+        justification: |
+          Matrices, determinants, case distinctions, and aligned systems of equations are written as tables; they must
+          be drawn with the cell positions a browser computes.
+        children:
+          - CanvasNetMathMl-Layout-Tables
+        tests:
+          - CanvasNetMathMl_Render_Matrix_CenteredOnTheAxis
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-TableExtensions
+        title: >-
+          The library shall apply the MathML 3 table attributes columnalign, rowalign, columnspacing, rowspacing,
+          framespacing, columnlines, rowlines, and frame as Firefox draws them (Chrome ignores them), shall report an
+          invalid value of them as mathml-attribute-invalid, and shall report the other legacy table attributes as
+          mathml-attribute-unsupported.
+        tags: [system]
+        justification: |
+          Aligned equations, augmented matrices, and framed tables are written with these attributes by authors and
+          tools; MathML Core dropped them, but Firefox still draws them, so they are drawn as Firefox draws them
+          rather than ignored.
+        children:
+          - CanvasNetMathMl-Layout-TableExtensions
+          - CanvasNetMathMl-Layout-UnsupportedFeatures
+        tests:
+          - CanvasNetMathMl_ReferenceLayout_MatchesFirefox
+          - CanvasNetMathMl_ReferenceGoldens_CoverEveryFixture
+
+      - id: CanvasNetMathMl-ImageSource
+        title: >-
+          The library shall provide an image source that draws a .mml file linked from another document at its
+          natural size or fitted into the requested size on a transparent background, with the display mode of a
+          #display=block or #display=inline fragment (refusing any other value before the file is read), returning the
+          warnings and unsupported features as notes with their mathml-* codes and locations, honoring strict mode, the
+          pixel budget, and the cancellation token of the request.
+        tags: [system]
+        justification: |
+          Equations are embedded in SVG pictures and diagrams through image links; the link must draw the equation as
+          sharply as its placement allows, let the author choose the display mode, and report problems to the
+          document that embeds it.
+        children:
+          - CanvasNetMathMl-MathMlDocument-ImageSource
+        tests:
+          - CanvasNetMathMl_ImageSource_DrawsALinkedEquation
+
+      - id: CanvasNetMathMl-ChildCount
+        title: >-
+          The library shall lay out an mfrac, mroot, msub, msup, munder or mover that does not have exactly two in-flow
+          children, an msubsup or munderover that does not have exactly three, and an mmultiscripts that is not a base
+          followed by pairs of scripts around at most one mprescripts, as a row of its children, as MathML Core lays
+          out invalid markup; shall wrap a child of mtable that is not an mtr, and a child of mtr that is not an mtd, in
+          an anonymous row or cell, and lay out an mtr or mtd outside a table as a row of its children; and shall report
+          each as a mathml-child-count warning at its location that does not stop a strict rendering.
+        tags: [system]
+        justification: |
+          Invalid markup must still produce the picture a browser draws, and the author must learn which element is
+          wrong and where; it is an error in the equation, not a construct this version leaves out, so strict mode does
+          not fail on it.
+        children:
+          - CanvasNetMathMl-Layout-ChildCount
+          - CanvasNetMathMl-MathMlDocument-Records
+        tests:
+          - CanvasNetMathMl_ChildCount_IsReportedAndLaidOutAsRow
+          - CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+
+      - id: CanvasNetMathMl-Style
+        title: >-
+          The library shall apply the displaystyle, scriptlevel, mathsize, mathcolor, mathbackground, and mathvariant
+          attributes and the supported subset of the inline style attribute to an element and, where MathML Core
+          inherits them, to its descendants, and shall give the children of fractions, radicals, and scripted elements
+          the script levels, math styles, and math shifts of the user agent stylesheet of MathML Core.
+        tags: [system]
+        justification: |
+          Authors and tools color, size, and style parts of equations with these attributes; ignoring them would draw
+          a different equation from the one that was written. The numerator and denominator of an inline fraction, the
+          index of a root, and the scripts (but not the accents) are drawn smaller, as in a browser.
+        children:
+          - CanvasNetMathMl-Layout-Style
+          - CanvasNetMathMl-Syntax-AttributeValues
+        tests:
+          - CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-MathFont
+        title: >-
+          The library shall draw equations with the bundled Noto Sans Math font and the metrics of its OpenType MATH
+          table, shall draw a character the math font lacks with the first bundled fallback font that has it, and shall
+          report a character no bundled font has as mathml-text-missing-glyph while drawing the missing-glyph box.
+        tags: [system]
+        justification: |
+          A math font with a MATH table gives the spacing and the sizes of a browser's math layout; using only bundled
+          fonts makes the pictures identical on every machine, and a missing character must be visible and reported.
+        children:
+          - CanvasNetMathMl-Layout-MathFont
+        tests:
+          - CanvasNetMathMl_MissingGlyph_FallsBackAndReports
+          - CanvasNetMathMl_ReferenceLayout_MatchesChrome
+
+      - id: CanvasNetMathMl-Render
+        title: >-
+          The library shall measure an equation (width, height, and the row of its baseline) and render it onto a new
+          Surface at its natural size times a scale, or fitted and centered inside an exact size, at a font size, with
+          a display mode override, in a text color, and over a transparent or colored background, with the measured size
+          equal to the rendered size.
+        tags: [system]
+        justification: |
+          Hosts place equations in lines of text (which needs the baseline), on pages and slides of a fixed size, and
+          at the resolution of their output.
+        children:
+          - CanvasNetMathMl-MathMlDocument-MeasureRender
+          - CanvasNetMathMl-MathMlDocument-RenderOptions
+          - CanvasNetMathMl-MathMlDocument-FailClosed
+          - CanvasNetMathMl-MathMlPainter-Glyphs
+          - CanvasNetMathMl-MathMlPainter-Backgrounds
+          - CanvasNetMathMl-MathMlPainter-Borders
+          - CanvasNetMathMl-MathMlPainter-Phantom
+          - CanvasNetMathMl-MathMlPainter-Rules
+        tests:
+          - CanvasNetMathMl_Measure_MatchesRenderAndReportsBaseline
+          - CanvasNetMathMl_Render_FitsExactSize
+          - CanvasNetMathMl_Render_StyleAttributes_ApplyColorBackgroundAndSize
+          - CanvasNetMathMl_Render_TokensAndRow_PaintsExactPixels
+          - CanvasNetMathMl_Gallery_RendersStrictWithoutWarnings
+          - CanvasNetMathMl_Gallery_ShowsTheMajorConstructs
+
+      - id: CanvasNetMathMl-Limits
+        title: >-
+          The library shall bound the resources that reading and rendering an untrusted equation can consume, refusing
+          a text longer than the size limit with an InvalidDataException and a structural, layout, stretching, table
+          (grid slots checked before the grid is allocated), or painting limit with a located exception whose code is
+          mathml-limit-exceeded, shall refuse deeply nested text without exhausting the stack, shall keep and deliver a
+          bounded number of reports however many unsupported constructs a text holds, and shall throw only these
+          documented exceptions for any mutated text.
+        tags: [system, security]
+        justification: |
+          Equations come from untrusted documents; a hostile one must fail with a clear error instead of exhausting
+          memory, the stack, or time.
+        children:
+          - CanvasNetMathMl-MathMlDocument-Limits
+          - CanvasNetMathMl-Syntax-Reading
+          - CanvasNetMathMl-Layout-Bounds
+          - CanvasNetMathMl-Layout-Stretching
+          - CanvasNetMathMl-MathMlPainter-Limit
+        tests:
+          - CanvasNetMathMl_Limits_OversizedText_IsRefused
+          - CanvasNetMathMl_Limits_DeepNesting_IsRefusedWithoutStackOverflow
+          - CanvasNetMathMl_Limits_HugeStretch_IsRefused
+          - CanvasNetMathMl_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMathMl_Hardening_TableCells_AreLimited
+          - CanvasNetMathMl_Hardening_HugeSpans_FailBeforeAllocation
+          - CanvasNetMathMl_Hardening_LayoutWork_ChargesTableSlots
+          - CanvasNetMathMl_Hardening_HorizontalStretch_IsLimited
+          - CanvasNetMathMl_Hardening_DeepFractions_AreBounded
+          - CanvasNetMathMl_Hardening_HugeLengths_AreRefused
+          - CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render
+          - CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded
+          - CanvasNetMathMl_Hardening_SkippedSubtree_IsBounded
+          - CanvasNetMathMl_Hardening_SkippedContentWithinLimits_Renders
+
+      - id: CanvasNetMathMl-Cancellation
+        title: >-
+          The library shall stop measuring and rendering, directly or through its image source, with an
+          OperationCanceledException when the caller's cancellation token is canceled.
+        tags: [system]
+        justification: |
+          A host that renders many equations, or a large one, must be able to stop the work it no longer needs.
+        children:
+          - CanvasNetMathMl-Layout-Bounds
+          - CanvasNetMathMl-MathMlPainter-Cancellation
+          - CanvasNetMathMl-MathMlDocument-ImageSource
+        tests:
+          - CanvasNetMathMl_Render_PreCanceledToken_Throws
+          - CanvasNetMathMl_ImageSource_PreCanceledRequest_Throws
+
+      - id: CanvasNetMathMl-Determinism
+        title: >-
+          The library shall render pixel-identical surfaces for the same document and options on every call and from
+          several threads at once, independent of the installed fonts and the culture.
+        tags: [system]
+        justification: |
+          Rendered equations are compared in tests and cached in builds; a picture that depends on the machine, the
+          thread, or the run cannot be compared or cached.
+        children:
+          - CanvasNetMathMl-Layout-MathFont
+          - CanvasNetMathMl-MathMlDocument-MeasureRender
+        tests:
+          - CanvasNetMathMl_Render_IsDeterministicAcrossCallsAndThreads
+
+      - id: CanvasNetMathMl-UnsupportedFeatures
+        title: >-
+          The library shall draw every element of MathML Core, shall lay out every element outside MathML Core as a row
+          of its children, and shall report
+          it, an element of another namespace, an attribute without effect, and a style declaration outside the
+          supported subset to the caller's handler with a stable mathml-* code and its location, once, in document
+          order, on the calling thread.
+        tags: [system]
+        justification: |
+          An equation that uses a construct this version does not draw must still produce a picture, and the caller
+          must learn exactly what was not drawn and where, instead of a silent difference.
+        children:
+          - CanvasNetMathMl-Layout-UnsupportedFeatures
+          - CanvasNetMathMl-Syntax-Reading
+          - CanvasNetMathMl-MathMlDocument-Reports
+        tests:
+          - CanvasNetMathMl_UnsupportedElements_AreDrawnAsRowsAndReported
+
+      - id: CanvasNetMathMl-StrictMode
+        title: >-
+          The library shall, when the caller asks for strict mode, throw a MathMlUnsupportedFeatureException for the
+          first unsupported feature after delivering it to the handler.
+        tags: [system]
+        justification: |
+          A build that must render every equation exactly as written needs to fail on the first construct that is not
+          drawn instead of producing an approximate picture.
+        children:
+          - CanvasNetMathMl-MathMlDocument-StrictMode
+        tests:
+          - CanvasNetMathMl_StrictMode_FirstUnsupportedFeatureThrows
+
+      - id: CanvasNetMathMl-Offline
+        title: >-
+          The library shall read no file other than the one the caller opens (its image source only the content of
+          the request) and shall never use the network: a document type declaration is refused, and the href and xlink
+          link attributes are reported and never followed.
+        tags: [system, security]
+        justification: |
+          A renderer of untrusted documents must not leak local files or reach remote content that a document names.
+        children:
+          - CanvasNetMathMl-Syntax-Links
+          - CanvasNetMathMl-Syntax-CharacterReferences
+          - CanvasNetMathMl-MathMlDocument-ImageSource
+        tests:
+          - CanvasNetMathMl_Links_AreReportedNotFetched
+          - CanvasNetMathMl_Open_DocumentTypeDeclaration_IsRefused
+          - CanvasNetMathMl_ImageSource_ReadsOnlyTheRequestContent
+
+      - id: CanvasNetMathMl-ThirdPartyNotices
+        title: >-
+          The package shall ship the license notices of the W3C and Unicode data from which its tables are derived
+          (the W3C Software and Document License, naming each W3C source and the part of it that is used, and the
+          Unicode License v3) and a provenance record that names the license of each derived table and states that
+          the project is not affiliated with the W3C or Unicode, Inc.
+        tags: [system]
+        justification: |
+          The W3C and Unicode licenses require their notices, with a notice of the parts that were used, to
+          accompany derived data in a distribution; the provenance record lets a reviewer trace every derived table
+          to its source.
+        tests:
+          - CanvasNetMathMl_ThirdPartyNotices_ArePresent

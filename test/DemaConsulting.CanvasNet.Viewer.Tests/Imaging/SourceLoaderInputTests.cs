@@ -1,6 +1,7 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.VegaLite;
@@ -224,11 +225,12 @@ public class SourceLoaderInputTests
     ///     probe with a lower limit refuses a source that the default probe accepts, and a load whose context has the
     ///     lower limit refuses it too, with the code budget-exceeded.
     /// </summary>
-    /// <param name="key">The kind of source: <c>vega-lite</c>, <c>mermaid</c> or <c>plantuml</c>.</param>
+    /// <param name="key">The kind of source: <c>vega-lite</c>, <c>mermaid</c>, <c>plantuml</c> or <c>mathml</c>.</param>
     [Theory]
     [InlineData("vega-lite")]
     [InlineData("mermaid")]
     [InlineData("plantuml")]
+    [InlineData("mathml")]
     public void SourceLoader_Limits_ApplyToTheProbeAndTheLoad(string key)
     {
         // Arrange: a small source of the kind and a limit just below what it needs
@@ -238,17 +240,22 @@ public class SourceLoaderInputTests
                 "chart.vl.json",
                 SourceKind.VegaLite,
                 "{\"data\":{\"values\":[{\"a\":1},{\"a\":2},{\"a\":3}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"}}}",
-                new SourceLoader.SourceLimits(new VegaLiteLimits { MaxDataRows = 2 }, null, null)),
+                new SourceLoader.SourceLimits(new VegaLiteLimits { MaxDataRows = 2 }, null, null, null)),
             "mermaid" => (
                 "flow.mmd",
                 SourceKind.Mermaid,
                 "flowchart LR\n  A --> B --> C\n",
-                new SourceLoader.SourceLimits(null, new MermaidLimits { MaxNodes = 2 }, null)),
-            _ => (
+                new SourceLoader.SourceLimits(null, new MermaidLimits { MaxNodes = 2 }, null, null)),
+            "plantuml" => (
                 "sequence.puml",
                 SourceKind.PlantUml,
                 "@startuml\nAlice -> Bob : hi\n@enduml\n",
-                new SourceLoader.SourceLimits(null, null, new PlantUmlLimits { MaxNodes = 1 }))
+                new SourceLoader.SourceLimits(null, null, new PlantUmlLimits { MaxNodes = 1 }, null)),
+            _ => (
+                "eq.mml",
+                SourceKind.MathMl,
+                "<math><mi>a</mi><mo>+</mo><mi>b</mi></math>",
+                new SourceLoader.SourceLimits(null, null, null, new MathMlLimits { MaxElements = 2 }))
         };
         var input = SourceLoader.SourceInput.FromMemory(System.Text.Encoding.UTF8.GetBytes(text), name, null);
         var info = SourceLoader.ProbeInput(input, kind, FileAccessPolicy.AllowAll);

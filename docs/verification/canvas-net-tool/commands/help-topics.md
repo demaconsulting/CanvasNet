@@ -48,7 +48,7 @@ they delete.
 #### Acceptance Criteria
 
 - All unit tests pass with zero failures.
-- Every merged card loads with a title, a summary, and a body; the roots are the seventeen topics in order, the catalog
+- Every merged card loads with a title, a summary, and a body; the roots are the eighteen topics in order, the catalog
   is depth first, and every root tree has an example.
 - The tool's card files are exactly its own cards (the `json` and `pandoc` trees) and overlays that extend the library
   card at their own path; the merged body of an overlaid card is the library body with its links written as commands
@@ -81,7 +81,7 @@ in `Roots`; every card comes after its parent; every card has a title, a summary
 root has an example.
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented root alias (`openscad`, `vegalite`, `vl`, `mmd`,
-`puml`,
+`puml`, `mml`, `equation`,
 `powerpoint`, `visio`, the raster extensions, `file-access`, `links`, `position`, and `filter`) resolves to its card in
 lower and upper case; every name resolves to itself; the number of root aliases is exactly the documented number; and
 an unknown name and a card that is not a root (`gantt`) resolve to nothing.
@@ -119,6 +119,12 @@ and the `svg embedding` card `` `canvasnet help svg --example embed` ``.
 **HelpTopics_ToolCards_CiteOnlyDiagnosticIdsTheLibraryCites**: every diagnostic identifier that a tool card or an
 overlay cites is cited by a library card too (whose test proves that it exists).
 
+**HelpTopics_MathMlOverlays_DocumentTheCommandLineAndThePandocDisplayWidth**: the `mathml`, `mathml/options`,
+`mathml/composition`, and `mathml/diagnostics` cards each have a `Command line` section; the options section has the
+terms `--scale <factor>`, `--width <pixels>`, `--background <color>`, `--strict`, `--theme`, `display`, and `info`; the
+quadratic example of the `mathml/fractions` card, written to a file and probed, has the natural width the composition
+card quotes (`width="<natural>px" for the quadratic formula`); and the `pandoc` card has the item `natural width` and
+links the `mathml` card.
 **HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheFormatsCommand**: the extensions found in the `href file types`
 bullet of `svg embedding` are unique and are exactly the extensions of the `formats` table (the library test compares
 them with `CanvasNetViewer.Extensions`).

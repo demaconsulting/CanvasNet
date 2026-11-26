@@ -1,0 +1,75 @@
+---
+# Software Unit Requirements for UnderOverLayout
+#
+# These requirements describe the design-level behavior of the UnderOverLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the layout of munder, mover and munderover (MathML Core
+# 3.4.2.3-3.4.2.5) from the boxes of their base and scripts, and the inline stretching of their operators (3.4.2.2). See
+# docs/verification/canvas-net-math-ml/layout/under-over-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: UnderOverLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-UnderOverLayout-Limits
+                title: >-
+                  The UnderOverLayout unit shall place the scripts of a large operator base as limits: the overscript
+                  at least the upper limit gap above it with its baseline at least the upper limit rise above its top,
+                  the underscript at least the lower limit gap below it with its baseline at least the lower limit drop
+                  below its bottom, without extra space.
+                justification: |
+                  MathML Core 3.4.2.3 and 3.4.2.4 place the limits of sums, products and integrals by these constants.
+                tests:
+                  - UnderOverLayout_LayoutUnderOver_LargeOp_UsesLimitConstants
+
+              - id: CanvasNetMathMl-Layout-UnderOverLayout-Accents
+                title: >-
+                  The UnderOverLayout unit shall place an accent overscript on its base, raised so that its bottom is at
+                  least the accent base height above the baseline, an accent underscript against its base, and other
+                  scripts at the overbar and underbar gaps, with the overbar extra ascender and underbar extra descender
+                  outside them.
+                justification: |
+                  MathML Core 3.4.2 places accents close to their base and other scripts at the overbar and underbar
+                  gaps; Chrome, the reference of the layout tests, measures the gaps between the boxes.
+                tests:
+                  - UnderOverLayout_LayoutOver_Accent_UsesAccentBaseHeight
+                  - UnderOverLayout_LayoutOver_NotAccent_UsesOverbarGap
+
+              - id: CanvasNetMathMl-Layout-UnderOverLayout-StretchyBase
+                title: >-
+                  The UnderOverLayout unit shall place the scripts of an operator base that stretches along the inline
+                  axis at the stretch stack gaps of the MATH table, with their baselines at least the stretch stack
+                  shifts away from it, without extra space, and with an ascent and a descent of at least zero.
+                justification: |
+                  MathML Core 3.4.2.3 and 3.4.2.4 use the stretch stack constants for labels on arrows and braces.
+                tests:
+                  - UnderOverLayout_LayoutUnderOver_StretchyBase_UsesStretchStackConstants
+
+              - id: CanvasNetMathMl-Layout-UnderOverLayout-InlineStretch
+                title: >-
+                  The UnderOverLayout unit shall lay the children that are operators stretchy along the inline axis out
+                  again with the width of the widest other child, or, when every child stretches, of the widest of them
+                  laid out with a zero constraint, except a base laid out with the constraint of its parent, which does
+                  not stretch again but counts as one of the other children.
+                justification: |
+                  MathML Core 3.4.2.2 stretches braces, arrows and wide accents to the width of the expression they
+                  annotate. A base already stretched by its parent counts toward that width, so an accent over a
+                  stretched arrow covers it; MathML Core takes the width from the other children only (a documented
+                  known difference that Chrome, which stretches no scripted operator, cannot show).
+                tests:
+                  - UnderOverLayout_StretchInline_StretchesOperatorsToTheWidestChild
+                  - UnderOverLayout_StretchInline_AllStretchy_UsesZeroTarget
+
+              - id: CanvasNetMathMl-Layout-UnderOverLayout-Placement
+                title: >-
+                  The UnderOverLayout unit shall center the children on each other, move the underscript left and the
+                  overscript right by half the italic correction of a large operator base, make the box as wide as the
+                  union of the children, and keep the operator of an embellished element on its box.
+                justification: |
+                  MathML Core 3.4.2 centers the scripts on the base; Chrome, the reference of the layout tests, centers
+                  an overscript rather than placing it by its top accent attachment.
+                tests:
+                  - UnderOverLayout_LayoutUnderOver_CentersOnTheWidestChild
+                  - UnderOverLayout_LayoutUnderOver_LargeOp_UsesLimitConstants

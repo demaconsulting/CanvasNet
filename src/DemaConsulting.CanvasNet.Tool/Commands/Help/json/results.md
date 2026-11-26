@@ -44,8 +44,8 @@ see-also:
 ## Fields of the other commands
 
 - `info`: input {path, format, bytes} and one of image, document {pageCount,
-  pages[]}, model {modules, functions, directives}, chart, or diagram (chart and
-  diagram follow an image object with the laid-out size).
+  pages[]}, model {modules, functions, directives}, chart, diagram, or equation
+  (chart, diagram, and equation follow an image object with the laid-out size).
 - `diagram`: For a Mermaid or PlantUML diagram (info): {type, supported,
   direction, title, accTitle, nodes, edges, subgraphs}. type is the diagram type
   (flowchart for flowchart and graph, sequence for sequenceDiagram); supported
@@ -73,6 +73,13 @@ see-also:
   relationships, and the packages of a class or object diagram, and the states
   and pseudo-states, the transitions, and the composite states of a state
   diagram; direction and accTitle are never present.
+- `equation`: For a MathML equation (info): {display, elements, baseline,
+  altText, annotations}. display is block or inline (the one the fragment of
+  the input names, or else the equation's own), elements counts the MathML
+  elements with the math element, baseline is the row of the alphabetic
+  baseline in the natural picture (pixels from the top), altText is present when
+  the math element has one, and annotations lists the encoding of each
+  annotation in order (an empty string for one without).
 - `formats`: tool, library, inputs[], outputs[], quality {min, max, default},
   and maxDimension. Each inputs[] entry has format, kind, extensions, multiPage,
   vector, and helpTopic: the topic of 'canvasnet help <topic>' that describes

@@ -750,6 +750,81 @@ sections:
           - SourceLoader_Load_PlantUmlTruncatedOrDamaged_IsExpectedErrorOrLoads
           - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-MathMlDetection
+        title: >-
+          The SourceLoader class shall recognize a MathML equation by the file name extension .mml (in any case), never
+          take such a file for an SVG drawing whatever its text mentions, let a signature still win over the name, and
+          recognize an equation neither by its content nor by the extension .mathml.
+        justification: |
+          A MathML equation is XML text without a signature of its own (an XML or HTML file may hold MathML among
+          other markup); one extension names an equation for people and for the tool, and content sniffing would
+          mistake documents for equations.
+        tests:
+          - SourceLoader_Detect_MathMlExtension_ReturnsMathMl
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MathMlProbe
+        title: >-
+          The SourceLoader class shall report for a MathML equation, by parsing and measuring it without drawing it,
+          the natural size the library lays it out at (at the default font size of 16 pixels, in the display mode of
+          the fragment of the input or else its own), four channels with transparency, one page, and what the equation
+          declares (SourceInfo.Equation, an EquationFacts: its display mode, block or inline, its number of elements,
+          its text alternative, the encodings of its annotations, and the row of its baseline).
+        justification: |
+          Knowing how big an equation is and where its baseline lies before rendering it lets a document place every
+          equation at one text size and on its line, and the text alternative serves documents that need one.
+        tests:
+          - SourceLoader_Probe_MathMlEquation_ReportsEquationFacts
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MathMlRender
+        title: >-
+          The SourceLoader class shall draw a MathML equation laid out at its natural size times the scale when neither
+          a width nor a height is given, and sharply into the box (fitted inside and centered) otherwise; over white
+          unless a background color replaces it, transparent when that background has no alpha; with only the bundled
+          fonts, giving the same picture for the same options every time; in the display mode of the options
+          (SourceOptions.MathMl, which the display fragment of an input or a link sets, an undefined value being a
+          usage-error) or else its own; shall describe the drawn size, the display mode when one is given, and the
+          background when one is given in the render operation; shall return each warning of the library as the note
+          mathml-warning (the specific code as Detail, the line and column as Location) and each construct it does not
+          draw as an unsupported note named by its feature; and, in strict mode, shall report the first unsupported
+          construct as an unsupported-feature error that names the feature.
+        justification: |
+          An equation is a vector source: laying it out again at the target size keeps text and rules sharp, and the
+          display mode changes the layout, so the picture must follow the mode the document asks for. Reporting what
+          the library leaves out keeps a partial equation from being mistaken for a complete one.
+        tests:
+          - SourceLoader_Load_MathMlEquation_DrawsAtTheNaturalSizeOverWhite
+          - SourceLoader_Load_MathMlSizeAndBackground_FollowTheOptions
+          - SourceLoader_ProbeInputReference_MathMlDisplayFragment_ChoosesTheDisplay
+          - SourceLoader_Load_MathMl_MapsWarningsAndUnsupportedFeatures
+          - SourceLoader_Load_MathMlUnsupportedElementStrict_IsUnsupportedFeature
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MathMlErrors
+        title: >-
+          The SourceLoader class shall report text that is not a valid MathML equation (an empty or blank file located
+          at line 1, column 1) and an equation that cannot be laid out as a mathml-error that names the file and the
+          position on one line and keeps the code and the hint of the library, a display fragment that is not block or
+          inline as image-fragment-invalid, an equation that exceeds a limit of the library (elements, nesting, token
+          length, table cells, layout work, painted glyphs, or a picture larger than the maximum image size) as
+          budget-exceeded, a text longer than the text limit of the library as corrupt-input, a target size larger than
+          the maximum image size as size-limit, an unsupported construct in strict mode as unsupported-feature, and
+          shall give a picture or an expected error, never an unexpected exception, for an equation that is cut
+          anywhere, emptied, or garbage.
+        justification: |
+          An equation is hand-written markup and fails in many ways; every failure that is the author's mistake must be
+          a concise, located, coded error that a script can branch on, as for a diagram, while an unexpected exception
+          stays a defect that is not hidden.
+        tests:
+          - SourceLoader_Probe_MathMlInvalidText_IsMathMlError
+          - SourceLoader_ProbeInputReference_MathMlInvalidDisplay_IsImageFragmentInvalid
+          - SourceLoader_Probe_MathMlLimits_AreBudgetExceededAndCorruptInput
+          - SourceLoader_MapMathMl_MapsByCode
+          - SourceLoader_Load_MathMlTruncatedOrDamaged_IsExpectedErrorOrLoads
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Sizing
         title: >-
           The SourceLoader class shall derive the target size from the natural size and the scale,
@@ -855,15 +930,17 @@ sections:
         title: >-
           The SourceLoader class shall give an expected error of a source the location the library reports (file,
           line, column, and JSON pointer of a chart), with the line and column of the XML error for malformed SVG
-          markup, and the code of the format library (the code of a Mermaid, PlantUML, or OpenSCAD failure, or the
-          unsupported feature, a vl-* id for a chart; a Vega-Lite specification or render error has none, because the
-          library gives it no code), with the same mapping for a file the command-line tool reads and a file
+          markup, and the code of the format library (the code of a Mermaid, PlantUML, MathML, or OpenSCAD failure,
+          such as mathml-syntax-error for an equation that is not valid or mathml-limit-exceeded for one over a limit,
+          or the unsupported feature, a vl-* id for a chart; a Vega-Lite specification or render error has none,
+          because the library gives it no code), with the same mapping for a file the command-line tool reads and a file
           CanvasNetViewer renders or embeds, and with hints that name no option of the command-line tool.
         justification: |
           A caller that turns an error into a fix (a person at a terminal, a host, or an agent) needs the place of the
           error and the finer code of the library as data, the same for every way the file is read (GitHub issue 166).
         tests:
           - SourceLoader_Load_SourceErrors_CarryLocationAndDetailCode
+          - SourceLoader_Probe_MathMlLimits_AreBudgetExceededAndCorruptInput
           - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
 
       - id: CanvasNetViewer-Imaging-SourceLoader-Arguments
@@ -931,8 +1008,9 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-SourceLimits
         title: >-
-          The SourceLoader class shall apply the resource limits of a chart and a diagram that its caller gives (the
-          limits of the Vega-Lite, Mermaid and PlantUML libraries, each the library default when not given) to the
+          The SourceLoader class shall apply the resource limits of a chart, a diagram, and an equation that its caller
+          gives (the limits of the Vega-Lite, Mermaid, PlantUML, and MathML libraries, each the library default when
+          not given) to the
           probe of a source and to its load, and its default load context, the one of the tool, shall keep the library
           defaults.
         justification: |
@@ -948,7 +1026,7 @@ sections:
           finite or outside 0.001 to 8192, a resolution that is not finite, not above 0 or above MaxDpi (2400), a
           filter that is not defined, a model view that is not known, an elevation outside -90 to 90, a time outside
           the limit, a triangle limit below 1, a variable the model library rejects, a Mermaid theme that is not one of
-          Mermaid's themes) as a ViewerException with the
+          Mermaid's themes, an equation display mode that is not defined) as a ViewerException with the
           code usage-error, while a size above the maximum stays size-limit and a page below the first or beyond
           the last stays page-out-of-range.
         justification: |
@@ -1052,22 +1130,21 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-InputFragments
         title: >-
           The SourceLoader class shall read an input path that ends in a URL fragment (InputReference.Parse: a number
-          sign starts the fragment only when no file has the name as written, the longest name before a number sign
-          that is an existing file is the path, and the first number sign splits a text that names no file), probe it
-          into facts that carry an InputSelection (SourceLoader.Probe of an InputReference) by reading the fragment with
-          the built-in image source of the kind of the file, so that a link of an SVG document and an input path accept
-          the same parameters and values (page and slide, view, azimuth and elevation, projection, def. variables
-          including vectors such as $vpt and
-          $vpd, param. chart parameters, the theme of a diagram), refuse a fragment or a value that cannot be used with
-          the code image-fragment-invalid and a page that the file does not have with page-out-of-range, report a
-          missing file with a fragment as input-not-found with a hint about the number sign, report a parameter the kind
-          does not use, a parameter given twice, and a chart parameter the chart does not declare (which it drops) as
-          the warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter and vl-param-unknown (never
-          as errors, not even in strict mode) once with the first page that is loaded, and lay the selection over the
-          options of the command when a source is loaded (the page, the view, the azimuth, the elevation, the
-          projection, and the theme of the fragment replace
-          those of the options, the variables and the parameters merge by name with the fragment winning), so that the
-          camera variables of a model set through a fragment or an option fix its scale.
+          sign starts the fragment only when no file has the name as written, the longest name before a number sign that
+          is an existing file is the path, and the first number sign splits a text that names no file), probe it into
+          facts that carry an InputSelection (SourceLoader.Probe of an InputReference) by reading the fragment with the
+          built-in image source of the kind of the file, so that a link of an SVG document and an input path accept the
+          same parameters and values (page and slide, view, azimuth and elevation, projection, def. variables including
+          vectors such as $vpt and $vpd, param. chart parameters, the theme of a diagram, the display mode of an
+          equation), refuse a fragment or a value that cannot be used with the code image-fragment-invalid and a page
+          that the file does not have with page-out-of-range, report a missing file with a fragment as input-not-found
+          with a hint about the number sign, report a parameter the kind does not use, a parameter given twice, and a
+          chart parameter the chart does not declare (which it drops) as the warnings image-fragment-unknown-parameter,
+          image-fragment-duplicate-parameter and vl-param-unknown (never as errors, not even in strict mode) once with
+          the first page that is loaded, and lay the selection over the options of the command when a source is loaded
+          (the page, the view, the azimuth, the elevation, the projection, the theme, and the display mode of the
+          fragment replace those of the options, the variables and the parameters merge by name with the fragment
+          winning), so that the camera variables of a model set through a fragment or an option fix its scale.
         justification: |
           A command line must be able to name a version of a file (an assembly at an explode level, a page, a chart
           parameter) the way a link in a diagram does, with one grammar, one set of codes, and one rule for the
@@ -1085,6 +1162,7 @@ sections:
           - InputSelection_ApplyTo_Model_FragmentProjectionReplacesTheCommandProjection
           - InputSelection_ApplyTo_Chart_MergesParametersByName
           - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme
+          - SourceLoader_ProbeInputReference_MathMlDisplay_IsAppliedToTheRender
           - InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce
           - SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw
           - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException

@@ -1,0 +1,55 @@
+---
+# Software Unit Requirements for RadicalLayout
+#
+# These requirements describe the design-level behavior of the RadicalLayout unit of the Layout subsystem (internal
+# namespace DemaConsulting.CanvasNet.MathMl.Layout): the layout of msqrt and mroot from the boxes of their base and
+# index (MathML Core 3.3.3). See docs/verification/canvas-net-math-ml/layout/radical-layout.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: RadicalLayout Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-RadicalLayout-SquareRoot
+                title: >-
+                  The RadicalLayout unit shall stretch the radical symbol over the height of the base plus the vertical
+                  gap (the display-style gap in display style) and the overbar thickness of the MATH table, raise the
+                  ascent by the gap, the overbar, and the extra ascender, extend the descent to the bottom of the
+                  symbol, place the base after the symbol drawn with the overbar over it, and make the box as wide as
+                  the base plus the widest construction of the symbol.
+                justification: |
+                  MathML Core 3.3.3.2 lays a square root out with these constants; the width follows Chrome, whose
+                  layout the reference tests compare with.
+                tests:
+                  - RadicalLayout_LayoutSquareRoot_SurdCoversBaseGapAndRule
+                  - RadicalLayout_LayoutSquareRoot_DisplayStyle_UsesDisplayGap
+                  - RadicalLayout_LayoutSquareRoot_TallBase_StretchesTheSurd
+                  - RadicalLayout_LayoutSquareRoot_Overbar_SpansTheBase
+
+              - id: CanvasNetMathMl-Layout-RadicalLayout-Root
+                title: >-
+                  The RadicalLayout unit shall place the index of a root after the kern before the degree (not
+                  negative), the square root after the kern after the degree (not less than minus the width of the
+                  index), and the bottom of the index raised from the bottom of the square root by the degree bottom
+                  raise percentage of the height of the radical symbol, the ascent and the descent of the root counting
+                  the whole height of the index (its depth included).
+                justification: |
+                  MathML Core 3.3.3.3 places the index of a root with these constants of the MATH table; the ascent and
+                  the descent follow Chrome, the reference of the layout tests, which counts the depth of the index
+                  where MathML Core leaves it out (a documented known difference).
+                tests:
+                  - RadicalLayout_LayoutRoot_IndexIsKernedAndRaised
+                  - RadicalLayout_LayoutRoot_NarrowIndex_ClampsKernAfter
+                  - RadicalLayout_LayoutRoot_TallIndex_AscentAndDescentAsChrome
+
+              - id: CanvasNetMathMl-Layout-RadicalLayout-Limit
+                title: >-
+                  The RadicalLayout unit shall refuse a radical symbol whose assembly needs more glyphs than the limit
+                  with a located mathml-limit-exceeded render error.
+                justification: |
+                  A hostile base must not make the radical symbol paint an unbounded number of glyphs.
+                tests:
+                  - RadicalLayout_LayoutSquareRoot_HugeBase_LimitedByMaxAssemblyParts

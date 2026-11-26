@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.VegaLite;
@@ -80,7 +81,7 @@ public class CanvasNetViewerRenderOptionsTests
     /// <returns>The test data.</returns>
     public static TheoryData<string> ParityKeys()
     {
-        return ["png", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml"];
+        return ["png", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid", "plantuml", "mathml"];
     }
 
     /// <summary>
@@ -249,12 +250,13 @@ public class CanvasNetViewerRenderOptionsTests
             { "empty.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='40' height='30'/>" },
             { "flow.mmd", "flowchart LR\n  A --> B\n" },
             { "seq.puml", "@startuml\nAlice -> Bob : hi\n@enduml\n" },
+            { "eq.mml", "<math><mspace width=\"0.5em\"/><mn>1</mn></math>" },
             { "cube.scad", "cube(10);\n" }
         };
     }
 
     /// <summary>
-    ///     Test that an SVG file, a Mermaid diagram, a PlantUML diagram and an OpenSCAD model come back over opaque white
+    ///     Test that an SVG file, a Mermaid diagram, a PlantUML diagram, a MathML equation and an OpenSCAD model come back over opaque white
     ///     when no background is chosen, as the command-line tool draws them.
     /// </summary>
     /// <param name="fileName">The file name.</param>
@@ -276,7 +278,7 @@ public class CanvasNetViewerRenderOptionsTests
 
     /// <summary>
     ///     Test that a fully transparent background, set explicitly, keeps an SVG file, a Mermaid diagram, a PlantUML
-    ///     diagram and an OpenSCAD model transparent.
+    ///     diagram, a MathML equation and an OpenSCAD model transparent.
     /// </summary>
     /// <param name="fileName">The file name.</param>
     /// <param name="content">The source text.</param>
@@ -529,7 +531,7 @@ public class CanvasNetViewerRenderOptionsTests
     private const string TwoParticipantSequence = "@startuml\nAlice -> Bob : hi\n@enduml\n";
 
     /// <summary>
-    ///     Test that the limits of a chart and a diagram are not set by default, and that a render without them draws
+    ///     Test that the limits of a chart, a diagram and an equation are not set by default, and that a render without them draws
     ///     the same pictures as a render with the default limits of each library.
     /// </summary>
     [Fact]
@@ -540,19 +542,22 @@ public class CanvasNetViewerRenderOptionsTests
         var chart = FixtureFactory.WriteText(directory.Path, "chart.vl.json", ThreeRowChart);
         var flow = FixtureFactory.WriteText(directory.Path, "flow.mmd", ThreeNodeFlowchart);
         var sequence = FixtureFactory.WriteText(directory.Path, "sequence.puml", TwoParticipantSequence);
+        var equation = FixtureFactory.WriteSource(directory.Path, "mathml");
         var options = new ViewerRenderOptions();
         var defaults = new ViewerRenderOptions
         {
             VegaLiteLimits = VegaLiteLimits.Default,
             MermaidLimits = MermaidLimits.Default,
-            PlantUmlLimits = PlantUmlLimits.Default
+            PlantUmlLimits = PlantUmlLimits.Default,
+            MathMlLimits = MathMlLimits.Default
         };
 
         // Act / Assert
         Assert.Null(options.VegaLiteLimits);
         Assert.Null(options.MermaidLimits);
         Assert.Null(options.PlantUmlLimits);
-        foreach (var path in new[] { chart, flow, sequence })
+        Assert.Null(options.MathMlLimits);
+        foreach (var path in new[] { chart, flow, sequence, equation })
         {
             using var unset = CanvasNetViewer.Render(path, options);
             using var set = CanvasNetViewer.Render(path, defaults);
@@ -695,6 +700,50 @@ public class CanvasNetViewerRenderOptionsTests
         Assert.Equal(ErrorCodes.BudgetExceeded, refused.Code);
         Assert.Contains("MaxIncludes", refused.Message, StringComparison.Ordinal);
         Assert.Equal("plantuml", admitted.Format);
+    }
+
+    /// <summary>
+    ///     Test that a lower MathML limit refuses an equation that renders by default, with a
+    ///     <see cref="ViewerException"/> of the code budget-exceeded whose detail code is the limit code of the library and
+    ///     whose message names the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LowerMathMlLimits_ThrowBudgetExceeded()
+    {
+        // Arrange: the quadratic formula, which has more than three elements
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteSource(directory.Path, "mathml");
+        using var byDefault = CanvasNetViewer.Render(path);
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(
+            () => CanvasNetViewer.Render(path, new ViewerRenderOptions { MathMlLimits = new MathMlLimits { MaxElements = 3 } }));
+
+        // Assert
+        Assert.Equal((ErrorCodes.BudgetExceeded, MathMlDiagnosticCodes.LimitExceeded), (ex.Code, ex.DetailCode));
+        Assert.Contains("MaxElements", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a higher MathML limit admits an equation that the default limit refuses, so the probe of the equation
+    ///     uses the limit as well as its render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_RaisedMathMlLimits_AdmitALargerEquation()
+    {
+        // Arrange: an equation nested deeper than the default limit of 256
+        using var directory = new TempDirectory();
+        var nested = string.Concat(Enumerable.Repeat("<mrow>", 300)) + "<mi>x</mi>" + string.Concat(Enumerable.Repeat("</mrow>", 300));
+        var path = FixtureFactory.WriteText(directory.Path, "deep.mml", $"<math>{nested}</math>");
+
+        // Act
+        var refused = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path));
+        using var admitted = CanvasNetViewer.Render(path, new ViewerRenderOptions { MathMlLimits = new MathMlLimits { MaxNestingDepth = 400 } });
+
+        // Assert
+        Assert.Equal(ErrorCodes.BudgetExceeded, refused.Code);
+        Assert.Contains("MaxNestingDepth", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("mathml", admitted.Format);
     }
 
     /// <summary>

@@ -1,0 +1,25 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="The sign of x is minus 1 if x is negative, 0 if x is 0, and 1 if x is positive">
+  <mi>sgn</mi>
+  <mo>&ApplyFunction;</mo>
+  <mspace width="0.1667em"/>
+  <mi>x</mi>
+  <mo>=</mo>
+  <mrow>
+    <mo>{</mo>
+    <mtable columnalign="left left">
+      <mtr>
+        <mtd><mrow><mo>&minus;</mo><mn>1</mn></mrow></mtd>
+        <mtd><mtext>if</mtext><mspace width="0.5em"/><mi>x</mi><mo>&lt;</mo><mn>0</mn></mtd>
+      </mtr>
+      <mtr>
+        <mtd><mn>0</mn></mtd>
+        <mtd><mtext>if</mtext><mspace width="0.5em"/><mi>x</mi><mo>=</mo><mn>0</mn></mtd>
+      </mtr>
+      <mtr>
+        <mtd><mn>1</mn></mtd>
+        <mtd><mtext>if</mtext><mspace width="0.5em"/><mi>x</mi><mo>&gt;</mo><mn>0</mn></mtd>
+      </mtr>
+    </mtable>
+  </mrow>
+</math>

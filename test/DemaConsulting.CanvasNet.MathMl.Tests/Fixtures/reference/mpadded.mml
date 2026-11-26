@@ -1,0 +1,10 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>a</mi>
+  <mpadded width="2em" height="1em" depth="0.5em" lspace="0.25em" voffset="0.2em">
+    <mi>b</mi>
+  </mpadded>
+  <mi>c</mi>
+  <mpadded width="50%">
+    <mi>d</mi>
+  </mpadded>
+</math>

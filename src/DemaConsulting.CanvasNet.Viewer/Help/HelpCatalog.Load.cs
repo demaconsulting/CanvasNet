@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.PlantUml;
 using DemaConsulting.CanvasNet.Positions;
@@ -46,7 +47,7 @@ public sealed partial class HelpCatalog
     internal static IReadOnlyList<string> LibraryRootOrder { get; } =
         Array.AsReadOnly(
         [
-            "scad", "vega-lite", "mermaid", "plantuml", "svg", "pdf", "pptx", "vsdx", "raster",
+            "scad", "vega-lite", "mermaid", "plantuml", "mathml", "svg", "pdf", "pptx", "vsdx", "raster",
             "style", "composition", "positions", "errors", "limits", "files"
         ]);
 
@@ -601,6 +602,7 @@ public sealed partial class HelpCatalog
         var vegaLite = VegaLiteLimits.Default;
         var mermaid = MermaidLimits.Default;
         var plantUml = PlantUmlLimits.Default;
+        var mathMl = MathMlLimits.Default;
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["maxDimension"] = Format(Surface.MaxDimension),
@@ -625,6 +627,13 @@ public sealed partial class HelpCatalog
             ["pumlMaxEdges"] = Format(plantUml.MaxEdges),
             ["pumlMaxIncludes"] = Format(plantUml.MaxIncludes),
             ["pumlMaxIncludeDepth"] = Format(plantUml.MaxIncludeDepth),
+            ["mmlMaxTextSize"] = Format(mathMl.MaxTextSize),
+            ["mmlMaxElements"] = Format(mathMl.MaxElements),
+            ["mmlMaxNestingDepth"] = Format(mathMl.MaxNestingDepth),
+            ["mmlMaxTableCells"] = Format(mathMl.MaxTableCells),
+            ["mmlMaxTokenLength"] = Format(mathMl.MaxTokenLength),
+            ["mmlMaxLayoutWork"] = Format(mathMl.MaxLayoutWork),
+            ["mmlMaxPaintedGlyphs"] = Format(mathMl.MaxPaintedGlyphs),
             ["fragmentMaxLength"] = Format(ImageFragment.MaxLength),
             ["fragmentMaxParameters"] = Format(ImageFragment.MaxParameters),
             ["positionsMax"] = Format(PositionCollector.MaxPositions),

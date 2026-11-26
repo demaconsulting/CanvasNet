@@ -66,21 +66,32 @@ Private nested types:
 not know is left alone; otherwise the source is located with `FilterPaths.LocateSource` in
 `FilterSettings.GetResourceDirectories()` and planned with `PlanDraw`.
 
-**PlanBlock**: a code block for which `PictureAttributes.BlockKindOf` finds no kind (it has no class `mermaid` or
-`plantuml`) is left alone. Otherwise the caption attribute is split off (`PictureAttributes.SplitCaption`), the block's
-text and a line feed are written atomically to the cache folder (`PictureCache.BlockSourceFile`, a `.mmd` or `.puml`
-named by the SHA-1 of the text), and the file is planned with `PlanDraw` as that kind (`mermaid` or `plantuml`) with
+**PlanBlock**: a code block for which `PictureAttributes.BlockKindOf` finds no kind (it has no class `mermaid`,
+`plantuml`, or `mathml`) is left alone. Otherwise the caption attribute is split off (`PictureAttributes.SplitCaption`),
+the block's text and a line feed are written atomically to the cache folder (`PictureCache.BlockSourceFile`, a `.mmd`,
+`.puml`, or `.mml` named by the SHA-1 of the text), and the file is planned with `PlanDraw` as that kind (`mermaid`,
+`plantuml`, or `mathml`) with
 the kind as the stem. A `plantuml` block is read from the cache folder, so a relative `!include` in it is looked up
 there. Every picture and
 code block that `PlanImage` and `PlanBlock` leave alone passes through the run untouched, which is what the shim's
 fast path relies on.
 
 **PlanDraw**: builds the options and kept attributes (`PictureAttributes.Build`), the file access
-(`FilterSettings.FileAccessOf`), the dependency hashes (`DependencyHasher.ForPicture`, reading through
+(`FilterSettings.FileAccessOf`), the natural display width of an equation, the dependency hashes
+(`DependencyHasher.ForPicture`, reading through
 `FilterSettings.PolicyOf`), and the key
 (`PictureCache.ComputeKey`). A picture `<stem>-<key>.png` in the cache is used; otherwise an existing
 `<key>.unsupported` marker gives the warning `<name>: <message>; it is left as written and not drawn`; otherwise the
 picture is attached to a job.
+
+**Natural width of an equation** (`PlanDraw` and `NaturalWidth`): when `PictureAttributes.NaturalWidthNeeded` says
+an equation has no `size`, `width`, or `height` attribute, the source is probed with `SourceLoader.Probe` under the
+policy of the picture (`AllowAll` in the default mode; the equation is parsed and measured at scale 1 and the
+16 pixel font size, not drawn) and the kept attribute `width="<natural width>px"` is added after the others. It is
+added on every run, whether the picture is drawn or found in the cache, and it is not part of the key, so it never
+causes a new drawing. The equation is drawn at scale 2 (or the author's `scale`), so it is sharp in print and shows at
+the same 16 pixel font size as every other equation of the document. An equation the probe cannot measure (a
+`ViewerException`) keeps its attributes as written, and its draw reports the failure with the tool's message.
 
 **PlanSvg**: a drawing `FilterPaths.LocateSource` cannot find is left to Pandoc (no error); a drawing that links no
 file only the tool draws (`DependencyHasher.ForSvg` returns not composite) is left alone. Otherwise the options come
@@ -124,7 +135,7 @@ is replaced: with a caption, by a `Figure` with the block's identifier, a captio
 placeholder `Span` of class `canvasnet-markdown` (`PandocAst.MarkdownPlaceholder`), and one `Plain` with an image
 whose description is the same placeholder; without a caption, by a `Para` holding an image with the block's
 identifier and an empty description. The image keeps the block's classes other than the one that made it a picture
-(`mermaid` or `plantuml`) and the kept
+(`mermaid`, `plantuml`, or `mathml`) and the kept
 attributes.
 
 #### Error Handling
@@ -164,6 +175,7 @@ unchanged and nothing is returned.
 - **DependencyHasher** - the hashes of the files a picture depends on, and whether a drawing is composite.
 - **PictureCache** - keys, file and marker names, atomic writes, commits, and deletes.
 - **RenderCommand** and **FlattenCommand** - called in-process by `ToolPictureDrawer`.
+- **SourceLoader** (Viewer library) - `Probe`, which measures the natural width of an equation without drawing it.
 - **MermaidDiagnosticCodes**, **PlantUmlDiagnosticCodes**, **FolderImageResolver**, **ErrorCodes**, and
   **ViewerException** - the codes it reads
   and reports.

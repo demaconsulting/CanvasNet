@@ -25,7 +25,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a card may cite.
     /// </summary>
     private static readonly Regex DiagnosticIdentifier =
-        new(@"\b(?:scad|vl|mermaid|plantuml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|plantuml|mathml|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Test that every embedded card file of the tool is an overlay that extends the library card at its own path, or
@@ -115,6 +115,43 @@ public partial class HelpTopicsTests
 
         // Assert
         Assert.All(cited, id => Assert.Contains(id, library, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Test that the MathML cards carry the tool's command-line sections, that the options overlay names the options
+    ///     an equation takes and refuses, and that the natural display width the composition overlay and the pandoc card
+    ///     teach is the one the tool measures for the quadratic example of the fractions card.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MathMlOverlays_DocumentTheCommandLineAndThePandocDisplayWidth()
+    {
+        // Arrange: the quadratic example of the library, written to a file
+        using var directory = new TempDirectory();
+        var example = HelpTopics.AllExamples().Single(x => x.Card.Id == "mathml/fractions" && x.Example.Name == "quadratic").Example;
+        var path = FixtureFactory.WriteText(directory.Path, "quadratic.mml", example.Content);
+
+        // Act: its natural width, and the terms and text of the cards
+        var natural = SourceLoader.Probe(path).Width;
+        var optionTerms = HelpCardText.Items("mathml/options", "Command line").Select(i => i.Term).ToList();
+        var composition = HelpCardText.Flatten(HelpTopics.Get("mathml/composition").Body);
+        var pandocTerms = HelpCardText.Items("pandoc").Select(i => i.Term).ToList();
+
+        // Assert: every MathML overlay adds its command-line section
+        foreach (var id in new[] { "mathml", "mathml/options", "mathml/composition", "mathml/diagnostics" })
+        {
+            Assert.Contains("Command line", HelpCardText.Headings(HelpTopics.Get(id).Body));
+        }
+
+        // Assert: the options, the fragment, and what info reports
+        foreach (var term in new[] { "--scale <factor>", "--width <pixels>", "--background <color>", "--strict", "--theme", "display", "info" })
+        {
+            Assert.Contains(term, optionTerms);
+        }
+
+        // Assert: the width the cards teach is the measured one, and the pandoc card documents it
+        Assert.Contains($"width=\"{natural}px\" for the quadratic formula", composition, StringComparison.Ordinal);
+        Assert.Contains("natural width", pandocTerms);
+        Assert.Contains("mathml", HelpTopics.Get("pandoc").SeeAlso);
     }
 
     /// <summary>

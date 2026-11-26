@@ -1,0 +1,29 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mover accent="true">
+    <mi>x</mi>
+    <mo>&#x302;</mo>
+  </mover>
+  <mover accent="true">
+    <mrow>
+      <mi>xyz</mi>
+    </mrow>
+    <mo>&#x302;</mo>
+  </mover>
+  <mover accent="true">
+    <mi>A</mi>
+    <mo>~</mo>
+  </mover>
+  <mover>
+    <mi>x</mi>
+    <mi>a</mi>
+  </mover>
+  <munder accentunder="true">
+    <mi>&#x1D466;</mi>
+    <mo>&#x332;</mo>
+  </munder>
+  <munderover accent="TRUE">
+    <mi>b</mi>
+    <mi>c</mi>
+    <mo>&#x2DA;</mo>
+  </munderover>
+</math>

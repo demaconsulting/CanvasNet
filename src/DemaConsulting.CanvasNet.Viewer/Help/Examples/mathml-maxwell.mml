@@ -1,0 +1,20 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mtable columnalign="right left" columnspacing="0" rowspacing="0.5em" displaystyle="true">
+    <mtr>
+      <mtd><mo>&nabla;</mo><mo>&sdot;</mo><mi mathvariant="bold">E</mi></mtd>
+      <mtd><mo>=</mo><mfrac><mi>&rho;</mi><msub><mi>&epsilon;</mi><mn>0</mn></msub></mfrac></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mo>&nabla;</mo><mo>&sdot;</mo><mi mathvariant="bold">B</mi></mtd>
+      <mtd><mo>=</mo><mn>0</mn></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mo>&nabla;</mo><mo>&times;</mo><mi mathvariant="bold">E</mi></mtd>
+      <mtd><mo>=</mo><mrow><mo>&minus;</mo><mfrac><mrow><mo>&PartialD;</mo><mi mathvariant="bold">B</mi></mrow><mrow><mo>&PartialD;</mo><mi>t</mi></mrow></mfrac></mrow></mtd>
+    </mtr>
+    <mtr>
+      <mtd><mo>&nabla;</mo><mo>&times;</mo><mi mathvariant="bold">B</mi></mtd>
+      <mtd><mo>=</mo><msub><mi>&mu;</mi><mn>0</mn></msub><mo>&InvisibleTimes;</mo><mi mathvariant="bold">J</mi><mo>+</mo><msub><mi>&mu;</mi><mn>0</mn></msub><mo>&InvisibleTimes;</mo><msub><mi>&epsilon;</mi><mn>0</mn></msub><mo>&InvisibleTimes;</mo><mfrac><mrow><mo>&PartialD;</mo><mi mathvariant="bold">E</mi></mrow><mrow><mo>&PartialD;</mo><mi>t</mi></mrow></mfrac></mtd>
+    </mtr>
+  </mtable>
+</math>

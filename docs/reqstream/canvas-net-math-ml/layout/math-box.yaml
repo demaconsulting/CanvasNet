@@ -1,0 +1,43 @@
+---
+# Software Unit Requirements for MathBox
+#
+# These requirements describe the design-level behavior of the MathBox unit of the Layout subsystem (internal namespace
+# DemaConsulting.CanvasNet.MathMl.Layout): the box and paint-item model of a laid-out equation. See
+# docs/verification/canvas-net-math-ml/layout/math-box.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMathMl Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: MathBox Requirements
+            requirements:
+              - id: CanvasNetMathMl-Layout-MathBox-Model
+                title: >-
+                  The MathBox unit shall represent a laid-out element as a box with its width, ascent, and descent
+                  around its baseline origin, its placed children, and its paint items (glyphs, rules, backgrounds, and
+                  borders with their bounds), and shall give its content box and the union of the ink of its items and
+                  its children, a phantom and an empty box having no ink.
+                justification: |
+                  The picture of an equation is the union of its content box and its ink (with an antialiasing
+                  allowance), and the painter draws the items of the boxes.
+                tests:
+                  - MathBox_ContentRect_SpansAscentAndDescent
+                  - MathBox_InkBounds_UnitesItemsAndChildren
+                  - MathBox_InkBounds_PhantomAndEmpty_AreNull
+                  - MathBox_PaintItems_ReportTheirBounds
+
+              - id: CanvasNetMathMl-Layout-MathBox-Operators
+                title: >-
+                  The MathBox unit shall represent the properties of an embellished operator (its spacing, core text,
+                  form, category, stretchy, symmetric, largeop, movablelimits, fence, separator, stretch axis, minsize,
+                  and maxsize, defaulting to an operator that does not stretch and has no maximum size), a block stretch
+                  size constraint, and the operator context that a parent gives an embellished operator (its form and a
+                  block or an inline stretch size constraint).
+                justification: |
+                  Rows read the operator data of their children to space and stretch them, under- and overscript
+                  elements stretch their operators horizontally, and both pass forms and constraints down to the
+                  operators.
+                tests:
+                  - MathBox_EmbellishedOperator_DefaultsDoNotStretch
+                  - MathBox_OperatorContext_InlineConstraint_IsAStretchConstraint

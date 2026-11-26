@@ -161,11 +161,12 @@ internal static class PictureCache
 
     /// <summary>
     ///     Gets the file the text of a code block is written to: the SHA-1 of the text and a fixed prefix that names the kind,
-    ///     with the extension of the kind (<c>.mmd</c> for a Mermaid block, <c>.puml</c> for a PlantUML block).
+    ///     with the extension of the kind (<c>.mmd</c> for a Mermaid block, <c>.puml</c> for a PlantUML block, <c>.mml</c> for
+    ///     a MathML block).
     /// </summary>
     /// <param name="folder">The cache folder.</param>
     /// <param name="text">The text as written to the file (the block's text and a line feed).</param>
-    /// <param name="kind">The kind the block is drawn as (<see cref="PictureAttributes.Mermaid"/> or <see cref="PictureAttributes.PlantUml"/>).</param>
+    /// <param name="kind">The kind the block is drawn as (<see cref="PictureAttributes.Mermaid"/>, <see cref="PictureAttributes.PlantUml"/>, or <see cref="PictureAttributes.MathMl"/>).</param>
     /// <returns>The path.</returns>
     /// <remarks>
     ///     The name of a Mermaid block is the one of earlier versions (the prefix <c>canvasnet.lua mermaid block</c> and
@@ -173,7 +174,12 @@ internal static class PictureCache
     /// </remarks>
     internal static string BlockSourceFile(string folder, string text, string kind = PictureAttributes.Mermaid)
     {
-        var extension = kind == PictureAttributes.PlantUml ? ".puml" : ".mmd";
+        var extension = kind switch
+        {
+            PictureAttributes.PlantUml => ".puml",
+            PictureAttributes.MathMl => ".mml",
+            _ => ".mmd"
+        };
         return FilterPaths.Join([folder, FilterSettings.Sha1Hex(Encoding.UTF8.GetBytes($"canvasnet.lua {kind} block\n" + text)) + extension]);
     }
 

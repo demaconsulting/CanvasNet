@@ -19,6 +19,7 @@ package CanvasNetTool {
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.VegaLite.cs",
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Mermaid.cs",
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.PlantUml.cs",
+                "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.MathMl.cs",
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.FileAccess.cs",
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Positions.cs",
                 "test/DemaConsulting.CanvasNet.Tool.Tests/CanvasNetToolTests.Bindings.cs",
@@ -29,7 +30,7 @@ package CanvasNetTool {
             requirementFiles = ("docs/reqstream/canvas-net-tool.yaml");
         }
 
-        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, Rendering, and Positions subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, Scad, VegaLite, Mermaid, PlantUml, and Viewer systems; the Viewer system carries the Imaging subsystem) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
+        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, Rendering, and Positions subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, Scad, VegaLite, Mermaid, PlantUml, MathMl, and Viewer systems; the Viewer system carries the Imaging subsystem, which calls the MathMl system to draw an equation) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
 
         part program : Program;
         part context : Context;
@@ -54,6 +55,7 @@ package CanvasNetTool {
         dependency usesVegaLite from CanvasNetToolSystem to CanvasNetVegaLite::CanvasNetVegaLiteSystem;
         dependency usesMermaid from CanvasNetToolSystem to CanvasNetMermaid::CanvasNetMermaidSystem;
         dependency usesPlantUml from CanvasNetToolSystem to CanvasNetPlantUml::CanvasNetPlantUmlSystem;
+        dependency usesMathMl from CanvasNetToolSystem to CanvasNetMathMl::CanvasNetMathMlSystem;
         dependency usesViewer from CanvasNetToolSystem to CanvasNetViewer::CanvasNetViewerSystem;
     }
 }
