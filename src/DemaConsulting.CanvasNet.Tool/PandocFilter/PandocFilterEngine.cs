@@ -245,8 +245,8 @@ internal sealed partial class PandocFilterEngine
 
     /// <summary>
     ///     Plans a picture of a kind the tool draws (<c>draw</c>, up to the render): options, identity, file access, the
-    ///     natural size of an equation the author did not size (and its place on the baseline in running text), dependencies, key, then the cache, the marker of a diagram
-    ///     left as written, or a job.
+    ///     natural size of an equation the author did not size (and its place on the baseline in running text),
+    ///     dependencies, key, then the cache, the marker of a diagram left as written, or a job.
     /// </summary>
     /// <param name="item">The picture.</param>
     /// <param name="source">The source file.</param>

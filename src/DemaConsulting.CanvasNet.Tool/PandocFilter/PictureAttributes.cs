@@ -145,6 +145,12 @@ internal static class PictureAttributes
     /// <summary>The projections of a model.</summary>
     private static readonly HashSet<string> Projections = new(StringComparer.Ordinal) { "ortho", "orthographic", "perspective" };
 
+    /// <summary>
+    ///     The characters trimmed from the end of an author's style: <c>;</c> and white space, so a declaration Pandoc or
+    ///     the filter adds joins it with one <c>;</c>.
+    /// </summary>
+    private static readonly char[] StyleEnd = [';', ' ', '\t', '\r', '\n', '\f'];
+
     /// <summary>The themes of a Mermaid diagram.</summary>
     private static readonly HashSet<string> Themes = new(StringComparer.Ordinal) { "default", "base", "dark", "forest", "neutral" };
 
@@ -389,7 +395,9 @@ internal static class PictureAttributes
     ///     <c>height</c> is set, so the picture keeps its aspect ratio. In running text the <c>style</c> also starts with
     ///     <c>display:inline;margin:0;vertical-align:-D</c>, where D is the depth below the baseline
     ///     (<paramref name="height"/> - <paramref name="baseline"/>) in <c>em</c>, so the equation sits on the line of text;
-    ///     the author's own declarations follow in the same <c>style</c>, so they win.
+    ///     the author's own declarations follow in the same <c>style</c>, trimmed of white space and trailing <c>;</c>, so
+    ///     they win; on its own the author's style is kept, trimmed the same way, so Pandoc's appended width joins it with
+    ///     one <c>;</c>.
     /// </returns>
     internal static IReadOnlyList<KeyValuePair<string, string>> WithNaturalSize(
         IReadOnlyList<KeyValuePair<string, string>> keep, int width, int height, int baseline, bool inRunningText)
@@ -405,14 +413,20 @@ internal static class PictureAttributes
             }
         }
 
+        // The author's style without a trailing ';', so a declaration added after it joins with one ';'
+        var author = authorStyle?.Trim().TrimEnd(StyleEnd) ?? string.Empty;
+
         // In running text the picture is placed in the line, its baseline on the text's, before any declaration of the author
         if (inRunningText)
         {
             var depth = height - baseline;
             var align = depth == 0 ? "0" : FormatNumber(-(double)depth / MathMlFontSize) + "em";
             var placement = $"display:inline;margin:0;vertical-align:{align}";
-            var author = authorStyle?.Trim() ?? string.Empty;
             list.Set("style", author.Length == 0 ? placement : $"{placement};{author}");
+        }
+        else if (author.Length > 0)
+        {
+            list.Set("style", author);
         }
 
         list.Set("width", Em(width));

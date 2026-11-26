@@ -153,7 +153,7 @@ sections:
           natural width in em of the 16 pixel font size it is measured at (the renderer's default font size), after
           the attributes that stay and with no height; and for an equation in running text shall also set the
           attribute style to display:inline;margin:0;vertical-align: minus its depth below the baseline in em (0 when
-          it has none), followed by the author's own style declarations.
+          it has none), followed by the author's own style declarations trimmed of a trailing semicolon.
         justification: |
           Pandoc's HTML writer turns a width in em into a style that browsers and WeasyPrint honor without
           presentational hints (a width in pixels becomes an HTML attribute that WeasyPrint ignores), and LaTeX and
@@ -163,6 +163,7 @@ sections:
           and puts its baseline on the text's, and the author's declarations come later so they win.
         tests:
           - PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm
+          - PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed
           - PictureAttributes_MathMlFontSize_IsTheRenderersDefault
           - PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo
 

@@ -377,9 +377,9 @@ compared exactly, so `Mermaid` is not drawn either.
 | Format | Linked file | Code block | Main attributes |
 | --- | --- | --- | --- |
 | SVG drawing | `.svg` (flattened when it links a picture below) | - | `scale` |
-| Mermaid diagram | `.mmd`, `.mermaid` | `mermaid` | `theme`, `size`, `scale`, `background` |
-| PlantUML diagram | `.puml`, `.plantuml`, `.pu` | `plantuml` | `size`, `scale`, `background` |
-| Vega-Lite chart | `.vl.json`, `.vl` | `vega-lite`, `vegalite` | `param-NAME`, `size`, `scale`, `background` |
+| Mermaid diagram | `.mmd` or `.mermaid` | `mermaid` | `theme`, `size`, `scale`, `background` |
+| PlantUML diagram | `.puml`, `.plantuml`, or `.pu` | `plantuml` | `size`, `scale`, `background` |
+| Vega-Lite chart | `.vl.json` or `.vl` | `vega-lite` or `vegalite` | `param-NAME`, `size`, `scale`, `background` |
 | OpenSCAD model | `.scad` | `openscad` with `draw` | `view`, `azimuth`, `elevation`, `projection`, `define-NAME` |
 | PDF page | `.pdf` | - | `page`, `dpi` |
 | PowerPoint slide | `.pptx` | - | `page`, `dpi` |

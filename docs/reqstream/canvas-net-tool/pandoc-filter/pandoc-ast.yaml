@@ -105,3 +105,4 @@ sections:
           shown as a block, so the filter must tell the two apart from the document alone.
         tests:
           - PandocAst_IsInRunningText_PandocDocument_TellsInlineFromDisplay
+          - PandocAst_IsInRunningText_PandocDocument_LoneImageInHeadingCellDescriptionOrListItemIsOnItsOwn

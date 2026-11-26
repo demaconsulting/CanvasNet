@@ -21,7 +21,8 @@ N/A - standard test environment. The tests read and write only in memory.
   malformed image are `corrupt-input`.
 - The built elements, the caption placeholder, the warnings, and a rewritten image have the exact JSON Pandoc reads.
 - An image in a sentence, a heading, a link in a sentence, quotation marks, or beside another image is in running text;
-  an image alone in a figure or a paragraph, also inside emphasis or a link, is not.
+  an image alone in a figure, a paragraph, a heading, a table cell, a list item, or another image's description, also
+  inside emphasis or a link, is not.
 
 #### Test Scenarios
 
@@ -56,3 +57,9 @@ attributes.
 `# Head ![h](h.mml)`, `![t1](t1.mml) ![t2](t2.mml)` (both), and `"![q](q.mml)"` (a `Quoted`) are in running text; the
 images of `![f](f.mml)` (a `Figure`), `![](p.mml)` (a `Para` of the image alone), `*![e](e.mml)*` (alone in an `Emph`),
 and `[![k](k.mml)](https://x)` (alone in a `Link`) are not.
+
+**PandocAst_IsInRunningText_PandocDocument_LoneImageInHeadingCellDescriptionOrListItemIsOnItsOwn**: on a document
+written by `pandoc -t json` (API 1.23.1.2), the images of `# ![h2](h2.mml)` (alone in a `Header`), `![c](c.mml)` (alone
+in the `Plain` of a table cell), `in.mml` of `See ![![in](in.mml)](o.mml) here.` (alone in the description of another
+`Image`), and `- ![](li.mml)` (alone in the `Plain` of a list item) are on their own; the image of `x ![d](d.mml)`
+(beside text in a table cell) and `o.mml` (in a sentence) are in running text.

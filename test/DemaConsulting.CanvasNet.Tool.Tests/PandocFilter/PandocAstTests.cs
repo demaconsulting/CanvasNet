@@ -202,4 +202,35 @@ public class PandocAstTests
             },
             inRunningText);
     }
+
+    /// <summary>
+    ///     Test that an image alone in a heading, a table cell, another image's description, or a list item is on its own,
+    ///     while an image beside text in a cell or in a sentence is in running text, on a document written by
+    ///     <c>pandoc -t json</c> (API 1.23.1.2).
+    /// </summary>
+    [Fact]
+    public void PandocAst_IsInRunningText_PandocDocument_LoneImageInHeadingCellDescriptionOrListItemIsOnItsOwn()
+    {
+        // Arrange: the JSON of "# ![h2](h2.mml)", a table "| A | B |" with the row "| ![c](c.mml) | x ![d](d.mml) |",
+        // "See ![![in](in.mml)](o.mml) here.", and the list "- ![](li.mml)" and "- b"
+        const string json =
+            """{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["h2",[],[]],[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"h2"}],["h2.mml",""]]}]]},{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}],[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"A"}]}]],[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"B"}]}]]]]]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"c"}],["c.mml",""]]}]}]],[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"x"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"d"}],["d.mml",""]]}]}]]]]]]],[["",[],[]],[]]]},{"t":"Para","c":[{"t":"Str","c":"See"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"in"}],["in.mml",""]]}],["o.mml",""]]},{"t":"Space"},{"t":"Str","c":"here."}]},{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[],["li.mml",""]]}]}],[{"t":"Plain","c":[{"t":"Str","c":"b"}]}]]}]}""";
+        var document = PandocAst.Parse(Encoding.UTF8.GetBytes(json), null);
+
+        // Act: check every image
+        var inRunningText = PandocAst.FindAll(document, "Image").ToDictionary(n => PandocAst.ReadImage(n).Src, PandocAst.IsInRunningText);
+
+        // Assert: alone in its owner is on its own, beside text is running text
+        Assert.Equal(
+            new Dictionary<string, bool>
+            {
+                ["h2.mml"] = false,
+                ["c.mml"] = false,
+                ["d.mml"] = true,
+                ["o.mml"] = true,
+                ["in.mml"] = false,
+                ["li.mml"] = false
+            },
+            inRunningText);
+    }
 }

@@ -311,10 +311,33 @@ public class PictureAttributesTests
             [P("id", "eq"), P("style", "display:inline;margin:0;vertical-align:-0.125em"), P("width", "3.25em")],
             inline);
         Assert.Equal(
-            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle;"), P("id", "eq"), P("width", "3.25em")],
+            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle"), P("id", "eq"), P("width", "3.25em")],
             styled);
         Assert.Equal([P("style", "display:inline;margin:0;vertical-align:0"), P("width", "8.625em")], flat);
         Assert.Equal("0.0625em", PictureAttributes.Em(1));
+
+        // An attribute of the expected lists
+        static KeyValuePair<string, string> P(string key, string value) => new(key, value);
+    }
+
+    /// <summary>
+    ///     Test that an author's style is trimmed of white space and trailing <c>;</c>, on its own and in running text, so
+    ///     the width Pandoc appends or the filter's placement joins it with one <c>;</c> and no <c>;;</c> is written.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed()
+    {
+        // Act: A = πr² (52x17, baseline 15) with styles that end in ';' or hold nothing but ';'
+        var display = PictureAttributes.WithNaturalSize([new("style", "color:red ; ; "), new("id", "eq")], 52, 17, 15, false);
+        var inline = PictureAttributes.WithNaturalSize([new("style", "vertical-align:middle;")], 52, 17, 15, true);
+        var empty = PictureAttributes.WithNaturalSize([new("style", " ; ")], 52, 17, 15, true);
+
+        // Assert: the author's style without its trailing ';', in its place
+        Assert.Equal([P("style", "color:red"), P("id", "eq"), P("width", "3.25em")], display);
+        Assert.Equal(
+            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle"), P("width", "3.25em")],
+            inline);
+        Assert.Equal([P("style", "display:inline;margin:0;vertical-align:-0.125em"), P("width", "3.25em")], empty);
 
         // An attribute of the expected lists
         static KeyValuePair<string, string> P(string key, string value) => new(key, value);

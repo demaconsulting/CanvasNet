@@ -94,8 +94,9 @@ nothing is added; an author's `scale` still gets the natural size.
 **WithNaturalSize(keep, width, height, baseline, inRunningText)**: the keep list with `width` set to `Em(width)` after
 the other attributes. No `height` is set. In running text, `style` is first set to
 `display:inline;margin:0;vertical-align:-D` (where `D` is `Em(height - baseline)`, the depth below the baseline, and
-`vertical-align:0` when the depth is 0). The author's own style follows it, trimmed, after a `;`, in the position of the
-author's `style` attribute when there is one. The choices are:
+`vertical-align:0` when the depth is 0). The author's own style follows it, trimmed of white space and trailing `;`,
+after a `;`, in the position of the author's `style` attribute when there is one. On its own, the author's style is
+kept in its position, trimmed the same way, so Pandoc's appended `;width:` joins it with one `;`. The choices are:
 
 - **em, not px.** The natural size is measured at a 16 pixel font, so `1em` is 16 natural pixels. A browser at its
   default 16 px font shows exactly the natural size, a 10 point PDF body shows the equation at body-text size (a pixel
