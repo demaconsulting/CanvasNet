@@ -20,8 +20,8 @@ sections:
           is a PNG picture drawn into the
           cache folder with the options its attributes ask for (an equation the author does not size shown at its
           natural width), every SVG drawing that links one is its flattened copy,
-          and every Mermaid, PlantUML, or MathML code block is a figure (with a caption) or a paragraph that shows its
-          picture, while every
+          and every Mermaid, PlantUML, MathML, or Vega-Lite code block and every OpenSCAD code block marked draw is a
+          figure (with a caption) or a paragraph that shows its picture, while every
           other element, attribute, and text of the document is unchanged, and shall return the notes the tool reports
           for a picture as warnings, leaving out a note for information only (such as vega-lite-info).
         justification: |
@@ -44,6 +44,8 @@ sections:
           - CanvasNetTool-PandocFilter-PictureAttributes-Svg
           - CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
           - CanvasNetTool-PandocFilter-PictureAttributes-MathMl
+          - CanvasNetTool-PandocFilter-PictureAttributes-VegaLiteBlocks
+          - CanvasNetTool-PandocFilter-PictureAttributes-OpenScadBlocks
           - CanvasNetTool-PandocFilter-FilterPaths-Collapse
           - CanvasNetTool-PandocFilter-FilterPaths-PandocPath
           - CanvasNetTool-PandocFilter-FilterPaths-LocateSource
@@ -53,6 +55,8 @@ sections:
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-VegaLiteBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-OpenScadBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram
           - CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OtherPictures
@@ -61,6 +65,7 @@ sections:
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
           - PandocFilter_Run_PlantUmlPictureAndBlock_DrawnAndRedrawnWhenAnIncludeChanges
           - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
+          - PandocFilter_Run_VegaLiteAndOpenScadBlocks_DrawnWithTheirAttributes
           - PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning
 
       - id: CanvasNetTool-PandocFilter-Cache
@@ -114,8 +119,9 @@ sections:
       - id: CanvasNetTool-PandocFilter-Errors
         title: >-
           The PandocFilter subsystem shall stop at a mistake in a picture (an attribute that is not valid, a source that
-          is not in the resource path, more than 64 levels or 512 files, a variable of the filter that is not valid, or
-          a cache file that cannot be written) with the code pandoc-filter-error and a message that names the picture,
+          is not in the resource path, more than 64 levels or 512 files, a variable of the filter that is not valid, a
+          Vega-Lite or OpenSCAD code block that names a local file, or a cache file that cannot be written) with the
+          code pandoc-filter-error and a message that names the picture,
           shall report a drawing that fails with the code of the tool, shall report a picture that lays out larger
           than the maximum image size with its size, the limit, and the scale attribute that fits, shall report the
           failure of the first picture in the document when several fail, and shall keep the warnings of the pictures
@@ -132,6 +138,8 @@ sections:
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OversizedPicture
           - CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
           - CanvasNetTool-PandocFilter-PandocFilterEngine-WarningsBeforeFailure
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-BlockFiles
+          - CanvasNetTool-PandocFilter-DependencyHasher-BlockReferences
         tests:
           - PandocFilter_Run_PictureMistakes_StopTheRunNamingThePicture
           - PandocFilter_Run_OversizedMermaidBlock_SuggestsTheScaleAttribute

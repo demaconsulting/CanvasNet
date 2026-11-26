@@ -22,7 +22,11 @@ N/A - standard test environment. The tests use a temporary folder each and do no
 - All unit tests pass with zero failures.
 - A picture is drawn once per key and found in the cache on the next run; the elements point at the cached files.
 - Diagrams left as written and drawings with nothing to flatten are recorded in markers and warned about on every run.
-- Mermaid code blocks become a figure or a paragraph of the documented shape.
+- Mermaid code blocks become a figure or a paragraph of the documented shape; Vega-Lite blocks and OpenSCAD blocks
+  marked `draw` do too, written to the cache with their own extension and with their own classes dropped, while a
+  plain `openscad` block is left as written without a file or a draw.
+- A Vega-Lite or OpenSCAD block that names a local file stops the run with the documented message before anything is
+  written or drawn.
 - An equation (a `.mml` picture or a `mathml` block) is drawn at scale 2 unless the author scales or sizes it, and shows
   at its natural width unless the author gives a size, width, or height, on every run.
 - One job and four jobs give the same output, warnings, cache files, and reported failure, also after a failure that
@@ -119,3 +123,28 @@ message `'<name>' is too large; a scale of 0.56 or less fits.` and a command-lin
 exception's `Data`, a Mermaid block fails with `drawing 'mermaid block (flowchart TD)' failed: ...` ending in `(Set the
 block's scale attribute to 0.56 or less, for example {.mermaid scale=0.56}.)` and a `.mmd` picture with `(Set the
 picture's scale attribute to 0.56 or less, for example {scale=0.56}.)`; without it the tool's hint is kept.
+
+**PandocFilterEngine_Run_VegaLiteBlocks_BecomeFigureFromAVlJsonFile**: a captioned `vega-lite` block with the
+identifier `fig-sales`, a class `wide`, `param-cutoff=3`, and `width=50%` becomes a `Figure` with that identifier whose
+picture has `["",["wide"],[["width","50%"]]]`; a `vegalite` block with the identifier `visits` becomes a `Para` whose
+picture has `["visits",[],[]]`. Both pictures are `vegalite-<key>.png`, both texts are `.vl.json` files in the cache,
+both draws read a `.vl.json` file, exactly one is given `--param=cutoff=3`, and there are no warnings.
+
+**PandocFilterEngine_Run_OpenScadBlocks_DrawnOnlyWithTheDrawClass**: a plain `openscad` block (which includes
+`lib.scad`, no error for code) stays a `CodeBlock` with its class and text; a block with the identifier `part`, the
+classes `openscad`, `draw`, and `wide`, `view=iso`, and `width=40%` becomes a `Para` whose picture
+`scad-<key>.png` has `["part",["wide"],[["width","40%"]]]`. One `.scad` file is in the cache and one draw reads it,
+with `--view=iso`, `--size=1600x1200`, `--background=white`, and `--max-triangles=2000000`.
+
+**PandocFilterEngine_Run_BlockNamingAFile_StopsWithAHintToUseAPicture**: a `vega-lite` block `#sales` that reads
+`sales.csv` on line 2 fails with `pandoc-filter-error` and
+`'vega-lite block #sales' reads the data file 'sales.csv' at line 2, but a code block has no folder to find it in; put
+the chart in a .vl.json file beside the files it names and link it as a picture, for example ![Sales](sales.vl.json)`;
+a `{.draw .openscad}` block that uses `shapes.scad` fails with `'openscad block (use <shapes.scad>)' uses 'shapes.scad'
+at line 1, ...; put the model in a .scad file beside the files it names and link it as a picture, for example
+![Part](part.scad){view=iso}`. Nothing is drawn and the cache folder holds no file.
+
+**PandocFilterEngine_Run_OversizedOpenScadBlock_HintNamesBothClasses**: a stub drawer raises `size-limit` with the
+scale that fits (0.5); an `openscad` `draw` block with `scale=9` fails with the code `size-limit`, a message that starts
+`drawing 'openscad block (cube(10);)' failed: ` and ends `(Set the block's scale attribute to 0.5 or less, for example
+{.openscad .draw scale=0.5}.)`, and a `vegalite` block's hint is `{.vegalite scale=0.5}`.

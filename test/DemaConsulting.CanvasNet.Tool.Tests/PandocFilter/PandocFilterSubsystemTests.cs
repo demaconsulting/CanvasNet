@@ -164,6 +164,47 @@ public class PandocFilterSubsystemTests
     }
 
     /// <summary>
+    ///     Test that a captioned Vega-Lite block and an OpenSCAD block marked <c>draw</c> are drawn by the tool with their
+    ///     attributes, that a plain OpenSCAD block stays code, that the drawing reports nothing, and that a second run draws
+    ///     nothing.
+    /// </summary>
+    [Fact]
+    public void PandocFilter_Run_VegaLiteAndOpenScadBlocks_DrawnWithTheirAttributes()
+    {
+        // Arrange: a captioned chart with a parameter, a model to draw at a small size, and a model shown as code
+        using var tree = new FilterTree();
+        const string chart =
+            "{\"params\": [{\"name\": \"cutoff\", \"value\": 0}],\n \"data\": {\"values\": [{\"a\": \"A\", \"b\": 3}, {\"a\": \"B\", \"b\": 5}]},\n"
+            + " \"mark\": \"bar\",\n \"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"nominal\"}, \"y\": {\"field\": \"b\", \"type\": \"quantitative\"}}}";
+        var document = PandocDoc.Document(
+            PandocDoc.CodeBlock("fig-chart", ["vega-lite"], chart, ("caption", "The chart"), ("param-cutoff", "4")),
+            PandocDoc.CodeBlock("", ["openscad", "draw"], "cube(10);", ("view", "iso"), ("size", "32x24")),
+            PandocDoc.CodeBlock("", ["openscad"], "sphere(5);"));
+        var drawer = new CountingDrawer();
+
+        // Act: draw, then draw again
+        var first = tree.Run(drawer, document);
+        var afterFirst = drawer.Count;
+        var second = tree.Run(drawer, document);
+
+        // Assert: a figure, a picture, and the code block, with nothing reported
+        Assert.Empty(PandocDoc.Warnings(first));
+        using var json = JsonDocument.Parse(first);
+        Assert.Equal(["Figure", "Para", "CodeBlock"], json.RootElement.GetProperty("blocks").EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+
+        // Assert: the model at the size asked for, and the chart drawn
+        var files = tree.CacheFiles();
+        using var model = PngCodec.Load(Path.Combine(tree.Cache, files.Single(name => name.StartsWith("scad-", StringComparison.Ordinal) && name.EndsWith(".png", StringComparison.Ordinal))));
+        Assert.Equal((32, 24), (model.Width, model.Height));
+        Assert.Single(files, name => name.StartsWith("vegalite-", StringComparison.Ordinal) && name.EndsWith(".png", StringComparison.Ordinal));
+
+        // Assert: two drawings, then none, and the same document
+        Assert.Equal(2, afterFirst);
+        Assert.Equal(2, drawer.Count);
+        Assert.Equal(first, second);
+    }
+
+    /// <summary>
     ///     Test that a mistake in a picture stops the run with the filter's error and a message that names the picture, and
     ///     that a picture the filter does not handle is left to Pandoc.
     /// </summary>

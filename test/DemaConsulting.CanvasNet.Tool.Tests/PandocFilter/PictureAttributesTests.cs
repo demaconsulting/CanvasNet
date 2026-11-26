@@ -53,7 +53,9 @@ public class PictureAttributesTests
     {
         // Assert: the lists
         Assert.Equal([".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml", ".plantuml", ".pu", ".mml"], PictureAttributes.PictureSuffixes);
-        Assert.Equal(["mermaid", "plantuml", "mathml"], PictureAttributes.BlockClasses);
+        Assert.Equal(["mermaid", "plantuml", "mathml", "vega-lite", "vegalite"], PictureAttributes.BlockClasses);
+        Assert.Equal(["openscad"], PictureAttributes.DrawBlockClasses);
+        Assert.Equal("draw", PictureAttributes.DrawClass);
 
         // Assert: every suffix is a picture the engine handles, in either letter case
         Assert.All(PictureAttributes.PictureSuffixes, suffix =>
@@ -72,6 +74,62 @@ public class PictureAttributesTests
         Assert.Null(PictureAttributes.BlockKindOf(["puml"]));
         Assert.Null(PictureAttributes.BlockKindOf(["bash"]));
         Assert.Null(PictureAttributes.BlockKindOf([]));
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>vega-lite</c> or its alias <c>vegalite</c> is drawn as a Vega-Lite chart,
+    ///     whatever other classes it has, and that the class is matched exactly.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockOf_VegaLiteAndItsAlias_AreCharts()
+    {
+        // Act
+        var dashed = PictureAttributes.BlockOf(["vega-lite"]);
+        var alias = PictureAttributes.BlockOf(["wide", "vegalite"]);
+
+        // Assert: both are charts, each named by the class as written, and drawn without draw
+        Assert.Equal(new BlockClass("vega-lite", PictureAttributes.VegaLite, false), dashed);
+        Assert.Equal(new BlockClass("vegalite", PictureAttributes.VegaLite, false), alias);
+        Assert.Equal(PictureAttributes.VegaLite, PictureAttributes.BlockKindOf(["vega-lite", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["Vega-Lite"]));
+        Assert.Null(PictureAttributes.BlockOf(["vl"]));
+        Assert.Null(PictureAttributes.BlockOf(["json"]));
+    }
+
+    /// <summary>
+    ///     Test that a code block of class <c>openscad</c> is drawn as a model only when it also has the class <c>draw</c>,
+    ///     in either order, and that neither class alone, nor another letter case, makes a picture.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass()
+    {
+        // Act
+        var plain = PictureAttributes.BlockOf(["openscad"]);
+        var drawn = PictureAttributes.BlockOf(["openscad", "draw"]);
+        var reversed = PictureAttributes.BlockOf(["draw", "numberLines", "openscad"]);
+
+        // Assert: only the block that asks for the picture is drawn, as a model
+        Assert.Null(plain);
+        Assert.Equal(new BlockClass("openscad", PictureAttributes.Scad, true), drawn);
+        Assert.Equal(drawn, reversed);
+        Assert.Null(PictureAttributes.BlockOf(["draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["OpenSCAD", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["scad", "draw"]));
+        Assert.Null(PictureAttributes.BlockOf(["openscad", "Draw"]));
+    }
+
+    /// <summary>
+    ///     Test that a message names a code block by the class the author wrote, so a <c>vegalite</c> block is not called a
+    ///     <c>vega-lite</c> block, and an OpenSCAD block is an <c>openscad</c> block rather than one of its kind.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_BlockName_NamesTheClassTheAuthorWrote()
+    {
+        // Act / Assert
+        Assert.Equal("vega-lite block #sales", PictureAttributes.BlockName("sales", "{}", "vega-lite"));
+        Assert.Equal("vegalite block ({\"mark\": \"bar\",)", PictureAttributes.BlockName("", "\n{\"mark\": \"bar\",\n}", "vegalite"));
+        Assert.Equal("openscad block (cube(10);)", PictureAttributes.BlockName("", "cube(10);", "openscad"));
+        Assert.Equal("openscad block #part", PictureAttributes.BlockName("part", "cube(10);", "openscad"));
     }
 
     /// <summary>

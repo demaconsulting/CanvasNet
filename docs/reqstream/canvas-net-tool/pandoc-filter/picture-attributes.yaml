@@ -1,12 +1,13 @@
 ---
 # Software Unit Requirements for the PictureAttributes Class
 #
-# The PictureAttributes class reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the
-# Pandoc filter: it
+# The PictureAttributes class reads the attributes of a picture or a code block (Mermaid, PlantUML, MathML, Vega-Lite,
+# or OpenSCAD marked draw) for the Pandoc filter: it
 # decides which kind of input a picture names, checks every drawing attribute with the messages of the Lua filter
 # (version 16), adds the defaults of each kind, writes the sorted tool options, and keeps the attributes that stay on
-# the picture. It also names Mermaid code blocks for messages and splits off their caption. The supporting record
-# PictureOptions holds the sorted options and the kept attributes.
+# the picture. It also names code blocks for messages and splits off their caption. The supporting records
+# PictureOptions (the sorted options and the kept attributes) and BlockClass (a code-block class and its kind)
+# belong to it.
 
 sections:
   - title: PictureAttributes Unit Requirements
@@ -28,13 +29,16 @@ sections:
       - id: CanvasNetTool-PandocFilter-PictureAttributes-Registry
         title: >-
           The PictureAttributes unit shall list the picture name ends the filter may change (.svg, then the ends of the
-          inputs it draws) and the code-block classes it draws (mermaid, compared exactly), and shall give a code block
-          the kind of the first listed class it has, leaving a block without one alone.
+          inputs it draws), the code-block classes it draws (mermaid, plantuml, mathml, vega-lite, and vegalite,
+          compared exactly), and the code-block classes it draws only when the block also has the class draw
+          (openscad), and shall give a code block the kind of the first listed class it has (an opt-in class counting
+          only with draw), leaving a block without one alone.
         justification: |
           One table decides both what the engine draws and what the shim's fast path starts the tool for, so the two
           cannot drift apart.
         tests:
           - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
+          - PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass
 
       - id: CanvasNetTool-PandocFilter-PictureAttributes-Checks
         title: >-
@@ -141,3 +145,28 @@ sections:
           - PictureAttributes_Build_MathMlTheme_IsRefused
           - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
           - PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-VegaLiteBlocks
+        title: >-
+          The PictureAttributes unit shall draw a code block of class vega-lite or its alias vegalite (exact) as a
+          Vega-Lite chart that takes the attributes of a .vl.json picture (size, scale, background, and param-NAME),
+          and shall name it in messages by the class the author wrote (vega-lite block or vegalite block).
+        justification: |
+          A small chart is often clearer written in place than kept in a separate file, and both spellings of the
+          format's name are in common use; naming the block by its own class points the author at the block as
+          written.
+        tests:
+          - PictureAttributes_BlockOf_VegaLiteAndItsAlias_AreCharts
+          - PictureAttributes_BlockName_NamesTheClassTheAuthorWrote
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-OpenScadBlocks
+        title: >-
+          The PictureAttributes unit shall draw a code block of class openscad (exact) as an OpenSCAD model only when
+          the block also has the class draw (exact), taking the attributes and defaults of a .scad picture, shall leave
+          a block of class openscad without draw alone, and shall name a drawn block in messages as an openscad block.
+        justification: |
+          Documentation often shows OpenSCAD source as highlighted code, so drawing every openscad block would replace
+          examples their authors meant to show as code; the class draw makes the picture an explicit choice.
+        tests:
+          - PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass
+          - PictureAttributes_BlockName_NamesTheClassTheAuthorWrote

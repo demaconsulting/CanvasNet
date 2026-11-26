@@ -26,10 +26,12 @@ local function split_command(text)
   if #tokens == 0 then fail("CANVASNET_TOOL names no program") end
   return tokens
 end
--- Only what the tool may draw needs it: a code block with one of CLASSES (exact), or a local picture (no URL scheme)
--- whose name ends in one of SUFFIXES (any letter case). --write-shim fills both from the tool's own tables, so write
--- the shim again after updating the tool.
+-- Only what the tool may draw needs it: a code block with one of CLASSES (exact), a code block with one of DRAW_CLASSES
+-- and the class "draw" (without it the block stays code), or a local picture (no URL scheme) whose name ends in one of
+-- SUFFIXES (any letter case). --write-shim fills the lists from the tool's own tables, so write the shim again after
+-- updating the tool.
 local CLASSES = @CLASSES@
+local DRAW_CLASSES = @DRAW_CLASSES@
 local SUFFIXES = @SUFFIXES@
 local function has_suffix(name)
   for _, suffix in ipairs(SUFFIXES) do if name:sub(-#suffix) == suffix then return true end end
@@ -42,8 +44,13 @@ local function needs_tool(doc)
       if not img.src:match("^%a[%w+.-]+:") and has_suffix(img.src:lower()) then needed = true end
     end,
     CodeBlock = function(block)
+      local opted = false
+      for _, class in ipairs(block.classes) do if class == "draw" then opted = true end end
       for _, class in ipairs(block.classes) do
         for _, drawn in ipairs(CLASSES) do if class == drawn then needed = true end end
+        if opted then
+          for _, drawn in ipairs(DRAW_CLASSES) do if class == drawn then needed = true end end
+        end
       end
     end,
   })

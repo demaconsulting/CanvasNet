@@ -19,11 +19,14 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 ///     </para>
 ///     <para>
 ///         The embedded file is a template: its fast path, which decides whether a document needs the tool at all, holds
-///         the placeholders <see cref="ClassesPlaceholder"/> and <see cref="SuffixesPlaceholder"/>, which
-///         <see cref="Generate"/> replaces with Lua lists of the code-block classes and picture suffixes the filter draws
-///         (<see cref="PictureAttributes.BlockClasses"/>, <see cref="PictureAttributes.PictureSuffixes"/>). The shim that a
-///         repository keeps therefore starts the tool for exactly what this tool draws, and is written again after the
-///         tool is updated.
+///         the placeholders <see cref="ClassesPlaceholder"/>, <see cref="DrawClassesPlaceholder"/>, and
+///         <see cref="SuffixesPlaceholder"/>, which <see cref="Generate"/> replaces with Lua lists of the code-block classes
+///         the filter draws, the classes it draws only with the class <c>draw</c>, and the picture suffixes it draws
+///         (<see cref="PictureAttributes.BlockClasses"/>, <see cref="PictureAttributes.DrawBlockClasses"/>,
+///         <see cref="PictureAttributes.PictureSuffixes"/>). The shim that a repository keeps therefore starts the tool for
+///         exactly what this tool draws (a plain <c>openscad</c> block, which stays code, does not start it), and is written
+///         again after the tool is updated. A shim written by an older tool keeps working, but does not start the tool for
+///         a document whose only pictures are block classes that tool did not know.
 ///     </para>
 ///     <para>Stateless and thread-safe.</para>
 /// </remarks>
@@ -60,6 +63,12 @@ internal static class PandocFilterShim
     internal const string ClassesPlaceholder = "@CLASSES@";
 
     /// <summary>
+    ///     The placeholder of the template that <see cref="Generate"/> replaces with the code-block classes the filter draws
+    ///     only when the block also has the class <c>draw</c>.
+    /// </summary>
+    internal const string DrawClassesPlaceholder = "@DRAW_CLASSES@";
+
+    /// <summary>
     ///     The placeholder of the template that <see cref="Generate"/> replaces with the picture suffixes the filter may change.
     /// </summary>
     internal const string SuffixesPlaceholder = "@SUFFIXES@";
@@ -81,13 +90,16 @@ internal static class PandocFilterShim
     /// <param name="template">The text of the template.</param>
     /// <returns>
     ///     The template with <see cref="ClassesPlaceholder"/> replaced by a Lua list of
-    ///     <see cref="PictureAttributes.BlockClasses"/> and <see cref="SuffixesPlaceholder"/> by a Lua list of
+    ///     <see cref="PictureAttributes.BlockClasses"/>, <see cref="DrawClassesPlaceholder"/> by a Lua list of
+    ///     <see cref="PictureAttributes.DrawBlockClasses"/>, and <see cref="SuffixesPlaceholder"/> by a Lua list of
     ///     <see cref="PictureAttributes.PictureSuffixes"/>, for example <c>{ "mermaid" }</c>.
     /// </returns>
     /// <exception cref="InvalidOperationException">Thrown when a placeholder is not in the template exactly once (a defect of the build).</exception>
     internal static string Generate(string template)
     {
-        return Fill(Fill(template, ClassesPlaceholder, PictureAttributes.BlockClasses), SuffixesPlaceholder, PictureAttributes.PictureSuffixes);
+        var classes = Fill(template, ClassesPlaceholder, PictureAttributes.BlockClasses);
+        var drawClasses = Fill(classes, DrawClassesPlaceholder, PictureAttributes.DrawBlockClasses);
+        return Fill(drawClasses, SuffixesPlaceholder, PictureAttributes.PictureSuffixes);
     }
 
     /// <summary>

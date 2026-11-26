@@ -2088,6 +2088,7 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── FilterPaths.cs             — FilterPaths: the path rules of the Lua filter and of pandoc.path
     ├── PictureAttributes.cs       — PictureAttributes: the kinds, the attribute checks, and the tool options
     ├── DependencyHasher.cs        — DependencyHasher: the parts, the limits, and the OpenSCAD and picture walks
+    ├── DependencyHasher.Blocks.cs — DependencyHasher: the files a Vega-Lite or OpenSCAD code block names
     ├── DependencyHasher.Chart.cs  — DependencyHasher: the Vega-Lite walk
     ├── DependencyHasher.Mermaid.cs — DependencyHasher: the Mermaid walk
     ├── DependencyHasher.PlantUml.cs — DependencyHasher: the PlantUML walk (the local !include files)

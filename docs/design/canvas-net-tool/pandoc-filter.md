@@ -21,7 +21,8 @@ It contains eight units:
 - `FilterPaths` - the path rules of the Lua filter and of `pandoc.path`: finding a source in the resource path, file
   URIs, remote URLs, and the labels of the files in a key.
 - `DependencyHasher` - every file a picture reads (includes, data files, linked pictures, nested drawings), as the
-  parts of its cache key, with the limits of 64 levels and 512 files.
+  parts of its cache key, with the limits of 64 levels and 512 files, and the local file a Vega-Lite or OpenSCAD code
+  block names (a code block has no folder, so such a block stops the build with a hint to link a picture).
 - `FilterSettings` - the inputs of the run and the variables `CANVASNET_FILE_ACCESS`, `CANVASNET_ROOTS`,
   `CANVASNET_TOOL`, and `CANVASNET_JOBS`: the file-access arguments, the tool identity, the cache folder, the `src` of a
   picture, and the number of jobs.
@@ -38,7 +39,7 @@ The command that runs the subsystem, `PandocFilterCommand`, is a unit of the `Co
 
 **PandocFilterEngine(settings, drawer, jobs).Run(input, pandocVersion)** (provided to `PandocFilterCommand`): takes
 the bytes of a Pandoc JSON document and returns the bytes of the transformed document (UTF-8 without a byte order
-mark), with the warnings in the metadata list `canvasnet-warnings`; a caption of a Mermaid block is a placeholder
+mark), with the warnings in the metadata list `canvasnet-warnings`; a caption of a code block is a placeholder
 `Span` of class `canvasnet-markdown` whose attribute `markdown` the shim parses. A failure is a `ToolException`:
 `pandoc-filter-error` for a mistake in a picture, `corrupt-input` for a document that is not Pandoc 3's JSON,
 `file-access-denied` for a picture a restrictive mode denies, and the code of the tool for a drawing that fails;
@@ -54,10 +55,11 @@ filterPath)`, and the protocol constants (`Protocol`, `MinProtocol`, and `MaxPro
 `<prog> pandoc-filter --json --protocol 1 --filter-path <PANDOC_SCRIPT_FILE> --format <FORMAT> --pandoc-version <PANDOC_VERSION> [--resource-path <dir>]... [--pandoc-output <file>] [--embed-resources]`
 with `pandoc.pipe` and the document on standard input. Exit code 0 means standard output is the document; exit code 1
 means standard output is the JSON failure document, whose message and hint the shim raises as the error of the build.
-The shim starts the tool only when the document has a code block of a class the engine draws (`mermaid`, `plantuml`, or
-`mathml`) or a local picture whose name ends in a suffix the engine may change (`.svg`, `.vl.json`, `.vl`, `.scad`,
-`.vsdx`, `.pptx`, `.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, or `.mml`, in any letter case);
-`--write-shim` writes both lists from `PictureAttributes`, so the shim is written again after the tool is updated.
+The shim starts the tool only when the document has a code block of a class the engine draws (`mermaid`, `plantuml`,
+`mathml`, `vega-lite`, or `vegalite`, or `openscad` together with `draw`; a plain `openscad` block stays code) or a
+local picture whose name ends in a suffix the engine may change (`.svg`, `.vl.json`, `.vl`, `.scad`, `.vsdx`, `.pptx`,
+`.pdf`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, or `.mml`, in any letter case); `--write-shim` writes the lists
+from `PictureAttributes`, so the shim is written again after the tool is updated.
 
 **RenderCommand.Execute** and **FlattenCommand.Execute** (consumed, from the `Commands` subsystem): `ToolPictureDrawer`
 draws a picture with the same argument list the Lua filter passed to `canvasnet render ... --json` and `canvasnet

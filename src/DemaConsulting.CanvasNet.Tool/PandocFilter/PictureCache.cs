@@ -162,15 +162,20 @@ internal static class PictureCache
     /// <summary>
     ///     Gets the file the text of a code block is written to: the SHA-1 of the text and a fixed prefix that names the kind,
     ///     with the extension of the kind (<c>.mmd</c> for a Mermaid block, <c>.puml</c> for a PlantUML block, <c>.mml</c> for
-    ///     a MathML block).
+    ///     a MathML block, <c>.vl.json</c> for a Vega-Lite block, <c>.scad</c> for an OpenSCAD block), so the tool reads the
+    ///     file as that kind.
     /// </summary>
     /// <param name="folder">The cache folder.</param>
     /// <param name="text">The text as written to the file (the block's text and a line feed).</param>
-    /// <param name="kind">The kind the block is drawn as (<see cref="PictureAttributes.Mermaid"/>, <see cref="PictureAttributes.PlantUml"/>, or <see cref="PictureAttributes.MathMl"/>).</param>
+    /// <param name="kind">
+    ///     The kind the block is drawn as (<see cref="PictureAttributes.Mermaid"/>, <see cref="PictureAttributes.PlantUml"/>,
+    ///     <see cref="PictureAttributes.MathMl"/>, <see cref="PictureAttributes.VegaLite"/>, or <see cref="PictureAttributes.Scad"/>).
+    /// </param>
     /// <returns>The path.</returns>
     /// <remarks>
     ///     The name of a Mermaid block is the one of earlier versions (the prefix <c>canvasnet.lua mermaid block</c> and
-    ///     <c>.mmd</c>), so the pictures already in a cache keep their keys.
+    ///     <c>.mmd</c>), so the pictures already in a cache keep their keys. The prefix names the kind, not the class, so a
+    ///     <c>vega-lite</c> block and a <c>vegalite</c> block with the same text share one file and one picture.
     /// </remarks>
     internal static string BlockSourceFile(string folder, string text, string kind = PictureAttributes.Mermaid)
     {
@@ -178,6 +183,8 @@ internal static class PictureCache
         {
             PictureAttributes.PlantUml => ".puml",
             PictureAttributes.MathMl => ".mml",
+            PictureAttributes.VegaLite => ".vl.json",
+            PictureAttributes.Scad => ".scad",
             _ => ".mmd"
         };
         return FilterPaths.Join([folder, FilterSettings.Sha1Hex(Encoding.UTF8.GetBytes($"canvasnet.lua {kind} block\n" + text)) + extension]);

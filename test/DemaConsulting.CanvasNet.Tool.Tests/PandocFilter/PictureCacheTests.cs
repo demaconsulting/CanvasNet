@@ -99,6 +99,32 @@ public class PictureCacheTests
     }
 
     /// <summary>
+    ///     Test that the text of a Vega-Lite block is written to a <c>.vl.json</c> file and the text of an OpenSCAD block to a
+    ///     <c>.scad</c> file, each named by the SHA-1 of the text after a prefix that names the kind, so the tool reads each
+    ///     as its kind.
+    /// </summary>
+    [Fact]
+    public void PictureCache_BlockSourceFile_VegaLiteAndScadBlocks_HaveTheirExtensions()
+    {
+        // Arrange: the cache folder, a chart, a model, and the names their text and prefix give
+        const string cache = "/docs/generated/canvasnet";
+        const string chart = "{\"mark\": \"bar\"}\n";
+        const string model = "cube(10);\n";
+        var chartHash = FilterSettings.Sha1Hex(System.Text.Encoding.UTF8.GetBytes("canvasnet.lua vegalite block\n" + chart));
+        var modelHash = FilterSettings.Sha1Hex(System.Text.Encoding.UTF8.GetBytes("canvasnet.lua scad block\n" + model));
+
+        // Act
+        var chartFile = PictureCache.BlockSourceFile(cache, chart, PictureAttributes.VegaLite);
+        var modelFile = PictureCache.BlockSourceFile(cache, model, PictureAttributes.Scad);
+
+        // Assert: the hash of the prefixed text with the kind's extension, which names the kind for the tool
+        Assert.Equal(FilterPaths.Join([cache, chartHash + ".vl.json"]), chartFile);
+        Assert.Equal(FilterPaths.Join([cache, modelHash + ".scad"]), modelFile);
+        Assert.Equal(PictureAttributes.VegaLite, PictureAttributes.KindOf(chartFile));
+        Assert.Equal(PictureAttributes.Scad, PictureAttributes.KindOf(modelFile));
+    }
+
+    /// <summary>
     ///     Test the atomic text write: a new file is written without a partial file left, and an existing one is kept.
     /// </summary>
     [Fact]

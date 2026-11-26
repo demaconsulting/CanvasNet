@@ -4,14 +4,14 @@
 
 #### Purpose
 
-`PictureAttributes` reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the Pandoc
-filter: which
+`PictureAttributes` reads the attributes of a picture or a code block (Mermaid, PlantUML, MathML, Vega-Lite, or OpenSCAD
+marked `draw`) for the Pandoc filter: which
 kind of
 input a picture names, the checks of every drawing attribute with the messages of the Lua filter, the defaults of each
 kind, the sorted tool options, and the attributes that stay on the picture. It is a literal port of `kind_of`,
 `is_svg`, the `OPTIONS` table, `build_options`, and `block_name` of the Lua filter (version 16). The unit is the
-internal static class `PictureAttributes` in `PictureAttributes.cs`, which also holds the supporting record
-`PictureOptions`. The class is stateless and thread-safe.
+internal static class `PictureAttributes` in `PictureAttributes.cs`, which also holds the supporting records
+`PictureOptions` and `BlockClass`. The class is stateless and thread-safe.
 
 #### Data Model
 
@@ -19,20 +19,25 @@ internal static class `PictureAttributes` in `PictureAttributes.cs`, which also 
 their bytes) and `Keep` (`IReadOnlyList<KeyValuePair<string, string>>`, the attributes that stay, in their original
 order).
 
+**BlockClass** (internal sealed record): `Class` (the class as the author writes it), `Kind` (the kind the block is
+drawn as), and `NeedsDraw` (`true` when the block is drawn only together with the class `draw`).
+
 **Kinds** (constants): `vegalite`, `scad`, `vsdx`, `pptx`, `pdf`, `mermaid`, `plantuml`, and `mathml`.
 
 **Suffixes**: the name ends checked in order: `.vl.json` and `.vl` (`vegalite`), `.scad`, `.vsdx`, `.pptx`, `.pdf`,
 `.mmd` and `.mermaid` (`mermaid`), `.puml`, `.plantuml`, and `.pu` (`plantuml`; an `.iuml` include fragment is not
 a picture), and `.mml` (`mathml`). `SvgSuffix` = `.svg` is the name end of a drawing (`IsSvg`).
 
-**BlockClassKinds** (private): the classes of the code blocks the filter draws, each with its kind: `mermaid`
-(`mermaid`), `plantuml` (`plantuml`), and `mathml` (`mathml`); the class is the name of the kind, and the first of
-them a block has wins.
+**BlockClassTable** (private): the `BlockClass` rows of the code blocks the filter draws, in order: `mermaid`
+(`mermaid`), `plantuml` (`plantuml`), `mathml` (`mathml`), `vega-lite` (`vegalite`), `vegalite` (`vegalite`), and
+`openscad` (`scad`, `NeedsDraw`). The first row a block has wins. An `openscad` block is opt-in because documentation
+often shows OpenSCAD source as highlighted code; `DrawClass` = `draw` is the class that asks for the picture.
 
 **PictureSuffixes**: `SvgSuffix` followed by the `Suffixes`, in order, the lowercase name ends of every local picture
-the filter may change. **BlockClasses**: the classes of `BlockClassKinds`. These two lists are the filter's own
-registry of what it handles: `PandocFilterShim.Generate` writes them into the shim's fast path, so the shim starts
-the tool for exactly the pictures and code blocks the engine does not leave alone.
+the filter may change. **BlockClasses**: the classes of the rows without `NeedsDraw` (drawn by default).
+**DrawBlockClasses**: the classes of the rows with `NeedsDraw` (`openscad`). These lists are the filter's own registry
+of what it handles: `PandocFilterShim.Generate` writes them into the shim's fast path, so the shim starts the tool for
+exactly the pictures and code blocks the engine does not leave alone.
 
 **Limits and defaults**: `ScadDefaultSize` = `1600x1200`, `DefaultBackground` = `white` (models only),
 `MaxTriangles` = `2000000`, `MathMlDefaultScale` = `2` (equations only), and `MaxPixels` = 8192.
@@ -50,8 +55,10 @@ the tool for exactly the pictures and code blocks the engine does not leave alon
 **IsSvg(src)**: `true` when `src` has no URL scheme and ends in `.svg` in any letter case; the engine checks it before
 `KindOf`. Neither method cuts a fragment or query off `src`, so `report.pdf#page=2` is left alone.
 
-**BlockKindOf(classes)**: the kind of the first entry of `BlockClassKinds` whose class the block has (an exact,
-case-sensitive comparison, so `Mermaid` is not `mermaid`), or `null` when it has none and is left alone.
+**BlockOf(classes)**: the first row of `BlockClassTable` whose class the block has (an exact, case-sensitive
+comparison, so `Mermaid` is not `mermaid`), where a `NeedsDraw` row counts only when the classes also hold `draw`; or
+`null` when it finds none and the block is left alone (a plain `openscad` block included). **BlockKindOf(classes)**:
+the `Kind` of that row, or `null`.
 
 **Build(name, kind, attributes)**: walks the attributes in order. Every key that starts with `param-` or `define-` is
 checked, a bare `param-` or `define-` included, so none stays on the picture. `param-NAME` (Vega-Lite only, `NAME` not
@@ -82,8 +89,9 @@ order, and keeps every other attribute.
 
 **SplitCaption(attributes)**: returns the last `caption` value (or `null`) and the other attributes as a keep list.
 
-**BlockName(identifier, text, kind)**: `<kind> block #<identifier>`, or `<kind> block (<first line>)` (`kind` is
-`mermaid` unless the block is a `plantuml` or `mathml` block) where the first line
+**BlockName(identifier, text, blockClass)**: `<class> block #<identifier>`, or `<class> block (<first line>)`, where the
+class is the one the author wrote (`mermaid` by default; `plantuml`, `mathml`, `vega-lite`, `vegalite`, or `openscad`
+for the other blocks) and the first line
 follows any leading white space, has its trailing white space removed, and is cut to 40 characters (runes) followed by
 `...`.
 
@@ -117,8 +125,9 @@ message of the Lua filter, for example:
 
 #### Callers
 
-- **PandocFilterShim** - `BlockClasses` and `PictureSuffixes`, written into the shim's fast path.
-- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockKindOf`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `BlockName`, and
+- **PandocFilterShim** - `BlockClasses`, `DrawBlockClasses`, and `PictureSuffixes`, written into the shim's fast path.
+- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockOf`, `DrawClass`, `Build`, `NaturalWidthNeeded`, `BuildSvg`,
+  `BlockName`, and
   `SplitCaption` while
   it plans the pictures of a document.
 - **DependencyHasher** - the kind constants and `KindOf` to find the composite links of an SVG drawing.

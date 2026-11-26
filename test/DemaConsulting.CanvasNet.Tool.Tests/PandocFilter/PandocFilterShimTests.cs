@@ -23,6 +23,7 @@ public class PandocFilterShimTests
 
         // Assert
         Assert.Contains(PandocFilterShim.ClassesPlaceholder, source, StringComparison.Ordinal);
+        Assert.Contains(PandocFilterShim.DrawClassesPlaceholder, source, StringComparison.Ordinal);
         Assert.Contains(PandocFilterShim.SuffixesPlaceholder, source, StringComparison.Ordinal);
         Assert.Equal(PandocFilterShim.Generate(source).Replace("\r\n", "\n", StringComparison.Ordinal), text.Replace("\r\n", "\n", StringComparison.Ordinal));
         Assert.Contains($"local PROTOCOL = \"{PandocFilterShim.Protocol}\"", text, StringComparison.Ordinal);
@@ -40,13 +41,16 @@ public class PandocFilterShimTests
         // Act
         var text = Encoding.UTF8.GetString(PandocFilterShim.Bytes);
 
-        // Assert
-        Assert.Contains("local CLASSES = { \"mermaid\", \"plantuml\", \"mathml\" }\n", text, StringComparison.Ordinal);
+        // Assert: the default classes, the classes drawn only with draw, and the check of draw
+        Assert.Contains("local CLASSES = { \"mermaid\", \"plantuml\", \"mathml\", \"vega-lite\", \"vegalite\" }\n", text, StringComparison.Ordinal);
+        Assert.Contains("local DRAW_CLASSES = { \"openscad\" }\n", text, StringComparison.Ordinal);
+        Assert.Contains($"if class == \"{PictureAttributes.DrawClass}\" then opted = true end", text, StringComparison.Ordinal);
         Assert.Contains(
             "local SUFFIXES = { \".svg\", \".vl.json\", \".vl\", \".scad\", \".vsdx\", \".pptx\", \".pdf\", \".mmd\", \".mermaid\", \".puml\", \".plantuml\", \".pu\", \".mml\" }\n",
             text,
             StringComparison.Ordinal);
         Assert.DoesNotContain(PandocFilterShim.ClassesPlaceholder, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(PandocFilterShim.DrawClassesPlaceholder, text, StringComparison.Ordinal);
         Assert.DoesNotContain(PandocFilterShim.SuffixesPlaceholder, text, StringComparison.Ordinal);
     }
 
@@ -58,13 +62,15 @@ public class PandocFilterShimTests
     public void PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses()
     {
         // Act
-        var filled = PandocFilterShim.Generate("c = @CLASSES@\ns = @SUFFIXES@\n");
-        var missing = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("c = @CLASSES@\n"));
-        var twice = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("@CLASSES@ @CLASSES@ @SUFFIXES@"));
+        var filled = PandocFilterShim.Generate("c = @CLASSES@\nd = @DRAW_CLASSES@\ns = @SUFFIXES@\n");
+        var missing = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("c = @CLASSES@\nd = @DRAW_CLASSES@\n"));
+        var noDraw = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("c = @CLASSES@\ns = @SUFFIXES@\n"));
+        var twice = Assert.Throws<InvalidOperationException>(() => PandocFilterShim.Generate("@CLASSES@ @CLASSES@ @DRAW_CLASSES@ @SUFFIXES@"));
 
         // Assert
-        Assert.StartsWith("c = { \"mermaid\", \"plantuml\", \"mathml\" }\ns = { \".svg\", ", filled, StringComparison.Ordinal);
+        Assert.StartsWith("c = { \"mermaid\", \"plantuml\", \"mathml\", \"vega-lite\", \"vegalite\" }\nd = { \"openscad\" }\ns = { \".svg\", ", filled, StringComparison.Ordinal);
         Assert.Contains("@SUFFIXES@", missing.Message, StringComparison.Ordinal);
+        Assert.Contains("@DRAW_CLASSES@", noDraw.Message, StringComparison.Ordinal);
         Assert.Contains("@CLASSES@", twice.Message, StringComparison.Ordinal);
     }
 

@@ -74,7 +74,8 @@ consists of six direct units and two subsystems:
   Pandoc filter of the tool, a literal port of the former Lua filter. The Lua shim `docs/filters/canvasnet.lua` sends
   the whole Pandoc document to `pandoc-filter` once per Pandoc run; the subsystem draws its models, charts, diagrams,
   drawings, and document pages into the cache folder `generated/canvasnet` (up to a number of jobs at once, with a
-  content-addressed key), rewrites the pictures and the Mermaid code blocks, and returns the document. It holds
+  content-addressed key), rewrites the pictures and the code blocks it draws (`mermaid`, `plantuml`, `mathml`,
+  `vega-lite`, and `openscad` marked `draw`), and returns the document. It holds
   `PandocAst`, `FilterPaths`, `PictureAttributes`, `DependencyHasher`, `FilterSettings`, `PictureCache`,
   `PandocFilterEngine`, and `PandocFilterShim` (the shim embedded in the tool, written with `--write-shim`, and its
   protocol). It draws each picture in-process with `RenderCommand.Execute` and `FlattenCommand.Execute`, so a picture is
