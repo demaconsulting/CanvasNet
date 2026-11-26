@@ -468,6 +468,17 @@ thickness (71), the italic correction of U+1D453 (145), and the 13 variants and 
 `(`, and that the bundled Liberation Sans text font reports no `MATH` table. This confirms the
 system delivers the math layout data the MathML package needs without changing how fonts load.
 
+### Integration: A Font With a Damaged MATH Table Loads and Rejects the Table
+
+**Test**: `CanvasNet_SystemIntegration_LoadFontWithDamagedMathTable_LoadsAndRejectsTheTable`
+
+Exercises end-to-end system behavior for a font whose `MATH` table is malformed: copies the bundled Noto Sans Math
+from the embedded resources of the library, sets the major version of the `MATH` table of the copy to 2, and loads
+both through the public `TrueTypeFont.Load(Stream)`. Asserts that the damaged font measures `x = 1 + 2` with
+`TextRenderer.MeasureText` and outlines `+` exactly as the undamaged font does, that the undamaged font has a `MATH`
+table, and that reading the table of the damaged font throws `InvalidDataException`. This confirms that a malformed
+`MATH` table leaves the loading and text use of a font unchanged and fails closed only when the table is read.
+
 ### Integration: File References Are Read Anywhere by Default and Confined by a Roots Policy
 
 **Test**: `CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines`

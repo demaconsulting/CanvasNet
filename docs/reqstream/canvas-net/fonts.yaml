@@ -323,3 +323,4 @@ sections:
               - TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction
               - TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent
               - TrueTypeFont_RealOpenSans_HasNoMathTable
+              - TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable

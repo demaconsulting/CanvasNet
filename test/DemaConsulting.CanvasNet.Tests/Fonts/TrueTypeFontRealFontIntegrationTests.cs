@@ -373,6 +373,69 @@ public class TrueTypeFontRealFontIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that the real Noto Sans Math with a damaged <c>MATH</c> table (one that claims an
+    ///     unsupported major version) still loads and gives the same glyphs, advances, and outlines
+    ///     as the undamaged font, while reading the table fails closed with
+    ///     <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable()
+    {
+        // Arrange: the bundled font, and a copy whose MATH table claims major version 2
+        var bytes = ReadBundledFont("NotoSansMath-Regular.ttf");
+        var damaged = (byte[])bytes.Clone();
+        damaged[FindTableOffset(damaged, "MATH") + 1] = 2;
+
+        // Act
+        var original = TrueTypeFont.Load(new MemoryStream(bytes));
+        var font = TrueTypeFont.Load(new MemoryStream(damaged));
+
+        // Assert: the font is used for text exactly as before, and only the MATH table is rejected
+        var plus = original.GetGlyphIndex('+');
+        Assert.NotEqual(0, plus);
+        Assert.Equal(plus, font.GetGlyphIndex('+'));
+        Assert.Equal(original.GetAdvanceWidth(plus), font.GetAdvanceWidth(plus));
+        Assert.Equal(original.GetGlyphOutline(plus).GetBounds(), font.GetGlyphOutline(plus).GetBounds());
+        Assert.True(original.TryGetMathTable(out _));
+        Assert.Throws<InvalidDataException>(() => font.TryGetMathTable(out _));
+    }
+
+    /// <summary>
+    ///     Reads the bytes of a font bundled as an embedded resource of the core library.
+    /// </summary>
+    /// <param name="bundledName">The file name of the bundled font.</param>
+    /// <returns>The bytes of the font file.</returns>
+    private static byte[] ReadBundledFont(string bundledName)
+    {
+        using var source = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream(
+            "DemaConsulting.CanvasNet.Fonts.BundledFonts." + bundledName)!;
+        using var buffer = new MemoryStream();
+        source.CopyTo(buffer);
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    ///     Finds the offset of a table in the table directory of a single-face SFNT font file.
+    /// </summary>
+    /// <param name="font">The bytes of the font file.</param>
+    /// <param name="tag">The four-character table tag.</param>
+    /// <returns>The offset of the table from the start of the file.</returns>
+    private static int FindTableOffset(byte[] font, string tag)
+    {
+        var numTables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(font.AsSpan(4));
+        for (var i = 0; i < numTables; i++)
+        {
+            var entry = 12 + (i * 16);
+            if (System.Text.Encoding.ASCII.GetString(font, entry, 4) == tag)
+            {
+                return (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(font.AsSpan(entry + 8));
+            }
+        }
+
+        throw new InvalidOperationException($"The font has no '{tag}' table.");
+    }
+
+    /// <summary>
     ///     Extracts <paramref name="glyphIndex"/>'s real outline from <paramref name="font"/>,
     ///     confirms its metrics are sane for a real font, transforms it from font design-unit
     ///     space into a small pixel-space canvas, fills it via <see cref="PathFiller"/>, and

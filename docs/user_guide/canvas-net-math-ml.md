@@ -109,7 +109,8 @@ The `MathMlRenderOptions` properties:
 
 - `FontSize` (default 16): the font size of the `math` element in CSS pixels; every length of the layout follows from
   it. At most 4,096.
-- `Scale` (default 1): the factor by which the natural size is multiplied; finite and greater than zero.
+- `Scale` (default 1): the factor by which the natural size is multiplied; finite, greater than zero, and at most
+  8,192.
 - `Display` (default `null`): `MathMlDisplay.Block` or `MathMlDisplay.Inline` replaces the `display` attribute of the
   `math` element; `null` keeps it.
 - `Color` (default opaque black): the color of the text and the lines, which `mathcolor` overrides.

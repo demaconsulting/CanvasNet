@@ -869,12 +869,13 @@ being queried, so `GetKerning` degrades to returning `0`. Similarly, a missing o
 metrics/outlines: `GetNameInfo()` degrades to `null` members and `IsBold`/`IsItalic`/
 `IsFixedPitch` degrade to `false` for whichever source table is absent or unusable.
 
-`MATH` is optional too, but it is handled differently: it is not read at all during load, so a
-missing or malformed `MATH` table can never make `Load` fail. Only its table-directory range is
-captured. It is validated when `TryGetMathTable` first parses it, and a malformed table then fails
-closed with `InvalidDataException` instead of degrading. Math layout built from partially read
-constants or constructions would be silently wrong, so the caller (the MathMl package) is told and
-can report the failure.
+`MATH` is optional too, but it is handled differently: its contents are not read at all during load, so a missing `MATH`
+table, or one whose contents are malformed, never makes `Load` fail. Only its table-directory range is captured; like
+every table-directory entry, that range must lie within the font data, so a `MATH` entry that points outside the file
+still fails the load with `InvalidDataException` (the SFNT container check). It is validated when `TryGetMathTable`
+first parses it, and a malformed table then fails closed with `InvalidDataException` instead of degrading. Math layout
+built from partially read constants or constructions would be silently wrong, so the caller (the MathMl package) is told
+and can report the failure.
 
 ##### MATH Table Bounds and Work Limit
 
