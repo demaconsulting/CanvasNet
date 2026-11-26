@@ -600,7 +600,7 @@ twice its natural size (138 by 44):
 
 A node of a Mermaid flowchart shows it at one and a half times its natural size:
 
-```mermaid
+```text
 flowchart LR
     eq@{ img: "quadratic.mml", label: "Roots", w: 207, h: 66 }
     eq --> check[Check the discriminant]
