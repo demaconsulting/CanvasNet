@@ -193,9 +193,9 @@ public partial class HelpCatalogTests
         Assert.Contains($"At most {MathMlLimits.Default.MaxTextSize} characters; a longer text", limits);
         Assert.Contains($"At most {MathMlLimits.Default.MaxElements} elements nested at most {MathMlLimits.Default.MaxNestingDepth} deep", limits);
         Assert.Contains($"at most {MathMlLimits.Default.MaxTableCells} cells in one table", limits);
-        Assert.Contains($"At most {MathMlLimits.Default.MaxTokenLength} characters in the text of one token", limits);
+        Assert.Contains($"and at most {MathMlLimits.Default.MaxTokenLength} characters in one token", limits);
         Assert.Contains($"At most {MathMlLimits.Default.MaxLayoutWork} units of layout work", limits);
-        Assert.Contains($"At most {MathMlLimits.Default.MaxPaintedGlyphs} glyphs painted by one render", limits);
+        Assert.Contains($"{MathMlLimits.Default.MaxPaintedGlyphs} painted glyphs; beyond that", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
