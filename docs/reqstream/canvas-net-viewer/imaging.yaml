@@ -384,6 +384,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-InputFragments
         tests:
           - Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds
+          - Imaging_Load_EquationLinkWithDisplayFragment_DrawsTheChosenLayout
           - SourceLoader_ProbeInputReference_MathMlDisplay_IsAppliedToTheRender
 
       - id: CanvasNetViewer-Imaging-FileAccess

@@ -192,6 +192,7 @@ that names both files.
 `CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid`,
 `CanvasNetViewer_Render_ScadAngleFragments_TurnTheViewOrAreInvalid`,
 `CanvasNetViewer_Render_ScadProjectionFragment_ChoosesTheProjectionOrIsInvalid`,
+`CanvasNetViewer_Render_MathMlDisplayFragment_ChoosesTheLayout`,
 `CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment`,
 `CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment`,
 `CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver`,
@@ -217,7 +218,9 @@ a warning with the last value used, and the same value twice silent; that a `?qu
 values with nothing drawn; that, for the same bar, no fragment, `#projection=ortho`, and `#projection=Orthographic` draw
 the same pixels, `#projection=perspective` and `#projection=PERSPECTIVE` draw the same other pixels, with no notes, and
 `#projection=fisheye` and an empty `#projection=` are two `image-fragment-invalid` notes (the first naming its value,
-the second listing the projections) with nothing drawn; that a scheme source receives the raw link and
+the second listing the projections) with nothing drawn; that, for the quadratic formula (which says `display="block"`),
+`#display=BLOCK` draws the pixels of the link without a fragment and `#display=inline` the pixels of a copy that
+says `display="inline"`, which differ from them, with no notes; that a scheme source receives the raw link and
 the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG
 file
 draws its pages through the scoped resolver; that a fragment of thousands of characters is refused with a short message;

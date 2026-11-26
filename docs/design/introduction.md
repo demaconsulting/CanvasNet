@@ -417,7 +417,7 @@ software items, specifically:
   graph layout of the diagrams that PlantUML lays out with Graphviz) through internal friend access
 - **CanvasNetMathMl (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.MathMl`)
   providing a static, offline, deterministic renderer of MathML Core equations with the bundled Noto Sans Math font and
-  its OpenType `MATH` table (three data tables are derived with attribution from W3C and Unicode data; their license
+  its OpenType `MATH` table (five data tables are derived with attribution from W3C and Unicode data; their license
   texts ship in the package). It contains two direct units, `MathMlDocument` (the public `Parse`/`Open`, describe,
   `Measure`, and `Render` API with `MathMlDisplay`, `MathMlAnnotation`, `MathMlOpenOptions`, `MathMlRenderOptions`,
   `MathMlLimits`, `MathMlLocation`, `MathMlDiagnostic`, `MathMlUnsupportedFeature`, `MathMlSize`,

@@ -1202,7 +1202,8 @@ sections:
 
               - id: CanvasNet-Fonts-TrueTypeFont-MathTableMalformed
                 title: >-
-                  The TrueTypeFont unit shall load a font whose OpenType MATH table is malformed
+                  The TrueTypeFont unit shall load a font whose OpenType MATH table has malformed
+                  contents (its table-directory entry lying within the font data, as every entry must)
                   exactly as if the table were valid, and shall reject that table with
                   InvalidDataException when it is accessed, including tables with an unsupported major
                   version, offsets or counts beyond the table (without arithmetic overflow), coverage

@@ -96,7 +96,8 @@ from the live constants of the code and formatted with the invariant culture wit
 (`VegaLiteLimits.Default`: source length, JSON depth, data files, data bytes, data rows, images, painted pixels), the
 `mmdMax*` limits (`MermaidLimits.Default`: text size, edges, nodes, images), the `pumlMax*` limits
 (`PlantUmlLimits.Default`: text size, nodes, edges, includes, include depth), the `mmlMax*` limits
-(`MathMlLimits.Default`: text size, elements, nesting depth, table cells, layout work), `fragmentMaxLength` and
+(`MathMlLimits.Default`: text size, elements, nesting depth, table cells, token length, layout work, painted glyphs),
+`fragmentMaxLength` and
 `fragmentMaxParameters` (`ImageFragment`), and `positionsMax` (`PositionCollector.MaxPositions`),
 `positionsMaxSelectors` (`PositionSelection.MaxSelectors`), `positionsMaxSelectorLength` and `positionsMaxPredicates`
 (`PositionSelector`), and `positionsMaxDataFields` (`ImagePosition.MaxDataFields`). A host adds its own tokens in

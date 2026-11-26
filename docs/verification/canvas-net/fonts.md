@@ -191,13 +191,16 @@ verification design (`fonts/glyph-fallback.md`).
 `TrueTypeFont_RealNotoSansMath_ReadsParenthesisConstruction`,
 `TrueTypeFont_RealNotoSansMath_ReadsHorizontalConstruction`,
 `TrueTypeFont_RealNotoSansMath_ReadsItalicCorrectionAndTopAccent`,
-`TrueTypeFont_RealOpenSans_HasNoMathTable`
+`TrueTypeFont_RealOpenSans_HasNoMathTable`,
+`TrueTypeFont_RealNotoSansMathWithDamagedMathTable_LoadsAndRejectsTheTable`
 
 Loads the bundled Noto Sans Math through `SystemFontCatalog`'s cached bundled-font loader and reads
 its `MATH` table through `TrueTypeFont`. Asserts its constants, `MinConnectorOverlap`, the vertical
 constructions of `(`, U+221A, and U+222B, the horizontal construction of U+2192, an italic
 correction, a top-accent attachment, and extended shapes against values confirmed with `fonttools`,
-and that the real Open Sans text font reports no `MATH` table. The unit-level behavior (every
+and that the real Open Sans text font reports no `MATH` table. A copy of Noto Sans Math whose `MATH` table claims
+major version 2 loads with the same glyph index, advance, and outline bounds of `+` as the original, while reading its
+table throws `InvalidDataException`. The unit-level behavior (every
 constant, both coverage formats, absent parts, malformed-table rejection, the work budget, and
 concurrent access) is verified by the `TrueTypeFont` unit's own verification design
 (`fonts/true-type-font.md`).

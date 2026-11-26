@@ -307,6 +307,39 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that the natural width the engine adds is not part of the cache key: a plain <c>.mml</c> picture and the
+    ///     same picture with an author's <c>width</c> share one draw and one cache file, and only the plain one gets the
+    ///     natural width.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile()
+    {
+        // Arrange: one equation shown plainly and at half the width of the page
+        using var tree = new FilterTree();
+        var path = tree.Write("eq.mml", "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>=</mo><mn>1</mn></math>");
+        var natural = SourceLoader.Probe(path).Width;
+        var document = PandocDoc.Document(PandocDoc.Para(PandocDoc.Image("eq.mml"), PandocDoc.Image("eq.mml", ("width", "50%"))));
+        var drawer = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+
+        // Assert: one draw at scale 2 and one picture in the cache, which both pictures show
+        Assert.Equal(["render eq.mml"], drawer.Calls);
+        Assert.Contains("--scale=2", Assert.Single(drawer.Arguments));
+        var cached = Assert.Single(tree.CacheFiles(), name => name.EndsWith(".png", StringComparison.Ordinal));
+        var sources = PandocDoc.ImageSources(output);
+        Assert.Equal(2, sources.Count);
+        Assert.Equal(sources[0], sources[1]);
+        Assert.EndsWith(cached, sources[0], StringComparison.Ordinal);
+
+        // Assert: the plain picture gets the natural width and the other keeps the author's width
+        using var json = JsonDocument.Parse(output);
+        var images = json.RootElement.GetProperty("blocks")[0].GetProperty("c").EnumerateArray().Select(i => i.GetProperty("c")[0].GetRawText()).ToList();
+        Assert.Equal([$$"""["",[],[["width","{{natural}}px"]]]""", """["",[],[["width","50%"]]]"""], images);
+    }
+
+    /// <summary>
     ///     Test that one job and four jobs give the same document, warnings, and cache files.
     /// </summary>
     [Fact]

@@ -33,7 +33,11 @@ linked kind through the resolver of the loader. The subsystem test
 `Imaging_Load_EquationLinkedFromSvgMermaidAndVegaLite_DrawsEachAndListsEmbeds` loads an SVG drawing, a Mermaid
 flowchart, and a Vega-Lite chart that each link the quadratic formula (`eq.mml`) and asserts that each picture shows the
 equation's black ink and that each load lists the equation once as an `embed` operation with the href `eq.mml` and the
-format `mathml`, with nothing reported. The file-access policy that every operation passes on
+format `mathml`, with nothing reported, and the subsystem test
+`Imaging_Load_EquationLinkWithDisplayFragment_DrawsTheChosenLayout` loads, for each of the three, a file that links
+`eq.mml`, `eq.mml#display=BLOCK`, `eq.mml#display=inline`, and a copy of the equation that says `display="inline"`
+itself, and asserts that the display fragment of the link chooses the layout. The file-access policy that every
+operation passes on
 (`SourceOptions.FileAccess`, `FlattenRequest.FileAccess`, and `MontageRequest.FileAccess`, by default `AllowAll`) is
 verified at the unit tier: under the default policy the pictures, includes, and data files of the parent folder are
 read, and under `UnderRoots` they are access-denied warnings or `file-access-denied` errors (see the `FileAccess`
@@ -140,6 +144,12 @@ whose node shows the equation, and a Vega-Lite chart whose image mark shows it, 
 `eq.mml`, are loaded with the default options; each picture holds the equation's black ink, each load lists one `embed`
 operation with the href `eq.mml` and the format `mathml`, and nothing is reported.
 
+**Imaging_Load_EquationLinkWithDisplayFragment_DrawsTheChosenLayout**: the quadratic formula `eq.mml` (which says
+`display="block"`) and a copy `eq-inline.mml` that says `display="inline"` are linked from an SVG drawing, a Mermaid
+node, and a Vega-Lite image mark as `eq.mml`, `eq.mml#display=BLOCK`, `eq.mml#display=inline`, and `eq-inline.mml`, and
+each file is loaded with the default options; for each way of linking, `#display=BLOCK` draws exactly the pixels of the
+link without a fragment, `#display=inline` exactly the pixels of the inline copy, and these differ from the block
+pixels; each load lists one `embed` operation with the href of its link, and nothing is reported.
 **Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults**: a `CompareRequest` built from its two
 inputs alone has no resize, the contain fit, the automatic filter, an opaque white background, the default tolerance,
 grid, gain, and overlay weight, no thresholds and no output paths, the heat style, and the default write options, and

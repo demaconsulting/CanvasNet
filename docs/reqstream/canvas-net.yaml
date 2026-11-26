@@ -1887,6 +1887,7 @@ sections:
           - CanvasNet-Fonts-MathTable
         tests:
           - CanvasNet_SystemIntegration_LoadMathFontAndReadMathTable_ReturnsMathLayoutData
+          - CanvasNet_SystemIntegration_LoadFontWithDamagedMathTable_LoadsAndRejectsTheTable
 
   - title: Rendering API
     requirements:

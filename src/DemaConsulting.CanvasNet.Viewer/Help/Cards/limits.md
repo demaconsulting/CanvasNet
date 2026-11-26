@@ -85,12 +85,13 @@ produces.
 - **Text**: At most {{mmlMaxTextSize}} characters; a longer text is
   corrupt-input.
 - **Structure**: At most {{mmlMaxElements}} elements nested at most
-  {{mmlMaxNestingDepth}} deep, and at most {{mmlMaxTableCells}} cells in one
-  table; beyond that the equation fails with budget-exceeded
-  (mathml-limit-exceeded).
+  {{mmlMaxNestingDepth}} deep, at most {{mmlMaxTableCells}} cells in one table,
+  and at most {{mmlMaxTokenLength}} characters in one token; beyond that the
+  equation fails with budget-exceeded (mathml-limit-exceeded).
 - **Layout work**: At most {{mmlMaxLayoutWork}} units of layout work (each
-  element and character, again for a stretched operator); beyond that the
-  equation fails with budget-exceeded.
+  element and character, again for a stretched operator) and
+  {{mmlMaxPaintedGlyphs}} painted glyphs; beyond that the equation fails with
+  budget-exceeded.
 - **Size**: An equation larger than {{maxDimension}} pixels on a side at its
   natural size fails with budget-exceeded; a target size above it is
   size-limit.

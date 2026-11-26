@@ -581,7 +581,9 @@ public partial class HelpCatalogTests
         Assert.Equal(Text(global::DemaConsulting.CanvasNet.Mermaid.MermaidLimits.Default.MaxEdges), tokens["mmdMaxEdges"]);
         Assert.Equal(Text(global::DemaConsulting.CanvasNet.PlantUml.PlantUmlLimits.Default.MaxIncludes), tokens["pumlMaxIncludes"]);
         Assert.Equal(Text(global::DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default.MaxElements), tokens["mmlMaxElements"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default.MaxTokenLength), tokens["mmlMaxTokenLength"]);
         Assert.Equal(Text(global::DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default.MaxLayoutWork), tokens["mmlMaxLayoutWork"]);
+        Assert.Equal(Text(global::DemaConsulting.CanvasNet.MathMl.MathMlLimits.Default.MaxPaintedGlyphs), tokens["mmlMaxPaintedGlyphs"]);
         Assert.False(tokens.ContainsKey("schemaVersion"));
     }
 

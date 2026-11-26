@@ -68,10 +68,11 @@ public readonly record struct FontNameInfo(
 ///     entirely, and most fonts have no <c>kern</c> table at all. Absence of <c>cmap</c> means
 ///     <see cref="GetGlyphIndex"/> always returns <c>0</c> (<c>.notdef</c>); absence of
 ///     <c>kern</c> means <see cref="GetKerning"/> always returns <c>0</c>. <c>MATH</c> is optional
-///     too, and is not validated at load: its range is captured when the font loads and it is
-///     parsed by the internal <see cref="MathTable"/> reader only on the first call to the
+///     too, and its contents are not validated at load: its range is captured when the font loads
+///     (like every table-directory entry, it must lie within the font data, or the load fails) and it
+///     is parsed by the internal <see cref="MathTable"/> reader only on the first call to the
 ///     internal <see cref="TryGetMathTable"/>, which throws <see cref="InvalidDataException"/> for
-///     a malformed table instead of <see cref="Load(Stream)"/> failing.
+///     malformed contents instead of <see cref="Load(Stream)"/> failing.
 ///     </para>
 ///     <para>
 ///     A CFF-outline font whose Top DICT declares a CID-keyed font (the <c>ROS</c> operator) is

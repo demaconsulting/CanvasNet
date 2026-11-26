@@ -146,8 +146,11 @@ even when the host machine has no fonts installed whatsoever.
   original plan text (which specified only an internal scoring entry point), added because it is
   necessary to exercise `Fonts`'s own tolerance behavior deterministically.
 
-All three internal entry points are visible to `DemaConsulting.CanvasNet.Tests` only, via the
-existing `InternalsVisibleTo` attribute on the core project.
+All three internal entry points are visible to `DemaConsulting.CanvasNet.Tests` through the
+`InternalsVisibleTo` attributes of the core project. Those attributes also make them visible to the
+other friend assemblies of the core, of which two call `LoadBundledFallbackCore`:
+`DemaConsulting.CanvasNet.Pdf` (its Noto substitute fonts) and `DemaConsulting.CanvasNet.MathMl` (the
+Noto Sans Math font of its `MathFont` unit); see *Callers*.
 
 #### Error Handling
 
@@ -158,8 +161,9 @@ exception this unit ever throws is `InvalidOperationException` from `LoadBundled
 a defensive, effectively-unreachable packaging-integrity guard under normal operation, since all
 15 bundled files (the 12 Liberation Sans/Serif/Mono style variants `LoadBundledFallback` itself
 can request, plus the 3 Noto substitute fonts `DemaConsulting.CanvasNet.Pdf` requests
-cross-assembly through the same `LoadBundledFallbackCore` entry point) are guaranteed present at
-build time as embedded resources of this assembly.
+cross-assembly through the same `LoadBundledFallbackCore` entry point, Noto Sans Math of which
+`DemaConsulting.CanvasNet.MathMl` also requests through it) are guaranteed present at build time as
+embedded resources of this assembly. The callers from other assemblies are therefore Pdf and MathMl.
 
 #### Dependencies
 

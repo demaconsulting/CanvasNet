@@ -1407,6 +1407,40 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that a math font whose <c>MATH</c> table is damaged (it claims an unsupported
+    ///     major version) loads through the public <see cref="TrueTypeFont.Load(Stream)"/> API and
+    ///     measures and outlines text exactly as the undamaged font does, while reading the table
+    ///     for math layout fails closed with <see cref="InvalidDataException"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LoadFontWithDamagedMathTable_LoadsAndRejectsTheTable()
+    {
+        // Arrange: the bytes of the bundled Noto Sans Math, and a copy whose MATH table claims major version 2
+        byte[] bytes;
+        using (var source = typeof(SystemFontCatalog).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoSansMath-Regular.ttf")!)
+        using (var buffer = new MemoryStream())
+        {
+            source.CopyTo(buffer);
+            bytes = buffer.ToArray();
+        }
+
+        var damaged = (byte[])bytes.Clone();
+        var numTables = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(damaged.AsSpan(4));
+        var entry = Enumerable.Range(0, numTables).Select(i => 12 + (i * 16)).Single(e => System.Text.Encoding.ASCII.GetString(damaged, e, 4) == "MATH");
+        damaged[(int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(damaged.AsSpan(entry + 8)) + 1] = 2;
+
+        // Act
+        var original = TrueTypeFont.Load(new MemoryStream(bytes));
+        var font = TrueTypeFont.Load(new MemoryStream(damaged));
+
+        // Assert: text is measured and outlined as before, and only the MATH table is rejected
+        Assert.Equal(TextRenderer.MeasureText("x = 1 + 2", original, 16f), TextRenderer.MeasureText("x = 1 + 2", font, 16f));
+        Assert.Equal(original.GetGlyphOutline(original.GetGlyphIndex('+')).GetBounds(), font.GetGlyphOutline(font.GetGlyphIndex('+')).GetBounds());
+        Assert.True(original.TryGetMathTable(out _));
+        Assert.Throws<InvalidDataException>(() => font.TryGetMathTable(out _));
+    }
+
+    /// <summary>
     ///     Proves that text measured through the public <see cref="TextRenderer.MeasureText"/> API
     ///     can be word-wrapped through the public <see cref="WordWrap"/> API: every line fits the
     ///     requested width, no word is split, and joining the lines gives back the original text.

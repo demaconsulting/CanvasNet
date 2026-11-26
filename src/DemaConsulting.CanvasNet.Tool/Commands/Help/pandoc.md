@@ -37,7 +37,10 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   list the file under filters in the Pandoc defaults file. Write it again after
   each update of the tool: the shim lists what that tool draws (see fast path),
   so an old shim keeps working but may start the tool when it is not needed or
-  miss a new format. The tool also says when the protocol of the shim changed.
+  miss a new format: with a shim from before MathML, a document whose only
+  pictures are equations (mathml code blocks, .mml pictures) never starts the
+  tool and its MathML is left as it is. Run --write-shim again after updating.
+  The tool also says when the protocol of the shim changed.
 - `fast path`: The shim starts the tool only for a code block of class mermaid,
   plantuml, or mathml (exact), or a local picture whose name ends in .svg,
   .vl.json, .vl, .scad, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml,

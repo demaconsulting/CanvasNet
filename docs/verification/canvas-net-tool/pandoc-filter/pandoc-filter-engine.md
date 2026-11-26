@@ -78,6 +78,11 @@ run draws nothing and gives the same document.
 `width` (with `scale=3`), and nothing (the probe fails, so the attributes stay as written) respectively; the draws are
 given `--scale=2` (the width and height pictures share one draw, and the broken file has its own), `--scale=3`, and
 `--size=400x100`.
+
+**PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile**: one equation shown plainly and with
+`width=50%` is drawn once with `--scale=2` into one PNG of the cache, which both pictures show; the plain picture gets
+the natural `width` and the other keeps `width=50%`, so the added natural width is not part of the cache key.
+
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine
 warnings.
