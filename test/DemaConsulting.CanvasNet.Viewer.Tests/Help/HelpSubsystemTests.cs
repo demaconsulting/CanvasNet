@@ -1,11 +1,14 @@
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Catalog;
+using DemaConsulting.HelpCards.Loading;
+using DemaConsulting.HelpCards.Presentation;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     Subsystem tests of the Help subsystem: the front-matter parser and the help catalog working together on the
-///     embedded library cards and on a host's extension cards.
+///     Subsystem tests of the Help subsystem: the library cards of CanvasNetHelp on DemaConsulting.HelpCards, alone,
+///     filtered, and with a host's cards layered on them.
 /// </summary>
 public class HelpSubsystemTests
 {
@@ -29,7 +32,7 @@ public class HelpSubsystemTests
     public void HelpSubsystem_DefaultCatalog_EveryCardResolvesByItsPathAndRenders()
     {
         // Arrange
-        var catalog = HelpCatalog.Default;
+        var catalog = CanvasNetHelp.Catalog;
 
         // Act and assert: every card, through its path written with spaces and in upper case
         Assert.NotEmpty(catalog.Cards);
@@ -37,12 +40,12 @@ public class HelpSubsystemTests
         {
             Assert.Same(card, catalog.Find(card.Id.Replace('/', ' ').ToUpperInvariant()));
 
-            var text = catalog.RenderText(card);
+            var text = catalog.Render(card);
             Assert.StartsWith($"# {card.Title}\n", text, StringComparison.Ordinal);
-            Assert.Contains(card.Markdown, text, StringComparison.Ordinal);
+            Assert.Contains(card.Body, text, StringComparison.Ordinal);
             Assert.DoesNotContain("{{", text, StringComparison.Ordinal);
 
-            using var json = JsonDocument.Parse(catalog.RenderJson(card));
+            using var json = JsonDocument.Parse(catalog.Render(card, new HelpRenderOptions { Format = HelpFormat.Json }));
             Assert.Equal(card.Id, json.RootElement.GetProperty("id").GetString());
             Assert.Equal(card.Tags, json.RootElement.GetProperty("tags").EnumerateArray().Select(t => t.GetString()));
         }
@@ -56,7 +59,7 @@ public class HelpSubsystemTests
     public void HelpSubsystem_FilteredView_HidesExcludedCardsFromTreeLookupAndLinks()
     {
         // Act
-        var view = HelpCatalog.Default.Filter(null, [HelpTags.FileAccess, HelpTags.Hosting]);
+        var view = CanvasNetHelp.Catalog.Filter(null, [HelpTags.FileAccess, HelpTags.Hosting]);
 
         // Assert: no visible card carries an excluded tag, and the hidden cards are not found
         Assert.NotEmpty(view.Cards);
@@ -70,67 +73,79 @@ public class HelpSubsystemTests
         foreach (var card in view.Cards)
         {
             Assert.All(card.ChildIds.Concat(card.SeeAlsoIds), id => Assert.Contains(id, visible));
-            Assert.DoesNotContain("the card `files`", card.Markdown, StringComparison.Ordinal);
-            view.FormatMarkdown(card, link =>
+            Assert.DoesNotContain("the card `files`", card.Body, StringComparison.Ordinal);
+            view.FormatBody(card, new HelpRenderOptions
             {
-                Assert.Contains(link.CardId ?? card.Id, visible);
-                return string.Empty;
+                LinkFormatter = link =>
+                {
+                    Assert.Contains(link.ExampleCardId ?? link.CardId ?? card.Id, visible);
+                    return string.Empty;
+                }
             });
         }
     }
 
     /// <summary>
-    ///     Test that a host's overlay and own card are parsed and layered on the library cards, that the host writes the
-    ///     links of the merged text, and that the library catalog does not change.
+    ///     Test that a host's overlay and own card, in a source that imports the library source, are layered on the
+    ///     library cards, that the host writes the links of the merged text, and that the library catalog does not change.
     /// </summary>
     [Fact]
-    public void HelpSubsystem_Extend_HostCardsAreLayeredOnTheLibraryCards()
+    public void HelpSubsystem_HostSource_IsLayeredOnTheLibraryCards()
     {
         // Act
-        var merged = HelpCatalog.Default.ExtendWith(
-            [("limits.md", LimitsOverlay), ("widgets.md", WidgetsCard)],
-            new Dictionary<string, string>(),
-            null);
+        var merged = HelpCatalog.Create(builder => CanvasNetHelp.Configure(builder).AddSource(HostSource(WidgetsCard)));
 
         // Assert: the host card is a new root after the library roots, and the overlay is appended to the library card
         Assert.Equal("widgets", merged.Roots[^1].Id);
         var limits = merged.Find("limits")!;
-        Assert.StartsWith(HelpCatalog.Default.Find("limits")!.Markdown, limits.Markdown, StringComparison.Ordinal);
-        Assert.EndsWith("## Host limits\n\nSee the card `style` and the card `widgets`.", limits.Markdown, StringComparison.Ordinal);
+        Assert.StartsWith(CanvasNetHelp.Catalog.Find("limits")!.Body, limits.Body, StringComparison.Ordinal);
+        Assert.EndsWith("## Host limits\n\nSee the card `style` and the card `widgets`.", limits.Body, StringComparison.Ordinal);
         Assert.Contains("widgets", limits.SeeAlsoIds);
 
         // Assert: the host writes the visible links in its own words
-        var hostText = merged.FormatMarkdown(limits, link => $"<{link.CardId}>");
+        var hostText = merged.FormatBody(limits, new HelpRenderOptions { LinkFormatter = link => $"<{link.CardId}>" });
         Assert.EndsWith("See <style> and <widgets>.", hostText, StringComparison.Ordinal);
 
-        // Assert: hiding the host card turns the link to it into its title
+        // Assert: hiding the host card turns the link to it into plain text
         var view = merged.Filter(null, [HelpTags.Hosting]);
-        Assert.EndsWith("See the card `style` and Widgets.", view.Find("limits")!.Markdown, StringComparison.Ordinal);
+        Assert.DoesNotContain("`widgets`", view.Find("limits")!.Body, StringComparison.Ordinal);
 
         // Assert: the library catalog is unchanged
-        Assert.Null(HelpCatalog.Default.Find("widgets"));
-        Assert.DoesNotContain("Host limits", HelpCatalog.Default.Find("limits")!.Markdown, StringComparison.Ordinal);
+        Assert.Null(CanvasNetHelp.Catalog.Find("widgets"));
+        Assert.DoesNotContain("Host limits", CanvasNetHelp.Catalog.Find("limits")!.Body, StringComparison.Ordinal);
     }
 
     /// <summary>
-    ///     Test that a malformed host card fails the extension with the file and the line of the problem, from the
-    ///     front matter and from the body.
+    ///     Test that a host card that links a card that does not exist fails the catalog with the file and the line of
+    ///     the link.
     /// </summary>
     [Fact]
-    public void HelpSubsystem_Extend_MalformedHostCard_FailsWithTheFileAndTheLine()
+    public void HelpSubsystem_HostSource_BrokenLink_FailsWithTheFileAndTheLine()
     {
         // Arrange
-        var empty = new Dictionary<string, string>();
+        var broken = WidgetsCard.Replace("[[style]]", "[[nothing]]", StringComparison.Ordinal);
 
         // Act
-        var frontMatter = Assert.Throws<InvalidOperationException>(() =>
-            HelpCatalog.Default.ExtendWith([("widgets.md", "---\ntitle:\tWidgets\n---\n")], empty, null));
-        var link = Assert.Throws<InvalidOperationException>(() =>
-            HelpCatalog.Default.ExtendWith([("widgets.md", WidgetsCard.Replace("[[style]]", "[[nothing]]", StringComparison.Ordinal))], empty, null));
+        var exception = Assert.Throws<HelpCatalogException>(() =>
+            HelpCatalog.Create(builder => CanvasNetHelp.Configure(builder).AddSource(HostSource(broken))));
 
         // Assert
-        Assert.StartsWith("Help card 'widgets.md', line 2:", frontMatter.Message, StringComparison.Ordinal);
-        Assert.StartsWith("Help card 'widgets.md', line 8:", link.Message, StringComparison.Ordinal);
-        Assert.Contains("[[nothing]]", link.Message, StringComparison.Ordinal);
+        var problem = Assert.Single(exception.Problems);
+        Assert.Equal("widgets.md", problem.File);
+        Assert.Equal(8, problem.Line);
+        Assert.Contains("nothing", problem.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Creates the source of a host: the overlay of <c>limits</c> and a widgets card, importing the library source.
+    /// </summary>
+    /// <param name="widgets">The text of the widgets card.</param>
+    /// <returns>The source.</returns>
+    private static HelpSource HostSource(string widgets)
+    {
+        return HelpSource.FromFiles(
+                new Dictionary<string, string> { ["limits.md"] = LimitsOverlay, ["widgets.md"] = widgets },
+                "host")
+            .Imports(CanvasNetHelp.Source);
     }
 }

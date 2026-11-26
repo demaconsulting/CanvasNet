@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -37,11 +38,11 @@ internal static class HelpCardText
     public static string TextOf(string id)
     {
         var parts = new List<string>();
-        foreach (var card in HelpTopics.Subtree(HelpTopics.Get(id)))
+        foreach (var card in HelpView.Subtree(HelpView.Get(id)))
         {
-            parts.Add(Flatten(card.Body));
+            parts.Add(Flatten(card.CommandBody));
             parts.AddRange(card.Examples.Select(e => e.Description));
-            parts.AddRange(card.Examples.Where(e => e.Kind == HelpTopics.CommandKind).Select(e => e.Content));
+            parts.AddRange(card.Examples.Where(e => e.Kind == HelpExample.CommandKind).Select(e => e.Content));
         }
 
         return string.Join("\n", parts);
@@ -59,7 +60,7 @@ internal static class HelpCardText
         string? current = null;
         var inSection = heading == null;
         var inFence = false;
-        foreach (var line in HelpTopics.Get(id).Body.Split('\n'))
+        foreach (var line in HelpView.Get(id).CommandBody.Split('\n'))
         {
             if (line.StartsWith("```", StringComparison.Ordinal))
             {

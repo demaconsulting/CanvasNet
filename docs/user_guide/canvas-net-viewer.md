@@ -1387,7 +1387,7 @@ sealed class StubSource : IImageSource
 }
 ```
 
-### HelpCatalog
+### CanvasNetHelp
 
 The namespace `DemaConsulting.CanvasNet.Viewer.Help` carries the help about the formats the Viewer reads, as data your
 program reads: short Markdown cards about what to write in a file (the syntax and what is supported), how to make a
@@ -1396,29 +1396,29 @@ limits, what the host controls (the render options and strict mode), and which f
 ship inside the package and are checked against the code by its tests, so they describe the version you use. They are
 the same cards that `canvasnet help` prints; the command-line tool adds its flags and commands to them.
 
+The cards are read, composed, filtered, searched, and rendered by the
+[DemaConsulting.HelpCards](https://github.com/demaconsulting/HelpCards) package (version `0.1.0-beta.4`), which the
+Viewer package depends on. `CanvasNetHelp` says which cards there are and what their limits are; the catalog and the
+card types are those of HelpCards.
+
 <!-- signature -->
 
 ```csharp
-public sealed class HelpCatalog
+public static class CanvasNetHelp
 {
-    public static HelpCatalog Default { get; }          // the library cards; loaded once, immutable
-    public IReadOnlyList<HelpCard> Cards { get; }       // the visible cards, depth first
-    public IReadOnlyList<HelpCard> Roots { get; }       // the visible cards with no visible ancestor
-    public HelpCard? Find(string path);                 // "mermaid/gantt", "mmd gantt"; null if unknown or hidden
-    public IReadOnlyList<HelpCard> GetChildren(HelpCard card);
-    public IReadOnlyList<HelpCard> GetSeeAlso(HelpCard card);
-    public HelpCatalog Filter(IEnumerable<string>? include, IEnumerable<string>? exclude = null);
-    public string FormatMarkdown(HelpCard card, Func<HelpLink, string> formatLink);
-    public string RenderText(HelpCard card);
-    public string RenderJson(HelpCard card);
-    public string RenderIndexText();
-    public string RenderIndexJson();
-    public HelpCatalog Extend(Assembly assembly, string resourcePrefix, IReadOnlyDictionary<string, string>? tokens = null);
+    public const string SourceName = "canvasnet-viewer";      // the name of the library source
+    public static IReadOnlyList<string> RootIds { get; }      // the root cards, in order
+    public static HelpSource Source { get; }                  // the embedded cards, with the live limits as tokens
+    public static HelpCatalog Catalog { get; }                // the library cards; built once, immutable
+    public static HelpCatalogBuilder Configure(HelpCatalogBuilder builder); // adds Source and the tag vocabulary
 }
 
-// A card: Id (its path), Name, ParentId, Title, Summary, Tags, Aliases, Markdown, ChildIds, SeeAlsoIds, Examples.
-// An example: Name, Kind ("source" or "snippet"), Language, FileName, Description, Content.
-// A link a host writes: CardId, ExampleName, ExampleCardId.
+// DemaConsulting.HelpCards.Catalog.HelpCatalog: Cards, Roots, Find(path), Resolve(path), GetChildren, GetSeeAlso,
+//     FindExample, FindExamples, Filter(includeTags, excludeTags), FilterSource, Search, Suggest, Render, RenderIndex,
+//     RenderExamples, RenderExample, FormatBody.
+// A card (HelpCard): Id, Name, ParentId, SourceName, Title, Summary, Tags, Aliases, Body, ChildIds, SeeAlsoIds,
+//     Examples. An example (HelpExample): Name, Kind ("source" or "snippet"), Language, FileName, Description, Content.
+// A link a host writes (HelpLink): CardId, ExampleName, ExampleCardId, Title.
 ```
 
 Every member is safe to call from several threads, and nothing changes a catalog once it is created.
@@ -1439,42 +1439,47 @@ hand it the index, a card's Markdown, or a card as JSON. Every card has tags fro
   options, sizes, strict mode), and `file-access` (file-access policies, roots, and links; the tag a host most often
   leaves out).
 
-`Filter(include, exclude)` returns a view: a card is visible when it has any of the included tags (all cards when
-nothing is included) and none of the excluded tags. An unknown tag is an `ArgumentException`. A view of a view keeps
-only the cards visible in both. A view never points your agent at a card it hides:
+`Filter(includeTags, excludeTags)` returns a view: a card is visible when it has any of the included tags (all cards
+when nothing is included) and none of the excluded tags. An unknown tag is an `ArgumentException`. A view of a view
+keeps only the cards visible in both. A view never points your agent at a card it hides:
 
 - Each card is visible or hidden by its own tags; a hidden card does not hide the cards below it. The visible cards
-  below a hidden card move up to its nearest visible ancestor, or become roots.
+  below a hidden card move up to its nearest visible ancestor (which is then their `ParentId`), or become roots (with
+  no `ParentId`).
 - `Find` still walks the full path through hidden cards, so `mermaid/style` is found in a `design` view although
   `mermaid` is hidden, but `Find` returns `null` for a hidden card.
-- A hidden card is left out of `ChildIds`, `SeeAlsoIds`, the footers of `RenderText`, and the JSON.
+- A hidden card is left out of `ChildIds`, `SeeAlsoIds`, the footers of a rendered card, and the JSON.
 - The text of a card links other cards; a link to a visible card reads "the card `a/b`" (or "the example `name` of the
-  card `a/b`"), and a link to a hidden card is the card's title as plain text (a hidden example: "an example").
+  card `a/b`"), and a link to a hidden card is plain text.
 
 <!-- compile -->
 
 ```csharp
 using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Presentation;
 
 // The cards an agent that draws Mermaid diagrams may read, without what the host controls or which files it may read
-var view = HelpCatalog.Default.Filter(
+var view = CanvasNetHelp.Catalog.Filter(
     [HelpTags.Mermaid, HelpTags.Design, HelpTags.Composition],
     [HelpTags.Hosting, HelpTags.FileAccess]);
 
 // The index of the view, one line per card, so the agent can choose what to read
-Console.WriteLine(view.RenderIndexText());
+Console.WriteLine(view.RenderIndex());
 
 // One card by its path (or an alias such as "mmd gantt"); null when it does not exist or the view hides it
 var gantt = view.Find("mermaid/gantt");
 if (gantt != null)
 {
     // The Markdown body, the whole card as text, and the card as JSON with the content of its examples
-    Console.WriteLine(gantt.Markdown);
-    Console.WriteLine(view.RenderText(gantt));
-    File.WriteAllText("gantt.json", view.RenderJson(gantt));
+    Console.WriteLine(gantt.Body);
+    Console.WriteLine(view.Render(gantt));
+    File.WriteAllText("gantt.json", view.Render(gantt, new HelpRenderOptions { Format = HelpFormat.Json }));
 
     // The links in your own words, for example as the tool call your agent uses to read a card
-    Console.WriteLine(view.FormatMarkdown(gantt, link => $"read_help(\"{link.CardId ?? gantt.Id}\")"));
+    Console.WriteLine(view.FormatBody(gantt, new HelpRenderOptions
+    {
+        LinkFormatter = link => $"read_help(\"{link.ExampleCardId ?? link.CardId ?? gantt.Id}\")"
+    }));
 
     // The tiny examples, ready to save as files
     foreach (var example in gantt.Examples)
@@ -1484,30 +1489,105 @@ if (gantt != null)
 }
 
 // Every card about one format: filter by its format tag
-foreach (var card in HelpCatalog.Default.Filter([HelpTags.Svg]).Cards)
+foreach (var card in CanvasNetHelp.Catalog.Filter([HelpTags.Svg]).Cards)
 {
     Console.WriteLine($"{card.Id} [{string.Join(", ", card.Tags)}]: {card.Summary}");
 }
 ```
 
-A host can add its own cards with `Extend(assembly, resourcePrefix)`: Markdown files with the same front matter,
-embedded in the host's assembly as `<prefix>/<path>.md`. A file with `extends: <path>` at the path of a library card
-appends its body, related cards, and examples to that card (the command-line tool adds its flags this way); any other
-file is a new root card. Extend the unfiltered catalog, then filter it.
+`HelpAgentTools.Create` (namespace `DemaConsulting.HelpCards.Integration`) makes one tool that lets an agent read a
+view. Register its `Name`, its `Description` (what the cards cover and how to call the tool), and its `ParametersSchema`
+(a JSON schema with the optional `topic`, `example`, `query`, `source`, `tag`, and `maxResults`) with your agent
+framework, and answer each call with `Invoke` and the JSON arguments of the call. The agent gets plain text: the index
+of the view when it sends no arguments, a card in Markdown with its examples in full for `topic`, one example for
+`example`, the best cards for `query`, and a message that says what to send instead when nothing matches. An answer
+longer than `MaxOutputChars` (16,000 by default) is cut and says so. The tool answers from the view only, so the agent
+never reads a card that the view hides.
 
 <!-- compile -->
 
 ```csharp
-using System.Reflection;
 using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Integration;
 
-// The library cards with this application's own cards and sections, embedded as "MyApp.Help/<path>.md"
-var catalog = HelpCatalog.Default.Extend(Assembly.GetExecutingAssembly(), "MyApp.Help");
+// One tool over the SVG cards, without what the host controls or which files it may read
+var tool = HelpAgentTools.Create(
+    CanvasNetHelp.Catalog.Filter([HelpTags.Svg], [HelpTags.Hosting, HelpTags.FileAccess]),
+    new HelpAgentToolOptions { Name = "canvas_help" });
+
+// What to register with the agent framework
+Console.WriteLine(tool.Name);
+Console.WriteLine(tool.Description);
+Console.WriteLine(tool.ParametersSchema);
+
+// No arguments: the index of the view
+Console.WriteLine(tool.Invoke(null));
+
+// A card in Markdown, with its examples in full
+Console.WriteLine(tool.Invoke("{\"topic\":\"svg/supported\"}"));
+
+// One example by its name
+Console.WriteLine(tool.Invoke("{\"example\":\"shapes\"}"));
+
+// The cards that best match some words
+Console.WriteLine(tool.Invoke("{\"query\":\"arrow\"}"));
+```
+
+A host can add its own cards: Markdown files with the same front matter in a source of its own that imports
+`CanvasNetHelp.Source` (HelpCards embeds them from the `Help` folder of a project that references it). A file with
+`extends: <path>` at the path of a library card appends its body, related cards, and examples to that card (the
+command-line tool adds its flags this way); any other file is a new root card, listed after the library roots. Compose
+the unfiltered catalog, then filter it.
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Catalog;
+using DemaConsulting.HelpCards.Loading;
+
+// The library cards with this application's own cards and sections, embedded as "MyApp.Help/<path>"
+var host = HelpSource.FromAssembly(typeof(Program).Assembly, "MyApp.Help").Imports(CanvasNetHelp.Source);
+var catalog = HelpCatalog.Create(builder => CanvasNetHelp.Configure(builder).AddSource(host));
 foreach (var root in catalog.Roots)
 {
     Console.WriteLine($"{root.Id}: {root.Summary}");
 }
 ```
+
+#### Moving from HelpCatalog to CanvasNetHelp
+
+The help classes of earlier versions (`HelpCatalog`, `HelpCard`, `HelpExample`, and `HelpLink` of
+`DemaConsulting.CanvasNet.Viewer.Help`) are replaced by `CanvasNetHelp` and the types of HelpCards. `HelpTags` is
+unchanged.
+
+| Before | Now |
+| --- | --- |
+| `HelpCatalog.Default` | `CanvasNetHelp.Catalog`, a `HelpCatalog` of HelpCards |
+| `Cards`, `Roots`, `Find`, `GetChildren` | Unchanged, as is `GetSeeAlso` |
+| `Filter(include, exclude)` | `Filter(includeTags, excludeTags)`, with the same meaning |
+| `FormatMarkdown(card, formatLink)` | `FormatBody(card, options)` with `options.LinkFormatter` set |
+| `RenderText(card)`, `RenderJson(card)` | `Render(card)`, and `Render(card, options)` with `HelpFormat.Json` |
+| `RenderIndexText()`, `RenderIndexJson()` | `RenderIndex()`, and `RenderIndex(options)` with `HelpFormat.Json` |
+| `Extend(assembly, prefix, tokens)` | A host source that imports `CanvasNetHelp.Source`, as shown above |
+| `HelpCard.Markdown` | `HelpCard.Body`; the other members are unchanged |
+| `HelpExample`, `HelpLink` | The types of the same names in `DemaConsulting.HelpCards.Catalog` |
+| (none) | `Search`, `Suggest`, `FilterSource`, and `HelpAgentTools.Create` |
+
+The new members of a card are `LocalId`, `SourceName`, `Culture`, and `Extensions`; an example adds `SourceName`,
+`ExitCode`, and `Expect`, and a link `Title`, `Text`, and `SourceName`.
+What reads differently:
+
+- The text and JSON renderings are those of HelpCards: the text adds a line with the tags, the JSON of a card has the
+  keys `source`, `culture`, and `links`, and the JSON envelope is `helpSchemaVersion`, `ok`, and `kind` unless you set
+  `HelpRenderOptions.JsonEnvelope`.
+- In a filtered view, the `ParentId` of a card whose parent is hidden is its nearest visible ancestor, or `null` for a
+  card that became a root (it was the parent in the full tree before).
+- A link to an example below another card names the card that holds the example, and an example link whose named card
+  is hidden but whose example is visible stays a link.
+- A host's own root cards follow the library roots; HelpCards orders the roots of each source separately.
+- A defective host card fails `HelpCatalog.Create` with a `HelpCatalogException` that lists every problem with its file,
+  line, and rule (before: an `InvalidOperationException` for the first problem).
 
 ## Changes for Library Hosts
 

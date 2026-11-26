@@ -176,7 +176,7 @@ public class CommandsSubsystemTests
         Assert.StartsWith("# OpenSCAD models (.scad)", byNameOut);
         Assert.Equal(byNameOut, byAliasOut);
         Assert.EndsWith(byNameOut, byFlagOut);
-        Assert.All(HelpTopics.All, card => Assert.Contains(card.Path, byTopicsOut));
+        Assert.All(HelpView.All, card => Assert.Contains(card.Path, byTopicsOut));
     }
 
     /// <summary>
@@ -233,7 +233,7 @@ public class CommandsSubsystemTests
     public void CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource()
     {
         // Arrange: the plate example
-        var expected = HelpTopics.RenderExample(HelpTopics.Get("scad"), "plate");
+        var expected = HelpView.RenderExample(HelpView.Get("scad"), "plate");
 
         // Act: print it
         var (exitCode, stdOut, stdErr) = ToolHost.Invoke("help", "scad", "--example", "plate");
@@ -250,9 +250,10 @@ public class CommandsSubsystemTests
     [Fact]
     public void CommandsSubsystem_HelpTopics_UnknownSubject_ReportsUsageErrorWithValidSubjects()
     {
-        // Arrange / Act: ask for an unknown subject, as text and with --json
+        // Arrange / Act: ask for an unknown subject, as text, with --json, and with '--format json'
         var (exitCode, stdOut, stdErr) = ToolHost.Invoke("help", "scadd");
         var (jsonExit, jsonOut, _) = ToolHost.Invoke("help", "nothing", "--json");
+        var (formatExit, formatOut, formatErr) = ToolHost.Invoke("help", "nothing", "--format", "json");
 
         // Assert: exit code 1, the suggestion and the valid subjects on stderr, and a failure document in JSON
         Assert.Equal(1, exitCode);
@@ -265,6 +266,11 @@ public class CommandsSubsystemTests
         Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
         Assert.Equal("help", document.RootElement.GetProperty("command").GetString());
         Assert.Equal("usage-error", document.RootElement.GetProperty("error").GetProperty("code").GetString());
+
+        // Assert: '--format json' writes the same one document, and the error on stderr
+        Assert.Equal(1, formatExit);
+        Assert.Equal(jsonOut, formatOut);
+        Assert.Contains("Error: usage-error: Unknown help subject 'nothing'.", formatErr);
     }
 
     /// <summary>

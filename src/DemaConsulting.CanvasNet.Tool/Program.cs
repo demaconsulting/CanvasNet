@@ -144,7 +144,7 @@ internal static class Program
                 PrintBanner(context);
             }
 
-            context.WriteLine(registry.RenderHelp(context.Command, context.Json));
+            registry.RunHelp(context, context.Command is null ? [] : [context.Command]);
             return;
         }
 

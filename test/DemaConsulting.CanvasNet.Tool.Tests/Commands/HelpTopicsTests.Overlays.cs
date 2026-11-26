@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using HelpCatalog = DemaConsulting.CanvasNet.Viewer.Help.HelpCatalog;
+using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Presentation;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -47,12 +48,12 @@ public partial class HelpTopicsTests
         Assert.All(overlays, o =>
         {
             Assert.Equal(o.Id, o.Extends);
-            Assert.Equal(o.Id, HelpCatalog.Default.Find(o.Id)?.Id);
+            Assert.Equal(o.Id, CanvasNetHelp.Catalog.Find(o.Id)?.Id);
         });
         Assert.All(toolCards, c =>
         {
             Assert.Contains(c.Id.Split('/')[0], ToolRoots);
-            Assert.Null(HelpCatalog.Default.Find(c.Id));
+            Assert.Null(CanvasNetHelp.Catalog.Find(c.Id));
         });
     }
 
@@ -66,8 +67,8 @@ public partial class HelpTopicsTests
         // Act / Assert: for each overlay, the merged body
         foreach (var overlay in ToolCardFiles().Where(f => f.Extends != null))
         {
-            var library = HelpCatalog.Default.FormatMarkdown(HelpCatalog.Default.Find(overlay.Id)!, HelpTopics.FormatLink);
-            var merged = HelpTopics.Get(overlay.Id).Body;
+            var library = CanvasNetHelp.Catalog.FormatBody(CanvasNetHelp.Catalog.Find(overlay.Id)!, HelpTopics.RenderOptions(HelpFormat.Text));
+            var merged = HelpView.Get(overlay.Id).CommandBody;
             Assert.StartsWith(library, merged, StringComparison.Ordinal);
             var added = merged[library.Length..].Trim('\n');
             Assert.Equal(HelpCardText.Headings(overlay.Body.Trim('\n')), HelpCardText.Headings(added));
@@ -84,20 +85,20 @@ public partial class HelpTopicsTests
     public void HelpTopics_CommandLineText_WritesLinksAsHelpCommands()
     {
         // Arrange: the ids of the cards
-        var ids = HelpTopics.All.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        var ids = HelpView.All.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
 
         // Act / Assert: no link that names a card, or an example, is left in any body
-        foreach (var card in HelpTopics.All)
+        foreach (var card in HelpView.All)
         {
-            var text = HelpTopics.RenderText(card);
-            Assert.DoesNotContain(LinkMarkup.Matches(card.Body), m => m.Groups["id"].Value.Length == 0 || ids.Contains(m.Groups["id"].Value) || m.Value.Contains('#'));
-            Assert.DoesNotContain(LinkMarkup.Matches(HelpTopics.RenderJson(card)), m => ids.Contains(m.Groups["id"].Value) || m.Value.Contains('#'));
+            var text = HelpView.RenderText(card);
+            Assert.DoesNotContain(LinkMarkup.Matches(card.CommandBody), m => m.Groups["id"].Value.Length == 0 || ids.Contains(m.Groups["id"].Value) || m.Value.Contains('#'));
+            Assert.DoesNotContain(LinkMarkup.Matches(HelpView.RenderJson(card)), m => ids.Contains(m.Groups["id"].Value) || m.Value.Contains('#'));
             Assert.DoesNotContain("of the card `", text, StringComparison.Ordinal);
         }
 
         // Assert: a card link and an example link read as the commands that print them
-        Assert.Contains("`canvasnet help limits`", HelpCardText.Flatten(HelpTopics.Get("plantuml/diagnostics").Body), StringComparison.Ordinal);
-        Assert.Contains("`canvasnet help svg --example embed`", HelpCardText.Flatten(HelpTopics.Get("svg/embedding").Body), StringComparison.Ordinal);
+        Assert.Contains("`canvasnet help limits`", HelpCardText.Flatten(HelpView.Get("plantuml/diagnostics").CommandBody), StringComparison.Ordinal);
+        Assert.Contains("`canvasnet help svg embedding --example embed`", HelpCardText.Flatten(HelpView.Get("svg/embedding").CommandBody), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -108,7 +109,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_ToolCards_CiteOnlyDiagnosticIdsTheLibraryCites()
     {
         // Arrange: the text of the library cards
-        var library = string.Join("\n", HelpCatalog.Default.Cards.SelectMany(c => c.Examples.Select(e => e.Description).Prepend(c.Markdown).Prepend(c.Summary).Prepend(c.Title)));
+        var library = string.Join("\n", CanvasNetHelp.Catalog.Cards.SelectMany(c => c.Examples.Select(e => e.Description).Prepend(c.Body).Prepend(c.Summary).Prepend(c.Title)));
 
         // Act: the identifiers the tool's files cite
         var cited = ToolCardFiles().SelectMany(f => DiagnosticIdentifier.Matches(f.Text).Select(m => m.Value)).Distinct(StringComparer.Ordinal).ToList();
@@ -127,19 +128,19 @@ public partial class HelpTopicsTests
     {
         // Arrange: the quadratic example of the library, written to a file
         using var directory = new TempDirectory();
-        var example = HelpTopics.AllExamples().Single(x => x.Card.Id == "mathml/fractions" && x.Example.Name == "quadratic").Example;
+        var example = HelpView.AllExamples().Single(x => x.Card.Id == "mathml/fractions" && x.Example.Name == "quadratic").Example;
         var path = FixtureFactory.WriteText(directory.Path, "quadratic.mml", example.Content);
 
         // Act: its natural width, and the terms and text of the cards
         var natural = SourceLoader.Probe(path).Width;
         var optionTerms = HelpCardText.Items("mathml/options", "Command line").Select(i => i.Term).ToList();
-        var composition = HelpCardText.Flatten(HelpTopics.Get("mathml/composition").Body);
+        var composition = HelpCardText.Flatten(HelpView.Get("mathml/composition").CommandBody);
         var pandocTerms = HelpCardText.Items("pandoc").Select(i => i.Term).ToList();
 
         // Assert: every MathML overlay adds its command-line section
         foreach (var id in new[] { "mathml", "mathml/options", "mathml/composition", "mathml/diagnostics" })
         {
-            Assert.Contains("Command line", HelpCardText.Headings(HelpTopics.Get(id).Body));
+            Assert.Contains("Command line", HelpCardText.Headings(HelpView.Get(id).CommandBody));
         }
 
         // Assert: the options, the fragment, and what info reports
@@ -151,7 +152,7 @@ public partial class HelpTopicsTests
         // Assert: the width the cards teach is the measured one, and the pandoc card documents it
         Assert.Contains($"width=\"{natural}px\" for the quadratic formula", composition, StringComparison.Ordinal);
         Assert.Contains("natural width", pandocTerms);
-        Assert.Contains("mathml", HelpTopics.Get("pandoc").SeeAlso);
+        Assert.Contains("mathml", HelpView.Get("pandoc").SeeAlso);
     }
 
     /// <summary>
@@ -161,16 +162,17 @@ public partial class HelpTopicsTests
     /// <returns>The files, by path.</returns>
     private static List<(string Id, string? Extends, string Body, string Text)> ToolCardFiles()
     {
+        const string Prefix = "DemaConsulting.CanvasNet.Tool.Help/";
         var assembly = typeof(HelpTopics).Assembly;
         return assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(HelpTopics.CardResourcePrefix, StringComparison.Ordinal))
+            .Where(n => n.StartsWith(Prefix, StringComparison.Ordinal) && n.EndsWith(".md", StringComparison.Ordinal) && !n.EndsWith("_source.md", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .Select(name =>
             {
                 using var stream = assembly.GetManifestResourceStream(name)!;
                 using var reader = new StreamReader(stream);
                 var text = reader.ReadToEnd().Replace("\r\n", "\n", StringComparison.Ordinal);
-                var id = name[HelpTopics.CardResourcePrefix.Length..^HelpTopics.CardExtension.Length].Replace('\\', '/');
+                var id = name[Prefix.Length..^".md".Length].Replace('\\', '/');
                 var end = text.IndexOf("\n---\n", 4, StringComparison.Ordinal);
                 Assert.True(text.StartsWith("---\n", StringComparison.Ordinal) && end > 0, $"The tool card '{id}' has no front matter.");
                 var extends = text[4..end].Split('\n').FirstOrDefault(l => l.StartsWith("extends: ", StringComparison.Ordinal))?["extends: ".Length..].Trim();

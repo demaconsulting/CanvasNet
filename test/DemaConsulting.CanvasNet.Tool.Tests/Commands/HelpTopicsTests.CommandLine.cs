@@ -26,7 +26,7 @@ public partial class HelpTopicsTests
     private static string SaveExample(TempDirectory directory, string root, string example, string file)
     {
         var path = directory.Combine(file);
-        File.WriteAllText(path, HelpTopics.RenderExample(HelpTopics.Get(root), example));
+        File.WriteAllText(path, HelpView.RenderExample(HelpView.Get(root), example));
         return path;
     }
 
@@ -60,13 +60,13 @@ public partial class HelpTopicsTests
     public void HelpTopics_FramedFigureAdvice_GridAndInspectPixel_ReadThePictureAtTheBoxSize()
     {
         // Arrange: the two command lines of the card, and the flowchart example
-        var card = HelpTopics.Get("svg/framed-figure");
-        var lines = card.Body.Split('\n').Where(l => l.StartsWith("canvasnet ", StringComparison.Ordinal)).ToList();
+        var card = HelpView.Get("svg/framed-figure");
+        var lines = card.CommandBody.Split('\n').Where(l => l.StartsWith("canvasnet ", StringComparison.Ordinal)).ToList();
         var gridLine = Assert.Single(lines, l => l.Contains("--grid", StringComparison.Ordinal));
         var pixelLine = Assert.Single(lines, l => l.StartsWith("canvasnet inspect pixel ", StringComparison.Ordinal));
-        Assert.Contains("canvasnet render --help", HelpCardText.Flatten(card.Body));
+        Assert.Contains("canvasnet render --help", HelpCardText.Flatten(card.CommandBody));
         using var directory = new TempDirectory();
-        File.WriteAllText(directory.Combine("flowchart.mmd"), HelpTopics.RenderExample(HelpTopics.Get("mermaid"), "flowchart"));
+        File.WriteAllText(directory.Combine("flowchart.mmd"), HelpView.RenderExample(HelpView.Get("mermaid"), "flowchart"));
 
         // Arguments of a card line, with the file names in the temporary directory
         string[] ArgumentsOf(string line) => line.Split(' ')[1..]
@@ -110,7 +110,7 @@ public partial class HelpTopicsTests
         Assert.Contains("'part.scad#def.$vpr=[70,0,45]' is --azimuth 45 --elevation 20", HelpCardText.TextOf("scad/views"), StringComparison.Ordinal);
         Assert.Contains("def.$vpr=[70,0,45] is azimuth 45, elevation 20", HelpCardText.TextOf("svg/fragments"), StringComparison.Ordinal);
         using var directory = new TempDirectory();
-        File.WriteAllText(directory.Combine("plate.scad"), HelpTopics.RenderExample(HelpTopics.Get("scad"), "plate"));
+        File.WriteAllText(directory.Combine("plate.scad"), HelpView.RenderExample(HelpView.Get("scad"), "plate"));
         File.WriteAllText(
             directory.Combine("figure.svg"),
             "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><image href='plate.scad#def.$vpr=[70,0,45]' x='0' y='0' width='300' height='300'/></svg>");
@@ -179,7 +179,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_FramedFigureAdvice_ReadPositions_PixelIsOnTheNode()
     {
         // Arrange: the command of the card, with the file names in a temporary directory
-        var command = Assert.Single(HelpTopics.Get("svg/framed-figure").Examples, e => e.Name == "read-positions").Content;
+        var command = Assert.Single(HelpView.Get("svg/framed-figure").Examples, e => e.Name == "read-positions").Content;
         Assert.Contains("--positions node:send", command, StringComparison.Ordinal);
         using var directory = new TempDirectory();
         SaveExample(directory, "mermaid", "flowchart", "flowchart.mmd");

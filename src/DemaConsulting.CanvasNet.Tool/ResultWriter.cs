@@ -55,13 +55,34 @@ internal static class ResultWriter
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     public static string Success(string command, Action<Utf8JsonWriter> writeFields)
     {
+        return Envelope(command, true, writeFields);
+    }
+
+    /// <summary>
+    ///     Creates a document of a command with the envelope of every document and the given outcome.
+    /// </summary>
+    /// <param name="command">The canonical name of the command.</param>
+    /// <param name="ok">Whether the document reports success.</param>
+    /// <param name="writeFields">
+    ///     Writes the rest of the document into the top-level object after <c>schemaVersion</c>, <c>ok</c>, and
+    ///     <c>command</c>; it must write complete properties (a name followed by a value) only.
+    /// </param>
+    /// <returns>The document, without a trailing newline.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     The help command uses it to wrap the documents of DemaConsulting.HelpCards, whose error documents carry the
+    ///     <c>error</c> object of <see cref="Failure(string?, string, string, string?)"/> written by the help command
+    ///     itself, so they have the same shape.
+    /// </remarks>
+    public static string Envelope(string command, bool ok, Action<Utf8JsonWriter> writeFields)
+    {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(writeFields);
 
         return Write(writer =>
         {
             writer.WriteNumber("schemaVersion", SchemaVersion);
-            writer.WriteBoolean("ok", true);
+            writer.WriteBoolean("ok", ok);
             writer.WriteString("command", command);
             writeFields(writer);
         });

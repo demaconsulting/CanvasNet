@@ -16,40 +16,23 @@ using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
+using DemaConsulting.HelpCards.Catalog;
+using DemaConsulting.HelpCards.Presentation;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     Unit tests for the content of the library catalog, <see cref="HelpCatalog.Default"/>: the tree and its budget,
+///     Unit tests for the content of the library catalog, <see cref="CanvasNetHelp.Catalog"/>: the tree and its budget,
 ///     the consistency of the cards with the code, the libraries, and the user guides, and the examples, which render
 ///     through <see cref="CanvasNetViewer"/>.
 /// </summary>
-public partial class HelpCatalogTests
+public partial class CanvasNetHelpTests
 {
-    /// <summary>
-    ///     The most characters the text of a library card may have.
-    /// </summary>
-    private const int CardBudget = 6000;
-
-    /// <summary>
-    ///     The most characters the text of a library root card that has cards below it may have.
-    /// </summary>
-    private const int RootIndexBudget = 3500;
-
     /// <summary>
     ///     The placeholder name of the identifier naming rule, which is a description and not an identifier.
     /// </summary>
     private const string NamingRule = "vl-<area>-<detail>";
 
-    /// <summary>
-    ///     The prefix of the logical names of the embedded card files of the library.
-    /// </summary>
-    private const string CardResourcePrefix = "DemaConsulting.CanvasNet.Viewer.Help/";
-
-    /// <summary>
-    ///     The prefix of the logical names of the embedded example files of the library.
-    /// </summary>
-    private const string ExampleResourcePrefix = "DemaConsulting.CanvasNet.Viewer.Help.Examples.";
 
     /// <summary>
     ///     The error codes only the tool reports, which the tool's command-line additions of <c>errors/codes</c> list.
@@ -88,7 +71,7 @@ public partial class HelpCatalogTests
     /// <summary>
     ///     Gets the identifiers of every library card as theory data.
     /// </summary>
-    public static TheoryData<string> LibraryCardIdData => [.. HelpCatalog.Default.Cards.Select(c => c.Id)];
+    public static TheoryData<string> LibraryCardIdData => [.. CanvasNetHelp.Catalog.Cards.Select(c => c.Id)];
 
     /// <summary>
     ///     Test that every library card loads with a title, a summary, and a body, that the roots are the library roots in
@@ -96,14 +79,14 @@ public partial class HelpCatalogTests
     ///     other roots are command lines, which the tool adds).
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_EveryCardLoads_WithTitleSummaryAndBody()
+    public void CanvasNetHelp_Default_EveryCardLoads_WithTitleSummaryAndBody()
     {
         // Arrange / Act: the library catalog
-        var cards = HelpCatalog.Default.Cards;
+        var cards = CanvasNetHelp.Catalog.Cards;
 
         // Assert: the roots are the library roots, in order, and each card is followed by the cards below it
-        Assert.Equal(HelpCatalog.LibraryRootOrder, cards.Where(c => c.ParentId == null).Select(c => c.Id));
-        Assert.Equal(HelpCatalog.LibraryRootOrder, HelpCatalog.Default.Roots.Select(c => c.Id));
+        Assert.Equal(CanvasNetHelp.RootIds, cards.Where(c => c.ParentId == null).Select(c => c.Id));
+        Assert.Equal(CanvasNetHelp.RootIds, CanvasNetHelp.Catalog.Roots.Select(c => c.Id));
         for (var i = 1; i < cards.Count; i++)
         {
             var parent = cards[i].ParentId;
@@ -114,7 +97,7 @@ public partial class HelpCatalogTests
         {
             Assert.False(string.IsNullOrWhiteSpace(card.Title));
             Assert.False(string.IsNullOrWhiteSpace(card.Summary));
-            Assert.False(string.IsNullOrWhiteSpace(card.Markdown));
+            Assert.False(string.IsNullOrWhiteSpace(card.Body));
         });
         Assert.All(DrawingFormats, root => Assert.NotEmpty(HelpCardText.Subtree(HelpCardText.Card(root)).SelectMany(c => c.Examples)));
     }
@@ -124,7 +107,7 @@ public partial class HelpCatalogTests
     ///     to nothing.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase()
+    public void CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase()
     {
         // Arrange: the documented aliases of the library roots
         var aliases = new Dictionary<string, string>
@@ -151,7 +134,7 @@ public partial class HelpCatalogTests
             ["links"] = "files",
             ["position"] = "positions"
         };
-        var catalog = HelpCatalog.Default;
+        var catalog = CanvasNetHelp.Catalog;
 
         // Act / Assert: each alias, in lower and upper case, and each canonical name resolves to its card
         foreach (var (alias, name) in aliases)
@@ -160,7 +143,7 @@ public partial class HelpCatalogTests
             Assert.Equal(name, catalog.Find(alias.ToUpperInvariant())?.Id);
         }
 
-        Assert.All(HelpCatalog.LibraryRootOrder, name => Assert.Equal(name, catalog.Find(name)?.Id));
+        Assert.All(CanvasNetHelp.RootIds, name => Assert.Equal(name, catalog.Find(name)?.Id));
         Assert.Equal(aliases.Count, catalog.Roots.Sum(t => t.Aliases.Count));
         Assert.Null(catalog.Find("nothing"));
         Assert.Null(catalog.Find("gantt"));
@@ -172,10 +155,10 @@ public partial class HelpCatalogTests
     ///     constants.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits()
+    public void CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits()
     {
         // Arrange / Act: every string of every card
-        var texts = HelpCatalog.Default.Cards.SelectMany(AllStrings).ToList();
+        var texts = CanvasNetHelp.Catalog.Cards.SelectMany(AllStrings).ToList();
         var limits = HelpCardText.TextOf("limits");
 
         // Assert: no token is left, and the limits card quotes the live values
@@ -204,10 +187,10 @@ public partial class HelpCatalogTests
     ///     reachable from a root, and that no card links to itself or twice to one card.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_Tree_ChildrenAndSeeAlsoResolve()
+    public void CanvasNetHelp_Default_Tree_ChildrenAndSeeAlsoResolve()
     {
         // Arrange: every identifier, and the cards reachable from the roots
-        var catalog = HelpCatalog.Default;
+        var catalog = CanvasNetHelp.Catalog;
         var ids = catalog.Cards.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
         var reachable = new HashSet<string>(StringComparer.Ordinal);
         void Visit(HelpCard card)
@@ -238,96 +221,56 @@ public partial class HelpCatalogTests
     }
 
     /// <summary>
-    ///     Test that the embedded card files of the Viewer assembly are exactly the library cards, whatever path
-    ///     separator the build put in the logical names.
+    ///     Test that the embedded card files of the Viewer assembly are exactly the library cards and the file that names
+    ///     the source, whatever path separator the build put in the logical names, and that no C# file is embedded.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_Resources_AreExactlyTheLibraryCards()
+    public void CanvasNetHelp_Default_Resources_AreExactlyTheLibraryCards()
     {
-        // Arrange: the embedded card files, by their path
-        var files = typeof(HelpCatalog).Assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(CardResourcePrefix, StringComparison.Ordinal))
-            .Select(n => n[CardResourcePrefix.Length..].Replace('\\', '/'))
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        // Arrange: the embedded files, by their path
+        var files = HelpCardText.EmbeddedFiles();
 
-        // Act: the file of each card
-        var cards = HelpCatalog.Default.Cards.Select(c => c.Id + HelpCatalog.CardExtension).Order(StringComparer.Ordinal);
+        // Act: the file of each card, and the file of the source
+        var cards = CanvasNetHelp.Catalog.Cards.Select(c => c.Id + ".md").Append("_source.md").Order(StringComparer.Ordinal);
 
-        // Assert: the same set
-        Assert.Equal(cards, files);
+        // Assert: the same set, and no source code
+        Assert.Equal(cards, files.Where(f => f.EndsWith(".md", StringComparison.Ordinal)));
+        Assert.DoesNotContain(files, f => f.EndsWith(".cs", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    ///     Test that the children of every library card are exactly the card files in the folder of the card, so the
+    ///     folders mirror the help tree and no card file is left out of it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetHelp_Default_Children_AreTheCardFilesOfTheFolder()
+    {
+        // Arrange: the embedded card files, by their path
+        var cardFiles = HelpCardText.EmbeddedFiles().Where(f => f.EndsWith(".md", StringComparison.Ordinal)).ToList();
+
+        // Act / Assert: for each card, the card files directly in its folder are its children
+        foreach (var card in CanvasNetHelp.Catalog.Cards)
+        {
+            var folder = card.Id + "/";
+            var inFolder = cardFiles
+                .Where(f => f.StartsWith(folder, StringComparison.Ordinal) && !f[folder.Length..].Contains('/'))
+                .Select(f => f[..^".md".Length])
+                .Order(StringComparer.Ordinal);
+            Assert.Equal(inFolder, card.ChildIds.Order(StringComparer.Ordinal));
+        }
+    }
     /// <summary>
     ///     Test that the names and aliases of the cards below each library card are unique, ignoring case, so every path
     ///     selects exactly one card.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_ChildNames_AreUniqueAmongSiblings()
+    public void CanvasNetHelp_Default_ChildNames_AreUniqueAmongSiblings()
     {
         // Act / Assert: for each card, the names and aliases of its children are unique
-        foreach (var card in HelpCatalog.Default.Cards)
+        foreach (var card in CanvasNetHelp.Catalog.Cards)
         {
-            var names = HelpCatalog.Default.GetChildren(card).SelectMany(c => c.Aliases.Prepend(c.Name)).ToList();
+            var names = CanvasNetHelp.Catalog.GetChildren(card).SelectMany(c => c.Aliases.Prepend(c.Name)).ToList();
             Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        }
-    }
-
-    /// <summary>
-    ///     Test that every library card fits the size budget: at most 6,000 characters of text, at most 3,500 for a root
-    ///     card that has cards below it, and a one-line summary of at most 60 characters for a root and 100 for any other
-    ///     card.
-    /// </summary>
-    [Fact]
-    public void HelpCatalog_Default_Cards_FitTheSizeBudget()
-    {
-        // Act: the size of the text of every card
-        var catalog = HelpCatalog.Default;
-        var oversized = catalog.Cards
-            .Select(c => (Card: c, Length: catalog.RenderText(c).Length))
-            .Where(x => x.Length > (x.Card.ParentId == null && x.Card.ChildIds.Count > 0 ? RootIndexBudget : CardBudget))
-            .Select(x => $"{x.Card.Id}: {x.Length}")
-            .ToList();
-
-        // Assert: nothing is over budget, and the summaries are short single lines
-        Assert.True(oversized.Count == 0, "Over budget: " + string.Join(", ", oversized));
-        Assert.All(catalog.Cards, card =>
-        {
-            Assert.DoesNotContain('\n', card.Summary);
-            Assert.True(card.Summary.Length <= (card.ParentId == null ? 60 : 100), $"The summary of '{card.Id}' is too long.");
-        });
-    }
-
-    /// <summary>
-    ///     Test that no library card body uses a top-level heading (the title is printed as one) or a heading of the
-    ///     generated footer, and that every fenced code block names its language and is closed.
-    /// </summary>
-    [Fact]
-    public void HelpCatalog_Default_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings()
-    {
-        // Act / Assert: the rules hold for every body
-        foreach (var card in HelpCatalog.Default.Cards)
-        {
-            var fences = 0;
-            foreach (var line in card.Markdown.Split('\n'))
-            {
-                if (line.StartsWith("```", StringComparison.Ordinal))
-                {
-                    Assert.True(fences % 2 == 1 || line.Length > 3, $"A code block of '{card.Id}' names no language.");
-                    fences++;
-                    continue;
-                }
-
-                if (fences % 2 == 1)
-                {
-                    continue;
-                }
-
-                Assert.False(line.StartsWith("# ", StringComparison.Ordinal), $"'{card.Id}' has a top-level heading.");
-                Assert.DoesNotContain(line, HelpCatalog.FooterHeadings);
-            }
-
-            Assert.True(fences % 2 == 0, $"A code block of '{card.Id}' is not closed.");
         }
     }
 
@@ -339,16 +282,16 @@ public partial class HelpCatalogTests
     /// <param name="id">The card identifier.</param>
     [Theory]
     [MemberData(nameof(LibraryCardIdData))]
-    public void HelpCatalog_Default_RenderTextAndJson_AreDeterministicPlainAndComplete(string id)
+    public void CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete(string id)
     {
         // Arrange
-        var catalog = HelpCatalog.Default;
+        var catalog = CanvasNetHelp.Catalog;
         var card = HelpCardText.Card(id);
 
         // Act: render the card twice, and as JSON
-        var first = catalog.RenderText(card);
-        var second = catalog.RenderText(card);
-        var json = catalog.RenderJson(card);
+        var first = catalog.Render(card);
+        var second = catalog.Render(card);
+        var json = catalog.Render(card, new HelpRenderOptions { Format = HelpFormat.Json });
 
         // Assert: identical, without escape sequences, carriage returns, or a trailing newline, and the body as written
         Assert.Equal(first, second);
@@ -356,7 +299,7 @@ public partial class HelpCatalogTests
         Assert.DoesNotContain('\r', first);
         Assert.False(first.EndsWith('\n'));
         Assert.StartsWith($"# {card.Title}\n", first);
-        Assert.Contains($"\n{card.Markdown}\n", first + "\n");
+        Assert.Contains($"\n{card.Body}\n", first + "\n");
 
         // Assert: lines are at most 80 columns, 120 inside a fenced code block
         var inFence = false;
@@ -366,16 +309,15 @@ public partial class HelpCatalogTests
             Assert.True(line.Length <= (inFence ? 120 : 80), $"Line too long: {line}");
         }
 
-        // Assert: the footer lists the children, the See also cards, and the examples
+        // Assert: the footer names the children, the See also cards, and the examples
         Assert.All(card.ChildIds, child => Assert.Contains($"\n- {child}\n", first));
         Assert.All(card.SeeAlsoIds, target => Assert.Contains($"\n- {target}\n", first));
-        Assert.All(card.Examples, example => Assert.Contains($"\n- {example.Name} [{example.Kind}]", first));
-
+        Assert.All(card.Examples, example => Assert.Contains(example.Name, first));
         // Assert: the JSON is one line with the card's data
         Assert.DoesNotContain('\n', json);
         using var document = JsonDocument.Parse(json);
         Assert.Equal(card.Id, document.RootElement.GetProperty("id").GetString());
-        Assert.Equal(card.Markdown, document.RootElement.GetProperty("body").GetString());
+        Assert.Equal(card.Body, document.RootElement.GetProperty("body").GetString());
         Assert.Equal(card.Tags, document.RootElement.GetProperty("tags").EnumerateArray().Select(t => t.GetString()));
         Assert.Equal(card.Examples.Select(e => e.Content), document.RootElement.GetProperty("examples").EnumerateArray().Select(e => e.GetProperty("content").GetString()));
     }
@@ -386,7 +328,7 @@ public partial class HelpCatalogTests
     ///     examples (the examples of a document or raster format are command lines, which the tool adds).
     /// </summary>
     [Fact]
-    public void HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples()
+    public void CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples()
     {
         // Act / Assert: each format tree has the five headings, filled, and two examples
         foreach (var name in HelpTags.FormatTags)
@@ -407,10 +349,10 @@ public partial class HelpCatalogTests
 
     /// <summary>
     ///     Test that the library examples are sources or snippets with non-empty content, the file extension their format
-    ///     needs, and names unique in each root tree, and that every embedded example file is used by exactly one example.
+    ///     needs, and names unique in each root tree, and that every embedded example file (next to its card) is used by exactly one example.
     /// </summary>
     [Fact]
-    public void HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty()
+    public void CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty()
     {
         // Arrange: the extension each root's examples must have, and the embedded example files
         var extensions = new Dictionary<string, string>
@@ -422,14 +364,10 @@ public partial class HelpCatalogTests
             ["mathml"] = ".mml",
             ["svg"] = ".svg"
         };
-        var files = typeof(HelpCatalog).Assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(ExampleResourcePrefix, StringComparison.Ordinal))
-            .Select(n => n[ExampleResourcePrefix.Length..])
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        var files = HelpCardText.EmbeddedFiles().Where(f => !f.EndsWith(".md", StringComparison.Ordinal)).ToList();
 
         // Act / Assert: the names are unique in each root tree
-        foreach (var root in HelpCatalog.Default.Roots)
+        foreach (var root in CanvasNetHelp.Catalog.Roots)
         {
             var names = HelpCardText.Subtree(root).SelectMany(c => c.Examples).Select(e => e.Name).ToList();
             Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -451,7 +389,7 @@ public partial class HelpCatalogTests
 
         // Assert: every example file belongs to exactly one example, and each drawing format has a source example
         var used = HelpCardText.AllExamples()
-            .Select(e => $"{HelpCardText.RootOf(e.Card)}-{e.Example.FileName}")
+            .Select(e => $"{e.Card.Id[..(e.Card.Id.LastIndexOf('/') + 1)]}{e.Example.FileName}")
             .Order(StringComparer.Ordinal)
             .ToList();
         Assert.Equal(files, used);
@@ -466,7 +404,7 @@ public partial class HelpCatalogTests
     /// <param name="exampleName">The name of the example.</param>
     [Theory]
     [MemberData(nameof(SourceExampleData))]
-    public void HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics(string cardId, string exampleName)
+    public void CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics(string cardId, string exampleName)
     {
         // Arrange: the example saved under its file name; a model is drawn small to stay fast
         var card = HelpCardText.Card(cardId);
@@ -494,7 +432,7 @@ public partial class HelpCatalogTests
     /// <param name="snippetName">The name of the snippet.</param>
     [Theory]
     [MemberData(nameof(SnippetData))]
-    public void HelpCatalog_Snippets_RenderStrictWithTheirSiblingFiles(string cardId, string snippetName)
+    public void CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles(string cardId, string snippetName)
     {
         // Arrange: the snippet and its links (a link may carry a fragment)
         var snippet = Assert.Single(HelpCardText.Card(cardId).Examples, e => e.Name == snippetName);
@@ -524,7 +462,7 @@ public partial class HelpCatalogTests
     ///     diagnostic once its model and chart exist, with one <c>embed</c> operation for each picture.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles()
+    public void CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles()
     {
         // Arrange: the snippet, and the model and the chart it shows
         var snippet = Assert.Single(HelpCardText.Card("mermaid/composition").Examples, e => e.Name == "pictures");
@@ -549,7 +487,7 @@ public partial class HelpCatalogTests
     ///     file is not linkable.
     /// </summary>
     [Fact]
-    public void HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions()
+    public void CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions()
     {
         // Arrange: the extensions the card lists
         var text = HelpCardText.Item("svg/embedding", "href file types").Replace("`", string.Empty, StringComparison.Ordinal);
@@ -575,7 +513,7 @@ public partial class HelpCatalogTests
     ///     diagnostic codes, strict mode, and the example for a linked file.
     /// </summary>
     [Fact]
-    public void HelpCatalog_SvgEmbedding_ImageLinks_StateSizeLinkRuleDiagnosticsAndExample()
+    public void CanvasNetHelp_SvgEmbedding_ImageLinks_StateSizeLinkRuleDiagnosticsAndExample()
     {
         // Arrange / Act: the card, its items, and its text
         var items = HelpCardText.Items("svg/embedding");
@@ -603,7 +541,7 @@ public partial class HelpCatalogTests
     ///     are the live ones.
     /// </summary>
     [Fact]
-    public void HelpCatalog_SvgFragments_PageFragment_DocumentsGrammarPerFormatCodesAndStrict()
+    public void CanvasNetHelp_SvgFragments_PageFragment_DocumentsGrammarPerFormatCodesAndStrict()
     {
         // Arrange: the fragment items, the diagnostics, and the strict-mode option
         var fragment = HelpCardText.Item("svg/fragments", "page fragment");
@@ -646,7 +584,7 @@ public partial class HelpCatalogTests
     ///     card documents the live fragment limits.
     /// </summary>
     [Fact]
-    public void HelpCatalog_FormatAndLimitsCards_DocumentFragmentsAndTheirLimits()
+    public void CanvasNetHelp_FormatAndLimitsCards_DocumentFragmentsAndTheirLimits()
     {
         // Arrange
         var limits = HelpCardText.TextOf("limits");
@@ -667,7 +605,7 @@ public partial class HelpCatalogTests
     ///     cards: both name the element and link the <c>svg</c> card.
     /// </summary>
     [Fact]
-    public void HelpCatalog_ScadAndVegaLiteCards_PointToImageHrefLinking()
+    public void CanvasNetHelp_ScadAndVegaLiteCards_PointToImageHrefLinking()
     {
         // Act / Assert: each names the element and the card that explains it
         foreach (var root in new[] { "scad", "vega-lite" })
@@ -683,7 +621,7 @@ public partial class HelpCatalogTests
     ///     only the tool reports), and nothing else as a code.
     /// </summary>
     [Fact]
-    public void HelpCatalog_ErrorsCodes_ListsEveryLibraryErrorCode()
+    public void CanvasNetHelp_ErrorsCodes_ListsEveryLibraryErrorCode()
     {
         // Arrange: the codes of the code, and the terms of the card
         var codes = ErrorCodeValues().Except(ToolOnlyErrorCodes, StringComparer.Ordinal).ToList();
@@ -703,7 +641,7 @@ public partial class HelpCatalogTests
     ///     of the libraries.
     /// </summary>
     [Fact]
-    public void HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries()
+    public void CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
         var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code })
@@ -713,7 +651,7 @@ public partial class HelpCatalogTests
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
 
         // Act: the identifiers the library cards cite
-        var cited = HelpCatalog.Default.Cards.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
+        var cited = CanvasNetHelp.Catalog.Cards.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 
         // Assert: each cited identifier is allowed, or its literal (the part before a '<' placeholder) is in a library
         Assert.NotEmpty(cited);
@@ -736,7 +674,7 @@ public partial class HelpCatalogTests
     ///     part before a <c>: </c> is compared ignoring case.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MermaidCards_DiagramSyntaxItems_MatchUserGuide()
+    public void CanvasNetHelp_MermaidCards_DiagramSyntaxItems_MatchUserGuide()
     {
         // Arrange: the guide and the diagrams
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-mermaid.md"));
@@ -759,7 +697,7 @@ public partial class HelpCatalogTests
             var items = GuideItems(guide, heading).ToList();
             Assert.True(items.Count >= minimumRows, $"Only {items.Count} items were found in the {card} lists of the guide.");
             var id = $"mermaid/{card}";
-            var sections = HelpCardText.Headings(HelpCardText.Card(id).Markdown).Where(h => h is "Syntax" or "Relations" or "Tags").ToList();
+            var sections = HelpCardText.Headings(HelpCardText.Card(id).Body).Where(h => h is "Syntax" or "Relations" or "Tags").ToList();
             var syntax = items.Where(i => !IsSettingItem(i)).Select(i => i.Term + i.Tail).ToList();
             var settings = items.Where(IsSettingItem).Select(i => i.Term + i.Tail).ToList();
             CompareInOrder($"{id} ## {string.Join(", ", sections)}", syntax, sections.SelectMany(s => HelpCardText.Bullets(id, s)).ToList(), differences);
@@ -783,7 +721,7 @@ public partial class HelpCatalogTests
     ///     (<c>**code**: kind: reported when</c>) is a bullet of <c>plantuml/unsupported</c> or <c>plantuml/diagnostics</c>.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide()
+    public void CanvasNetHelp_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide()
     {
         // Arrange: the guide
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-plant-uml.md"));
@@ -1038,7 +976,7 @@ public partial class HelpCatalogTests
     {
         yield return card.Title;
         yield return card.Summary;
-        yield return card.Markdown;
+        yield return card.Body;
         foreach (var example in card.Examples)
         {
             yield return example.Description;

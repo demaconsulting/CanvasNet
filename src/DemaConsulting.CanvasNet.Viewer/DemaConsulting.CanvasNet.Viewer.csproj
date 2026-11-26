@@ -46,6 +46,14 @@
     <ApiMarkPackDocs>true</ApiMarkPackDocs>
   </PropertyGroup>
 
+  <!-- Runtime Dependencies
+       DemaConsulting.HelpCards is part of the public API (CanvasNetHelp exposes its HelpSource and HelpCatalog), so it is
+       a normal dependency of the package. Its build targets embed the help cards (see HelpCardsDirectory below); they
+       apply only to a project with a direct reference. -->
+  <ItemGroup>
+    <PackageReference Include="DemaConsulting.HelpCards" Version="0.1.0-beta.4" />
+  </ItemGroup>
+
   <!-- Build Tool Dependencies -->
   <ItemGroup>
     <PackageReference Include="DemaConsulting.ApiMark.MSBuild" Version="0.5.12" PrivateAssets="All" />
@@ -94,14 +102,12 @@
   </ItemGroup>
 
   <!-- The help cards of the drawing and file formats (one Markdown file with YAML front matter per card, in folders that
-       mirror the help tree) and the tiny example sources they show, which sit next to their cards, embedded so that
-       HelpCatalog.Default works without files. A card's logical name is its path under Help\Cards (the loader turns a
-       '\' of RecursiveDir into '/'); an example keeps the flat name '<root>-<file name>' the loader expects (every
-       example sits in the folder of its root, so RecursiveDir is the root). WithCulture="false" keeps MSBuild from
-       reading a dotted name as a satellite-resource culture. -->
-  <ItemGroup>
-    <EmbeddedResource Include="Help\Cards\**\*.md" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Viewer.Help/%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Help\Cards\**\*" Exclude="Help\Cards\**\*.md" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Viewer.Help.Examples.$([System.String]::Copy('%(RecursiveDir)').TrimEnd('\').TrimEnd('/'))-%(Filename)%(Extension)" />
-  </ItemGroup>
+       mirror the help tree, with the tiny example sources next to their cards and the _source.md file that names the
+       source) are embedded by the targets of DemaConsulting.HelpCards: every file below HelpCardsDirectory becomes the
+       resource 'DemaConsulting.CanvasNet.Viewer.Help/<path>', which CanvasNetHelp.Source reads. The folder must be
+       Help\Cards, not the default Help, because Help also holds the C# files of the subsystem. -->
+  <PropertyGroup>
+    <HelpCardsDirectory>Help\Cards</HelpCardsDirectory>
+  </PropertyGroup>
 
 </Project>

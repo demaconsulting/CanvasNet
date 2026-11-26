@@ -29,12 +29,12 @@ sections:
           exist; a fixed order of the roots makes the tree read the same way every time, and lists that cannot be
           changed keep the shared catalog intact.
         tests:
-          - HelpCatalog_Create_ValidCards_BuildsTheTree
-          - HelpCatalog_Find_PathsAndAliases_ResolveOrGiveNull
-          - HelpCatalog_Default_EveryCardLoads_WithTitleSummaryAndBody
-          - HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
-          - HelpCatalog_Default_HasTheLibraryRootsTagsAndNoCommandExamples
-          - HelpCatalog_Default_IsThreadSafe_AndReturnsTheSameInstance
+          - CanvasNetHelp_Create_ValidCards_BuildsTheTree
+          - CanvasNetHelp_Find_PathsAndAliases_ResolveOrGiveNull
+          - CanvasNetHelp_Default_EveryCardLoads_WithTitleSummaryAndBody
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Default_IsThreadSafe_AndReturnsTheSameInstance
 
       - id: CanvasNetViewer-Help-HelpCatalog-CardFormat
         title: >-
@@ -48,10 +48,10 @@ sections:
           the build with a message that can be acted on instead of shipping a broken card, and a number written as a
           token cannot drift from the code.
         tests:
-          - HelpCatalog_Create_MalformedCard_ThrowsWithTheFileAndTheReason
-          - HelpCatalog_Create_SemanticErrors_ThrowWithFileAndLine
-          - HelpCatalog_LibraryTokens_AreTheCodeConstants
-          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
+          - CanvasNetHelp_Create_SemanticErrors_ThrowWithFileAndLine
+          - CanvasNetHelp_LibraryTokens_AreTheCodeConstants
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
 
       - id: CanvasNetViewer-Help-HelpCatalog-TreeIntegrity
         title: >-
@@ -64,11 +64,11 @@ sections:
           A link that leads nowhere, a card that no path reaches, or a body that breaks the footer would make the help
           lie about its own structure; checking the tree when it loads keeps every path and link valid.
         tests:
-          - HelpCatalog_Default_Tree_ChildrenAndSeeAlsoResolve
-          - HelpCatalog_Default_Resources_AreExactlyTheLibraryCards
-          - HelpCatalog_Default_ChildNames_AreUniqueAmongSiblings
-          - HelpCatalog_Default_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings
-          - HelpCatalog_Create_MalformedCard_ThrowsWithTheFileAndTheReason
+          - CanvasNetHelp_Default_Tree_ChildrenAndSeeAlsoResolve
+          - CanvasNetHelp_Default_Resources_AreExactlyTheLibraryCards
+          - CanvasNetHelp_Default_ChildNames_AreUniqueAmongSiblings
+          - CanvasNetHelp_Default_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings
+          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
 
       - id: CanvasNetViewer-Help-HelpCatalog-SizeBudget
         title: >-
@@ -79,7 +79,7 @@ sections:
           The readers are mostly agents with a limited context: a short card costs few tokens, and a short index card
           lets them find the right card before reading it.
         tests:
-          - HelpCatalog_Default_Cards_FitTheSizeBudget
+          - CanvasNetHelp_Default_Cards_FitTheSizeBudget
 
       - id: CanvasNetViewer-Help-HelpCatalog-Tags
         title: >-
@@ -93,9 +93,9 @@ sections:
           load means a filter written today selects the same kind of cards tomorrow.
         tests:
           - HelpTags_All_IsTheFormatTagsThenTheScopeTags
-          - HelpCatalog_Default_Tags_AreFromTheClosedVocabulary_AndEveryCardHasAScopeTag
-          - HelpCatalog_Default_HasTheLibraryRootsTagsAndNoCommandExamples
-          - HelpCatalog_Create_MalformedCard_ThrowsWithTheFileAndTheReason
+          - CanvasNetHelp_Default_Tags_AreFromTheClosedVocabulary_AndEveryCardHasAScopeTag
+          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
 
       - id: CanvasNetViewer-Help-HelpCatalog-Filter
         title: >-
@@ -107,10 +107,10 @@ sections:
           A host keeps only what its reader may learn, and may narrow a view again; a tag that is misspelled must fail
           rather than silently select nothing.
         tests:
-          - HelpCatalog_Filter_IncludeExclude_SelectsCardsByTags
-          - HelpCatalog_Filter_UnknownTag_ThrowsArgumentException
-          - HelpCatalog_Filter_OfAView_Composes
-          - HelpCatalog_CardMembers_HiddenCard_ThrowArgumentException
+          - CanvasNetHelp_Filter_IncludeExclude_SelectsCardsByTags
+          - CanvasNetHelp_Filter_UnknownTag_ThrowsArgumentException
+          - CanvasNetHelp_Filter_OfAView_Composes
+          - CanvasNetHelp_CardMembers_HiddenCard_ThrowArgumentException
 
       - id: CanvasNetViewer-Help-HelpCatalog-HiddenCards
         title: >-
@@ -124,12 +124,12 @@ sections:
           A reader must never be sent to a card it cannot read, yet the visible cards below a hidden one, such as the
           style card of a format whose overview is hidden, must stay reachable.
         tests:
-          - HelpCatalog_Filter_HiddenParent_LiftsVisibleChildrenToRootsAndChildren
-          - HelpCatalog_Filter_Find_HiddenIsNull_VisibleChildOfHiddenParentResolves
-          - HelpCatalog_Filter_HiddenLinkTargets_BecomePlainText
-          - HelpCatalog_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
-          - HelpCatalog_DefaultFiltered_NeverPointsAtAHiddenCard
-          - HelpCatalog_DefaultFiltered_VisibleCardBelowAHiddenRoot_IsARootFoundByItsPath
+          - CanvasNetHelp_Filter_HiddenParent_LiftsVisibleChildrenToRootsAndChildren
+          - CanvasNetHelp_Filter_Find_HiddenIsNull_VisibleChildOfHiddenParentResolves
+          - CanvasNetHelp_Filter_HiddenLinkTargets_BecomePlainText
+          - CanvasNetHelp_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
+          - CanvasNetHelp_DefaultFiltered_NeverPointsAtAHiddenCard
+          - CanvasNetHelp_DefaultFiltered_VisibleCardBelowAHiddenRoot_IsARootFoundByItsPath
 
       - id: CanvasNetViewer-Help-HelpCatalog-Links
         title: >-
@@ -143,8 +143,8 @@ sections:
           A link that names its target neutrally reads correctly in a library and in a command-line tool; diagram
           syntax such as Mermaid's double brackets in code must stay literal, and a typo must fail the build.
         tests:
-          - HelpCatalog_Markdown_Links_RenderInLibraryForm
-          - HelpCatalog_Create_MalformedCard_ThrowsWithTheFileAndTheReason
+          - CanvasNetHelp_Markdown_Links_RenderInLibraryForm
+          - CanvasNetHelp_Create_MalformedCard_ThrowsWithTheFileAndTheReason
 
       - id: CanvasNetViewer-Help-HelpCatalog-HostLinks
         title: >-
@@ -156,8 +156,8 @@ sections:
           A host has its own way to reach a card, for example the command that prints it, and must never be asked to
           write a link to a card its reader cannot read.
         tests:
-          - HelpCatalog_FormatMarkdown_CallsTheHostOnlyForVisibleLinks
-          - HelpCatalog_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
+          - CanvasNetHelp_FormatMarkdown_CallsTheHostOnlyForVisibleLinks
+          - CanvasNetHelp_FormatMarkdown_ExampleLinkThroughAHiddenCard_NamesTheOwner
 
       - id: CanvasNetViewer-Help-HelpCatalog-Extend
         title: >-
@@ -172,10 +172,10 @@ sections:
           A host adds what only it knows (its commands, options, and result documents) to the same tree, so its reader
           sees one card per subject; the library catalog stays the same for every other host.
         tests:
-          - HelpCatalog_Extend_OverlayAppendsBodySeeAlsoExamplesAndOverridesTitleSummary
-          - HelpCatalog_Extend_MisfitExtension_ThrowsWithTheReason
-          - HelpCatalog_Extend_TokenCollisionOrFilteredView_Throws
-          - HelpCatalog_Extend_AssemblyWithoutCards_KeepsTheCards
+          - CanvasNetHelp_Extend_OverlayAppendsBodySeeAlsoExamplesAndOverridesTitleSummary
+          - CanvasNetHelp_Extend_MisfitExtension_ThrowsWithTheReason
+          - CanvasNetHelp_Extend_TokenCollisionOrFilteredView_Throws
+          - CanvasNetHelp_Extend_AssemblyWithoutCards_KeepsTheCards
 
       - id: CanvasNetViewer-Help-HelpCatalog-Rendering
         title: >-
@@ -189,10 +189,10 @@ sections:
           A host hands the card to a reader, usually an agent, as text in a prompt or as structured data; the text is
           stable, and the JSON carries everything the text shows and the content of the examples.
         tests:
-          - HelpCatalog_RenderText_Card_IsPlainWrappedTextWithFooters
-          - HelpCatalog_RenderJson_Card_HasEveryField
-          - HelpCatalog_RenderIndex_ListsTheVisibleTree
-          - HelpCatalog_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
+          - CanvasNetHelp_RenderText_Card_IsPlainWrappedTextWithFooters
+          - CanvasNetHelp_RenderJson_Card_HasEveryField
+          - CanvasNetHelp_RenderIndex_ListsTheVisibleTree
+          - CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
 
       - id: CanvasNetViewer-Help-HelpCatalog-ThreadSafety
         title: >-
@@ -202,8 +202,8 @@ sections:
           A host serves several agents or requests at once; the shared catalog must not be loaded twice or change
           under a reader.
         tests:
-          - HelpCatalog_Default_IsThreadSafe_AndReturnsTheSameInstance
-          - HelpCatalog_Default_ConcurrentReads_GiveTheSameResults
+          - CanvasNetHelp_Default_IsThreadSafe_AndReturnsTheSameInstance
+          - CanvasNetHelp_Default_ConcurrentReads_GiveTheSameResults
 
       - id: CanvasNetViewer-Help-HelpCatalog-Examples
         title: >-
@@ -216,11 +216,11 @@ sections:
           A tiny example that is known to work is the fastest way to start with a format; an example that is verified
           cannot mislead, and a snippet that links other files is verified together with them.
         tests:
-          - HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
-          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
-          - HelpCatalog_Snippets_RenderStrictWithTheirSiblingFiles
-          - HelpCatalog_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
-          - HelpCatalog_Default_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
+          - CanvasNetHelp_Default_HasTheLibraryRootsTagsAndNoCommandExamples
 
       - id: CanvasNetViewer-Help-HelpCatalog-NoCommandLineText
         title: >-
@@ -231,8 +231,8 @@ sections:
           A library host has no command line; a card that tells its reader to run a command or pass a flag sends it
           somewhere it cannot go.
         tests:
-          - HelpCatalog_LibraryCards_HaveNoCommandLineText
-          - HelpCatalog_LibraryCards_CommandLineTextScan_FindsWhatItLooksFor
+          - CanvasNetHelp_LibraryCards_HaveNoCommandLineText
+          - CanvasNetHelp_LibraryCards_CommandLineTextScan_FindsWhatItLooksFor
 
       - id: CanvasNetViewer-Help-HelpCatalog-FormatContent
         title: >-
@@ -244,7 +244,7 @@ sections:
           Whether a feature will render is the first question about a format; an answer that always has the same
           parts can be read by a person and found by an agent without trial and error.
         tests:
-          - HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
 
       - id: CanvasNetViewer-Help-HelpCatalog-StyleGuidance
         title: >-
@@ -258,12 +258,12 @@ sections:
           Most pictures are drawn by agents for documents; guidance on how to make them look good, with examples that
           look good and advice that is checked against the renderer, turns a correct picture into a usable figure.
         tests:
-          - HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards
-          - HelpCatalog_StyleAndCompositionHubs_LinkBothWays
-          - HelpCatalog_MermaidStyleCard_EveryListedThemeRenders
-          - HelpCatalog_VegaLiteStyledExample_ConfigChangesThePicture
-          - HelpCatalog_StyleAdvice_TransparentChartInsideSvg_ShowsThePage
-          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_MermaidStyleCard_EveryListedThemeRenders
+          - CanvasNetHelp_VegaLiteStyledExample_ConfigChangesThePicture
+          - CanvasNetHelp_StyleAdvice_TransparentChartInsideSvg_ShowsThePage
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
 
       - id: CanvasNetViewer-Help-HelpCatalog-CompositionGuidance
         title: >-
@@ -281,12 +281,12 @@ sections:
           with a complete figure that is verified to render, saves an agent from discovering the patterns by trial and
           error, and a callout is only useful when it lands on the feature.
         tests:
-          - HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards
-          - HelpCatalog_StyleAndCompositionHubs_LinkBothWays
-          - HelpCatalog_Snippets_RenderStrictWithTheirSiblingFiles
-          - HelpCatalog_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards
-          - HelpCatalog_FramedFigureExample_CalloutsEndOnTheModelAnchors
-          - HelpCatalog_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards
+          - CanvasNetHelp_FramedFigureExample_CalloutsEndOnTheModelAnchors
+          - CanvasNetHelp_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
 
       - id: CanvasNetViewer-Help-HelpCatalog-SvgArrows
         title: >-
@@ -300,8 +300,8 @@ sections:
           Arrowheads that point the wrong way or stop short are the most common flaw of hand-written figures; one card
           with a verified example lets an agent draw connectors that land correctly the first time.
         tests:
-          - HelpCatalog_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers
-          - HelpCatalog_ArrowsExample_TipsLandOnTheTargetEdges
+          - CanvasNetHelp_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers
+          - CanvasNetHelp_ArrowsExample_TipsLandOnTheTargetEdges
 
       - id: CanvasNetViewer-Help-HelpCatalog-SvgImageLinks
         title: >-
@@ -318,13 +318,13 @@ sections:
           element can link it, and what it may link, without reading the source; a list of file types that is compared
           with the library cannot omit a type that works or promise one that does not.
         tests:
-          - HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
-          - HelpCatalog_SvgEmbedding_ImageLinks_StateSizeLinkRuleDiagnosticsAndExample
-          - HelpCatalog_Snippets_RenderStrictWithTheirSiblingFiles
-          - HelpCatalog_SvgFragments_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
-          - HelpCatalog_FormatAndLimitsCards_DocumentFragmentsAndTheirLimits
-          - HelpCatalog_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
-          - HelpCatalog_ScadAndVegaLiteCards_PointToImageHrefLinking
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_SvgEmbedding_ImageLinks_StateSizeLinkRuleDiagnosticsAndExample
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_SvgFragments_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
+          - CanvasNetHelp_FormatAndLimitsCards_DocumentFragmentsAndTheirLimits
+          - CanvasNetHelp_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
+          - CanvasNetHelp_ScadAndVegaLiteCards_PointToImageHrefLinking
 
       - id: CanvasNetViewer-Help-HelpCatalog-ViewAngles
         title: >-
@@ -335,7 +335,7 @@ sections:
           A link takes no azimuth or elevation, so the mapping to $vpr is the only way to turn the view of an embedded
           model; a mapping that is checked by rendering both ways cannot mislead.
         tests:
-          - HelpCatalog_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation
+          - CanvasNetHelp_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation
 
       - id: CanvasNetViewer-Help-HelpCatalog-Consistency
         title: >-
@@ -349,11 +349,11 @@ sections:
           Help that disagrees with the library is worse than no help; checking the content against the code makes
           every statement of a card a tested statement, so a change of the code that makes a card untrue fails a test.
         tests:
-          - HelpCatalog_ErrorsCodes_ListsEveryLibraryErrorCode
-          - HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries
-          - HelpCatalog_DiagnosticTriggers_ProduceTheCitedIds
-          - HelpCatalog_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
-          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_ErrorsCodes_ListsEveryLibraryErrorCode
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_DiagnosticTriggers_ProduceTheCitedIds
+          - CanvasNetHelp_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
 
       - id: CanvasNetViewer-Help-HelpCatalog-Mermaid
         title: >-
@@ -373,15 +373,15 @@ sections:
           constructs are drawn, how to choose a theme, and how to show a picture in a node, and get a working diagram
           to start from; checking the cards against the code keeps every statement of them true.
         tests:
-          - HelpCatalog_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
-          - HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
-          - HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
-          - HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
-          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
-          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
-          - HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries
-          - HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
-          - HelpCatalog_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor
+          - CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor
 
       - id: CanvasNetViewer-Help-HelpCatalog-MermaidGuideParity
         title: >-
@@ -392,7 +392,7 @@ sections:
           People read the guide and agents read the help; both must describe the same version, and a row added to
           one and not the other would tell one of them something untrue.
         tests:
-          - HelpCatalog_MermaidCards_DiagramSyntaxItems_MatchUserGuide
+          - CanvasNetHelp_MermaidCards_DiagramSyntaxItems_MatchUserGuide
 
       - id: CanvasNetViewer-Help-HelpCatalog-PlantUml
         title: >-
@@ -411,15 +411,15 @@ sections:
           An agent that is asked to draw a PlantUML diagram must learn from the library itself which diagram types and
           constructs are drawn and how to style and place a diagram, and get a working diagram to start from.
         tests:
-          - HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
-          - HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
-          - HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
-          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
-          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
-          - HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards
-          - HelpCatalog_StyleAndCompositionHubs_LinkBothWays
-          - HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries
-          - HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
 
       - id: CanvasNetViewer-Help-HelpCatalog-PlantUmlGuideParity
         title: >-
@@ -431,7 +431,7 @@ sections:
           People read the guide and agents read the help; both must describe the same version, and a row added to
           one and not the other would tell one of them something untrue.
         tests:
-          - HelpCatalog_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide
+          - CanvasNetHelp_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide
 
       - id: CanvasNetViewer-Help-HelpCatalog-MathMl
         title: >-
@@ -451,19 +451,19 @@ sections:
           how to make an equation look right, and how to place it in a figure, and get a working equation for every
           task to start from.
         tests:
-          - HelpCatalog_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
-          - HelpCatalog_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
-          - HelpCatalog_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
-          - HelpCatalog_SourceExamples_RenderStrictWithoutDiagnostics
-          - HelpCatalog_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
-          - HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards
-          - HelpCatalog_StyleAndCompositionHubs_LinkBothWays
-          - HelpCatalog_CitedDiagnosticIds_ExistInTheLibraries
-          - HelpCatalog_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
-          - HelpCatalog_MathMlCards_CoverTheAuthoringTasks
-          - HelpCatalog_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation
-          - HelpCatalog_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers
-          - HelpCatalog_MathMlPitfalls_StretchyFalseParentheses_AreNarrower
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_MathMlCards_CoverTheAuthoringTasks
+          - CanvasNetHelp_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation
+          - CanvasNetHelp_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers
+          - CanvasNetHelp_MathMlPitfalls_StretchyFalseParentheses_AreNarrower
 
       - id: CanvasNetViewer-Help-HelpCatalog-MathMlGuideParity
         title: >-
@@ -475,7 +475,7 @@ sections:
           People read the guide and agents read the help; both must describe the same version, and a row added to
           one and not the other would tell one of them something untrue.
         tests:
-          - HelpCatalog_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide
+          - CanvasNetHelp_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide
 
       - id: CanvasNetViewer-Help-HelpCatalog-MathMlEquations
         title: >-
@@ -487,9 +487,9 @@ sections:
           that warns or fails would teach the mistake it was meant to prevent, and a number the guide states must be
           the number the library gives.
         tests:
-          - HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics
-          - HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
-          - HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
+          - CanvasNetHelp_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
 
       - id: CanvasNetViewer-Help-HelpCatalog-Positions
         title: >-
@@ -502,13 +502,13 @@ sections:
         justification: |
           Every claim of the help must hold when the library runs it, so agents can follow the cards literally.
         tests:
-          - HelpCatalog_PositionsCard_IsInTheTreeAndLinked
-          - HelpCatalog_PositionsLimits_AreTheLimitsOfTheCode
-          - HelpCatalog_PositionsSelectors_Examples_MatchAsTheCardsSay
-          - HelpCatalog_PositionsVegaLite_DataFieldExample_SelectsThePoint
-          - HelpCatalog_PositionsSelectors_MetadataExamples_SelectOneItem
-          - HelpCatalog_PositionsMermaid_KindsPerType_AreTheKindsReported
-          - HelpCatalog_FramedFlowExample_CalloutsEndOnPositions
+          - CanvasNetHelp_PositionsCard_IsInTheTreeAndLinked
+          - CanvasNetHelp_PositionsLimits_AreTheLimitsOfTheCode
+          - CanvasNetHelp_PositionsSelectors_Examples_MatchAsTheCardsSay
+          - CanvasNetHelp_PositionsVegaLite_DataFieldExample_SelectsThePoint
+          - CanvasNetHelp_PositionsSelectors_MetadataExamples_SelectOneItem
+          - CanvasNetHelp_PositionsMermaid_KindsPerType_AreTheKindsReported
+          - CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions
 
       - id: CanvasNetViewer-Help-HelpCatalog-Bindings
         title: >-
@@ -521,6 +521,6 @@ sections:
           Agents learn the features from the help; the advice must lead to the exact way first, and the example must
           work.
         tests:
-          - HelpCatalog_SvgBindings_ListsTheNamespaceAndEveryCode
-          - HelpCatalog_FramedFigure_RecommendsBindingsFirst
-          - HelpCatalog_FramedFlowExample_CalloutsEndOnPositions
+          - CanvasNetHelp_SvgBindings_ListsTheNamespaceAndEveryCode
+          - CanvasNetHelp_FramedFigure_RecommendsBindingsFirst
+          - CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions

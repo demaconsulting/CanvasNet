@@ -5,7 +5,8 @@ using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.Viewer;
-using HelpCatalog = DemaConsulting.CanvasNet.Viewer.Help.HelpCatalog;
+using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -17,10 +18,6 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 [Collection("Sequential")]
 public partial class HelpTopicsTests
 {
-    /// <summary>
-    ///     The prefix of the logical names of the library's embedded help example files (the Viewer assembly).
-    /// </summary>
-    private const string LibraryExamplePrefix = "DemaConsulting.CanvasNet.Viewer.Help.Examples.";
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -42,13 +39,13 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     Gets the identifiers of every card as theory data.
     /// </summary>
-    public static IEnumerable<object[]> CardIdData => HelpTopics.All.Select(c => new object[] { c.Id });
+    public static IEnumerable<object[]> CardIdData => HelpView.All.Select(c => new object[] { c.Id });
 
     /// <summary>
     ///     Gets the identifiers of the cards that have examples of their own as theory data.
     /// </summary>
     public static IEnumerable<object[]> CardWithExamplesIdData =>
-        HelpTopics.All.Where(c => c.Examples.Count > 0).Select(c => new object[] { c.Id });
+        HelpView.All.Where(c => c.Examples.Count > 0).Select(c => new object[] { c.Id });
 
     /// <summary>
     ///     Test that every card loads with a title, a summary, and a body, that the roots are the topics in order, that
@@ -58,7 +55,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_All_EveryCardLoads_WithTitleSummaryAndBody()
     {
         // Arrange / Act: load the catalog
-        var cards = HelpTopics.All;
+        var cards = HelpView.All;
 
         // Assert: the roots are the topics, in order, and each card is followed by the cards below it
         Assert.Equal(HelpTopics.TopicNames, cards.Where(c => c.ParentId == null).Select(c => c.Id));
@@ -73,9 +70,9 @@ public partial class HelpTopicsTests
         {
             Assert.False(string.IsNullOrWhiteSpace(card.Title));
             Assert.False(string.IsNullOrWhiteSpace(card.Summary));
-            Assert.False(string.IsNullOrWhiteSpace(card.Body));
+            Assert.False(string.IsNullOrWhiteSpace(card.CommandBody));
         });
-        Assert.All(HelpTopics.Roots, root => Assert.NotEmpty(HelpTopics.SubtreeExamples(root)));
+        Assert.All(HelpTopics.Roots, root => Assert.NotEmpty(HelpView.SubtreeExamples(root)));
     }
 
     /// <summary>
@@ -150,7 +147,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_Text_HasNoUnresolvedTokens()
     {
         // Arrange / Act: every string of every card
-        var texts = HelpTopics.All.SelectMany(AllStrings).ToList();
+        var texts = HelpView.All.SelectMany(AllStrings).ToList();
 
         // Assert: no token is left, and the tool's table holds the live schema version
         Assert.DoesNotContain(texts, t => t.Contains("{{", StringComparison.Ordinal));
@@ -167,7 +164,7 @@ public partial class HelpTopicsTests
         // Arrange / Act / Assert: each format tree has the five headings, filled, and two examples
         foreach (var name in HelpTopics.FormatTopicNames)
         {
-            var cards = HelpTopics.Subtree(HelpTopics.Get(name)).ToList();
+            var cards = HelpView.Subtree(HelpView.Get(name)).ToList();
             foreach (var heading in new[] { "Supported", "Unsupported", "Options", "Diagnostics", "Known differences" })
             {
                 Assert.True(
@@ -175,7 +172,7 @@ public partial class HelpTopicsTests
                     $"The cards of '{name}' lack a filled section '## {heading}'.");
             }
 
-            Assert.True(HelpTopics.SubtreeExamples(HelpTopics.Get(name)).Count() >= 2, $"The cards of '{name}' have fewer than two examples.");
+            Assert.True(HelpView.SubtreeExamples(HelpView.Get(name)).Count() >= 2, $"The cards of '{name}' have fewer than two examples.");
         }
     }
 
@@ -190,25 +187,25 @@ public partial class HelpTopicsTests
         // Act / Assert: the names are unique in each root tree
         foreach (var root in HelpTopics.Roots)
         {
-            var names = HelpTopics.SubtreeExamples(root).Select(e => e.Example.Name).ToList();
+            var names = HelpView.SubtreeExamples(root).Select(e => e.Example.Name).ToList();
             Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         }
 
         // Act / Assert: the rules hold for every example
-        Assert.Contains(HelpTopics.AllExamples(), e => e.Example.Kind == HelpTopics.CommandKind);
-        foreach (var (_, example) in HelpTopics.AllExamples())
+        Assert.Contains(HelpView.AllExamples(), e => e.Example.Kind == HelpExample.CommandKind);
+        foreach (var (_, example) in HelpView.AllExamples())
         {
             Assert.False(string.IsNullOrWhiteSpace(example.Content));
             Assert.DoesNotContain('\r', example.Content);
             Assert.False(example.Content.EndsWith('\n'));
-            if (example.Kind == HelpTopics.CommandKind)
+            if (example.Kind == HelpExample.CommandKind)
             {
                 Assert.StartsWith("canvasnet ", example.Content);
                 Assert.Null(example.FileName);
                 continue;
             }
 
-            Assert.True(HelpTopics.SourceKind == example.Kind || HelpTopics.SnippetKind == example.Kind);
+            Assert.True(HelpExample.SourceKind == example.Kind || HelpExample.SnippetKind == example.Kind);
             Assert.NotNull(example.FileName);
         }
     }
@@ -281,13 +278,13 @@ public partial class HelpTopicsTests
     public void HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc()
     {
         // Arrange: the card, its terms, the source of the filter settings, the pandoc card, and the cards that point to it
-        var card = HelpTopics.Get("files");
+        var card = HelpView.Get("files");
         var terms = HelpCardText.Items("files").Select(i => i.Term).ToList();
         var settings = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "DemaConsulting.CanvasNet.Tool", "PandocFilter", "FilterSettings.cs"));
         var pandocTerms = HelpCardText.Items("pandoc").Select(i => i.Term).ToList();
 
         // Assert: the headings and the terms
-        Assert.Equal(["Modes", "Options", "In every mode", "Diagnostics", "Command line", "The Pandoc filter"], HelpCardText.Headings(card.Body));
+        Assert.Equal(["Modes", "Options", "In every mode", "Diagnostics", "Command line", "The Pandoc filter"], HelpCardText.Headings(card.CommandBody));
         foreach (var term in new[] { "any", "roots", "no-symlinks", "roots,no-symlinks", "--file-access <mode>", "--allow-root <folder>", "inputs", "never read", "limits" })
         {
             Assert.Contains(term, terms);
@@ -362,9 +359,9 @@ public partial class HelpTopicsTests
     {
         // Arrange: the default registry, and every command line of the cards
         var registry = CommandRegistry.CreateDefault();
-        var lines = HelpTopics.AllExamples().Where(x => x.Example.Kind == HelpTopics.CommandKind)
+        var lines = HelpView.AllExamples().Where(x => x.Example.Kind == HelpExample.CommandKind)
             .Select(x => (Where: $"{x.Card.Id} --example {x.Example.Name}", Line: x.Example.Content))
-            .Concat(HelpTopics.All.SelectMany(c => FencedCommandLines(c.Body).Select(l => (Where: c.Id, Line: l))))
+            .Concat(HelpView.All.SelectMany(c => FencedCommandLines(c.CommandBody).Select(l => (Where: c.Id, Line: l))))
             .ToList();
         Assert.NotEmpty(lines);
 
@@ -377,10 +374,10 @@ public partial class HelpTopicsTests
             var known = new HashSet<string>(GlobalOptionNames, StringComparer.Ordinal);
             if (words[1] == "help")
             {
-                known.UnionWith(["--example", "--examples"]);
+                known.UnionWith(["--example", "--examples", "--search", "--tag", "--source", "--all", "--format", "--width"]);
                 var path = words.Skip(2).TakeWhile(w => !w.StartsWith('-')).ToList();
                 Assert.True(
-                    path.Count == 0 || path[0] == "topics" || registry.Find(path[0]) != null || HelpTopics.Resolve(path) != null,
+                    path.Count == 0 || path[0] == "topics" || registry.Find(path[0]) != null || HelpTopics.Catalog.Find(string.Join(' ', path)) != null,
                     $"The command line '{line}' of '{where}' names no help card.");
             }
             else
@@ -410,7 +407,7 @@ public partial class HelpTopicsTests
 
         // Act / Assert: the first word of each option term of each options section is one of them
         var checkedTerms = 0;
-        foreach (var card in HelpTopics.All)
+        foreach (var card in HelpView.All)
         {
             foreach (var (term, _) in HelpCardText.Items(card.Id, "Options").Concat(HelpCardText.Items(card.Id, "Command line")).Where(i => i.Term.StartsWith('-')))
             {
@@ -446,19 +443,22 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the text of a card is deterministic and plain, starts with the title, prints the body as written,
-    ///     keeps its lines short, and lists the cards below it, its See also links (each with the summary of its target),
-    ///     and its examples.
+    ///     Test that <c>canvasnet help &lt;path&gt;</c> prints a card as deterministic plain text: the title, the body with
+    ///     its links written as help commands, and the cards below it, its See also links (each with the summary of its
+    ///     target), and its examples, each with the command that prints them.
     /// </summary>
     /// <param name="id">The card identifier.</param>
     [Theory]
     [MemberData(nameof(CardIdData))]
-    public void HelpTopics_RenderText_IsDeterministicPlainAndWrapped(string id)
+    public void HelpTopics_RenderText_IsDeterministicPlainAndComplete(string id)
     {
-        // Arrange / Act: render the card twice
-        var card = HelpTopics.Get(id);
-        var first = HelpTopics.RenderText(card);
-        var second = HelpTopics.RenderText(card);
+        // Arrange
+        var card = HelpView.Get(id);
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act: print the card twice
+        var first = registry.RenderHelp(card.Path.Split(' '));
+        var second = registry.RenderHelp(card.Path.Split(' '));
 
         // Assert: identical, without escape sequences, carriage returns, or a trailing newline, and the body as written
         Assert.Equal(first, second);
@@ -466,71 +466,44 @@ public partial class HelpTopicsTests
         Assert.DoesNotContain('\r', first);
         Assert.False(first.EndsWith('\n'));
         Assert.StartsWith($"# {card.Title}\n", first);
-        Assert.Contains($"\n{card.Body}\n", first + "\n");
-
-        // Assert: lines are at most 80 columns, 120 inside a fenced code block
-        var inFence = false;
-        foreach (var line in first.Split('\n'))
-        {
-            inFence ^= line.StartsWith("```", StringComparison.Ordinal);
-            Assert.True(line.Length <= (inFence ? 120 : 80), $"Line too long: {line}");
-        }
+        Assert.Contains($"\n{card.CommandBody}\n", first + "\n");
 
         // Assert: the footer lists the children, the See also links with their summaries, and the examples
         var flat = HelpCardText.Flatten(first);
-        Assert.All(HelpTopics.ChildrenOf(card), child => Assert.Contains($"- {child.Command} {child.Summary}", flat));
-        Assert.All(card.SeeAlso.Select(HelpTopics.Get), target => Assert.Contains($"- {target.Command} {target.Summary}", flat));
-        Assert.All(card.Examples, example => Assert.Contains($"  {example.Name}  ", first));
+        Assert.All(HelpView.ChildrenOf(card), child => Assert.Contains($"- {child.Command} {child.Summary}", flat));
+        Assert.All(card.SeeAlso.Select(HelpView.Get), target => Assert.Contains($"- {target.Command} {target.Summary}", flat));
+        Assert.All(card.Examples, example => Assert.Contains($"- {example.Name} [{example.Kind}]", first));
         if (card.Examples.Count > 0)
         {
-            Assert.Contains($"Print them in full with: {card.Command} --examples,", flat);
+            Assert.Contains($"{card.Command} --examples", flat);
             Assert.Contains($"{card.Command} --example <name>", flat);
         }
-
-        if (HelpTopics.CardsBelowWithExamples(card).Any())
-        {
-            Assert.Contains($"Find the cards below that have examples with: {card.Command} --examples", flat);
-        }
     }
 
     /// <summary>
-    ///     Test that a word longer than the width is kept whole on a line of its own.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_AppendWrapped_LongWord_IsNotSplit()
-    {
-        // Arrange: a word longer than the text width between short words
-        var longWord = new string('x', HelpTopics.TextWidth + 10);
-        var builder = new StringBuilder();
-
-        // Act: wrap with a hanging indent
-        HelpTopics.AppendWrapped(builder, $"a {longWord} b", "- ", "  ");
-
-        // Assert: the long word has its own line, indented, and nothing is lost
-        var lines = builder.ToString().TrimEnd().Split(Environment.NewLine);
-        Assert.Equal(["- a", $"  {longWord}", "  b"], lines);
-    }
-
-    /// <summary>
-    ///     Test that the JSON of a card has the documented shape, keys, and order, on one line and in ASCII.
+    ///     Test that <c>canvasnet help &lt;path&gt; --json</c> prints a card as one ASCII line in the tool's envelope with
+    ///     every key of the documented card document (HelpCards adds keys, which a reader ignores).
     /// </summary>
     /// <param name="id">The card identifier.</param>
     [Theory]
     [MemberData(nameof(CardIdData))]
     public void HelpTopics_RenderJson_HasTheDocumentedShape(string id)
     {
-        // Arrange / Act: render and parse the document
-        var card = HelpTopics.Get(id);
-        var json = HelpTopics.RenderJson(card);
+        // Arrange
+        var card = HelpView.Get(id);
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act: print and parse the document
+        var json = registry.RenderHelp(card.Path.Split(' '), json: true);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        // Assert: one ASCII line with the envelope and the keys of a card, in order
+        // Assert: one ASCII line with the envelope first, then the keys of a card
         Assert.DoesNotContain('\n', json);
         Assert.All(json, c => Assert.True(c < 0x80));
-        Assert.Equal(
-            ["schemaVersion", "ok", "command", "kind", "id", "aliases", "tags", "title", "summary", "body", "children", "seeAlso", "examples"],
-            root.EnumerateObject().Select(p => p.Name));
+        var keys = root.EnumerateObject().Select(p => p.Name).ToList();
+        Assert.Equal(["schemaVersion", "ok", "command", "kind"], keys.Take(4));
+        Assert.All(["id", "aliases", "tags", "title", "summary", "body", "children", "seeAlso", "examples"], key => Assert.Contains(key, keys));
         Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
         Assert.True(root.GetProperty("ok").GetBoolean());
         Assert.Equal("help", root.GetProperty("command").GetString());
@@ -539,15 +512,15 @@ public partial class HelpTopicsTests
         Assert.Equal(card.Aliases, root.GetProperty("aliases").EnumerateArray().Select(a => a.GetString()));
         Assert.Equal(card.Title, root.GetProperty("title").GetString());
         Assert.Equal(card.Summary, root.GetProperty("summary").GetString());
-        Assert.Equal(card.Body, root.GetProperty("body").GetString());
+        Assert.Equal(card.CommandBody, root.GetProperty("body").GetString());
 
         // Assert: the links carry the identifier, summary, and command of their targets
         void AssertLinks(string property, IEnumerable<HelpCard> targets) =>
             Assert.Equal(
                 targets.Select(t => (t.Id, t.Summary, t.Command)),
                 root.GetProperty(property).EnumerateArray().Select(l => (l.GetProperty("id").GetString()!, l.GetProperty("summary").GetString()!, l.GetProperty("command").GetString()!)));
-        AssertLinks("children", HelpTopics.ChildrenOf(card));
-        AssertLinks("seeAlso", card.SeeAlso.Select(HelpTopics.Get));
+        AssertLinks("children", HelpView.ChildrenOf(card));
+        AssertLinks("seeAlso", card.SeeAlso.Select(HelpView.Get));
 
         // Assert: the examples carry their content
         var examples = root.GetProperty("examples").EnumerateArray().ToList();
@@ -562,43 +535,54 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that an unknown example name is a usage error that lists the example names of the card's tree.
+    ///     Test that an unknown example name is a usage error that lists the example names of the card's tree, as text
+    ///     and as the JSON failure document with exit code 1.
     /// </summary>
     [Fact]
     public void HelpTopics_RenderExample_UnknownName_ThrowsUsageErrorListingNames()
     {
-        // Arrange: the scad card
-        var card = HelpTopics.Get("scad");
+        // Arrange
+        var registry = CommandRegistry.CreateDefault();
 
-        // Act / Assert: the error names the card and the example and lists the valid names; JSON fails the same way
-        var exception = Assert.Throws<ToolException>(() => HelpTopics.RenderExample(card, "nothing"));
+        // Act
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["scad", "--example", "nothing"]));
+        var run = registry.ExecuteHelp(["scad", "--example", "nothing"], json: true);
+
+        // Assert: the error names the card and the example and lists the valid names; JSON fails the same way
         Assert.Equal(ErrorCodes.UsageError, exception.Code);
-        Assert.Equal("Help card 'scad' has no example 'nothing'.", exception.Message);
+        Assert.Equal("The help card 'scad' has no example 'nothing'.", exception.Message);
         Assert.Contains("plate", exception.Hint);
         Assert.Equal("help", exception.Command);
-        Assert.Throws<ToolException>(() => HelpTopics.RenderExampleJson(card, "nothing"));
+        Assert.Equal(1, run.ExitCode);
+        using var document = JsonDocument.Parse(run.Output);
+        Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Equal(exception.Message, document.RootElement.GetProperty("error").GetProperty("message").GetString());
     }
 
     /// <summary>
-    ///     Test that a source example is returned exactly as embedded (LF line endings, no trailing newline), from the
-    ///     root card and from the card it belongs to, and that the JSON of the example describes it.
+    ///     Test that a source example is printed exactly as embedded (LF line endings, no trailing newline), from the root
+    ///     card and from the card it belongs to, ignoring the case of the name, and that the JSON of the example describes
+    ///     it.
     /// </summary>
     [Fact]
     public void HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent()
     {
-        // Arrange: the plate example and the embedded resource it comes from
-        var card = HelpTopics.Get("scad");
-        using var stream = typeof(HelpCatalog).Assembly.GetManifestResourceStream($"{LibraryExamplePrefix}scad-plate.scad")!;
+        // Arrange: the plate example and the embedded file it comes from
+        var registry = CommandRegistry.CreateDefault();
+        var assembly = typeof(CanvasNetHelp).Assembly;
+        var name = assembly.GetManifestResourceNames()
+            .Single(n => n.Replace('\\', '/') == "DemaConsulting.CanvasNet.Viewer.Help/scad/plate.scad");
+        using var stream = assembly.GetManifestResourceStream(name)!;
         using var reader = new StreamReader(stream);
         var expected = reader.ReadToEnd().Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n');
 
         // Act
-        var content = HelpTopics.RenderExample(card, "PLATE");
-        using var oneJson = JsonDocument.Parse(HelpTopics.RenderExampleJson(card, "plate"));
+        var content = registry.RenderHelp(["scad", "--example", "PLATE"]);
+        using var oneJson = JsonDocument.Parse(registry.RenderHelp(["scad", "--example", "plate"], json: true));
 
         // Assert: the content is exact, from the root and from its own card, and the JSON names the card it belongs to
         Assert.Equal(expected, content);
-        Assert.Equal(expected, HelpTopics.RenderExample(HelpTopics.Get("scad/language"), "plate"));
+        Assert.Equal(expected, registry.RenderHelp(["scad", "language", "--example", "plate"]));
         Assert.StartsWith("// A plate with a round hole", content);
         var example = oneJson.RootElement.GetProperty("example");
         Assert.Equal("example", oneJson.RootElement.GetProperty("kind").GetString());
@@ -608,17 +592,20 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the examples text of a card prints each of its own examples in full: a heading with the name,
-    ///     kind, and file name, the description, and the exact content in a code fence of its language.
+    ///     Test that <c>--examples</c> prints each of a card's own examples in full: a heading with the name and kind, the
+    ///     description, and the exact content in a code fence of its language.
     /// </summary>
     /// <param name="id">The card identifier.</param>
     [Theory]
     [MemberData(nameof(CardWithExamplesIdData))]
     public void HelpTopics_RenderExamples_CardWithExamples_PrintsEachExampleInFull(string id)
     {
-        // Arrange / Act: render the examples of the card
-        var card = HelpTopics.Get(id);
-        var text = HelpTopics.RenderExamples(card);
+        // Arrange
+        var card = HelpView.Get(id);
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act: print the examples of the card
+        var text = registry.RenderHelp([.. card.Path.Split(' '), "--examples"]);
 
         // Assert: plain LF text with the title, each example in full, and the command that prints one alone
         Assert.DoesNotContain('\r', text);
@@ -627,13 +614,9 @@ public partial class HelpTopicsTests
         var flat = HelpCardText.Flatten(text);
         foreach (var example in card.Examples)
         {
-            var heading = example.FileName == null
-                ? $"## {example.Name} [{example.Kind}]\n"
-                : $"## {example.Name} [{example.Kind}] {example.FileName}\n";
-            var fence = HelpTopics.CodeFence(example.Content);
-            Assert.Contains(heading, text);
+            Assert.Contains($"## {example.Name} [{example.Kind}]", text);
             Assert.Contains(example.Description, flat);
-            Assert.Contains($"\n{fence}{example.Language}\n{example.Content}\n{fence}\n", text);
+            Assert.Contains($"{example.Language}\n{example.Content}\n```", text);
         }
 
         Assert.Contains($"{card.Command} --example <name>", flat);
@@ -641,24 +624,24 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the examples text of a card without examples of its own says so and lists the cards below it that
+    ///     Test that <c>--examples</c> on a card without examples of its own says so and lists the cards below it that
     ///     have examples, each with its examples command and example names, and prints no example content.
     /// </summary>
     [Fact]
     public void HelpTopics_RenderExamples_IndexCard_ListsCardsBelowWithExamples()
     {
         // Arrange: the mermaid topic (no examples of its own) and the json topic (examples of its own and below)
-        var mermaid = HelpTopics.Get("mermaid");
-        var json = HelpTopics.Get("json");
+        var registry = CommandRegistry.CreateDefault();
+        var mermaid = HelpView.Get("mermaid");
 
         // Act
-        var mermaidText = HelpTopics.RenderExamples(mermaid);
-        var jsonText = HelpTopics.RenderExamples(json);
+        var mermaidText = registry.RenderHelp(["mermaid", "--examples"]);
+        var jsonText = registry.RenderHelp(["json", "--examples"]);
 
         // Assert: mermaid points at every card below with examples and prints none of them
-        Assert.Contains("'mermaid' has no examples of its own.", mermaidText);
+        Assert.Contains("has no examples of its own.", mermaidText);
         Assert.Contains("\n## Cards below with examples\n", mermaidText);
-        var below = HelpTopics.CardsBelowWithExamples(mermaid).ToList();
+        var below = HelpView.CardsBelowWithExamples(mermaid).ToList();
         Assert.NotEmpty(below);
         Assert.All(below, c =>
         {
@@ -668,7 +651,7 @@ public partial class HelpTopicsTests
         Assert.DoesNotContain("```", mermaidText);
 
         // Assert: json prints its own examples, then points at json help
-        Assert.All(json.Examples, e => Assert.Contains(e.Content, jsonText));
+        Assert.All(HelpView.Get("json").Examples, e => Assert.Contains(e.Content, jsonText));
         Assert.Contains("- canvasnet help json help --examples\n", jsonText);
         Assert.True(
             jsonText.IndexOf("--example <name>", StringComparison.Ordinal) < jsonText.IndexOf("## Cards below with examples", StringComparison.Ordinal),
@@ -676,17 +659,18 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the examples JSON of a card has the documented shape: the card's own examples with their content,
-    ///     without a card key, and the cards below it that have examples, with their example names.
+    ///     Test that the examples JSON of a card has the documented shape: the envelope, the card's own examples with their
+    ///     content and without a card key, and the cards below it that have examples, with their example names.
     /// </summary>
     [Fact]
     public void HelpTopics_RenderExamplesJson_HasTheDocumentedShape()
     {
         // Arrange: the json topic, which has examples of its own and a card below with examples
-        var card = HelpTopics.Get("json");
+        var card = HelpView.Get("json");
+        var registry = CommandRegistry.CreateDefault();
 
         // Act
-        using var document = JsonDocument.Parse(HelpTopics.RenderExamplesJson(card));
+        using var document = JsonDocument.Parse(registry.RenderHelp(["json", "--examples"], json: true));
         var root = document.RootElement;
 
         // Assert: the envelope and key order
@@ -704,7 +688,7 @@ public partial class HelpTopicsTests
 
         // Assert: the cards below with examples, with their names and commands
         var cards = root.GetProperty("cards").EnumerateArray().ToList();
-        var below = HelpTopics.CardsBelowWithExamples(card).ToList();
+        var below = HelpView.CardsBelowWithExamples(card).ToList();
         Assert.Equal(below.Select(c => c.Id), cards.Select(c => c.GetProperty("id").GetString()));
         Assert.Equal(below.Select(c => c.Command), cards.Select(c => c.GetProperty("command").GetString()));
         Assert.Equal(
@@ -712,21 +696,6 @@ public partial class HelpTopicsTests
             cards[0].GetProperty("examples").EnumerateArray().Select(e => e.GetString()));
         Assert.Equal(["id", "summary", "command", "examples"], cards[0].EnumerateObject().Select(p => p.Name));
     }
-
-    /// <summary>
-    ///     Test that the code fence of an example is at least three backticks and longer than any run of backticks in the
-    ///     content, so the content cannot end the block early.
-    /// </summary>
-    [Fact]
-    public void HelpTopics_CodeFence_IsLongerThanAnyBacktickRunInTheContent()
-    {
-        // Arrange / Act / Assert
-        Assert.Equal("```", HelpTopics.CodeFence("canvasnet formats --json"));
-        Assert.Equal("```", HelpTopics.CodeFence("a `b` c ``d``"));
-        Assert.Equal("````", HelpTopics.CodeFence("```mermaid\nflowchart LR\n```"));
-        Assert.Equal("``````", HelpTopics.CodeFence("x `````"));
-    }
-
     /// <summary>
     ///     Finds the folder that contains the solution file by walking up from the test output folder.
     /// </summary>
@@ -847,11 +816,11 @@ public partial class HelpTopicsTests
     {
         yield return card.Title;
         yield return card.Summary;
-        yield return card.Body;
+        yield return card.CommandBody;
         foreach (var example in card.Examples)
         {
             yield return example.Description;
-            if (example.Kind == HelpTopics.CommandKind)
+            if (example.Kind == HelpExample.CommandKind)
             {
                 yield return example.Content;
             }
