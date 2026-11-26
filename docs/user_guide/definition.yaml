@@ -23,6 +23,7 @@ input-files:
   - docs/user_guide/canvas-net-math-ml.md
   - docs/user_guide/canvas-net-viewer.md
   - docs/user_guide/canvas-net-tool.md
+  - docs/user_guide/embedding-pictures-in-markdown.md
 template: template.html
 table-of-contents: true
 number-sections: true
