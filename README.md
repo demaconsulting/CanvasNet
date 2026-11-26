@@ -28,8 +28,8 @@ from the files it shows.
   and bindings landing arrows on embedded nodes at any size.
 - **Made for AI agents** - built-in help cards with worked examples, one JSON document per command, stable error
   codes, and `compare`, `montage`, `inspect`, and `--grid` so an agent can look at, measure, and check what it draws.
-  The same help about the formats is a tag-filterable library API (`HelpCatalog` in the Viewer) for agent toolkits
-  that give the knowledge to an AI from code.
+  The same help about the formats is a tag-filterable library API (`CanvasNetHelp` in the Viewer, built on
+  DemaConsulting.HelpCards) for agent toolkits that give the knowledge to an AI from code.
 - **The same pixels everywhere** - bundled fonts, no network access, documented resource limits, and file-access
   policies for documents you do not trust.
 - **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`,
@@ -179,7 +179,7 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
   a transformation pipeline, inspect, compare, make a contact sheet, and flatten an SVG drawing) as library calls;
-  its `HelpCatalog` holds the help cards about the formats, filterable by tags, for programs that brief an agent
+  its `CanvasNetHelp` holds the help cards about the formats, filterable by tags, for programs that brief an agent
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -242,11 +242,12 @@ part and a chart beside boxes and arrows; a fragment chooses the page of a docum
 `deck.pptx#slide=2`; page 1 without one); run `canvasnet help svg embedding` for the file types and rules.
 
 The built-in help is a tree of short help cards: `canvasnet help mermaid` prints the index of the Mermaid cards,
-`canvasnet help mermaid gantt` one diagram type, and `canvasnet help topics` every card with its summary. Each card
-ends with the exact commands of related cards. `canvasnet help style` and `canvasnet help composition` explain how to
-make a picture look good and how to combine diagrams, charts, models, and pages in one figure, with worked examples
-that the tests render. The cards about the formats come from the Viewer package, where a program reads them with
-`HelpCatalog.Default` and keeps only the tags it wants (for example everything about Mermaid except `file-access`).
+`canvasnet help mermaid gantt` one diagram type, and `canvasnet help topics` every card with its summary. Each card ends
+with the exact commands of related cards. `canvasnet help style` and `canvasnet help composition` explain how to make a
+picture look good and how to combine diagrams, charts, models, and pages in one figure, with worked examples that the
+tests render; `canvasnet help --search <word>` finds the cards about a word. The cards about the formats come from the
+Viewer package, where a program reads them with `CanvasNetHelp.Catalog` (a catalog of the DemaConsulting.HelpCards
+library) and keeps only the tags it wants (for example everything about Mermaid except `file-access`).
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and

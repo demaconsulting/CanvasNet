@@ -1700,7 +1700,7 @@ using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Backgro
 PngCodec.Save(picture, "library.png");                                    // 908x1914 pixels
 ```
 
-The same text is the `class` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `class` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example class`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="A library, drawn from a code block" scale=2 width=50%}
@@ -1777,7 +1777,7 @@ using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Backgro
 PngCodec.Save(picture, "order-states.png");                               // 1116x1938 pixels
 ```
 
-The same text is the `state` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `state` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example state`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="The states of an order, drawn from a code block" scale=2 width=50%}
@@ -1846,7 +1846,7 @@ using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Backgro
 PngCodec.Save(picture, "lending.png");                                    // 1524x1382 pixels
 ```
 
-The same text is the `er` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `er` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example er`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="A lending model, drawn from a code block" scale=2 width=70%}
@@ -1902,7 +1902,7 @@ using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Backgro
 PngCodec.Save(picture, "pets.png");                                       // 1190x900 pixels
 ```
 
-The same text is the `pie` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `pie` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example pie`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="Pets adopted by volunteers, drawn from a code block" scale=2 width=60%}
@@ -1955,7 +1955,7 @@ using var picture = diagram.Render(options);
 PngCodec.Save(picture, "release-plan.png");                               // 1568x440 pixels
 ```
 
-The same text is the `gantt` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `gantt` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example gantt`), and the Pandoc filter draws it from a code block, without a today line:
 
 ```{.mermaid caption="A release plan, drawn from a code block" scale=2 width=100%}
@@ -2010,7 +2010,7 @@ using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Backgro
 PngCodec.Save(picture, "release.png");                                    // 1200x976 pixels
 ```
 
-The same text is the `mindmap` example of the help cards (the library's `HelpCatalog`, and
+The same text is the `mindmap` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example mindmap`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="A release, drawn from a code block" scale=2 width=80%}
@@ -2066,8 +2066,8 @@ PngCodec.Save(picture, "sensor-frame.png");                               // 205
 
 The 96 bits fill three rows of 32: the `Payload` block, bits 48 to 71, crosses the end of the second row, so it is drawn
 in two parts, each with its label, and the title takes a fourth row. The same text is the `packet` example of the help
-cards (the library's `HelpCatalog`, and `canvasnet help mermaid --example packet`), and the Pandoc filter draws it from
-a code block:
+cards (the library's `CanvasNetHelp`, and `canvasnet help mermaid --example packet`), and the Pandoc filter draws it
+from a code block:
 
 ```{.mermaid caption="A sensor frame, drawn from a code block" scale=2 width=100%}
 packet
@@ -2127,7 +2127,7 @@ PngCodec.Save(picture, "release-history.png");                            // 115
 
 The arrows from `readme` to `api`, from `tests` to `merge`, and from `merge` to `notes` turn with rounded corners, the
 reversed commit is drawn crossed and the highlighted one as a square, and the cherry-pick carries its default tag,
-`cherry-pick:hotfix`. The same text is the `gitgraph` example of the help cards (the library's `HelpCatalog`, and
+`cherry-pick:hotfix`. The same text is the `gitgraph` example of the help cards (the library's `CanvasNetHelp`, and
 `canvasnet help mermaid --example gitgraph`), and the Pandoc filter draws it from a code block:
 
 ```{.mermaid caption="A release history, drawn from a code block" scale=2 width=100%}

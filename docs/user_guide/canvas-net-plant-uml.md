@@ -278,7 +278,7 @@ of their own, so none is bundled. Restyle a diagram with the supported `skinpara
 
 ### Supported Sequence Syntax
 
-This list is also the *Supported* section of the help card `plantuml/sequence` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/sequence` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml sequence`); a test keeps the two the same.
 
 - **Sequence diagrams**: a diagram whose statements are all sequence statements is a sequence diagram. It is laid out
@@ -303,7 +303,7 @@ This list is also the *Supported* section of the help card `plantuml/sequence` (
 
 ### Supported Activity Syntax
 
-This list is also the *Supported* section of the help card `plantuml/activity` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/activity` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml activity`); a test keeps the two the same.
 
 - **Activity diagrams**: a diagram in the new activity syntax (`start`, `:action;`, `if`, `while`, ...) is an activity
@@ -325,7 +325,7 @@ This list is also the *Supported* section of the help card `plantuml/activity` (
 
 ### Supported Class Syntax
 
-This list is also the *Supported* section of the help card `plantuml/class` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/class` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml class`); a test keeps the two the same.
 
 - **Class diagrams**: a diagram of class declarations and class relationships is a class diagram, recognized in the
@@ -362,7 +362,7 @@ This list is also the *Supported* section of the help card `plantuml/class` (of 
 
 ### Supported Object Syntax
 
-This list is also the *Supported* section of the help card `plantuml/object` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/object` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml object`); a test keeps the two the same.
 
 - **Object diagrams**: a diagram whose first declaration is an `object` or a `map` is an object diagram; it is read and
@@ -374,7 +374,7 @@ This list is also the *Supported* section of the help card `plantuml/object` (of
 
 ### Supported State Syntax
 
-This list is also the *Supported* section of the help card `plantuml/state` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/state` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml state`); a test keeps the two the same.
 
 - **State diagrams**: a diagram of state declarations and transitions (`state`, `[*]`) is a state diagram, recognized
@@ -405,7 +405,7 @@ This list is also the *Supported* section of the help card `plantuml/state` (of 
 
 ### Supported Use Case Syntax
 
-This list is also the *Supported* section of the help card `plantuml/usecase` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/usecase` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml usecase`); a test keeps the two the same.
 
 - **Use case diagrams**: a diagram of description elements and links is a use case diagram when a statement names an
@@ -431,7 +431,7 @@ This list is also the *Supported* section of the help card `plantuml/usecase` (o
 
 ### Supported Component Syntax
 
-This list is also the *Supported* section of the help card `plantuml/component` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/component` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml component`); a test keeps the two the same.
 
 - **Component diagrams**: a diagram of description elements and links without an actor or a use case is a component
@@ -463,7 +463,7 @@ This list is also the *Supported* section of the help card `plantuml/component` 
 
 ### Supported Deployment Syntax
 
-This list is also the *Supported* section of the help card `plantuml/deployment` (of the Viewer's `HelpCatalog`, and
+This list is also the *Supported* section of the help card `plantuml/deployment` (of the Viewer's `CanvasNetHelp`, and
 `canvasnet help plantuml deployment`); a test keeps the two the same.
 
 - **Deployment diagrams**: a diagram of description elements and links without an actor, a use case, a component, an
@@ -522,10 +522,10 @@ The codes, with their kind and when each is reported:
 - **`plantuml-diagnostics-suppressed`**: Warning: more reports than the diagnostics limit; the rest are not listed.
 
 The codes of this list are also the bullets of the help cards `plantuml/unsupported` and `plantuml/diagnostics` (of the
-Viewer's `HelpCatalog`, and `canvasnet help plantuml unsupported` and `diagnostics`); a test keeps them the same. In the
-`canvasnet` tool and the Viewer, the errors are `plantuml-error` (with the file, the line, the column, and the specific
-code), a limit is `budget-exceeded`, an include the file-access mode denies is `file-access-denied`, and a warning is a
-note with the source `plantuml` and the code `plantuml-warning`, the specific code being in its `detail`.
+Viewer's `CanvasNetHelp`, and `canvasnet help plantuml unsupported` and `diagnostics`); a test keeps them the same. In
+the `canvasnet` tool and the Viewer, the errors are `plantuml-error` (with the file, the line, the column, and the
+specific code), a limit is `budget-exceeded`, an include the file-access mode denies is `file-access-denied`, and a
+warning is a note with the source `plantuml` and the code `plantuml-warning`, the specific code being in its `detail`.
 
 **Unsupported diagram types.** Every diagram type that PlantUML knows is recognized, so a diagram that this version
 cannot draw is named, not misread:
