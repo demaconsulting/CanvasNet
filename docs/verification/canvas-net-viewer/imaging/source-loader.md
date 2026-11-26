@@ -843,8 +843,10 @@ code of a source error for a file the command-line tool loads: a Mermaid syntax 
 3), an OpenSCAD syntax error (`scad-error`, `scad-syntax-error`, line 2), and a truncated chart (`vega-lite-error`, with
 a line and no detail code, because the library gives a chart error none) each carry the location the library reports,
 and malformed SVG markup (`corrupt-input`) carries the path of the file with the line and column of the XML error, no
-detail code, and the codec's `InvalidDataException` inside; a chart with a `geoshape` mark loaded in strict mode is
-`unsupported-feature` with the detail code `vl-mark-geoshape`; a missing file (`input-not-found`) has neither.
+detail code, and the codec's `InvalidDataException` inside; a MathML closing tag that does not match (`mathml-error`,
+`mathml-syntax-error`, line 2) carries the path of the file and the line of the XML error; a chart with a `geoshape`
+mark loaded in strict mode is `unsupported-feature` with the detail code `vl-mark-geoshape`; a missing file
+(`input-not-found`) has neither.
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.

@@ -88,9 +88,15 @@ produces.
   {{mmlMaxNestingDepth}} deep, and at most {{mmlMaxTableCells}} cells in one
   table; beyond that the equation fails with budget-exceeded
   (mathml-limit-exceeded).
+- **Tokens**: At most {{mmlMaxTokenLength}} characters in the text of one token
+  element (mi, mn, mo, mtext, ms); a longer token fails with budget-exceeded
+  (mathml-limit-exceeded).
 - **Layout work**: At most {{mmlMaxLayoutWork}} units of layout work (each
   element and character, again for a stretched operator); beyond that the
   equation fails with budget-exceeded.
+- **Painted glyphs**: At most {{mmlMaxPaintedGlyphs}} glyphs painted by one
+  render; beyond that the equation fails with budget-exceeded before anything is
+  painted.
 - **Size**: An equation larger than {{maxDimension}} pixels on a side at its
   natural size fails with budget-exceeded; a target size above it is
   size-limit.

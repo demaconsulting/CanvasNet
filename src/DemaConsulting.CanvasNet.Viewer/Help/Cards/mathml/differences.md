@@ -25,8 +25,8 @@ The equation is laid out by the rules of MathML Core and compared with Chrome
 - A stretched operator is centered in the width of its widest size, as Chrome
   draws it, which leaves gaps beside a short argument; write `stretchy="false"`
   there (see [[mathml/pitfalls]]).
-- An accent or an overscript is centered over its base instead of placed at the
-  top-accent point of a slanted letter, as Chrome places it.
+- An accent or an overscript is centered over its base, as Chrome centers it,
+  instead of placed at the top-accent point of a slanted letter.
 - Every mathvariant value is drawn and the table attributes (columnalign,
   rowspacing, columnlines, frame, ...) are drawn as Firefox draws them; Chrome
   draws only mathvariant="normal" and ignores the table attributes.

@@ -49,7 +49,7 @@ example ohm and the quadratic formula the fractions example quadratic.
   `<msubsup><mi>&omega;</mi><mi>n</mi><mn>2</mn></msubsup>`.
 - Fourier transform ([[#fourier-transform]]): the transform is
   `<mi mathvariant="script">F</mi>` applied to `{f}` in `stretchy="false"`
-  braces (the hat accent is in [[mathml/accents]]); the
+  braces (accents such as a hat are in [[mathml/accents]]); the
   constants e and i and the d of dx are upright with `mathvariant="normal"`.
 - Maxwell ([[#maxwell]]): one aligned table (see
   [[mathml/aligned]]), vectors in `mathvariant="bold"`, the

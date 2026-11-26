@@ -319,6 +319,34 @@ public class CanvasNetViewerFragmentTests
     }
 
     /// <summary>
+    ///     Test that <c>#display=</c> chooses the display mode of a linked equation (block or inline, in any case): the
+    ///     inline link draws exactly the picture of a copy of the equation that says <c>display="inline"</c> itself, and
+    ///     the block link, in capitals, exactly the picture of the equation without a fragment.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MathMlDisplayFragment_ChoosesTheLayout()
+    {
+        // Arrange: the quadratic formula (display="block") and a copy that says display="inline"
+        using var folder = new ViewerTestFolder();
+        var block = File.ReadAllText(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")));
+        folder.WriteText("eq.mml", block);
+        folder.WriteText("eq-inline.mml", block.Replace("display=\"block\"", "display=\"inline\"", StringComparison.Ordinal));
+
+        // Act
+        using var image = Render(folder, "eq.mml", "eq.mml#display=BLOCK", "eq.mml#display=inline", "eq-inline.mml");
+
+        // Assert: BLOCK draws the block picture, inline the inline picture, which differs from it, with no notes
+        var surface = image.Surface;
+        List<Rgba32> CellPixels(int cell) => [.. Enumerable.Range(0, 100 * 100).Select(i => surface[(cell * 100) + (i % 100), i / 100])];
+        Assert.Equal(CellPixels(0), CellPixels(1));
+        Assert.Equal(CellPixels(3), CellPixels(2));
+        Assert.NotEqual(CellPixels(0), CellPixels(2));
+        Assert.Empty(image.Diagnostics);
+        Assert.Equal(["eq.mml", "eq.mml#display=BLOCK", "eq.mml#display=inline", "eq-inline.mml"], image.Embedded.Select(e => e.Href));
+        Assert.All(image.Embedded, e => Assert.Equal("mathml", e.Format));
+    }
+
+    /// <summary>
     ///     Test that a source of a URI scheme gets the link untouched (query included) with the fragment parsed, and
     ///     that a built-in source does not get a scheme link.
     /// </summary>

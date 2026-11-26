@@ -129,6 +129,7 @@ sections:
           - CanvasNetViewer-Imaging-EquationImages
         tests:
           - CanvasNetViewer_SystemIntegration_MathMlEquation_RendersDirectlyAndEmbeddedInSvgMermaidAndVegaLite
+          - CanvasNetViewer_SystemIntegration_MathMlDisplayFragmentOfALink_ChoosesTheLayout
 
       - id: CanvasNetViewer-Render
         title: >-

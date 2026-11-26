@@ -220,6 +220,120 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that the <c>display</c> fragment of a link chooses the display mode of a linked equation in an SVG
+    ///     <c>image</c>, a Mermaid node and a Vega-Lite <c>image</c> mark: <c>eq.mml#display=inline</c> draws exactly the
+    ///     picture of a copy of the equation that says <c>display="inline"</c> itself (so the inline layout is used), which
+    ///     differs from the block picture, and <c>eq.mml#display=BLOCK</c> (in any case) draws exactly the block picture.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_MathMlDisplayFragmentOfALink_ChoosesTheLayout()
+    {
+        // Arrange: the quadratic formula (display="block") and a copy that says display="inline", an SVG document that
+        // links the equation plainly, as BLOCK and as inline, and the copy; and a flowchart and a chart for each link
+        using var folder = new ViewerTestFolder();
+        var block = File.ReadAllText(FixtureFactory.FixturePath(Path.Combine("mathml", "quadratic.mml")));
+        folder.WriteText("eq.mml", block);
+        folder.WriteText("eq-inline.mml", block.Replace("display=\"block\"", "display=\"inline\"", StringComparison.Ordinal));
+        var links = new[] { "eq.mml", "eq.mml#display=BLOCK", "eq.mml#display=inline", "eq-inline.mml" };
+        var svg = folder.WriteText("figure.svg", ViewerFixtures.Svg(string.Concat(links.Select(ViewerFixtures.Cell))));
+        var flows = links
+            .Select((href, i) => folder.WriteText($"flow{i}.mmd", $"flowchart LR\n    q@{{ img: \"{href}\", w: 140, h: 50 }}\n"))
+            .ToList();
+        var charts = links
+            .Select((href, i) => folder.WriteText(
+                $"chart{i}.vl.json",
+                "{ \"width\": 200, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+                + "\"mark\": { \"type\": \"image\", \"width\": 140, \"height\": 50 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+                + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+                + $"\"url\": {{ \"value\": \"{href}\" }} }} }}"))
+            .ToList();
+
+        // Act
+        using var figure = CanvasNetViewer.Render(svg);
+        var inFlows = flows.Select(path => CanvasNetViewer.Render(path)).ToList();
+        var inCharts = charts.Select(path => CanvasNetViewer.Render(path)).ToList();
+
+        try
+        {
+            // Assert: in the SVG document, BLOCK draws the block picture and inline draws the picture of the inline copy,
+            // which differs from the block picture; every link is listed and nothing is reported
+            Assert.True(SameCell(figure.Surface, 0, 1), "eq.mml#display=BLOCK differs from the block picture in the SVG image.");
+            Assert.True(SameCell(figure.Surface, 2, 3), "eq.mml#display=inline differs from the inline picture in the SVG image.");
+            Assert.False(SameCell(figure.Surface, 0, 2), "eq.mml#display=inline draws the block picture in the SVG image.");
+            Assert.Equal(links, figure.Embedded.Select(e => e.Href));
+            Assert.All(figure.Embedded, e => Assert.Equal("mathml", e.Format));
+            Assert.Empty(figure.Diagnostics);
+
+            // Assert: the Mermaid node and the image mark of the chart follow the fragment the same way
+            foreach (var (pictures, where) in new[] { (inFlows, "Mermaid node"), (inCharts, "Vega-Lite image mark") })
+            {
+                Assert.True(SamePixels(pictures[0].Surface, pictures[1].Surface), $"eq.mml#display=BLOCK differs from the block picture in the {where}.");
+                Assert.True(SamePixels(pictures[2].Surface, pictures[3].Surface), $"eq.mml#display=inline differs from the inline picture in the {where}.");
+                Assert.False(SamePixels(pictures[0].Surface, pictures[2].Surface), $"eq.mml#display=inline draws the block picture in the {where}.");
+                Assert.Equal(links, pictures.Select(picture => Assert.Single(picture.Embedded).Href));
+                Assert.All(pictures, picture => Assert.Empty(picture.Diagnostics));
+            }
+        }
+        finally
+        {
+            foreach (var picture in inFlows.Concat(inCharts))
+            {
+                picture.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether two cells of a 500 by 100 document drawn by <see cref="ViewerFixtures.Svg"/> have the same pixels.
+    /// </summary>
+    /// <param name="surface">The picture of the document.</param>
+    /// <param name="first">The first cell, 0 to 4.</param>
+    /// <param name="second">The second cell, 0 to 4.</param>
+    /// <returns><see langword="true"/> when every pixel of the first cell equals the one of the second.</returns>
+    private static bool SameCell(Surface surface, int first, int second)
+    {
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                if (surface[first * 100 + x, y] != surface[second * 100 + x, y])
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Determines whether two pictures have the same size and the same pixels.
+    /// </summary>
+    /// <param name="first">The first picture.</param>
+    /// <param name="second">The second picture.</param>
+    /// <returns><see langword="true"/> when the sizes and every pixel are equal.</returns>
+    private static bool SamePixels(Surface first, Surface second)
+    {
+        if ((first.Width, first.Height) != (second.Width, second.Height))
+        {
+            return false;
+        }
+
+        for (var y = 0; y < first.Height; y++)
+        {
+            for (var x = 0; x < first.Width; x++)
+            {
+                if (first[x, y] != second[x, y])
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     ///     Proves that a model that declares anchors is embedded exactly like the same model without them: the cell shows
     ///     the same picture and nothing is reported for the valid declaration (the viewer does not use anchors).
     /// </summary>
