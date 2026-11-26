@@ -28,13 +28,16 @@ that differs from the expected value constitutes a failure.
 ##### CanvasNetMathMl-Layout-ScriptLayout-Subscript: The Subscript Shift
 
 **Tests**: `ScriptLayoutTests.ScriptLayout_LayoutSub_ShiftFromConstantsAndScriptAscent`,
-`ScriptLayoutTests.ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript`
+`ScriptLayoutTests.ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript`,
+`ScriptLayoutTests.ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent`
 
 Asserts that a small subscript is shifted down by SubscriptShiftDown (21 px), a subscript 70 px tall by its ascent −
 SubscriptTopMax (27 px), and a subscript of a base descending 30 px by SubscriptBaselineDropMin + 30 (44 px), with the
 resulting ascent and descent; and that the subscript of a large operator with an italic correction of 50 px starts
 50 px before the end of the operator while its superscript starts at the end, the width being the operator, the wider
-script, and SpaceAfterScript, and the operator kept on the box.
+script, and SpaceAfterScript, and the operator kept on the box; and that the subscript of a single character
+descending 40 px is shifted by SubscriptShiftDown only, while the subscript of the same extents drawn with two glyphs is
+SubscriptBaselineDropMin + 40 px down.
 
 ##### CanvasNetMathMl-Layout-ScriptLayout-Superscript: The Superscript Shift And The Italic Correction
 

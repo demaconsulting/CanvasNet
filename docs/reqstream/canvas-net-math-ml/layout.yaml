@@ -20,7 +20,8 @@ sections:
             title: >-
               The Layout subsystem shall lay out the token elements as MathML Core does: the transformed characters
               drawn with the glyphs of the math font placed by their advances, and a box as wide as the advances with
-              the ink ascent and descent.
+              the ink ascent and descent, whose ink bounds cover everything the painter draws for it, antialiasing
+              included.
             justification: |
               Tokens are the leaves of every equation; their boxes decide the size and the spacing of everything else.
             children:
@@ -34,6 +35,7 @@ sections:
               - CanvasNetMathMl-Layout-MathBox-Model
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_PaintedInk_StaysInsideTheExtent
 
           - id: CanvasNetMathMl-Layout-Operators
             title: >-
@@ -158,7 +160,8 @@ sections:
             title: >-
               The Layout subsystem shall lay out msub, msup, msubsup and mmultiscripts as MathML Core 3.4.1 and 3.4.3
               do: the scripts shifted by the script constants of the MATH table (the cramped superscript shift in a
-              compact math shift), kept apart by the minimum gap, after the base with the italic correction of a
+              compact math shift; the subscript of a single character at the shift of the font whatever its descender),
+              kept apart by the minimum gap, after the base with the italic correction of a
               stretched or large operator (and of a slanted letter where the inks would otherwise collide) and followed
               by the space after a script; the prescripts of mmultiscripts
               before the base; the scripts one script level smaller as postfix operators; and an embellished scripted
@@ -180,6 +183,7 @@ sections:
             tests:
               - Layout_ScriptsAndLimits_MatchConstants
               - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
+              - Layout_SubscriptOfCharacter_IgnoresItsDescender
 
           - id: CanvasNetMathMl-Layout-UnderOver
             title: >-

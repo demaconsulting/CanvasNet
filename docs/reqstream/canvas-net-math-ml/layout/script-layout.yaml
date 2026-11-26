@@ -16,14 +16,19 @@ sections:
               - id: CanvasNetMathMl-Layout-ScriptLayout-Subscript
                 title: >-
                   The ScriptLayout unit shall shift a subscript down by the largest of the subscript shift of the MATH
-                  table, its ascent less the maximum subscript top, and the minimum baseline drop below the descent of
+                  table, its ascent less the maximum subscript top, and, unless the base is a single character (a
+                  token that is not an operator and draws one glyph), the minimum baseline drop below the descent of
                   the base, and pull it back by the italic correction of a large operator base.
                 justification: |
                   MathML Core 3.4.1.2 positions a subscript by these constants, and the italic correction of a large
-                  operator moves its lower script under its slant.
+                  operator moves its lower script under its slant. MathML Core and Chrome also drop the subscript of a
+                  letter with a descender (γ, y, ψ) below the descender, which sets it almost twice as low as the
+                  subscript of x; TeX keeps the subscript of a single character at the shift of the font, and so does
+                  CanvasNet (a documented known difference).
                 tests:
                   - ScriptLayout_LayoutSub_ShiftFromConstantsAndScriptAscent
                   - ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript
+                  - ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent
 
               - id: CanvasNetMathMl-Layout-ScriptLayout-Superscript
                 title: >-

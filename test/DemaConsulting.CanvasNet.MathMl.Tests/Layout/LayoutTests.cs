@@ -494,4 +494,81 @@ public class LayoutTests
             Assert.Equal(sup.Y + msup.Y - sqrt.Y, Glyphs(sqrt.Box).Skip(1).Min(glyph => glyph.Ink.Y), 9);
         }
     }
+
+    /// <summary>
+    ///     Validates through the subsystem that the subscript of a single character does not depend on its descender: the n
+    ///     of γ, y, and ψ sits at the same depth as the n of x (SubscriptShiftDown), as TeX sets it, while the n of a row
+    ///     ending in a descender is kept SubscriptBaselineDropMin below the descent of the row (MathML Core 3.4.1.2).
+    /// </summary>
+    [Fact]
+    public void Layout_SubscriptOfCharacter_IgnoresItsDescender()
+    {
+        // Arrange
+        var font = MathFont.Default;
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math(
+            "<msub><mi>x</mi><mi>n</mi></msub><msub><mi>&#x3B3;</mi><mi>n</mi></msub><msub><mi>y</mi><mi>n</mi></msub>"
+            + "<msub><mi>&#x3C8;</mi><mi>n</mi></msub><msub><mrow><mi>a</mi><mi>y</mi></mrow><mi>n</mi></msub>"));
+
+        // Assert
+        var shifts = box.Children.Select(child => child.Box.Children[1].Y).ToList();
+        Assert.Equal(font.Constant(MathConstant.SubscriptShiftDown, 100), shifts[0], 9);
+        Assert.All(shifts.Take(4), shift => Assert.Equal(shifts[0], shift, 9));
+        var row = box.Children[4].Box.Children[0].Box;
+        Assert.Equal(font.Constant(MathConstant.SubscriptBaselineDropMin, 100) + row.Descent, shifts[4], 9);
+        Assert.True(shifts[4] > shifts[0]);
+    }
+
+    /// <summary>
+    ///     Validates through the subsystem that everything the painter draws, antialiasing included, lies inside the
+    ///     content box united with the ink bounds of the equation rounded out to whole pixels, the extent of the picture:
+    ///     painted into a larger surface at several font sizes, equations whose ink reaches the edges of the picture (an
+    ///     integral with limits, a final italic letter, a large parenthesis) leave every pixel outside it transparent.
+    /// </summary>
+    [Fact]
+    public void Layout_PaintedInk_StaysInsideTheExtent()
+    {
+        // Arrange
+        string[] equations =
+        [
+            "<mi>f</mi><mo>=</mo><msubsup><mo>&#x222B;</mo><mn>1</mn><mi>&#x221E;</mi></msubsup><mi>x</mi>",
+            "<mrow><mo>(</mo><mfrac><mn>1</mn><msup><mi>n</mi><mi>s</mi></msup></mfrac><mo>)</mo></mrow>",
+            "<munderover><mo>&#x2211;</mo><mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow><mi>&#x221E;</mi></munderover><mi>j</mi>",
+        ];
+
+        foreach (var equation in equations)
+        {
+            foreach (var size in new[] { 16.0, 20, 23, 32 })
+            {
+                // Act
+                var box = LayoutText(MathMlTestHelpers.Math(equation, "display=\"block\""), size);
+                var extent = box.InkBounds() is { } ink ? box.ContentRect.Union(ink) : box.ContentRect;
+                var left = System.Math.Floor(extent.X + 1e-6);
+                var top = System.Math.Floor(extent.Y + 1e-6);
+                var width = (int)(System.Math.Ceiling(extent.Right - 1e-6) - left);
+                var height = (int)(System.Math.Ceiling(extent.Bottom - 1e-6) - top);
+                const int Margin = 8;
+                using var surface = new Surface(width + (2 * Margin), height + (2 * Margin));
+                MathMlPainter.Paint(surface, box, new MathPlacement(1, Margin - left, Margin - top), null, 10_000, TestContext.Current.CancellationToken);
+
+                // Assert: nothing is painted outside the extent, and the ink reaches into it
+                var outside = 0;
+                for (var y = 0; y < surface.Height; y++)
+                {
+                    for (var x = 0; x < surface.Width; x++)
+                    {
+                        var inside = x >= Margin && x < Margin + width && y >= Margin && y < Margin + height;
+                        if (!inside && surface[x, y].A > 0)
+                        {
+                            outside++;
+                        }
+                    }
+                }
+
+                Assert.True(outside == 0, $"{equation} at {size} px paints {outside} pixels outside its extent");
+                Assert.True(MathMlTestHelpers.InkedPixels(surface) > 0);
+            }
+        }
+    }
 }

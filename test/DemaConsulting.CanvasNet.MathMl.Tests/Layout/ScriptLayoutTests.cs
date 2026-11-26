@@ -121,6 +121,36 @@ public class ScriptLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the subscript of a single character is shifted by the constants and its own ascent only, whatever
+    ///     the descender of the character (as TeX), while the subscript of another base (two glyphs, a row) is also kept
+    ///     SubscriptBaselineDropMin below the descent of the base (MathML Core 3.4.1.2).
+    /// </summary>
+    [Fact]
+    public void ScriptLayout_LayoutSub_CharacterBase_IgnoresItsDescent()
+    {
+        // Arrange: a deep character (descent 40 px) and the same extents drawn with two glyphs
+        var layout = new ScriptLayout(MathFont.Default);
+        var (font, glyph) = MathFont.Default.Resolve(0x1D6FE);
+        GlyphItem Glyph(double x) => new(font, glyph, 100, x, 0, Black, new MathRect(x, -50, 40, 90));
+        var character = new MathBox(45, 50, 40, null, [Glyph(0)]);
+        var pair = new MathBox(90, 50, 40, null, [Glyph(0), Glyph(45)]);
+        var sub = new MathBox(20, 10, 0);
+        var shiftDown = MathFont.Default.Constant(MathConstant.SubscriptShiftDown, 100);
+        var dropMin = MathFont.Default.Constant(MathConstant.SubscriptBaselineDropMin, 100);
+
+        // Act
+        var single = layout.Layout(character, sub, null, Compact);
+        var twoGlyphs = layout.Layout(pair, sub, null, Compact);
+
+        // Assert
+        Assert.True(ScriptLayout.IsCharacter(character));
+        Assert.False(ScriptLayout.IsCharacter(pair));
+        Assert.Equal(shiftDown, single.Children[1].Y, 9);
+        Assert.Equal(dropMin + 40, twoGlyphs.Children[1].Y, 9);
+        Assert.True(dropMin + 40 > shiftDown);
+    }
+
+    /// <summary>
     ///     Validates that the subscript of a large operator is pulled back by its italic correction
     ///     (LargeOpItalicCorrection) and its superscript is not moved.
     /// </summary>

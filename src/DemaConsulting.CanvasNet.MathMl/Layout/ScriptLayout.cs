@@ -16,7 +16,8 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 /// <remarks>
 ///     <para>
 ///         <b>Shifts (3.4.1.2-3.4.1.4).</b> A subscript is shifted down by the largest of SubscriptShiftDown, its ascent -
-///         SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base; a superscript up by the largest of
+///         SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base (left out for a single character, as
+///         TeX sets the subscript of a character); a superscript up by the largest of
 ///         SuperscriptShiftUp (SuperscriptShiftUpCramped when the computed <c>math-shift</c> of the scripted element is
 ///         <c>compact</c>), SuperscriptBottomMin + its descent, and the ascent of the base - SuperscriptBaselineDropMax.
 ///         With both scripts, when the gap between them is less than SubSuperscriptGapMin, the superscript is raised
@@ -211,16 +212,32 @@ internal sealed class ScriptLayout
     }
 
     /// <summary>
-    ///     Computes the shift down of a subscript (MathML Core 3.4.1.2).
+    ///     Computes the shift down of a subscript (MathML Core 3.4.1.2): the largest of SubscriptShiftDown, the ascent of
+    ///     the subscript less SubscriptTopMax, and, unless the base is a single character, SubscriptBaselineDropMin below
+    ///     the descent of the base. A single character keeps the subscript at the shift of the font whatever its
+    ///     descender, as TeX lays out the subscript of a character (rule 18a); MathML Core and Chrome drop it below the
+    ///     descender (a documented difference: the subscript n of γ sits as low as the subscript n of x).
     /// </summary>
     /// <param name="base">The box of the base.</param>
     /// <param name="sub">The box of the subscript.</param>
     /// <param name="size">The font size of the scripted element.</param>
     /// <returns>SubShift.</returns>
-    private double SubShift(MathBox @base, MathBox sub, double size) =>
-        Math.Max(
-            Math.Max(Constant(MathConstant.SubscriptShiftDown, size), sub.Ascent - Constant(MathConstant.SubscriptTopMax, size)),
-            Constant(MathConstant.SubscriptBaselineDropMin, size) + @base.Descent);
+    private double SubShift(MathBox @base, MathBox sub, double size)
+    {
+        var shift = Math.Max(Constant(MathConstant.SubscriptShiftDown, size), sub.Ascent - Constant(MathConstant.SubscriptTopMax, size));
+        return IsCharacter(@base) ? shift : Math.Max(shift, Constant(MathConstant.SubscriptBaselineDropMin, size) + @base.Descent);
+    }
+
+    /// <summary>
+    ///     Decides whether a base is a single character: a token that is not an operator and draws one glyph.
+    /// </summary>
+    /// <param name="base">The box of the base.</param>
+    /// <returns>True for a single character.</returns>
+    internal static bool IsCharacter(MathBox @base)
+    {
+        ArgumentNullException.ThrowIfNull(@base);
+        return @base.Operator is null && @base.Children.Count == 0 && @base.Items.OfType<GlyphItem>().Count() == 1;
+    }
 
     /// <summary>
     ///     Computes the shift up of a superscript (MathML Core 3.4.1.3).

@@ -132,6 +132,23 @@ compact numerator), and asserts that no two consecutive glyphs of the fenced let
 clear of the ink of ζ and of b, and that the overbar of each radical lies at least RadicalDisplayStyleVerticalGap
 (display) or RadicalVerticalGap (compact) above the ink of its content, whose top is the ink of the superscript.
 
+#### CanvasNetMathMl-Layout-Scripts: The Subscript Of A Character
+
+**Tests**: `LayoutTests.Layout_SubscriptOfCharacter_IgnoresItsDescender`
+
+Lays out the subscript n of x, γ, y, ψ, and of the row `a y` at 100 px and asserts that the four single characters put
+it at the same SubscriptShiftDown whatever their descenders, while the row puts it SubscriptBaselineDropMin below its
+descent, deeper.
+
+#### CanvasNetMathMl-Layout-Tokens: Painted Ink Inside The Extent
+
+**Tests**: `LayoutTests.Layout_PaintedInk_StaysInsideTheExtent`
+
+Paints an integral with limits followed by an italic x, a large parenthesis around a fraction, and a summation with
+limits followed by an italic j, each at 16, 20, 23, and 32 px, into a surface 8 pixels larger on every side than their
+content box united with their ink bounds rounded out to whole pixels (the extent of the picture), and asserts that every
+pixel outside that extent stays transparent (the antialiasing included) while the extent holds ink.
+
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 
 **Tests**: `LayoutTests.Layout_WrongChildCount_IsRowWithWarning`

@@ -21,8 +21,11 @@ by the `CanvasNetMathMl-Layout-ScriptLayout-*` requirements in
 #### Key Methods
 
 - `Layout(base, sub, sup, style, embellished)` - with the constants at the font size of the scripted element:
-  - **SubShift (3.4.1.2)** - the largest of `SubscriptShiftDown`, the subscript's ascent − `SubscriptTopMax`, and
-    `SubscriptBaselineDropMin` + the base's descent.
+  - **SubShift (3.4.1.2)** - the largest of `SubscriptShiftDown`, the subscript's ascent − `SubscriptTopMax`, and,
+    unless the base is a single character (`IsCharacter`: a token that is not an operator and draws one glyph),
+    `SubscriptBaselineDropMin` + the base's descent. A single character keeps its subscript at the shift of the font
+    whatever its descender, as TeX sets the subscript of a character (rule 18a); MathML Core and Chrome drop it below
+    the descender (a known difference).
   - **SuperShift (3.4.1.3)** - the largest of `SuperscriptShiftUp` (`SuperscriptShiftUpCramped` when the computed
     `math-shift` of the element is `compact`), `SuperscriptBottomMin` + the superscript's descent, and the base's
     ascent − `SuperscriptBaselineDropMax`.

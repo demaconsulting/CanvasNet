@@ -148,6 +148,10 @@ pin them:
   italic *b* as the base of a superscript, `msubsup-gap` puts *u* under the radical, `mover-accents` stretches the
   circumflex over the identifier `xyz`, and `msup-italic-letter` uses *b* only; the clearance is verified by the unit
   tests of `RowLayout` and `ScriptLayout` and the subsystem tests of the layout.
+- **Subscripts of characters with descenders**: MathML Core and Chrome keep the subscript of γ, y, or ψ
+  SubscriptBaselineDropMin below its descender; CanvasNet keeps the subscript of a single character at the shift of the
+  font, as TeX does, so `msub-msup` uses *w* and `mmultiscripts-tensor` an italic *b* as such bases; the rule is
+  verified by the unit tests of `ScriptLayout` and the subsystem tests of the layout.
 - **The form of an operator at the base of a script**: MathML Core gives it the form of the scripted element in its row;
   Chrome infers it from the position of the operator inside the scripted element (prefix), so the fixtures use operators
   without a prefix form there (`=`).
