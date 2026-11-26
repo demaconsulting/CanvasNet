@@ -23,7 +23,7 @@ examples:
     kind: source
     language: xml
     file: limit.mml
-    description: A limit of a function - lim with movablelimits and a thin space after sin.
+    description: A limit of a function - lim with movablelimits and TeX spacing, and a thin space after sin.
 ---
 
 ## Sums and products
@@ -48,7 +48,10 @@ examples:
 
 ## Limits
 
-- `<munder><mo movablelimits="true">lim</mo><mrow><mi>x</mi><mo>&rarr;</mo>
-  <mn>0</mn></mrow></munder>`: a word operator such as lim, max, or sup is not
-  in the operator dictionary, so give it `movablelimits="true"`; then its limit
-  goes under it in display style and becomes a subscript inline.
+- `<munder><mo lspace="0" rspace="0.1667em" movablelimits="true">lim</mo>
+  <mrow><mi>x</mi><mo>&rarr;</mo><mn>0</mn></mrow></munder>`: a word operator
+  such as lim, max, min, sup, inf, det, gcd, or Pr is not in the operator
+  dictionary, so give it `movablelimits="true"`; then its limit goes under it in
+  display style and becomes a subscript inline. Without `lspace="0"
+  rspace="0.1667em"` it gets the default 0.2778em on both sides, about twice the
+  space TeX puts around it.

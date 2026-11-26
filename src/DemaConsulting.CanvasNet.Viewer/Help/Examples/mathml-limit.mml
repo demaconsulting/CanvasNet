@@ -1,6 +1,6 @@
 <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
   <munder>
-    <mo movablelimits="true">lim</mo>
+    <mo lspace="0" rspace="0.1667em" movablelimits="true">lim</mo>
     <mrow>
       <mi>x</mi>
       <mo>&rarr;</mo>
