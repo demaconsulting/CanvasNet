@@ -138,9 +138,11 @@ The limits, with their defaults and what they bound:
 - `MaxTextSize` (default 1,048,576): the text as supplied, in UTF-16 characters. Exceeding it throws
   `InvalidDataException`.
 - `MaxElements` (default 100,000): the MathML elements of the equation, each skipped element (of another namespace, or
-  inside a token) counted too.
-- `MaxNestingDepth` (default 256, at most 1,024): elements inside each other. The reader is iterative and the layout
-  recursion is bounded by this limit, so a deep text never overflows the stack.
+  inside a token) and every element inside it, and every element inside an annotation, counted too: one skipped
+  element cannot hide more elements than the limit.
+- `MaxNestingDepth` (default 256, at most 1,024): elements inside each other, the elements inside a skipped element or
+  an annotation included. The reader is iterative and the layout recursion is bounded by this limit, so a deep text
+  never overflows the stack.
 - `MaxTokenLength` (default 10,000): the characters of one token.
 - `MaxLayoutWork` (default 10,000,000): the metered steps of the layout (every element and character, again for a
   stretched operator).

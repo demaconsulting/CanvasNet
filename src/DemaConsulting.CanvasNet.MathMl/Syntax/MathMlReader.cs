@@ -29,11 +29,12 @@ namespace DemaConsulting.CanvasNet.MathMl.Syntax;
 ///     <para>
 ///         <b>Bounds.</b> The reader is iterative (an explicit stack), so a deeply nested text fails with
 ///         <see cref="MathMlDiagnosticCodes.LimitExceeded"/> (<see cref="MathMlLimits.MaxNestingDepth"/>), never with a
-///         stack overflow; it also enforces <see cref="MathMlLimits.MaxElements"/> (the skipped elements are charged too)
-///         and <see cref="MathMlLimits.MaxTokenLength"/>, and keeps at most <see cref="MathMlLimits.MaxDiagnostics"/>
-///         pending reports followed by a single <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice. The
-///         messages of the XML reader cite positions of the original text only. The class is stateless and safe for
-///         concurrent use.
+///         stack overflow; it also enforces <see cref="MathMlLimits.MaxElements"/> and the nesting limit on every element,
+///         the skipped elements, every element inside them and every element inside an annotation included (their
+///         subtrees are walked node by node, never skipped unseen), and <see cref="MathMlLimits.MaxTokenLength"/>, and
+///         keeps at most <see cref="MathMlLimits.MaxDiagnostics"/> pending reports followed by a single
+///         <see cref="MathMlDiagnosticCodes.DiagnosticsSuppressed"/> notice. The messages of the XML reader cite positions
+///         of the original text only. The class is stateless and safe for concurrent use.
 ///     </para>
 /// </remarks>
 internal static partial class MathMlReader
@@ -197,6 +198,21 @@ internal static partial class MathMlReader
     private static partial Regex EmbeddedPosition();
 
     /// <summary>
+    ///     What <see cref="ReadState"/> keeps of the content of an element it walks without reading it into the tree.
+    /// </summary>
+    private enum SubtreeContent
+    {
+        /// <summary>Nothing: the element is skipped.</summary>
+        None,
+
+        /// <summary>The text of every text node (an <c>annotation</c>).</summary>
+        Text,
+
+        /// <summary>The inner markup (an <c>annotation-xml</c>).</summary>
+        Markup,
+    }
+
+    /// <summary>
     ///     An element being read: its name, attributes and children so far.
     /// </summary>
     /// <param name="Name">The local name.</param>
@@ -234,7 +250,10 @@ internal static partial class MathMlReader
         /// <summary>The line information of the reader.</summary>
         private IXmlLineInfo? _lineInfo;
 
-        /// <summary>The number of skipped elements (of other namespaces, or inside a token), charged to the element limit.</summary>
+        /// <summary>
+        ///     The number of elements charged to the element limit that are not MathML elements read: the skipped elements
+        ///     (of other namespaces, or inside a token), every element inside them, and every element inside an annotation.
+        /// </summary>
         private int _skippedElements;
 
         /// <summary>Whether the reports beyond the limit have been replaced by the suppression notice.</summary>
@@ -316,26 +335,24 @@ internal static partial class MathMlReader
             }
             else if (!isMathMl || _stack[^1].IsToken)
             {
-                // Foreign content and markup inside a token are skipped with their subtree; each skipped element is
-                // charged to the element limit, so that a text of skipped elements is bounded like any other
+                // Foreign content and markup inside a token are skipped with their subtree; the skipped element and every
+                // element inside it are charged to the element and nesting limits, so that a text of skipped elements is
+                // bounded like any other. Only the skipped element itself is reported
                 _skippedElements++;
                 CheckElementLimit(location);
+                CheckNestingDepth(_stack.Count + 1, location);
                 var reason = isMathMl
                     ? $"the element <{name}> inside the token <{_stack[^1].Name}> is not drawn; a token holds text only"
                     : $"the element <{reader.Name}> of the namespace '{reader.NamespaceURI}' is not MathML and is not drawn";
                 Report(MathMlPendingReport.Unsupported(MathMlDiagnosticCodes.ElementUnsupported, reason, location, "remove the element or replace it with MathML"));
-                reader.Skip();
+                WalkSubtree(reader, SubtreeContent.None);
                 return true;
             }
 
             // The structural limits, before anything is kept
             ElementCount++;
             CheckElementLimit(location);
-
-            if (_stack.Count + 1 > _limits.MaxNestingDepth)
-            {
-                throw Limit($"the elements are nested deeper than {_limits.MaxNestingDepth} (MathMlLimits.MaxNestingDepth)", location);
-            }
+            CheckNestingDepth(_stack.Count + 1, location);
 
             FlushText();
             var attributes = ReadAttributes(reader);
@@ -476,35 +493,9 @@ internal static partial class MathMlReader
         /// <param name="location">The location.</param>
         private void ReadAnnotation(XmlReader reader, string name, Dictionary<string, MathAttribute> attributes, MathMlLocation location)
         {
-            string content;
-            if (name == "annotation-xml")
-            {
-                content = reader.ReadInnerXml();
-            }
-            else if (reader.IsEmptyElement)
-            {
-                content = string.Empty;
-                reader.Read();
-            }
-            else
-            {
-                // The text of every text node of the subtree, as written (the annotation is not laid out)
-                var text = new StringBuilder();
-                using (var subtree = reader.ReadSubtree())
-                {
-                    while (subtree.Read())
-                    {
-                        if (subtree.NodeType is XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace)
-                        {
-                            text.Append(subtree.Value);
-                        }
-                    }
-                }
-
-                content = text.ToString();
-                reader.Read();
-            }
-
+            // The inner markup of annotation-xml, or the text of every text node of an annotation, as written (the
+            // annotation is not laid out); every element inside it is charged to the element and nesting limits
+            var content = WalkSubtree(reader, name == "annotation-xml" ? SubtreeContent.Markup : SubtreeContent.Text);
             var encoding = attributes.TryGetValue("encoding", out var value) ? value.Value : null;
             Annotations.Add(new MathMlAnnotation(encoding, content));
             Add(new MathElement(name, attributes, content.Length > 0 ? [new MathText(content, location)] : [], location));
@@ -565,6 +556,117 @@ internal static partial class MathMlReader
             if ((long)ElementCount + _skippedElements > _limits.MaxElements)
             {
                 throw Limit($"the equation has more than {_limits.MaxElements} elements (MathMlLimits.MaxElements)", location);
+            }
+        }
+
+        /// <summary>
+        ///     Refuses an element nested deeper than the nesting limit.
+        /// </summary>
+        /// <param name="depth">The depth of the element (the <c>math</c> element is depth one).</param>
+        /// <param name="location">The location of the element.</param>
+        /// <exception cref="MathMlSyntaxException">Thrown when the limit is exceeded.</exception>
+        private void CheckNestingDepth(int depth, MathMlLocation location)
+        {
+            if (depth > _limits.MaxNestingDepth)
+            {
+                throw Limit($"the elements are nested deeper than {_limits.MaxNestingDepth} (MathMlLimits.MaxNestingDepth)", location);
+            }
+        }
+
+        /// <summary>
+        ///     Walks the content of the current element (one that is skipped, or an annotation kept raw) node by node and
+        ///     moves the reader past its end: every element inside it is charged to the element limit and checked against
+        ///     the nesting limit, at its own location, before the walk goes on. This replaces <see cref="XmlReader.Skip"/>,
+        ///     <see cref="XmlReader.ReadSubtree"/> and <see cref="XmlReader.ReadInnerXml"/>, which consume a subtree of any
+        ///     size or depth unseen. Nothing inside is reported; the text of skipped content is discarded and bounded by
+        ///     the character cap of the reader.
+        /// </summary>
+        /// <param name="reader">The reader, on the element; it is moved past the element.</param>
+        /// <param name="content">What to keep of the content.</param>
+        /// <returns>The kept content: the inner markup, the text of every text node, or empty.</returns>
+        /// <exception cref="MathMlSyntaxException">Thrown, located at the element, when an element inside exceeds a limit.</exception>
+        private string WalkSubtree(XmlReader reader, SubtreeContent content)
+        {
+            if (reader.IsEmptyElement)
+            {
+                reader.Read();
+                return string.Empty;
+            }
+
+            // The element is at depth _stack.Count + 1 (its ancestors are open); each level of the reader below it is one deeper
+            var rootDepth = reader.Depth;
+            var depthOffset = _stack.Count + 1 - rootDepth;
+            var text = content == SubtreeContent.Text ? new StringBuilder() : null;
+            using var markup = content == SubtreeContent.Markup ? new StringWriter(CultureInfo.InvariantCulture) : null;
+            using var writer = markup is null ? null : new XmlTextWriter(markup);
+            while (reader.Read() && !(reader.NodeType == XmlNodeType.EndElement && reader.Depth == rootDepth))
+            {
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    var location = Here();
+                    _skippedElements++;
+                    CheckElementLimit(location);
+                    CheckNestingDepth(reader.Depth + depthOffset, location);
+                }
+
+                if (text is not null && reader.NodeType is XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace)
+                {
+                    text.Append(reader.Value);
+                }
+
+                if (writer is not null)
+                {
+                    CopyNode(reader, writer);
+                }
+            }
+
+            // Past the end of the element
+            reader.Read();
+            writer?.Flush();
+            return text?.ToString() ?? markup?.ToString() ?? string.Empty;
+        }
+
+        /// <summary>
+        ///     Writes the current node of the reader, without its content, as <see cref="XmlWriter.WriteNode(XmlReader, bool)"/>
+        ///     writes each node (so the markup is the one <see cref="XmlReader.ReadInnerXml"/> gives).
+        /// </summary>
+        /// <param name="reader">The reader, on the node; it is left on the node.</param>
+        /// <param name="writer">The writer of the markup.</param>
+        private static void CopyNode(XmlReader reader, XmlWriter writer)
+        {
+            switch (reader.NodeType)
+            {
+                case XmlNodeType.Element:
+                    writer.WriteStartElement(reader.Prefix, reader.LocalName, reader.NamespaceURI);
+                    // The attributes as written (false: no defaulted attributes, which need a document type)
+                    writer.WriteAttributes(reader, false);
+                    if (reader.IsEmptyElement)
+                    {
+                        writer.WriteEndElement();
+                    }
+
+                    break;
+                case XmlNodeType.Text:
+                    writer.WriteString(reader.Value);
+                    break;
+                case XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace:
+                    writer.WriteWhitespace(reader.Value);
+                    break;
+                case XmlNodeType.CDATA:
+                    writer.WriteCData(reader.Value);
+                    break;
+                case XmlNodeType.EntityReference:
+                    writer.WriteEntityRef(reader.Name);
+                    break;
+                case XmlNodeType.ProcessingInstruction:
+                    writer.WriteProcessingInstruction(reader.Name, reader.Value);
+                    break;
+                case XmlNodeType.Comment:
+                    writer.WriteComment(reader.Value);
+                    break;
+                case XmlNodeType.EndElement:
+                    writer.WriteFullEndElement();
+                    break;
             }
         }
 

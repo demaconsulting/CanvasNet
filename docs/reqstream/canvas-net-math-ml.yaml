@@ -395,6 +395,8 @@ sections:
           - CanvasNetMathMl_Hardening_HugeLengths_AreRefused
           - CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render
           - CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded
+          - CanvasNetMathMl_Hardening_SkippedSubtree_IsBounded
+          - CanvasNetMathMl_Hardening_SkippedContentWithinLimits_Renders
 
       - id: CanvasNetMathMl-Cancellation
         title: >-

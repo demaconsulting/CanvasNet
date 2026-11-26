@@ -253,6 +253,60 @@ public class MathMlHardeningTests
     }
 
     /// <summary>
+    ///     Validates that one skipped element cannot hide unbounded content: the elements inside it are charged to
+    ///     <see cref="MathMlLimits.MaxElements"/> and checked against <see cref="MathMlLimits.MaxNestingDepth"/>, each
+    ///     failing at the element that exceeds the limit, with a single report for the skipped element.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Hardening_SkippedSubtree_IsBounded()
+    {
+        // Arrange: one skipped x:a holding 1,500 lines of x:b with a nested x:c (3,000 elements), each line from column 1;
+        // and one skipped x:a nesting 300 x:a elements, one per line
+        var wide = "<math xmlns:x=\"urn:x\"><x:a>\n" + string.Concat(Enumerable.Repeat("<x:b><x:c/></x:b>\n", 1_500)) + "</x:a></math>";
+        var deep = "<math xmlns:x=\"urn:x\">\n" + string.Concat(Enumerable.Repeat("<x:a>\n", 300)) + string.Concat(Enumerable.Repeat("</x:a>", 300)) + "</math>";
+        var unsupported = 0;
+
+        // Act
+        var many = Assert.Throws<MathMlSyntaxException>(() => MathMlDocument.Parse(wide, new MathMlOpenOptions { Limits = new MathMlLimits { MaxElements = 2_000 } }));
+        var nested = Assert.Throws<MathMlSyntaxException>(() => MathMlDocument.Parse(deep));
+        var document = MathMlDocument.Parse(wide);
+        document.Measure(new MathMlRenderOptions { UnsupportedFeatureHandler = _ => unsupported++ }, TestContext.Current.CancellationToken);
+
+        // Assert: the 2,001st element is the x:b of line 1,001; the x:a at depth 257 is the 256th, on line 257
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, 1_001, 2), (many.Code, many.Location.Line, many.Location.Column));
+        Assert.Contains("MathMlLimits.MaxElements", many.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, 257, 2), (nested.Code, nested.Location.Line, nested.Location.Column));
+        Assert.Contains("MathMlLimits.MaxNestingDepth", nested.Message, StringComparison.Ordinal);
+        Assert.Equal((1, 1), (document.ElementCount, unsupported));
+    }
+
+    /// <summary>
+    ///     Validates that skipped content and annotations within the limits do not change the picture: an equation with
+    ///     a skipped element of another namespace (with content) renders the same pixels as the equation without it, and
+    ///     its annotation is kept.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMathMl_Hardening_SkippedContentWithinLimits_Renders()
+    {
+        // Arrange: the same equation with and without an svg element holding a group of two shapes
+        const string semantics = "<semantics><mi>y</mi><annotation-xml encoding=\"MathML-Content\"><apply><times/><ci>y</ci></apply></annotation-xml></semantics>";
+        const string withSvg = "<math xmlns:s=\"http://www.w3.org/2000/svg\"><mi>x</mi><s:svg><s:g><s:rect/><s:circle/></s:g></s:svg>" + semantics + "</math>";
+        const string withoutSvg = "<math><mi>x</mi>" + semantics + "</math>";
+        var unsupported = 0;
+        var options = new MathMlRenderOptions { UnsupportedFeatureHandler = _ => unsupported++ };
+
+        // Act
+        var document = MathMlDocument.Parse(withSvg);
+        using var skipped = document.Render(options, TestContext.Current.CancellationToken);
+        using var plain = MathMlDocument.Parse(withoutSvg).Render(new MathMlRenderOptions(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(MathMlTestHelpers.PixelsEqual(plain, skipped));
+        Assert.Equal(1, unsupported);
+        Assert.Equal([new MathMlAnnotation("MathML-Content", "<apply><times /><ci>y</ci></apply>")], document.Annotations);
+    }
+
+    /// <summary>
     ///     Builds a table of digits.
     /// </summary>
     /// <param name="rows">The number of rows.</param>

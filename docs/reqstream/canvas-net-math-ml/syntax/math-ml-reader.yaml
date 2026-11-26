@@ -98,17 +98,23 @@ sections:
 
               - id: CanvasNetMathMl-Syntax-MathMlReader-Limits
                 title: >-
-                  The MathMlReader unit shall refuse a text with more elements (the skipped elements included), a deeper
-                  nesting, or a longer token than the limits allow with a mathml-limit-exceeded syntax error located at
-                  the element or the text that exceeds the limit, never with a stack overflow at any depth the limits
-                  allow, and shall keep at most the report limit of pending reports followed by a single
-                  mathml-diagnostics-suppressed notice.
+                  The MathMlReader unit shall refuse a text with more elements (the skipped elements, every element
+                  inside them, and every element inside an annotation included), a deeper nesting (inside skipped
+                  content and annotations too), or a longer token than the limits allow with a mathml-limit-exceeded
+                  syntax error located at the element or the text that exceeds the limit, never with a stack overflow
+                  at any depth the limits allow, and shall keep at most the report limit of pending reports followed by
+                  a single mathml-diagnostics-suppressed notice.
                 justification: |
-                  A hostile text must fail with a clear error instead of exhausting memory or the stack, and a text of
-                  many skipped elements or links must not make the document keep an unbounded list of reports.
+                  A hostile text must fail with a clear error instead of exhausting memory or the stack, a single
+                  skipped element or annotation must not hide more elements or deeper nesting than the limits allow,
+                  and a text of many skipped elements or links must not make the document keep an unbounded list of
+                  reports.
                 tests:
                   - MathMlReader_Read_ElementLimit_Throws
                   - MathMlReader_Read_DepthLimit_Throws
                   - MathMlReader_Read_TokenLengthLimit_Throws
                   - MathMlReader_Read_SkippedElements_CountAgainstElementLimit
+                  - MathMlReader_Read_SkippedSubtreeDescendants_CountAgainstElementLimit
+                  - MathMlReader_Read_SkippedSubtreeTooDeep_FailsOnDepthLimit
+                  - MathMlReader_Read_AnnotationContent_IsChargedToLimits
                   - MathMlReader_Read_ManyReports_AreBoundedBySuppressionNotice

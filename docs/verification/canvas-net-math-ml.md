@@ -315,7 +315,9 @@ alternative, and that the user guide gallery together uses `mfrac`, `msqrt`, `mr
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_DeepFractions_AreBounded`,
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_HugeLengths_AreRefused`,
 `MathMlHardeningTests.CanvasNetMathMl_Hardening_LargeTablesWithinLimits_Render`,
-`MathMlHardeningTests.CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded`
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_ManySkippedElements_AreBounded`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_SkippedSubtree_IsBounded`,
+`MathMlHardeningTests.CanvasNetMathMl_Hardening_SkippedContentWithinLimits_Renders`
 
 Asserts that a text and a stream over a size limit of 100 throw `InvalidDataException` naming
 `MathMlLimits.MaxTextSize`, that 10,000 nested rows fail with `mathml-limit-exceeded` naming
@@ -330,7 +332,13 @@ fail while read on `MaxNestingDepth`, and 100 deep fail a work budget of 200 and
 `linethickness` and a `columnspacing` of 99,999,999 em fail on `Surface.MaxDimension`; a 40 by 40 table with spans,
 lines, and a frame renders identically twice; and a text of 3,000 elements of another namespace and 3,000 links
 delivers the default 1,000 unsupported-feature reports and one `mathml-diagnostics-suppressed` warning when measured,
-and fails on `MathMlLimits.MaxElements` under a limit of 5,000 because the skipped elements are counted. A seeded
+and fails on `MathMlLimits.MaxElements` under a limit of 5,000 because the skipped elements are counted. One skipped
+element cannot hide unbounded content: a skipped element holding 3,000 elements (1,500 lines of an element with a
+nested one) fails on `MathMlLimits.MaxElements` under a limit of 2,000 at the element of line 1,001, column 2, and is
+measured with one unsupported-feature report under the defaults, and a skipped element nesting 300 levels fails on
+`MathMlLimits.MaxNestingDepth` under the default 256 at line 257, column 2; within the limits, an equation with a
+skipped `svg` element holding a group of two shapes renders the same pixels as the equation without it, with one
+unsupported-feature report, and its `annotation-xml` content is kept. A seeded
 fuzzer (`Random(20261125)`, 24 mutations of every reference fixture: truncations, deletions, inserted MathML elements,
 attributes, and references, swapped lines, and flipped characters, every third run in strict mode) opens, measures,
 and renders each text and asserts that only

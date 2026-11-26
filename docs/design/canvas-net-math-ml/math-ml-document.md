@@ -31,8 +31,9 @@ requirements in
   greater than zero, at most `Surface.MaxDimension`), `Display` (null keeps the document's), `Color` (opaque black),
   `Background` (null is transparent), `Limits` (not null), `WarningHandler`, `UnsupportedFeatureHandler`, and
   `ThrowOnUnsupportedFeature`.
-- `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000, the skipped elements counted), `MaxNestingDepth`
-  (256; 1 to 1,024, which bounds the recursion of the layout), `MaxTokenLength` (10,000), `MaxLayoutWork`
+- `MathMlLimits` - `MaxTextSize` (1,048,576), `MaxElements` (100,000, the skipped elements, every element inside them,
+  and every element inside an annotation counted), `MaxNestingDepth` (256; 1 to 1,024, which bounds the recursion of
+  the layout, and applies inside skipped content and annotations too), `MaxTokenLength` (10,000), `MaxLayoutWork`
   (10,000,000), `MaxPaintedGlyphs` (1,000,000), `MaxDiagnostics` (1,000, which the open limits also apply to the
   reports of reading), `MaxAssemblyParts` (1,000, the glyphs of one stretched operator), and `MaxTableCells` (100,000,
   the grid slots of one table, rows times columns after the spans); every value is at least one, validated when set.

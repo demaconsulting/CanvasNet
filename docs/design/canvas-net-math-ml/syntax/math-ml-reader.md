@@ -20,7 +20,8 @@ The unit's behavior is specified by the `CanvasNetMathMl-Syntax-MathMlReader-*` 
 - `MathMlNamespace` - `http://www.w3.org/1998/Math/MathML`; the XLink namespace marks link attributes.
 - Per call (private): `ReadState` with the `LocationMap`, the limits, the stack of open `Frame`s (name, attributes,
   location, children, the raw text of a token or of a run of text, and its location), the root, the element count, the
-  count of skipped elements, the reports with the flag of their suppression notice, and the annotations.
+  count of the other elements charged to the element limit (the skipped elements, every element inside them, and every
+  element inside an annotation), the reports with the flag of their suppression notice, and the annotations.
 
 #### Key Methods
 
@@ -40,12 +41,20 @@ The unit's behavior is specified by the `CanvasNetMathMl-Syntax-MathMlReader-*` 
   literal `&` or `<`).
 - Start of an element - the first element must be `math` in the MathML namespace or in no namespace, else a located
   error with a hint. An element of another namespace, or any element inside a token, is charged to `MaxElements`,
-  reported as `mathml-element-unsupported`, and skipped with its subtree. `annotation` and `annotation-xml` are read as
-  raw content (the text, or the inner markup) with their `encoding`, listed in `Annotations`, and never laid out or
-  reported. Every other element is pushed, checked against `MaxNestingDepth` and `MaxElements` (the MathML elements and
-  the skipped elements together), with its attributes read with their own locations: `href` and the `xlink` attributes
-  are reported as `mathml-attribute-unsupported` ("not followed") and not kept; other attributes of other namespaces
-  are ignored.
+  checked against `MaxNestingDepth`, reported as `mathml-element-unsupported`, and skipped with its subtree.
+  `annotation` and `annotation-xml` are read as raw content (the text, or the inner markup) with their `encoding`,
+  listed in `Annotations`, and never laid out or reported. Every other element is pushed, checked against
+  `MaxNestingDepth` and `MaxElements` (the MathML elements and the other charged elements together), with its
+  attributes read with their own locations: `href` and the `xlink` attributes are reported as
+  `mathml-attribute-unsupported` ("not followed") and not kept; other attributes of other namespaces are ignored.
+- Skipped and raw content (`WalkSubtree`) - the subtree of a skipped element and the content of an annotation are
+  walked node by node, never consumed unseen by `XmlReader.Skip`, `ReadSubtree`, or `ReadInnerXml`: every element
+  inside is charged to `MaxElements` and checked against `MaxNestingDepth` (its depth below the skipped or annotation
+  element added to that element's depth), failing at its own location, so a single skipped element cannot hide more
+  elements or deeper nesting than the limits allow. Nothing inside is reported, so the reports of skipped content stay
+  one per skipped element. The text of skipped content is discarded (it is bounded by the character cap of the
+  reader); the text of an annotation is kept, and the markup of an `annotation-xml` is rewritten node by node
+  (`CopyNode`) exactly as `XmlWriter.WriteNode` writes it, so the kept markup is the one `ReadInnerXml` gives.
 - Text - inside a token the raw text is accumulated (checked against `MaxTokenLength` on the raw text) and, at the end
   of the token, trimmed and collapsed (`CollapseWhitespace`: every run of XML whitespace becomes one space). Elsewhere,
   whitespace-only text is dropped and other text is kept as a `MathText` child (drawn like an `mtext`) and reported as
@@ -61,7 +70,8 @@ The unit's behavior is specified by the `CanvasNetMathMl-Syntax-MathMlReader-*` 
 
 Every refusal is a `MathMlSyntaxException` located in the original text: `mathml-syntax-error` for malformed XML, a
 document type, another root, an unknown reference or a foreign encoding (from the pre-pass), and an unpaired surrogate;
-`mathml-limit-exceeded` for the element, nesting, and token-length limits, naming the `MathMlLimits` property. Foreign
+`mathml-limit-exceeded` for the element, nesting, and token-length limits (inside skipped content and annotations too),
+naming the `MathMlLimits` property. Foreign
 content, links, and stray text are not errors: they are kept as pending reports (bounded) for every measure and render
 call. The walk is iterative, so deep nesting cannot overflow the stack.
 

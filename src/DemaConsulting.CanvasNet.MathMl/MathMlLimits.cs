@@ -79,10 +79,14 @@ public sealed class MathMlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of elements of an equation: the MathML elements (the <c>math</c> element included) and
-    ///     the elements that are skipped (of another namespace, or inside a token), each counted once; the content of a
-    ///     skipped element and of an annotation is not counted. 100,000 by default.
+    ///     Gets the maximum number of elements of an equation: the MathML elements (the <c>math</c> element included), the
+    ///     elements that are skipped (of another namespace, or inside a token) and every element inside them, and every
+    ///     element inside an annotation, each counted once. 100,000 by default.
     /// </summary>
+    /// <remarks>
+    ///     The content of a skipped element or of an annotation is walked element by element, so a document cannot hide
+    ///     elements beyond the limit inside one skipped element; <see cref="MaxNestingDepth"/> applies inside it too.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxElements
     {
@@ -91,7 +95,8 @@ public sealed class MathMlLimits
     }
 
     /// <summary>
-    ///     Gets the maximum nesting depth of elements (the <c>math</c> element is depth one); 256 by default.
+    ///     Gets the maximum nesting depth of elements (the <c>math</c> element is depth one), the elements inside a
+    ///     skipped element or an annotation included; 256 by default.
     /// </summary>
     /// <remarks>
     ///     The reader is iterative, but the layout recurses over the element tree, so this limit protects the call stack:

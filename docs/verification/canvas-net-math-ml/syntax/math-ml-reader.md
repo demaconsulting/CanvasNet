@@ -89,6 +89,9 @@ every text and attribute value exactly as written.
 `MathMlReaderTests.MathMlReader_Read_DepthLimit_Throws`,
 `MathMlReaderTests.MathMlReader_Read_TokenLengthLimit_Throws`,
 `MathMlReaderTests.MathMlReader_Read_SkippedElements_CountAgainstElementLimit`,
+`MathMlReaderTests.MathMlReader_Read_SkippedSubtreeDescendants_CountAgainstElementLimit`,
+`MathMlReaderTests.MathMlReader_Read_SkippedSubtreeTooDeep_FailsOnDepthLimit`,
+`MathMlReaderTests.MathMlReader_Read_AnnotationContent_IsChargedToLimits`,
 `MathMlReaderTests.MathMlReader_Read_ManyReports_AreBoundedBySuppressionNotice`
 
 Asserts that the first element, level, or raw token text beyond a small limit throws `mathml-limit-exceeded` naming
@@ -96,6 +99,15 @@ the limit, located at the element that exceeds the element limit (line 1, column
 (line 1, column 20), and at the start of the token text that is too long (line 1, column 11); that skipped elements of
 another namespace and inside a token are charged to the element limit (a text of two MathML elements and three skipped
 elements passes a limit of 5 and fails a limit of 4 at the skipped element inside the token, line 1, column 41) while
-the element count stays the MathML elements read; and that twenty reports of skipped elements and links under a report
-limit of 3 are kept as the first three in text order followed by one `mathml-diagnostics-suppressed` warning naming
-`MathMlLimits.MaxDiagnostics`.
+the element count stays the MathML elements read; that every element inside a skipped element is charged too (one
+skipped element holding three elements side by side and one nested passes a limit of 6 with a single report and fails
+a limit of 5 at the nested element, line 1, column 46, and one holding 1,000 empty elements fails a limit of 100 at the
+99th of them, line 1, column 617); that the nesting limit applies inside skipped content (a skipped element holding
+two levels passes a limit of 4 and fails a limit of 3 at the innermost element, line 1, column 34, and markup inside a
+token at depth 3 fails a limit of 2 at line 1, column 13); that the elements inside an annotation are charged to both
+limits (an `annotation-xml` holding `<apply><plus/><ci>x</ci></apply>` keeps that markup under limits of 7 elements
+and depth 5 and fails a limit of 6 elements at the `ci`, line 1, column 59, and a depth of 4 at the `plus`, line 1,
+column 52, and an `annotation` whose text is split by an element of another namespace keeps the text `ac` under a
+limit of 3 and fails a limit of 2 at that element, line 1, column 21); and that twenty reports of skipped elements and
+links under a report limit of 3 are kept as the first three in text order followed by one
+`mathml-diagnostics-suppressed` warning naming `MathMlLimits.MaxDiagnostics`.

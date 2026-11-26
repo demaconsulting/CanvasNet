@@ -164,6 +164,87 @@ public class MathMlReaderTests
     }
 
     /// <summary>
+    ///     Validates that every element inside a skipped element (nested or side by side) is charged to the element limit,
+    ///     so that one skipped element cannot hide more elements than the limit allows, that the error is located at the
+    ///     element inside it that exceeds the limit, and that only the skipped element itself is reported.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_SkippedSubtreeDescendants_CountAgainstElementLimit()
+    {
+        // Arrange: math, one skipped x:a and four elements inside it (three side by side, one nested), six in all; and
+        // one skipped x:a holding 1,000 empty elements side by side, each of six characters from column 28
+        const string text = "<math xmlns:x=\"urn:x\"><x:a><x:b/><x:b/><x:b><x:b/></x:b></x:a></math>";
+        var wide = "<math xmlns:x=\"urn:x\"><x:a>" + string.Concat(Enumerable.Repeat("<x:b/>", 1_000)) + "</x:a></math>";
+
+        // Act
+        var accepted = MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 6 });
+        var nested = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 5 }));
+        var many = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(wide, null, new MathMlLimits { MaxElements = 100 }));
+
+        // Assert: the sixth element is the nested x:b (name at column 46); the 101st is the 99th x:b (name at column 617)
+        Assert.Equal(1, accepted.ElementCount);
+        Assert.Equal([new MathMlLocation(null, 1, 24)], accepted.Reports.Select(report => report.Location));
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 46)), (nested.Code, nested.Location));
+        Assert.Contains("MathMlLimits.MaxElements", nested.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 617)), (many.Code, many.Location));
+        Assert.Contains("MathMlLimits.MaxElements", many.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the nesting limit applies to a skipped element and to every element inside it, located at the
+    ///     first element too deep.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_SkippedSubtreeTooDeep_FailsOnDepthLimit()
+    {
+        // Arrange: a skipped x:a at depth 2 holding x:b at depth 3 and x:c at depth 4; and markup at depth 3 in a token
+        const string text = "<math xmlns:x=\"urn:x\"><x:a><x:b><x:c/></x:b></x:a></math>";
+        const string inToken = "<math><mi>y<b/></mi></math>";
+
+        // Act
+        var accepted = MathMlReader.Read(text, null, new MathMlLimits { MaxNestingDepth = 4 });
+        var deep = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxNestingDepth = 3 }));
+        var token = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(inToken, null, new MathMlLimits { MaxNestingDepth = 2 }));
+
+        // Assert: x:c has its name at column 34; the b in the token at column 13
+        Assert.Equal(1, accepted.ElementCount);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 34)), (deep.Code, deep.Location));
+        Assert.Contains("MathMlLimits.MaxNestingDepth", deep.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 13)), (token.Code, token.Location));
+        Assert.Contains("MathMlLimits.MaxNestingDepth", token.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the elements inside an annotation are charged to the element and nesting limits, located at the
+    ///     element that exceeds a limit, while the content of an annotation within the limits is kept as before.
+    /// </summary>
+    [Fact]
+    public void MathMlReader_Read_AnnotationContent_IsChargedToLimits()
+    {
+        // Arrange: four MathML elements (math, semantics, mi, annotation-xml) and three elements inside the annotation, at
+        // depths 4 (apply) and 5 (plus, ci); and an annotation whose text is split by an element of another namespace
+        const string text = "<math><semantics><mi>x</mi><annotation-xml><apply><plus/><ci>x</ci></apply></annotation-xml></semantics></math>";
+        const string annotation = "<math><annotation>a<x:b xmlns:x=\"urn:x\">c</x:b></annotation></math>";
+
+        // Act
+        var accepted = MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 7, MaxNestingDepth = 5 });
+        var acceptedText = MathMlReader.Read(annotation, null, new MathMlLimits { MaxElements = 3 });
+        var elements = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxElements = 6 }));
+        var depth = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(text, null, new MathMlLimits { MaxNestingDepth = 4 }));
+        var textElements = Assert.Throws<MathMlSyntaxException>(() => MathMlReader.Read(annotation, null, new MathMlLimits { MaxElements = 2 }));
+
+        // Assert: ci has its name at column 59, plus at column 52, x:b at column 21
+        Assert.Equal([new MathMlAnnotation(null, "<apply><plus /><ci>x</ci></apply>")], accepted.Annotations);
+        Assert.Equal((4, 0), (accepted.ElementCount, accepted.Reports.Count));
+        Assert.Equal([new MathMlAnnotation(null, "ac")], acceptedText.Annotations);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 59)), (elements.Code, elements.Location));
+        Assert.Contains("MathMlLimits.MaxElements", elements.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 52)), (depth.Code, depth.Location));
+        Assert.Contains("MathMlLimits.MaxNestingDepth", depth.Message, StringComparison.Ordinal);
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation(null, 1, 21)), (textElements.Code, textElements.Location));
+    }
+
+    /// <summary>
     ///     Validates that reading keeps at most <see cref="MathMlLimits.MaxDiagnostics"/> pending reports, followed by a
     ///     single suppression notice, however many skipped elements and links the text holds.
     /// </summary>
