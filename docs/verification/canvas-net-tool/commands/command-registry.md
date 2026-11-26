@@ -7,8 +7,9 @@
 received and can be made to throw), so no mocking framework is needed and no shipped command is involved.
 `Context` instances are created from real argument arrays. One test runs the real `render` command of the default
 registry on OpenSCAD models in a temporary folder, to show the codes of the library's shared mapping in the words of the
-command line. The help tests use the real, embedded topic catalog
-(`HelpTopics`, verified by its own unit tests) and capture the standard output of the `help` command with `ToolHost`.
+command line. The help tests use the real, embedded catalog of help cards (`HelpTopics`, verified by its own unit
+tests) and the real `HelpCli` of the OTS library `DemaConsulting.HelpCards`, and capture the standard output, the
+standard error, and the exit code of the context of the `help` command with `ToolHost`.
 
 #### Test Environment
 
@@ -25,9 +26,12 @@ output.
 - An unknown command produces a usage error with a suggestion only when one is within an edit distance of two.
 - Help text lists commands, aliases, summaries, options, the help topics, and the global options.
 - Help resolves a command or a topic by name or alias; the examples of a topic can be listed or printed (as the exact
-  source, or as JSON), and every misuse is a usage error; an unknown subject suggests the closest name and lists the
-  valid subjects, and a topic name typed as a command points at `help`.
-- Help can be rendered as JSON (index, command, topic, examples, and example documents) with the documented fields.
+  source, or as JSON), cards can be found by a query or a tag, and every misuse is a usage error; an unknown subject
+  suggests the closest name and lists the valid subjects, and a topic name typed as a command points at `help`.
+- Help can be rendered as JSON (index, command, topics, card, examples, example, search, and cards documents) in the
+  tool's envelope with the documented fields, asked with `--json` or `--format json` in any case, and every failure,
+  with either, is the tool's failure document (`error` with `code`, `message`, and `hint`, no `kind`), the `Error` and
+  `Hint` lines on standard error, and exit code 1.
 
 #### Test Scenarios
 
@@ -114,46 +118,97 @@ canonical name.
 **CommandRegistry_Run_HelpCardPath_PrintsTheCard**: `help mermaid gantt`, `help MMD gantt`, and `help mermaid/gantt`
 print the same card text, `--json` gives its card document, and `RenderHelp` with the path gives the same text.
 
-**CommandRegistry_Run_HelpUnknownCard_ListsChildren**: `help mermaid giant` is the usage error
-`Unknown help card 'giant' under 'mermaid'.` with the command `help`, a "Did you mean 'gantt'?" suggestion, and the list
-of the Mermaid cards.
+**CommandRegistry_Run_HelpUnknownCard_ListsChildren**: `help mermaid giant` exits with 1, writes nothing on standard
+output and the two lines `Error: usage-error: Unknown help card 'giant' under 'mermaid'.` and
+`Hint: Did you mean 'gantt'? Cards under 'mermaid': flowchart, ...` on standard error; with `--json` it writes the same
+lines and the failure document with exactly the keys `schemaVersion` (2), `ok` (false), `command` (`help`), and
+`error` (with exactly `code` `usage-error`, `message`, and `hint`); and `RenderHelp` throws the same usage error with
+the command `help`.
 
 **CommandRegistry_Run_HelpPathAfterCommand_ThrowsUsageError**: a word after a command, after `topics`, or after `help`
-is the usage error `'<word>' has no help cards below it.`.
+(`help help help mermaid`) is the usage error `'<word>' has no help cards below it.`.
+
+**CommandRegistry_RenderHelp_LeadingHelpWord_IsIgnored**: `help help mermaid` prints the `mermaid` card.
 
 **CommandRegistry_RenderHelp_Topics_ListsEveryCard** and **CommandRegistry_RenderHelp_TopLevel_ListsHelpTopics**: the
-subject `topics` (in any case) gives the tree of every card as text and as JSON, which differs from the index and names
-`mermaid gantt settings`. The index shows the usage line of `help` with its card path, the `Help topics:` list with
-every root, the aliases (`scad = openscad`), and the pointers to `canvasnet help <topic> [<card> ...]`,
-`canvasnet help topics`, `canvasnet help style`, and `canvasnet help composition`.
+subject `topics` (in any case) gives the tree of every card as text (with the command of every card) and as JSON (the
+envelope, the kind `topics`, and entries with `id`, `aliases`, `tags`, `summary`, and `command`), which differs from
+the index and names `canvasnet help mermaid gantt settings`. The index shows the usage line of `help` with its card
+path and help options, the `Help options:` section, the `Help topics:` list with the command of every root, the
+pointers to `canvasnet help topics`, `canvasnet help style`, and `canvasnet help composition`, and the footer of
+HelpCards.
 
 **CommandRegistry_RenderHelp_Json_Command_HasOptions** and
 **CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics**: the JSON help of a command (asked for by alias) has
 the kind `command`, the canonical name, aliases, summary, usage, the options (with `takesValue`, and the `valueName`
 only for an option that takes a value), and the global options; the JSON index (the same for no subject and for `help`)
-has exactly the keys of the envelope, `kind` (`index`), `usage`, `commands`, `topics` (every root card with its aliases
-and summary), and `globalOptions`.
+starts with the keys of the envelope, `kind` (`index`), `usage` (a string), `commands`, `topics` (every root card with
+its aliases and summary), and `globalOptions`, followed by the keys HelpCards adds.
 
 **CommandRegistry_Run_HelpExample_WritesOnlyTheSource**: `help svg --example shapes` writes the exact source of the
-example and one line end, and with `--json` the example document.
+example and one line end, and with `--json` the example document, whose `id` is the card that was asked for (`svg`)
+and whose `example.card` is the card that holds the example (`svg/supported`).
+
+**CommandRegistry_RenderHelp_ExampleBelowTheCard_KeepsTheRequestedCardAsId**: the JSON documents of
+`help svg --example shapes` and `help svg supported --example shapes` have the keys `schemaVersion`, `ok`, `command`,
+`kind`, `id`, and `example` in that order, the `id` of the card that was asked for (`svg` and `svg/supported`), and the
+same `example.card` (`svg/supported`), and are the same text apart from the `id`, so the order and escaping of the
+fields of HelpCards are kept.
+
+**CommandRegistry_RenderHelp_HelpOptionValueAfterEqualsSign_IsAccepted**: `--example=shapes` (as text, as JSON, and with
+the global `--json`), `--search=gantt`, `--tag=mathml`, `--format=json`, and `--width=60` give the same answers as the
+value in the next word; after `--` the word `--example=shapes` is a path word, and so the usage error of an unknown
+subject.
 
 **CommandRegistry_Run_HelpExamples_PrintsTheCardsExamplesInFull**: `help svg flatten --examples` writes the examples
-text of that card (`HelpTopics.RenderExamples`) and one line end, with the content of each of its examples;
-`help svg --examples` writes the examples text of `svg`, which has the `--examples` command of every card below it that
-has examples and none of the content of the `svg flatten` example, and with `--json` the examples document.
+text of that card with the content of each of its examples; `help svg --examples` writes the examples text of `svg`,
+which has the `--examples` command of every card below it that has examples and none of the content of the
+`svg flatten` example, and with `--json` the examples document that lists those cards.
 
-**CommandRegistry_Run_HelpExamplesOnCardWithoutExamples_ThrowsUsageError**: `help mermaid differences --examples` is the
-usage error `'mermaid differences' has no examples.` with a hint to `canvasnet help mermaid --examples`, which finds the
-cards of `mermaid` that have examples.
+**CommandRegistry_RenderHelp_ExamplesOnCardWithoutExamples_GivesEmptyLists**: `help mermaid differences --examples`
+says that the card has no examples of its own, and its JSON document has empty `examples` and `cards`.
 
 **CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames**: an unknown example name is a usage error that
-names the card and the example (`Help card 'svg' has no example 'nothing'.`) and lists the valid example names in the
-hint.
+names the card and the example (`The help card 'svg' has no example 'nothing'.`) and lists the valid example names in
+the hint.
 
-**CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError** and
-**CommandRegistry_Run_HelpExampleWithoutSubject_ThrowsUsageError**: `--example` or `--examples` on a command or on
-`topics` is a usage error (`has no examples`); without a subject it is a usage error (`need a help card`); `--example`
-together with `--examples` is a usage error (`cannot be combined`); and an unknown card (`svg extra`) is a usage error.
+**CommandRegistry_RenderHelp_WrongHelpOptions_AreUsageErrors**: `--example` or `--examples` on a command or on `topics`,
+either without a subject, both together, an unknown card (`svg extra`), an unknown option (`--bogus`), an empty value
+(`--example=`), a flag with a value (`--examples=x`), and `--lang` are usage errors of the command `help`.
+
+**CommandRegistry_Run_HelpArgumentErrorsWithoutAHint_GetTheHelpOptionsHint**: `help --example x`, `help --examples`,
+`help help --examples`, `help svg --examples --example x`, `help --search gantt --examples`, `help svg --example`, and
+`help --tag` exit with 1, write nothing on standard output, and write `Error: usage-error: <HelpCards' message>` and
+`Hint: Run 'canvasnet help' for the help options, or 'canvasnet help topics' to list the help cards.` on standard
+error. With the global `--json` and with `--format json`, they write the same failure document, whose error keys are
+`code`, `message`, and `hint`. `RenderHelp` throws the same message and hint.
+
+**CommandRegistry_Run_HelpExamplesOfOwnSubject_SaysOnlyHelpCardsHaveExamples**: `help render --examples`,
+`help convert --example x` (an alias), and `help topics --examples` exit with 1, write nothing on standard output, and
+write `Error: usage-error: '<word>' has no examples; only help cards do.` and
+`Hint: Run 'canvasnet help <word>' for its usage, or 'canvasnet help topics' to list the help cards.` on standard
+error; with the global `--json` and with `--format json` they write the same failure document with that message and
+hint; `RenderHelp` throws the same message; an unknown option (`--bogus`) and two modes together still report their own
+error first.
+
+**CommandRegistry_Run_HelpFormatJsonInAnyCase_GivesTheToolsOwnDocuments**: `help render --format JSON`,
+`help topics --format Json`, and `help svg --format JSON` write the same documents as `--json` (the `command` document
+of `render`, the `topics` document, and the card document).
+
+**CommandRegistry_Run_HelpFormatJsonFailureOfOwnSubject_WritesTheFailureDocument**: `help nosuch --format json` and
+`help render extra --format json` exit with 1, write exactly the `Error: usage-error: ...` and `Hint: ...` lines of the
+unknown subject and of a word after a command on standard error, and write the tool's failure document of that error
+once on standard output (keys `schemaVersion`, `ok`, `command`, `error`; error keys `code`, `message`, `hint`); with the
+global `--json` the registry still throws and writes nothing itself (the entry point writes the document), and
+`RenderHelp` with `--format json` throws the usage error of the command `help`.
+
+**CommandRegistry_RenderHelp_SearchTagAndAll_AnswerInTheToolEnvelope**: `--search gantt`, `--tag mathml`, and `--all`
+with `--json` give the documents `search`, `cards`, and `index` in the tool's envelope; the search finds
+`mermaid/gantt`, the tag list holds only cards with the tag, the whole index lists every card, and the text search names
+`canvasnet help mermaid gantt`.
+
+**CommandRegistry_SplitTextError_DocumentedFormat_GivesMessageAndHint**: the text error of HelpCards splits into the
+message after `Error: ` and the hint on the next line; text in another form is the message.
 
 **CommandRegistry_Run_HelpUnknownSubject_SuggestsClosestAndListsValidSubjects** and
 **CommandRegistry_Run_HelpUnknownSubjectFarFromAll_HasNoSuggestionButListsSubjects**: an unknown subject is the usage

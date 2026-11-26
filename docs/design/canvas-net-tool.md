@@ -50,7 +50,7 @@ consists of six direct units and two subsystems:
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
   `CommandRegistry` (which also owns the built-in `help` command), `HelpTopics` (the tree of help cards with their
-  tiny examples: the help catalog of the Viewer library - the formats, style and composition, the feature positions,
+  tiny examples: the help cards of the Viewer library - the formats, style and composition, the feature positions,
   the errors, the limits, and file access - with the tool's own cards, the JSON documents and the Pandoc filter, and
   the command-line sections it adds to the library cards, embedded in the tool assembly),
   `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
@@ -210,60 +210,56 @@ mapping.
 - **DemaConsulting.TestResults** (OTS, runtime): records the self-validation results and, through its
   `TestResults.IO` serializers, writes the TRX and JUnit files. See *DemaConsulting.TestResults OTS
   Integration Design* (`ots/test-results.md`).
+- **DemaConsulting.HelpCards** (OTS, runtime): reads, composes, validates, and renders the help cards (the library
+  cards of the Viewer and the tool's own cards and overlays), embeds the tool's cards at build time, and runs the
+  `help` command (`HelpCli`) with the tool's JSON envelope, error object, and exit codes. See *DemaConsulting.HelpCards
+  Integration Design* (`ots/help-cards.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
   `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, `CanvasNetMathMl`, and `CanvasNetViewer` systems. The
-  tool calls the
-  operations of the `Imaging`
-  subsystem of `CanvasNetViewer` for everything that touches an image; that subsystem calls
-  `CanvasNetViewer.CreateImageResolver` to let an SVG file embed the files beside it (the tool passes no extra sources:
-  it has no plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG,
-  BMP, TIFF, GIF, and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
-  `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
-  `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
-  `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite`
-  system, which parses, measures, and draws a chart (only its public API is used, with the options that
-  make a render static and deterministic: UTC dates, only the bundled fonts, and no network; the data files of a chart
-  are read by the library relative to the folder of the specification under the `FileAccessPolicy` the command builds
-  from `--file-access` and `--allow-root`, because the chart is opened by its path and no other data folder is passed,
-  so there is no `--data-dir` option), and the `MermaidDocument` type of the
-  `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
-  tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
-  its help), and the `PlantUmlLimits` type of the `CanvasNetPlantUml` system for the limits it quotes in its help (the
-  `PlantUmlDocument` that parses, measures, and draws a PlantUML diagram is called by the `Imaging` subsystem), and the
-  `CanvasNetMathMl` system, whose `MathMlDocument` parses, measures, and draws an equation with the bundled math font
-  (it is called by the `Imaging` subsystem; the tool uses no type of it directly and reports the `EquationFacts` of a
-  probe, which the Viewer library fills from it). The core
-  `Positions` subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the
-  positions the `render` command writes and the limits its help quotes. The core `Fonts` and `Rendering` subsystems also
-  supply the
-  bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
-  never depend on the fonts installed on a machine. Each
-  reference is a private asset of the tool project: the library assemblies are bundled into the tool
-  package, and the package declares no NuGet dependency on them. The reasons are that a tool install must
-  not require sibling packages (which may not be published at the same time) and that the tool and the
-  libraries it uses are always released together. The integration-test job of the build workflow guards
-  both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
-  everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
-  libraries and the transitively used `CanvasNetCharts` and `CanvasNetLayout` assemblies), if it is not a `DotnetTool`
-  package, or if a library assembly (the `CanvasNetVegaLite`, `CanvasNetLayout`, `CanvasNetMermaid`,
-  `CanvasNetPlantUml`, and `CanvasNetMathMl` assemblies included), the
-  tool's dependency manifest
-  (`.deps.json`) or runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target
-  framework. The package also carries the third-party license notices of the `CanvasNetVegaLite` system (the
-  BSD-3-Clause texts of Vega and Vega-Lite and the ISC text of d3, with the notice README) and of the `CanvasNetMermaid`
-  system (the notices of Mermaid and of the libraries it was ported from, with its notice README; its d3 text is packed
-  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`), of the `CanvasNetLayout` system
-  (its provenance README as `Layout-third-party-README.md`; its dagre and lodash texts are the same files as Mermaid's
-  `LICENSE-dagre.txt` and `LICENSE-lodash.txt`, so they are packed once) and of the `CanvasNetPlantUml`
-  system (the MIT notice of PlantUML as `LICENSE-plantuml.txt`, with its provenance README as
-  `PlantUml-third-party-README.md`) and of the `CanvasNetMathMl` system (the W3C Software and Document License as
-  `LICENSE-w3c.txt` and the Unicode License v3 as `LICENSE-unicode.txt`, for the operator dictionary, the mapping
-  tables, and the entity names, with its provenance README as `MathMl-third-party-README.md`) in its `licenses` folder,
-  because
-  binary distributions must reproduce them, and the same job checks that they are present. The test
-  project references the libraries directly, which is what places their assemblies next to the tool
-  assembly for the out-of-process system tests.
+  tool calls the operations of the `Imaging` subsystem of `CanvasNetViewer` for everything that touches an image; that
+  subsystem calls `CanvasNetViewer.CreateImageResolver` to let an SVG file embed the files beside it (the tool passes no
+  extra sources: it has no plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG, BMP, TIFF, GIF,
+  and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and `VsdxDocument`
+  types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the `ScadDocument` type of the
+  `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the `CanvasNetRender3D` system, which
+  draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite` system, which parses, measures, and draws
+  a chart (only its public API is used, with the options that make a render static and deterministic: UTC dates, only
+  the bundled fonts, and no network; the data files of a chart are read by the library relative to the folder of the
+  specification under the `FileAccessPolicy` the command builds from `--file-access` and `--allow-root`, because the
+  chart is opened by its path and no other data folder is passed, so there is no `--data-dir` option), and the
+  `MermaidDocument` type of the `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the
+  bundled fonts and no network (the tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and
+  `MermaidLimits` for the limits it quotes in its help), and the `PlantUmlLimits` type of the `CanvasNetPlantUml` system
+  for the limits it quotes in its help (the `PlantUmlDocument` that parses, measures, and draws a PlantUML diagram is
+  called by the `Imaging` subsystem), and the `CanvasNetMathMl` system, whose `MathMlDocument` parses, measures, and
+  draws an equation with the bundled math font (it is called by the `Imaging` subsystem; the tool uses no type of it
+  directly and reports the `EquationFacts` of a probe, which the Viewer library fills from it). The core `Positions`
+  subsystem parses the `--positions` selectors (`PositionSelection`) and supplies the positions the `render` command
+  writes and the limits its help quotes. The core `Fonts` and `Rendering` subsystems also supply the bundled font and
+  the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels never depend on the
+  fonts installed on a machine. Each reference is a private asset of the tool project: the library assemblies are
+  bundled into the tool package, and the package declares no NuGet dependency on them. The reasons are that a tool
+  install must not require sibling packages (which may not be published at the same time) and that the tool and the
+  libraries it uses are always released together. The integration-test job of the build workflow guards both properties:
+  it fails if the package's nuspec declares any dependency (a tool package must carry everything it needs, including the
+  third-party `DemaConsulting.TestResults`, `DemaConsulting.HelpCards`, and `System.Numerics.Tensors` libraries and the
+  transitively used `CanvasNetCharts` and `CanvasNetLayout` assemblies), if it is not a `DotnetTool` package, or if a
+  library assembly (the `CanvasNetVegaLite`, `CanvasNetLayout`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and
+  `CanvasNetMathMl` assemblies included), the tool's dependency manifest (`.deps.json`) or runtime configuration file,
+  or `DotnetToolSettings.xml` is missing from the package for any target framework. The package also carries the
+  third-party license notices of the `CanvasNetVegaLite` system (the BSD-3-Clause texts of Vega and Vega-Lite and the
+  ISC text of d3, with the notice README) and of the `CanvasNetMermaid` system (the notices of Mermaid and of the
+  libraries it was ported from, with its notice README; its d3 text is packed as `Mermaid-LICENSE-d3.txt` because the
+  chart notices already use `LICENSE-d3.txt`), of the `CanvasNetLayout` system (its provenance README as
+  `Layout-third-party-README.md`; its dagre and lodash texts are the same files as Mermaid's `LICENSE-dagre.txt` and
+  `LICENSE-lodash.txt`, so they are packed once) and of the `CanvasNetPlantUml` system (the MIT notice of PlantUML as
+  `LICENSE-plantuml.txt`, with its provenance README as `PlantUml-third-party-README.md`) and of the `CanvasNetMathMl`
+  system (the W3C Software and Document License as `LICENSE-w3c.txt` and the Unicode License v3 as
+  `LICENSE-unicode.txt`, for the operator dictionary, the mapping tables, and the entity names, with its provenance
+  README as `MathMl-third-party-README.md`) in its `licenses` folder, because binary distributions must reproduce them,
+  and the same job checks that they are present. The test project references the libraries directly, which is what
+  places their assemblies next to the tool assembly for the out-of-process system tests.
 
 ## Risk Control Measures
 

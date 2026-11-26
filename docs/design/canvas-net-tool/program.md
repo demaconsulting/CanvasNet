@@ -66,7 +66,7 @@ registry; `Run(Context, CommandRegistry)` is the implementation.
 - *Postconditions*: exactly one action has been taken.
 
 Inspects the context in priority order: (1) the version flag writes the bare version and returns; (2) the help
-flag prints the banner and then `registry.RenderHelp(context.Command, context.Json)` - the index when no command was
+flag prints the banner and then `registry.RunHelp(context, [context.Command])` - the index when no command was
 named, otherwise the help of that command or topic (plain text, or a JSON document with `--json`, in which case the
 banner is not printed so that standard output is exactly one document); (3) the validate flag prints the banner and
 calls `Validation.Run`;

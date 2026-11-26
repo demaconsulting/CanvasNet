@@ -316,8 +316,7 @@ input-files:
   - docs/verification/canvas-net-viewer/imaging/montage-builder.md
   - docs/verification/canvas-net-viewer/imaging/svg-flattener.md
   - docs/verification/canvas-net-viewer/help.md
-  - docs/verification/canvas-net-viewer/help/help-catalog.md
-  - docs/verification/canvas-net-viewer/help/help-front-matter.md
+  - docs/verification/canvas-net-viewer/help/canvas-net-help.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md
@@ -355,6 +354,7 @@ input-files:
   - docs/verification/ots/sysml2tools.md
   - docs/verification/ots/system-numerics-tensors.md
   - docs/verification/ots/test-results.md
+  - docs/verification/ots/help-cards.md
   - docs/verification/ots/versionmark.md
   - docs/verification/ots/weasyprint.md
   - docs/verification/ots/xunit.md

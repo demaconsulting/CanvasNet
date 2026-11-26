@@ -35,10 +35,9 @@ subsystems:
   `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay`, and the operation units
   `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See *Imaging Subsystem
   Design* (`canvas-net-viewer/imaging.md`).
-- **Help** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Help`, folder `Help/`): `HelpCatalog` (the
-  catalog of the embedded help cards, with its public types `HelpCard`, `HelpExample`, `HelpLink`, and `HelpTags`)
-  and `HelpFrontMatter` (the parser of the front matter of a card). See *Help Subsystem Design*
-  (`canvas-net-viewer/help.md`).
+- **Help** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Help`, folder `Help/`): `CanvasNetHelp` (the
+  source and catalog of the embedded help cards, read and rendered by the OTS library `DemaConsulting.HelpCards`, with
+  the tag vocabulary `HelpTags`). See *Help Subsystem Design* (`canvas-net-viewer/help.md`).
 
 `CanvasNetViewer` is modeled as its own top-level software system because it is distributed as its own NuGet package,
 per `software-items.md`'s rule that a software package contains exactly one software system. The `CanvasNetViewer` unit
@@ -100,11 +99,11 @@ The system exposes the following public API:
   `GridOverlay.Draw`. Each takes plain
   request values and returns plain result values; see *Imaging Subsystem Design* for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
-- **The help catalog** (namespace `DemaConsulting.CanvasNet.Viewer.Help`): `HelpCatalog.Default` (the library cards),
-  `Cards`, `Roots`, `Find`, `GetChildren`, `GetSeeAlso`, `Filter` (a view of the cards with some tags of
-  `HelpTags` and without others), `FormatMarkdown` (the body with each visible link in the host's words),
-  `RenderText`, `RenderJson`, `RenderIndexText`, `RenderIndexJson`, and `Extend` (a host's cards and overlays
-  from the embedded resources of its assembly); see *Help Subsystem Design*.
+- **The help cards** (namespace `DemaConsulting.CanvasNet.Viewer.Help`): `CanvasNetHelp.Catalog` (the library cards
+  as a `HelpCatalog` of HelpCards, with `Cards`, `Roots`, `Find`, `GetChildren`, `GetSeeAlso`, `Filter` (a view
+  of the cards with some tags of `HelpTags` and without others), `FormatBody`, `Render`, `RenderIndex`, and
+  `Search`), `CanvasNetHelp.Source` (the library cards as a source a host imports to layer its own cards and overlays),
+  and `CanvasNetHelp.Configure`; see *Help Subsystem Design*.
 
 Each interface, with its direction and format, and its constraints:
 
@@ -117,12 +116,13 @@ Each interface, with its direction and format, and its constraints:
   claimed by a source.
 - **`ImageRenderer.Execute` and the other operations** (Inbound/Outbound; Method call / request and result records):
   Files read and written by path; failures are `ViewerException`.
-- **`HelpCatalog`** (Outbound; Method call / immutable `HelpCard` values and text or JSON strings): Read-only and
-  thread-safe; an unknown tag is `ArgumentException`; a malformed host card is `InvalidOperationException`.
+- **`CanvasNetHelp`** (Outbound; Method call / the HelpCards catalog and source, immutable cards, and text or JSON
+  strings): Read-only and thread-safe; an unknown tag is `ArgumentException`; a malformed host card is
+  `HelpCatalogException`.
 
 See *CanvasNetViewer Unit Design* (`canvas-net-viewer/canvas-net-viewer.md`) for the complete parameter, return, and
 exception detail of the render path, *Imaging Subsystem Design* for the operations, and *Help Subsystem Design* for
-the help catalog.
+the help cards.
 
 ## Dependencies
 
@@ -144,12 +144,17 @@ format systems, each through a project reference from
 - The `CanvasNetRender3D` system (`SceneRendering`, used by the OpenSCAD view loading of `SourceLoader`), referenced
   explicitly. `CanvasNetCharts` arrives transitively.
 
+The `Help` subsystem depends on the OTS library `DemaConsulting.HelpCards` (a NuGet package reference of the Viewer
+project without private assets, because `CanvasNetHelp` exposes its `HelpSource` and `HelpCatalog`, so the Viewer
+package declares it as a dependency): it reads, validates, filters, links, and renders the help cards, and its build
+targets embed them; see *DemaConsulting.HelpCards Integration Design* (`ots/help-cards.md`).
+
 No other system depends on `CanvasNetViewer` except `CanvasNetTool`, which is a command-line shell over the `Imaging`
-operations, creates the resolver for the SVG files it renders, and layers its command-line help cards on the help
-catalog with `HelpCatalog.Extend`; a format package must never reference the viewer. The `Help` subsystem reads the
-limits it quotes from the constants of the core library and the format packages (`Surface.MaxDimension`,
-`ImageFragment`, the `Positions` limits, and `ScadLimits`, `VegaLiteLimits`, `MermaidLimits`, `PlantUmlLimits`, and
-`MathMlLimits`).
+operations, creates the resolver for the SVG files it renders, and layers its command-line help cards on the library
+cards in a source that imports `CanvasNetHelp.Source`; a format package must never reference the viewer. The `Help`
+subsystem reads the limits it quotes from the constants of the core library and the format packages
+(`Surface.MaxDimension`, `ImageFragment`, the `Positions` limits, and `ScadLimits`, `VegaLiteLimits`, `MermaidLimits`,
+`PlantUmlLimits`, and `MathMlLimits`).
 
 ## Risk Control Measures
 
@@ -203,12 +208,12 @@ risk control inherently (IEC 62304 §5.3.3).
 
 **Help path** (`Help`):
 
-1. **Input**: a card path, or the tags a host includes and excludes; for an extension, a host assembly and the prefix
-   of its embedded card files
-2. **Processing**: the library cards are parsed and validated once, on first use (front matter, tags, tokens replaced
-   from the constants of the code, the tree, and the links); a view decides which cards are visible by their tags; a
-   card's body is written for the view, a link to a hidden card being plain text
-3. **Output**: immutable `HelpCard` values, and a card or the tree as plain text or JSON
+1. **Input**: a card path, or the tags a host includes and excludes; for a host's cards, a source of the host that
+   imports `CanvasNetHelp.Source`
+2. **Processing**: HelpCards reads and validates the library cards once, on first use (front matter, tags, tokens
+   replaced from the constants of the code, the tree, and the links); a view decides which cards are visible by their
+   tags; a card's body is written for the view, a link to a hidden card being plain text
+3. **Output**: immutable HelpCards cards, and a card or the tree as plain text, Markdown, or JSON
 
 **Operation path** (`Imaging`):
 

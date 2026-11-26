@@ -447,7 +447,7 @@ software items, specifically:
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
   output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
   `CommandRegistry` unit, the `HelpTopics` unit with the command-line layer of the help cards (the tool's own cards
-  and its command-line sections over the help catalog of the Viewer), the
+  and its command-line sections over the help cards of the Viewer), the
   `DiscoveryCommands` unit with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
@@ -501,6 +501,8 @@ The following OTS items are also covered:
 - **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
 - **DemaConsulting.TestResults** — self-validation result recording and TRX/JUnit serialization library of the
   tool package
+- **DemaConsulting.HelpCards** — help-card library of the Viewer and tool packages (loading, validation, views,
+  rendering, and the tool's help command)
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework
@@ -790,11 +792,12 @@ ordered operations over the core library's flip, pad, trim, tone, rotation, and 
 files, check the comparison of two images against thresholds, and compose a contact sheet, and the `ImageRenderer`,
 `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them into the render, inspect,
 compare, montage, and flatten operations; and its `Help` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Help`)
-holds the `HelpCatalog` unit, the tag-filterable catalog of the embedded help cards about the formats that a host reads
-programmatically and extends with its own cards, and the `HelpFrontMatter` unit, the parser of a card's front matter. It
-references the core package and the `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`,
-`CanvasNetRender3D`, `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and `CanvasNetMathMl` packages; the
-tool references it. See the Folder Layout section below and *CanvasNetViewer System Design* (`canvas-net-viewer.md`).
+holds the `CanvasNetHelp` unit, the source and tag-filterable catalog of the embedded help cards about the formats that
+a host reads programmatically and extends with its own cards, read and rendered by the OTS library
+`DemaConsulting.HelpCards`. It references the core package and the `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
+`CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, `CanvasNetMermaid`, `CanvasNetPlantUml`, and
+`CanvasNetMathMl` packages; the tool references it. See the Folder Layout section below and *CanvasNetViewer System
+Design* (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -2022,18 +2025,11 @@ src/DemaConsulting.CanvasNet.Viewer/
     └── SvgFlattener.Recorder.cs   — SvgFlattener: the recording resolver that draws the links to replace
 └── Help/                          — Help subsystem
     ├── NamespaceDoc.cs            — Help: namespace-level XML documentation
-    ├── HelpCatalog.cs             — HelpCatalog: the public API, Default, the views, and the lookup
-    ├── HelpCatalog.Load.cs        — HelpCatalog: card files, tags, tokens, tree validation, and extensions
-    ├── HelpCatalog.Links.cs       — HelpCatalog: the neutral links, code detection, and the body of a view
-    ├── HelpCatalog.Render.cs      — HelpCatalog: the text and JSON renderings and the wrapping
-    ├── HelpCard.cs                — HelpCatalog: the immutable card
-    ├── HelpExample.cs             — HelpCatalog: the immutable example and its kinds
-    ├── HelpLink.cs                — HelpCatalog: a visible link a host writes in its own words
-    ├── HelpTags.cs                — HelpCatalog: the closed tag vocabulary
-    ├── HelpFrontMatter.cs         — HelpFrontMatter: the strict parser of the YAML front matter of a card
-    ├── Cards/                     — HelpCatalog: the embedded library cards, one Markdown file each, in folders that
-    │                                mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...)
-    └── Examples/                  — HelpCatalog: the embedded examples (SCAD, Vega-Lite, Mermaid, PlantUML, MathML, SVG)
+    ├── CanvasNetHelp.cs           — CanvasNetHelp: the library source, its tokens, the configuration, and the catalog
+    ├── HelpTags.cs                — CanvasNetHelp: the closed tag vocabulary
+    └── Cards/                     — CanvasNetHelp: the embedded library cards, one Markdown file each, in folders that
+                                     mirror the tree (scad.md, mermaid.md, mermaid/gantt.md, style.md, ...), the
+                                     examples next to their cards (mermaid/gantt.mmd, ...), and _source.md
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
@@ -2062,12 +2058,12 @@ src/DemaConsulting.CanvasNet.Tool/
 ├── Commands/                      — Commands subsystem
 │   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
 │   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
-│   ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
-│   ├── HelpTopics.cs              — HelpTopics: the command-line card, the catalog with the tool layer, and lookup
-│   ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-│   ├── Help/                      — HelpTopics: the embedded tool cards (json.md, json/, pandoc.md) and the overlays
-│   │                                of library cards (extends: <path>) with the command-line sections, in folders
-│   │                                that mirror the tree (svg/options.md, files.md, ...)
+│   ├── CommandRegistry.Help.cs    — CommandRegistry: the help command on HelpCli, its own subjects, and the index
+│   ├── HelpTopics.cs              — HelpTopics: the tool source, the combined catalog, the topics, and lookup
+│   ├── HelpTopics.Render.cs       — HelpTopics: the render options, the JSON envelope and error, and the topics
+│   ├── Help/                      — HelpTopics: the embedded tool cards (json.md, json/, pandoc.md), _source.md, and
+│   │                                the overlays of library cards (extends: <path>) with the command-line sections,
+│   │                                in folders that mirror the tree (svg/options.md, files.md, ...)
 │   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
 │   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
 │   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings

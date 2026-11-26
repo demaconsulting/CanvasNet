@@ -25,7 +25,15 @@ current culture.
 a success document is the envelope followed by the fields the command wrote (string, integer, fraction, boolean,
 array), exactly; with no fields it is the envelope alone.
 
-**ResultWriter_NullArguments_ThrowsArgumentNullException**: each null argument of both methods is rejected.
+**ResultWriter_Envelope_OkTrue_EqualsSuccess**: the envelope with `ok` true is the success document of the same fields,
+byte for byte.
+
+**ResultWriter_Envelope_OkFalse_WritesEnvelopeThenFields**: the envelope with `ok` false is `schemaVersion`, `ok`
+false, and `command`, followed by the fields of the caller, byte for byte; with an `error` object written by the
+caller it is exactly the failure document of the same error.
+
+**ResultWriter_NullArguments_ThrowsArgumentNullException**: each null argument of `Success`, `Envelope`, and `Failure`
+is rejected.
 
 **ResultWriter_Failure_WithHint_WritesErrorObject**: the `error` object carries code, message, and hint; there is no
 exit-code field.
