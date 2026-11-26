@@ -399,7 +399,7 @@ checkout.puml: plantuml, 254x354 px (laid out), sequence, 3 participants, 4 mess
 $ canvasnet info ticket.puml
 ticket.puml: plantuml, 272x419 px (laid out), activity, 8 nodes, 9 edges, 0 subgraphs, title "Handling a ticket", 233 bytes
 $ canvasnet info quadratic.mml
-quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, 590 bytes
+quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, alttext "x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a", 648 bytes
 ```
 
 ### render and convert
@@ -2237,7 +2237,7 @@ alphabetic baseline in the natural picture, in pixels from the top), `altText` o
 and `annotations` (the `encoding` of each annotation in order, an empty string for one without; always present):
 
 ```json
-{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"quadratic.mml","format":"mathml","bytes":590},"image":{"width":137,"height":44,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"equation":{"display":"block","elements":22,"baseline":32,"annotations":[]}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"quadratic.mml","format":"mathml","bytes":648},"image":{"width":137,"height":44,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"equation":{"display":"block","elements":22,"baseline":32,"altText":"x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a","annotations":[]}}
 ```
 
 `render`, `convert`, and the transformation commands add:
@@ -2390,8 +2390,8 @@ Each code, its cause, and what to do:
 - **`unsupported-format`**: The input is not a format the tool reads (for example a DOCX or an unknown extension). What
   to do: See `canvasnet formats`.
 - **`corrupt-input`**: The content is damaged or is not what its extension says (a truncated or garbage file), or a
-  model, chart, or diagram file is longer than the library reads. An SVG file that is not well-formed XML is named with
-  the line and column of the error. What to do: Repair or replace the file.
+  model, chart, diagram, or equation file is longer than the library reads. An SVG file that is not well-formed XML is
+  named with the line and column of the error. What to do: Repair or replace the file.
 - **`unsupported-feature`**: The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG,
   a PPTX shape the library lacks, or any skipped feature with `--strict`). What to do: Remove the feature, or drop
   `--strict` if it is only a skipped picture.
@@ -2450,8 +2450,8 @@ Each default, and how to change it:
 - **Output the same as the input**: Refused (`same-input-output`). To change it: Choose another output.
 - **Output format**: From the output extension. To change it: `--format`.
 - **JPEG quality**: 90. To change it: `--quality`.
-- **Transparency in a vector source (SVG, document page, model, chart, diagram)**: Flattened over white (a chart over
-  its own background). To change it: `--background <color>`; `--background transparent` keeps it.
+- **Transparency in a vector source (SVG, document page, model, chart, diagram, or equation)**: Flattened over white (a
+  chart over its own background). To change it: `--background <color>`; `--background transparent` keeps it.
 - **Transparency in a raster source**: Kept (PNG, BMP, TIFF); a JPEG output flattens over `--background` or white. To
   change it: `--background <color>` flattens a raster too.
 - **JPEG orientation**: Turned upright by its EXIF orientation; `info` reports the raw value. To change it:
@@ -2541,8 +2541,11 @@ blocks of other languages (`bash`, `yaml`, `csharp`, and so on), raster pictures
 so on), and remote pictures therefore never need the tool, and a code-only document builds without it. A fix of the
 filter ships with the tool, but the shim lists the classes and file name ends that its tool draws (`--write-shim`
 writes them from the tool's own tables), so write the shim again after each update of the tool: an older shim keeps
-working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. The
-tool also says when the protocol of the shim changes (see *Shim protocol* below).
+working, but it may start the tool for a document that does not need it, or miss a format the newer tool draws. A shim
+written before the tool drew MathML, for example, never starts the tool for a document whose only pictures are
+equations (code blocks of class `mathml` and `.mml` pictures), so their MathML is left as it is, while the same
+equations are drawn in a document that also has a diagram; run `dotnet canvasnet pandoc-filter --write-shim` again
+after updating the tool. The tool also says when the protocol of the shim changes (see *Shim protocol* below).
 
 A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.puml`, `.plantuml`, `.pu`, `.mml`,
 `.vsdx`, `.pptx`, or `.pdf` is then

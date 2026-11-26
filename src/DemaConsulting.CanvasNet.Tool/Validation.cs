@@ -713,7 +713,7 @@ internal static class Validation
                 baseline = equation.GetProperty("baseline").GetInt32();
                 if (document.RootElement.GetProperty("input").GetProperty("format").GetString() != "mathml"
                     || equation.GetProperty("display").GetString() != "block"
-                    || equation.GetProperty("elements").GetInt32() < 10
+                    || equation.GetProperty("elements").GetInt32() <= 10
                     || baseline <= 0 || baseline > height)
                 {
                     return "The info document does not describe the equation";
