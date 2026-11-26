@@ -282,12 +282,10 @@ A page of a Visio drawing is chosen with `page`, and its `dpi` is a whole number
 ## Equations
 
 A MathML equation is a `.mml` file, or a code block of class `mathml` that holds one `<math>` element of MathML Core.
-An equation is drawn at scale 2, so it stays sharp in print, and shown at its **natural width**: unless the picture
-has a `size`, `width`, or `height`, the filter gives it the width of its natural size, so in a browser every equation
-shows at the 16 pixel font size of the text around it, whatever scale it was drawn at. (WeasyPrint, which makes this
-guide's PDF, does not read the `width` attribute, so the PDF shows the pictures at the size they were drawn; see the
-inline equation below for a `style` that sizes an equation in both.) A block without a caption is a display equation
-of its own:
+An equation is drawn at scale 2, so it stays sharp in print, and shown at the **size of the text** around it: unless
+the picture has a `size`, `width`, or `height` (as an attribute or in its `style`), the filter gives it its natural
+width in em, which browsers and PDF renderers such as WeasyPrint both honor, whatever scale it was drawn at. A block
+without a caption is a display equation of its own:
 
 ````markdown
 ```mathml
@@ -331,22 +329,21 @@ An equation file alone in its paragraph is a figure whose caption is its alt tex
 
 ![The roots of a quadratic](examples/mathml-quadratic.mml)
 
-An equation file inside a sentence stays inline, and the filter gives it its natural width too, so in a browser it is
-the size of the text around it without a `width`. The file `circle-area.mml` holds an equation of `display="inline"`,
-52x17 pixels at its natural size with its baseline 15 pixels down (`canvasnet info` reports both). The style sheet of
-this guide's PDF shows every picture as a block of its own, and WeasyPrint does not read the `width` attribute, so the
-`style` attribute below, which stays on the picture, makes the equation part of the line, one line high, with its
-baseline on the baseline of the text (the attributes may continue on the next line):
+An equation file inside a sentence stays in the line. The filter sees that the picture shares its line with other
+text and also sets it inline, with the baseline of the equation on the baseline of the text, so nothing more is
+written:
 
 ```markdown
-The area of a circle is ![A equals pi r squared](examples/embedding/circle-area.mml){
-style="display:inline; height:1.06em; margin:0; vertical-align:-0.12em"}, so doubling
-the radius makes the area four times larger.
+The area of a circle is ![A equals pi r squared](examples/embedding/circle-area.mml), so
+doubling the radius makes the area four times larger.
 ```
 
-The area of a circle is ![A equals pi r squared](examples/embedding/circle-area.mml){
-style="display:inline; height:1.06em; margin:0; vertical-align:-0.12em"}, so doubling
-the radius makes the area four times larger.
+The area of a circle is ![A equals pi r squared](examples/embedding/circle-area.mml), so
+doubling the radius makes the area four times larger.
+
+A picture alone in its paragraph is shown on its own (a figure), and a picture that shares its line with text or
+another picture is inline. An author's own `width`, `height`, or `size` replaces the natural size, and an author's
+`style` is kept, its declarations after the filter's, so `style="vertical-align:middle"` moves an inline equation.
 
 ## Showing Code Instead of a Picture
 
@@ -387,7 +384,7 @@ compared exactly, so `Mermaid` is not drawn either.
 | PDF page | `.pdf` | - | `page`, `dpi` |
 | PowerPoint slide | `.pptx` | - | `page`, `dpi` |
 | Visio page | `.vsdx` | - | `page`, `dpi` (whole number) |
-| MathML equation | `.mml` | `mathml` | `size`, `scale`, `background` (natural width unless sized) |
+| MathML equation | `.mml` | `mathml` | `size`, `scale`, `background` (text size unless sized) |
 
 Every code block also takes `caption`, and every picture keeps the attributes the filter does not read, such as
 `width`, `height`, an identifier, and its other classes.

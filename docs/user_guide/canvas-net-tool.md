@@ -2618,11 +2618,24 @@ A MathML equation is written in the document the same way, as a fenced code bloc
 `<math>` element, or as a `.mml` picture. It reads the attributes of a `.mml` picture (`size`, `scale`, and
 `background`; an equation has no `theme`, so `theme` is an error), and `caption` and the other attributes work as for a
 `mermaid` block. An equation is drawn at **scale 2** unless `size` or `scale` is given, so it stays sharp in print, and
-it is shown at its **natural width**: when the picture has no `size`, `width`, or `height` attribute, the filter adds
-`width="Npx"`, where N is the width of the equation at its natural size (the 16 pixel font size of a browser, as
-`canvasnet info` reports it). Every equation of a document therefore shows at the same text size, whatever scale it was
-drawn at; an author's own `size`, `width`, `height`, or `scale` is kept as written (a `scale` without a width still
-shows the natural width). The added width is not part of the hash, so it never draws a picture again.
+it is shown at the **size of the text** around it, with no style to write:
+
+- **Width in em.** When the picture has no `size`, `width`, or `height` (as an attribute or as a declaration of its
+  `style`), the filter adds `width="Nem"`, where N is the width of the equation at its natural size (the 16 pixel font
+  size of a browser, as `canvasnet info` reports it) divided by 16. Pandoc writes it as `style="width:Nem"` in HTML,
+  which browsers and WeasyPrint both honor, and LaTeX and Word read it too, so the equation is as tall as the text in a
+  browser, a 10 point PDF, a caption, or a heading. No height is added, so the picture keeps its shape in a narrow
+  column.
+- **On the baseline in a sentence.** An equation in running text (an image with other text or pictures in its line,
+  such as `the area ![A equals pi r squared](area.mml) of a circle`) also gets
+  `style="display:inline;margin:0;vertical-align:-Dem"`, where D is its depth below the baseline, so it sits on the
+  line of text even when the style sheet makes pictures blocks. An equation alone in its paragraph (a figure) or a
+  `mathml` block is shown on its own and gets the width only.
+- **The author's choice wins.** An author's own `size`, `width`, `height`, or a `style` that sets `width` or `height` is
+  kept as written and nothing is added; a `scale` alone still gets the natural size. The author's other `style`
+  declarations follow the filter's, so they win (`style="vertical-align:middle"` moves an inline equation).
+- **Not in the hash.** The width and the style are added on every run and are not part of the hash, so they never draw
+  a picture again.
 
 ````markdown
 ```{.mathml caption="The quadratic formula"}
