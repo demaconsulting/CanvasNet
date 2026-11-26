@@ -25,9 +25,10 @@ examples:
 - Pandoc: a code block of class mathml and a picture whose source ends in .mml
   are drawn by the filter (see [[pandoc]]). Unless size or
   scale is given the equation is drawn at scale 2, and without a size, width,
-  or height it is shown at its natural width (width="138px" for the quadratic
-  formula), so every equation of the document shows at the 16 px font size; an
-  author's size, width, height, or scale is kept.
+  or height (attribute or style) it is shown at its natural width in em
+  (width="8.625em" for the quadratic formula), so every equation shows at the
+  size of the text around it; in a sentence it also sits on the baseline. An
+  author's size, width, height, scale, or style is kept.
 - Montage and flatten: canvasnet montage takes .mml inputs, and canvasnet
   flatten replaces a linked .mml with a PNG for other SVG readers.
 - `--positions`: Not for an equation.

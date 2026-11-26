@@ -32,7 +32,7 @@
     PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
     changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written,
     MathML equations are drawn from code blocks and from .mml pictures at twice their natural size and shown at their natural
-    width (an author's width is kept), Vega-Lite charts are drawn from vega-lite code blocks and OpenSCAD models from
+    width in em (an author's width is kept; an equation in a sentence also sits on the text's baseline), Vega-Lite charts are drawn from vega-lite code blocks and OpenSCAD models from
     openscad code blocks marked .draw (a plain openscad block stays code, and a block that names a local file stops the
     build, since a block has no folder), a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
@@ -643,8 +643,8 @@ Bob --> Alice : Hi
 
     # --- MathML equations: code blocks and .mml pictures, drawn sharp and shown at their natural width ------------
     # A mathml code block becomes the picture (a figure with a caption); a .mml picture is drawn too. Both are drawn at
-    # scale 2 and keep the width of their natural size (width="...px"), so they show at the 16 px font size; an author's
-    # width is kept as written.
+    # scale 2 and get the width of their natural size in em (style="width:...em" in HTML), so they show at the size of the
+    # text; a picture in a sentence is also set inline on the text's baseline; an author's width is kept as written.
     Set-Content (Join-Path $guide 'ohm.mml') -Value (
         '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">' +
         '<mi>V</mi><mo>=</mo><mi>I</mi><mo>&InvisibleTimes;</mo><mi>R</mi></math>')
@@ -662,18 +662,23 @@ Bob --> Alice : Hi
 ![Ohm's law](ohm.mml)
 
 ![Ohm's law, wide](ohm.mml){width=50%}
+
+By Ohm's law ![V equals I R](ohm.mml) the current follows.
 '@
     $mmlBefore = @(Get-Pictures).Count
     $mml = Invoke-Filter 'mathml' $mathMl
-    $ohmWidth = [regex]::Match($mml.Html, '<img\s+src="[^"]*generated/canvasnet/ohm-[^"]*"[^>]*width="(\d+)"')
+    $ohmWidth = [regex]::Match($mml.Html, '<img\s+src="[^"]*generated/canvasnet/ohm-[^"]*"\s+style="width:([\d.]+)em"')
+    $ohmInline = [regex]::Match($mml.Html, '<img\s+src="[^"]*generated/canvasnet/ohm-[^"]*"\s+style="display:inline;margin:0;vertical-align:(-[\d.]+em|0);width:([\d.]+)em"')
     Write-Result ($mml.ExitCode -eq 0 -and $mml.Html -match '<figure[^>]*id="quadratic"' -and
         $mml.Html -match 'generated/canvasnet/mathml-' -and $mml.Html -match 'generated/canvasnet/ohm-' -and
         $mml.Html -notmatch 'src="ohm\.mml"' -and @(Get-Pictures).Count -eq $mmlBefore + 2) `
         'a mathml block and a .mml picture are drawn (the same picture twice is drawn once)' "$($mml.Log)`n$($mml.Html)"
-    Write-Result ($ohmWidth.Success -and [int]$ohmWidth.Groups[1].Value -gt 0 -and $mml.Html -match 'style="width:50(\.0)?%"' -and
-        ([regex]::Matches($mml.Html, '<img\s[^>]*width="\d+"')).Count -eq 2 -and
+    Write-Result ($ohmWidth.Success -and [double]$ohmWidth.Groups[1].Value -gt 0 -and $mml.Html -match 'style="width:50(\.0)?%"' -and
+        ([regex]::Matches($mml.Html, 'style="width:[\d.]+em"')).Count -eq 2 -and $mml.Html -notmatch '<img\s[^>]*\swidth="' -and
         @(Get-ChildItem -LiteralPath $cache -Filter '*.mml').Count -ge 1) `
-        'equations show at their natural width, an author''s width is kept, and the block text is in the cache folder' $mml.Html
+        'equations show at their natural width in em, an author''s width is kept, and the block text is in the cache folder' $mml.Html
+    Write-Result ($ohmInline.Success -and $ohmInline.Groups[2].Value -eq $ohmWidth.Groups[1].Value) `
+        'an equation in a sentence is set inline on the text''s baseline at the same width' $mml.Html
     $mmlStamp = Get-Stamp
     $mmlAgain = Invoke-Filter 'mathml' $mathMl
     Write-Result ($mmlAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $mmlStamp -and $mmlAgain.Html -eq $mml.Html) `

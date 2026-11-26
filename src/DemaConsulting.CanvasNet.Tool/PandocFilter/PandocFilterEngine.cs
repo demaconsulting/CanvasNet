@@ -245,7 +245,7 @@ internal sealed partial class PandocFilterEngine
 
     /// <summary>
     ///     Plans a picture of a kind the tool draws (<c>draw</c>, up to the render): options, identity, file access, the
-    ///     natural width of an equation the author did not size, dependencies, key, then the cache, the marker of a diagram
+    ///     natural size of an equation the author did not size (and its place on the baseline in running text), dependencies, key, then the cache, the marker of a diagram
     ///     left as written, or a job.
     /// </summary>
     /// <param name="item">The picture.</param>
@@ -264,10 +264,13 @@ internal sealed partial class PandocFilterEngine
         var access = _settings.FileAccessOf(source);
         var policy = _settings.PolicyOf(access, source);
 
-        // An equation the author did not size is shown at its natural width, whatever scale it is drawn at
-        if (PictureAttributes.NaturalWidthNeeded(kind, attributes) && NaturalWidth(source, policy) is { } natural)
+        // An equation the author did not size is shown at its natural size in em, whatever scale it is drawn at, and an
+        // equation in running text sits on the text's baseline (a code block is always shown on its own)
+        if (PictureAttributes.NaturalSizeNeeded(kind, attributes) && NaturalSize(source, policy) is { } natural)
         {
-            item.Keep = [.. options.Keep, new KeyValuePair<string, string>("width", $"{natural}px")];
+            var baseline = natural.Equation?.Baseline ?? natural.Height;
+            var inRunningText = item.Block == null && PandocAst.IsInRunningText(item.Node);
+            item.Keep = PictureAttributes.WithNaturalSize(options.Keep, natural.Width, natural.Height, baseline, inRunningText);
         }
 
         var parts = DependencyHasher.ForPicture(kind, source, item.Name, policy);
@@ -309,21 +312,21 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
-    ///     Gets the natural width of an equation: its width in pixels at scale 1 and the 16-pixel font size, read by a probe
-    ///     (the equation is parsed and measured, not drawn).
+    ///     Gets the natural size of an equation: its width, height, and baseline in pixels at scale 1 and the 16-pixel font
+    ///     size, read by a probe (the equation is parsed and measured, not drawn).
     /// </summary>
     /// <param name="source">The equation's source file.</param>
     /// <param name="policy">The policy the tool draws the picture under, or <see langword="null"/> for the default mode.</param>
     /// <returns>
-    ///     The width, or <see langword="null"/> when the equation cannot be measured: the picture then keeps its attributes as
-    ///     written, and the draw reports the failure with the tool's message.
+    ///     The facts of the probe, or <see langword="null"/> when the equation cannot be measured: the picture then keeps its
+    ///     attributes as written, and the draw reports the failure with the tool's message.
     /// </returns>
-    private static int? NaturalWidth(string source, FileAccessPolicy? policy)
+    private static SourceInfo? NaturalSize(string source, FileAccessPolicy? policy)
     {
         try
         {
             var fileAccess = policy ?? FileAccessPolicy.AllowAll;
-            return SourceLoader.Probe(source, fileAccess).Width;
+            return SourceLoader.Probe(source, fileAccess);
         }
         catch (ViewerException)
         {

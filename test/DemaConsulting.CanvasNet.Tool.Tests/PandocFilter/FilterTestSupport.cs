@@ -22,6 +22,25 @@ internal static class PandocDoc
     }
 
     /// <summary>
+    ///     Builds a <c>Str</c> element.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The element's JSON.</returns>
+    public static string Str(string text)
+    {
+        return $$"""{"t":"Str","c":{{Text(text)}}}""";
+    }
+
+    /// <summary>
+    ///     Builds a <c>Space</c> element.
+    /// </summary>
+    /// <returns>The element's JSON.</returns>
+    public static string Space()
+    {
+        return """{"t":"Space"}""";
+    }
+
+    /// <summary>
     ///     Builds a <c>Para</c> element.
     /// </summary>
     /// <param name="inlines">The inline elements' JSON.</param>

@@ -126,7 +126,8 @@ public class PandocFilterSubsystemTests
 
     /// <summary>
     ///     Test that a captioned MathML code block and a <c>.mml</c> picture are drawn by the tool at scale 2, that the block
-    ///     becomes a figure, that both show at their natural width, and that the drawing reports nothing.
+    ///     becomes a figure, that all show at their natural width in em, that the picture in a sentence also sits on the
+    ///     text's baseline, and that the drawing reports nothing.
     /// </summary>
     [Fact]
     public void PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure()
@@ -139,18 +140,27 @@ public class PandocFilterSubsystemTests
         var text = File.ReadAllText(fixture).ReplaceLineEndings("\n").TrimEnd('\n');
         var document = PandocDoc.Document(
             PandocDoc.Para(PandocDoc.Image("quadratic.mml")),
-            PandocDoc.CodeBlock("fig-roots", ["mathml"], text, ("caption", "The roots")));
+            PandocDoc.CodeBlock("fig-roots", ["mathml"], text, ("caption", "The roots")),
+            PandocDoc.Para(PandocDoc.Str("Roots"), PandocDoc.Space(), PandocDoc.Image("quadratic.mml")));
 
         // Act
         var output = tree.Run(new ToolPictureDrawer(), document);
 
-        // Assert: no warnings, a paragraph and a figure, and the natural width on both pictures
+        // Assert: no warnings, a paragraph, a figure, and a sentence, and the natural width in em on every picture
         Assert.Empty(PandocDoc.Warnings(output));
         using var json = JsonDocument.Parse(output);
         var blocks = json.RootElement.GetProperty("blocks");
-        Assert.Equal(["Para", "Figure"], blocks.EnumerateArray().Select(b => b.GetProperty("t").GetString()));
+        Assert.Equal(["Para", "Figure", "Para"], blocks.EnumerateArray().Select(b => b.GetProperty("t").GetString()));
         Assert.Equal("fig-roots", blocks[1].GetProperty("c")[0][0].GetString());
-        Assert.Equal(2, Regex.Count(Encoding.UTF8.GetString(output), $"""\["width","{natural.Width}px"\]""", RegexOptions.None, TimeSpan.FromSeconds(5)));
+        var width = Regex.Escape(PictureAttributes.Em(natural.Width));
+        Assert.Equal(3, Regex.Count(Encoding.UTF8.GetString(output), $"""\["width","{width}"\]""", RegexOptions.None, TimeSpan.FromSeconds(5)));
+
+        // Assert: the picture in the sentence is placed in the line, its baseline on the text's
+        var depth = natural.Height - natural.Equation!.Baseline;
+        var align = PictureAttributes.FormatNumber(-(double)depth / PictureAttributes.MathMlFontSize);
+        Assert.Equal(
+            $$"""["",[],[["style","display:inline;margin:0;vertical-align:{{align}}em"],["width","{{PictureAttributes.Em(natural.Width)}}"]]]""",
+            blocks[2].GetProperty("c")[2].GetProperty("c")[0].GetRawText());
 
         // Assert: the pictures are twice the natural size, rounded out at that scale
         var pictures = tree.CacheFiles().Where(name => name.EndsWith(".png", StringComparison.Ordinal)).ToList();

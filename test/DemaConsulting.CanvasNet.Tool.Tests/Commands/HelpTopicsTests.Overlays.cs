@@ -120,7 +120,7 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the MathML cards carry the tool's command-line sections, that the options overlay names the options
-    ///     an equation takes and refuses, and that the natural display width the composition overlay and the pandoc card
+    ///     an equation takes and refuses, and that the natural display width (in em) the composition overlay and the pandoc card
     ///     teach is the one the tool measures for the quadratic example of the fractions card.
     /// </summary>
     [Fact]
@@ -150,7 +150,7 @@ public partial class HelpTopicsTests
         }
 
         // Assert: the width the cards teach is the measured one, and the pandoc card documents it
-        Assert.Contains($"width=\"{natural}px\" for the quadratic formula", composition, StringComparison.Ordinal);
+        Assert.Contains($"width=\"{PictureAttributes.Em(natural)}\" for the quadratic formula", composition, StringComparison.Ordinal);
         Assert.Contains("natural width", pandocTerms);
         Assert.Contains("mathml", HelpTopics.Get("pandoc").SeeAlso);
     }

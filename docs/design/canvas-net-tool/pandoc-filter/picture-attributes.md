@@ -79,10 +79,38 @@ bytes. The value checks are:
 - `page`: a whole number from 1, written without leading zeros.
 - `view`, `projection`, `theme`: one of the word lists, ignoring ASCII case, written in lowercase.
 
-**NaturalWidthNeeded(kind, attributes)**: `true` for a `mathml` picture whose attributes have none of `size`,
-`width`, and `height`: the engine then shows it at its natural width (see *PandocFilterEngine*), so every equation of a
-document shows at the 16 pixel font size whatever scale it is drawn at; an author's own `size`, `width`, or `height` is
-kept as written and no width is added.
+**NaturalSizeNeeded(kind, attributes)**: `true` for a `mathml` picture whose attributes have none of `size`, `width`,
+and `height`, and whose `style` declares no `width` or `height` (property names compared without case): the engine then
+shows it at its natural size (see *PandocFilterEngine*), so every equation shows at the size of the text around it
+whatever scale it is drawn at. An author's own `size`, `width`, `height`, or sizing `style` is kept as written and
+nothing is added; an author's `scale` still gets the natural size.
+
+**MathMlFontSize**: 16, the font size in pixels an equation's natural size is measured at (the default
+`MathMlRenderOptions.FontSize`, pinned by a test), and so one `em` of the size the filter shows an equation at.
+
+**Em(pixels)**: a length of the natural size in `em`: `pixels / 16` written with `FormatNumber`, followed by `em`
+(`52` gives `3.25em`). A whole number of pixels over 16 has at most four decimals, so the text is exact.
+
+**WithNaturalSize(keep, width, height, baseline, inRunningText)**: the keep list with `width` set to `Em(width)` after
+the other attributes. No `height` is set. In running text, `style` is first set to
+`display:inline;margin:0;vertical-align:-D` (where `D` is `Em(height - baseline)`, the depth below the baseline, and
+`vertical-align:0` when the depth is 0). The author's own style follows it, trimmed, after a `;`, in the position of the
+author's `style` attribute when there is one. The choices are:
+
+- **em, not px.** The natural size is measured at a 16 pixel font, so `1em` is 16 natural pixels. A browser at its
+  default 16 px font shows exactly the natural size, a 10 point PDF body shows the equation at body-text size (a pixel
+  width would be 1.2 times too big there), and an equation in a caption, heading, or table follows that text's size.
+  Pandoc's HTML writer turns an `em` width into a `style` width (`style="width:3.25em"`), which every browser and
+  WeasyPrint honor; a pixel width becomes the HTML attribute `width`, which WeasyPrint ignores without
+  `--presentational-hints`. The LaTeX and Word writers read an `em` width too.
+- **Width only.** The picture keeps its aspect ratio (`height:auto` in a style sheet, `keepaspectratio` in LaTeX), so
+  an equation wider than a narrow column is scaled down whole instead of distorted.
+- **Placement in running text.** `display:inline` and `margin:0` keep the equation in the line under a style sheet that
+  makes every picture a block with a margin (as the DEMA template does); both are the HTML defaults of an image, so they
+  are harmless elsewhere. `vertical-align` lowers the picture by its depth, so its baseline sits on the text's.
+- **Author first in the cascade.** The filter's declarations come before the author's in one `style`, so any author
+  declaration (`vertical-align`, `display`) wins by order. Pandoc 3.0 and later append the width of the attribute to
+  that `style` (`consolidateStyles`), giving one attribute.
 
 **BuildSvg(name, attributes)**: reads only `scale` (checked as above), one `--scale=` option per `scale` attribute in
 order, and keeps every other attribute.
@@ -126,8 +154,6 @@ message of the Lua filter, for example:
 #### Callers
 
 - **PandocFilterShim** - `BlockClasses`, `DrawBlockClasses`, and `PictureSuffixes`, written into the shim's fast path.
-- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockOf`, `DrawClass`, `Build`, `NaturalWidthNeeded`, `BuildSvg`,
-  `BlockName`, and
-  `SplitCaption` while
-  it plans the pictures of a document.
+- **PandocFilterEngine** - `IsSvg`, `KindOf`, `BlockOf`, `DrawClass`, `Build`, `NaturalSizeNeeded`,
+  `WithNaturalSize`, `BuildSvg`, `BlockName`, and `SplitCaption` while it plans the pictures of a document.
 - **DependencyHasher** - the kind constants and `KindOf` to find the composite links of an SVG drawing.

@@ -87,8 +87,8 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   (mermaid-diagram-unsupported, plantuml-diagram-unsupported) is left as
   written, with a warning.
 - `natural width`: A .mml picture or mathml block without a size, width, or
-  height attribute gets width="Npx", the width of its natural size, so every
-  equation shows at the 16 px font size; an author's attribute is kept.
+  height (attribute or style) gets width="Nem" (natural width / 16 px): text
+  size. In a sentence a style also sets it on the baseline; the author's wins.
 - `includes`: A changed !include file draws its .puml picture again. A code
   block has no folder: a plantuml block finds no relative include, and a
   vega-lite block naming a local file or an openscad block with include or use

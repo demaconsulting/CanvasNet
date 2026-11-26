@@ -66,6 +66,12 @@ internal static class PictureAttributes
     /// <summary>The scale an equation is drawn at unless <c>size</c> or <c>scale</c> is given: sharp in print.</summary>
     internal const string MathMlDefaultScale = "2";
 
+    /// <summary>
+    ///     The font size, in pixels, an equation's natural size is measured at (the default
+    ///     <see cref="DemaConsulting.CanvasNet.MathMl.MathMlRenderOptions.FontSize"/>): one <c>em</c> of the size the filter shows an equation at.
+    /// </summary>
+    internal const int MathMlFontSize = 16;
+
     /// <summary>The size a model is drawn at unless <c>size</c> or <c>scale</c> is given.</summary>
     internal const string ScadDefaultSize = "1600x1200";
 
@@ -327,7 +333,7 @@ internal static class PictureAttributes
         }
 
         // An equation is drawn at twice its natural size unless a size or a scale is given, so it stays sharp in print
-        // (the engine shows it at its natural width; see NaturalWidthNeeded)
+        // (the engine shows it at its natural size; see NaturalSizeNeeded)
         if (kind == MathMl && !values.ContainsKey("size") && !values.ContainsKey("scale"))
         {
             values["scale"] = MathMlDefaultScale;
@@ -340,20 +346,92 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Determines whether the engine gives a picture its natural display width: an equation whose attributes set no
-    ///     <c>size</c>, <c>width</c>, or <c>height</c>.
+    ///     Determines whether the engine gives a picture its natural size: an equation whose attributes set no
+    ///     <c>size</c>, <c>width</c>, or <c>height</c>, and whose <c>style</c> declares no <c>width</c> or <c>height</c>.
     /// </summary>
     /// <param name="kind">The kind of the picture (one of the kind constants).</param>
     /// <param name="attributes">The picture's attributes, in their order.</param>
     /// <returns>
-    ///     <see langword="true"/> for a <see cref="MathMl"/> picture without those attributes: it is drawn at
-    ///     <see cref="MathMlDefaultScale"/> (or its own <c>scale</c>) and shown at the width of its natural size, so every
-    ///     equation of a document shows at the same 16-pixel font size whatever its pixel scale; an author's own
-    ///     <c>size</c>, <c>width</c>, or <c>height</c> is kept as written.
+    ///     <see langword="true"/> for a <see cref="MathMl"/> picture the author did not size: it is drawn at
+    ///     <see cref="MathMlDefaultScale"/> (or its own <c>scale</c>) and shown at its natural size in <c>em</c>
+    ///     (<see cref="WithNaturalSize"/>), so every equation shows at the size of the text around it whatever its pixel
+    ///     scale; an author's own <c>size</c>, <c>width</c>, <c>height</c>, or sizing <c>style</c> is kept as written and
+    ///     nothing is added.
     /// </returns>
-    internal static bool NaturalWidthNeeded(string kind, IEnumerable<KeyValuePair<string, string>> attributes)
+    internal static bool NaturalSizeNeeded(string kind, IEnumerable<KeyValuePair<string, string>> attributes)
     {
-        return kind == MathMl && !attributes.Any(a => a.Key is "size" or "width" or "height");
+        return kind == MathMl && !attributes.Any(a =>
+            a.Key is "size" or "width" or "height"
+            || (a.Key == "style" && (StyleDeclares(a.Value, "width") || StyleDeclares(a.Value, "height"))));
+    }
+
+    /// <summary>
+    ///     Writes a length of an equation's natural size in <c>em</c> of <see cref="MathMlFontSize"/>.
+    /// </summary>
+    /// <param name="pixels">The length in pixels at scale 1 and the 16-pixel font size.</param>
+    /// <returns>The length over 16 with <see cref="FormatNumber"/>, followed by <c>em</c>, for example <c>3.25em</c>.</returns>
+    internal static string Em(int pixels)
+    {
+        return FormatNumber((double)pixels / MathMlFontSize) + "em";
+    }
+
+    /// <summary>
+    ///     Adds an equation's natural size to the attributes that stay on its picture.
+    /// </summary>
+    /// <param name="keep">The attributes that stay, as <see cref="Build"/> gave them (no <c>width</c>, see <see cref="NaturalSizeNeeded"/>).</param>
+    /// <param name="width">The natural width in pixels.</param>
+    /// <param name="height">The natural height in pixels.</param>
+    /// <param name="baseline">The row of the equation's baseline in the natural picture, in pixels from the top.</param>
+    /// <param name="inRunningText">Whether the picture stands in running text (<see cref="PandocAst.IsInRunningText"/>).</param>
+    /// <returns>
+    ///     The attributes with <c>width</c> set to <see cref="Em"/> of the natural width, after the others (Pandoc's HTML writer
+    ///     turns it into a <c>style</c> width, which every browser and WeasyPrint honor; LaTeX and Word read it too). No
+    ///     <c>height</c> is set, so the picture keeps its aspect ratio. In running text the <c>style</c> also starts with
+    ///     <c>display:inline;margin:0;vertical-align:-D</c>, where D is the depth below the baseline
+    ///     (<paramref name="height"/> - <paramref name="baseline"/>) in <c>em</c>, so the equation sits on the line of text;
+    ///     the author's own declarations follow in the same <c>style</c>, so they win.
+    /// </returns>
+    internal static IReadOnlyList<KeyValuePair<string, string>> WithNaturalSize(
+        IReadOnlyList<KeyValuePair<string, string>> keep, int width, int height, int baseline, bool inRunningText)
+    {
+        var list = new KeepList();
+        string? authorStyle = null;
+        foreach (var (key, value) in keep)
+        {
+            list.Set(key, value);
+            if (key == "style")
+            {
+                authorStyle = value;
+            }
+        }
+
+        // In running text the picture is placed in the line, its baseline on the text's, before any declaration of the author
+        if (inRunningText)
+        {
+            var depth = height - baseline;
+            var align = depth == 0 ? "0" : FormatNumber(-(double)depth / MathMlFontSize) + "em";
+            var placement = $"display:inline;margin:0;vertical-align:{align}";
+            var author = authorStyle?.Trim() ?? string.Empty;
+            list.Set("style", author.Length == 0 ? placement : $"{placement};{author}");
+        }
+
+        list.Set("width", Em(width));
+        return list.Items;
+    }
+
+    /// <summary>
+    ///     Determines whether a CSS declaration list declares a property.
+    /// </summary>
+    /// <param name="style">The declarations, for example <c>vertical-align:-0.2em; width:3em</c>.</param>
+    /// <param name="property">The property, in lowercase.</param>
+    /// <returns><see langword="true"/> when a declaration names the property, compared without case.</returns>
+    private static bool StyleDeclares(string style, string property)
+    {
+        return style.Split(';').Any(declaration =>
+        {
+            var colon = declaration.IndexOf(':', StringComparison.Ordinal);
+            return colon > 0 && string.Equals(declaration[..colon].Trim(), property, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     /// <summary>

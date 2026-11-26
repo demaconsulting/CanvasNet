@@ -3,8 +3,8 @@
 #### Verification Approach
 
 `PictureAttributes` is verified with xUnit unit tests in `PictureAttributesTests.cs`. The tests call the internal static
-methods directly (`KindOf`, `IsSvg`, `Build`, `NaturalWidthNeeded`, `BuildSvg`, `SplitCaption`, `BlockName`, and
-`FormatNumber`, `BlockOf`) with
+methods directly (`KindOf`, `IsSvg`, `Build`, `NaturalSizeNeeded`, `Em`, `WithNaturalSize`, `BuildSvg`, `SplitCaption`,
+`BlockName`, and `FormatNumber`, `BlockOf`) with
 attribute lists written in the test; nothing is stubbed, no file is read, and no tool is run. Refusals are asserted as
 the `ToolException` the method throws, with its code and its exact message.
 
@@ -22,7 +22,9 @@ N/A - standard test environment. The unit is pure computation and needs no files
 - A `vega-lite` or `vegalite` block is a chart, an `openscad` block is a model only together with `draw`, and a
   block is named by the class the author wrote.
 - An equation (`.mml` or a `mathml` block) is drawn at scale 2 unless a size or scale is given, refuses the attributes
-  of the other kinds, and wants its natural display width only without a size, width, or height.
+  of the other kinds, and wants its natural size only without a size, width, or height (attribute or style).
+- An equation's natural size is a `width` in em of the 16 pixel font (the renderer's default), with no `height`; in
+  running text a `style` also sets it inline on the baseline, before the author's own declarations.
 
 #### Test Scenarios
 
@@ -76,8 +78,19 @@ the caption and the other attribute stays.
 **PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo**: an equation with only `id` gets `--scale=2` and keeps
 `id`; with `scale=3` and `background=transparent` it gets `--background=transparent` and `--scale=3`; with
 `size=400x100` only `--size=400x100`; with `width=50%` it gets `--scale=2` and keeps the width.
-`NaturalWidthNeeded` is true for an equation with only `id` or `scale`, and false with `size`, `width`, or `height`,
-and for a Mermaid diagram.
+`NaturalSizeNeeded` is true for an equation with only `id` or `scale` or a `style` without a width or height, and
+false with `size`, `width`, or `height`, with a `style` that declares `Width` (any case, spaces around the colon) or
+`height`, and for a Mermaid diagram.
+
+**PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm**: A = πr² (52x17, baseline 15) on its own gets
+`width=3.25em` after `id` (or after the author's `style`, which is kept as written); in running text it gets
+`style=display:inline;margin:0;vertical-align:-0.125em` before `width=3.25em`; with the author's
+`style= vertical-align:middle; ` (first, before `id`) the style is the filter's declarations followed by the trimmed
+author's, in the author's position; an equation with its baseline at the bottom gets `vertical-align:0`; and `Em(1)`
+is `0.0625em`.
+
+**PictureAttributes_MathMlFontSize_IsTheRenderersDefault**: `MathMlFontSize` (16) equals the default
+`MathMlRenderOptions.FontSize`, so one em of the filter is the font size the natural size is measured at.
 
 **PictureAttributes_Build_MathMlTheme_IsRefused**: `theme=dark` on `eq.mml` fails with `pandoc-filter-error` and
 `'eq.mml' has theme=dark, but theme applies to Mermaid diagrams only`, and `page=2` on `mathml block #eq` with

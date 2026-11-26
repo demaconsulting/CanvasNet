@@ -17,9 +17,9 @@ sections:
         title: >-
           The PandocFilter subsystem shall return a Pandoc JSON document in which every picture of an OpenSCAD model, a
           Vega-Lite chart, a Mermaid or PlantUML diagram, a MathML equation, or a page of a PDF, PPTX, or VSDX document
-          is a PNG picture drawn into the
-          cache folder with the options its attributes ask for (an equation the author does not size shown at its
-          natural width), every SVG drawing that links one is its flattened copy,
+          is a PNG picture drawn into the cache folder with the options its attributes ask for (an equation the author
+          does not size shown at its natural width in em, the size of the text, and on the text's baseline in running
+          text), every SVG drawing that links one is its flattened copy,
           and every Mermaid, PlantUML, MathML, or Vega-Lite code block and every OpenSCAD code block marked draw is a
           figure (with a caption) or a paragraph that shows its picture, while every
           other element, attribute, and text of the document is unchanged, and shall return the notes the tool reports
@@ -36,6 +36,7 @@ sections:
           - CanvasNetTool-PandocFilter-PandocAst-Elements
           - CanvasNetTool-PandocFilter-PandocAst-RewriteImage
           - CanvasNetTool-PandocFilter-PandocAst-Warnings
+          - CanvasNetTool-PandocFilter-PandocAst-RunningText
           - CanvasNetTool-PandocFilter-PictureAttributes-Kinds
           - CanvasNetTool-PandocFilter-PictureAttributes-Registry
           - CanvasNetTool-PandocFilter-PictureAttributes-Defaults
@@ -44,6 +45,7 @@ sections:
           - CanvasNetTool-PandocFilter-PictureAttributes-Svg
           - CanvasNetTool-PandocFilter-PictureAttributes-MermaidBlocks
           - CanvasNetTool-PandocFilter-PictureAttributes-MathMl
+          - CanvasNetTool-PandocFilter-PictureAttributes-EquationSize
           - CanvasNetTool-PandocFilter-PictureAttributes-VegaLiteBlocks
           - CanvasNetTool-PandocFilter-PictureAttributes-OpenScadBlocks
           - CanvasNetTool-PandocFilter-FilterPaths-Collapse
@@ -55,6 +57,7 @@ sections:
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MermaidBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-InlineEquations
           - CanvasNetTool-PandocFilter-PandocFilterEngine-VegaLiteBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OpenScadBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram

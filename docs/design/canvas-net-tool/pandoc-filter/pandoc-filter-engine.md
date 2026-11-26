@@ -84,21 +84,33 @@ code block that `PlanImage` and `PlanBlock` leave alone passes through the run u
 fast path relies on.
 
 **PlanDraw**: builds the options and kept attributes (`PictureAttributes.Build`), the file access
-(`FilterSettings.FileAccessOf`), the natural display width of an equation, the dependency hashes
+(`FilterSettings.FileAccessOf`), the natural size of an equation, the dependency hashes
 (`DependencyHasher.ForPicture`, reading through
 `FilterSettings.PolicyOf`), and the key
 (`PictureCache.ComputeKey`). A picture `<stem>-<key>.png` in the cache is used; otherwise an existing
 `<key>.unsupported` marker gives the warning `<name>: <message>; it is left as written and not drawn`; otherwise the
 picture is attached to a job.
 
-**Natural width of an equation** (`PlanDraw` and `NaturalWidth`): when `PictureAttributes.NaturalWidthNeeded` says
-an equation has no `size`, `width`, or `height` attribute, the source is probed with `SourceLoader.Probe` under the
-policy of the picture (`AllowAll` in the default mode; the equation is parsed and measured at scale 1 and the
-16 pixel font size, not drawn) and the kept attribute `width="<natural width>px"` is added after the others. It is
-added on every run, whether the picture is drawn or found in the cache, and it is not part of the key, so it never
-causes a new drawing. The equation is drawn at scale 2 (or the author's `scale`), so it is sharp in print and shows at
-the same 16 pixel font size as every other equation of the document. An equation the probe cannot measure (a
-`ViewerException`) keeps its attributes as written, and its draw reports the failure with the tool's message.
+**Natural size of an equation** (`PlanDraw` and `NaturalSize`): when `PictureAttributes.NaturalSizeNeeded` says an
+equation has no `size`, `width`, or `height`, as an attribute or in its `style`, the source is probed with
+`SourceLoader.Probe` under the policy of the picture (`AllowAll` in the default mode; the equation is parsed and
+measured at scale 1 and the 16 pixel font size, not drawn). The probe gives the natural width, the natural height, and
+the row of the baseline (`SourceInfo.Equation.Baseline`; the height when there is none).
+`PictureAttributes.WithNaturalSize` then adds the kept attribute `width="<natural width / 16>em"` after the others and,
+for an image in running text, a `style` that sets it inline on the text's baseline before the author's own declarations.
+
+- **Running text** is `PandocAst.IsInRunningText` of the image: an image among other text or pictures of its line (a
+  sentence, a heading, two pictures side by side) is inline; an image alone in its paragraph or figure is shown on its
+  own. A code block always becomes a figure or a paragraph of its picture alone, so it gets the width only. The check
+  reads the document before any picture is rewritten (planning comes before applying).
+- **Pandoc's writers**: the HTML writer turns the `em` width into `style="width:...em"`, appended to the author's and
+  the filter's `style` (one attribute), which browsers and WeasyPrint honor without presentational hints; a pixel width
+  would become the HTML attribute `width`, which WeasyPrint ignores. The LaTeX and Word writers read the `em` width too.
+- **Every run, not in the key**: the size and the placement are added on every run, whether the picture is drawn or
+  found in the cache, and are not part of the key, so they never cause a new drawing. The equation is drawn at scale 2
+  (or the author's `scale`), so it is sharp in print and shows at the size of the text around it.
+- **Failure**: an equation the probe cannot measure (a `ViewerException`) keeps its attributes as written, and its
+  draw reports the failure with the tool's message.
 
 **PlanSvg**: a drawing `FilterPaths.LocateSource` cannot find is left to Pandoc (no error); a drawing that links no
 file only the tool draws (`DependencyHasher.ForSvg` returns not composite) is left alone. Otherwise the options come
@@ -180,7 +192,8 @@ unchanged and nothing is returned.
 
 #### Dependencies
 
-- **PandocAst** - reading, finding, building, and writing the elements and the warnings.
+- **PandocAst** - reading, finding, building, and writing the elements and the warnings, and whether an image stands
+  in running text.
 - **FilterSettings** - resource directories, tool identity, file access, cache folder, and the picture `src`.
 - **FilterPaths** - locating sources, file existence, folders, and relative paths.
 - **PictureAttributes** - picture kinds, options and kept attributes, captions, and block names.
@@ -188,7 +201,8 @@ unchanged and nothing is returned.
   file a Vega-Lite or OpenSCAD code block names.
 - **PictureCache** - keys, file and marker names, atomic writes, commits, and deletes.
 - **RenderCommand** and **FlattenCommand** - called in-process by `ToolPictureDrawer`.
-- **SourceLoader** (Viewer library) - `Probe`, which measures the natural width of an equation without drawing it.
+- **SourceLoader** (Viewer library) - `Probe`, which measures the natural size and baseline of an equation without
+  drawing it.
 - **MermaidDiagnosticCodes**, **PlantUmlDiagnosticCodes**, **FolderImageResolver**, **ErrorCodes**, and
   **ViewerException** - the codes it reads
   and reports.

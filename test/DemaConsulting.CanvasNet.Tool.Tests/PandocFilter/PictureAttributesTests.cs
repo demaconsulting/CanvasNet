@@ -257,8 +257,8 @@ public class PictureAttributesTests
 
     /// <summary>
     ///     Test that an equation is drawn at scale 2 unless a size or a scale is given, that its own scale, size, and
-    ///     background are kept as options, and that the natural display width is wanted only when no size, width, or
-    ///     height is given.
+    ///     background are kept as options, and that the natural size is wanted only when no size, width, or height is
+    ///     given, as an attribute or in the style.
     /// </summary>
     [Fact]
     public void PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo()
@@ -277,13 +277,56 @@ public class PictureAttributesTests
         Assert.Equal(["--scale=2"], wide.Options);
         Assert.Equal([new KeyValuePair<string, string>("width", "50%")], wide.Keep);
 
-        // Assert: the natural width only for an equation without a size, width, or height
-        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("id", "eq")]));
-        Assert.True(PictureAttributes.NaturalWidthNeeded("mathml", [new("scale", "3")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("size", "400x100")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("width", "50%")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mathml", [new("height", "2em")]));
-        Assert.False(PictureAttributes.NaturalWidthNeeded("mermaid", []));
+        // Assert: the natural size only for an equation without a size, width, or height, or a style that sets one
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("id", "eq")]));
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("scale", "3")]));
+        Assert.True(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "color:red; max-width:50%")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("size", "400x100")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("width", "50%")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("height", "2em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "color:red; Width : 3em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mathml", [new("style", "height:1em")]));
+        Assert.False(PictureAttributes.NaturalSizeNeeded("mermaid", []));
+    }
+
+    /// <summary>
+    ///     Test that an equation's natural size is written in em of the 16-pixel font, as a <c>width</c> after the other
+    ///     attributes and no <c>height</c>, and that in running text a <c>style</c> also places it in the line on the
+    ///     text's baseline, before the author's own declarations.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm()
+    {
+        // Act: A = πr² (52x17, baseline 15) on its own and in running text, with and without the author's style
+        var display = PictureAttributes.WithNaturalSize([new("id", "eq")], 52, 17, 15, false);
+        var styledDisplay = PictureAttributes.WithNaturalSize([new("style", "color:red")], 52, 17, 15, false);
+        var inline = PictureAttributes.WithNaturalSize([new("id", "eq")], 52, 17, 15, true);
+        var styled = PictureAttributes.WithNaturalSize([new("style", " vertical-align:middle; "), new("id", "eq")], 52, 17, 15, true);
+        var flat = PictureAttributes.WithNaturalSize([], 138, 44, 44, true);
+
+        // Assert: the width in em, the author's attributes first and in their order
+        Assert.Equal([P("id", "eq"), P("width", "3.25em")], display);
+        Assert.Equal([P("style", "color:red"), P("width", "3.25em")], styledDisplay);
+        Assert.Equal(
+            [P("id", "eq"), P("style", "display:inline;margin:0;vertical-align:-0.125em"), P("width", "3.25em")],
+            inline);
+        Assert.Equal(
+            [P("style", "display:inline;margin:0;vertical-align:-0.125em;vertical-align:middle;"), P("id", "eq"), P("width", "3.25em")],
+            styled);
+        Assert.Equal([P("style", "display:inline;margin:0;vertical-align:0"), P("width", "8.625em")], flat);
+        Assert.Equal("0.0625em", PictureAttributes.Em(1));
+
+        // An attribute of the expected lists
+        static KeyValuePair<string, string> P(string key, string value) => new(key, value);
+    }
+
+    /// <summary>
+    ///     Test that the em of the filter is the font size the renderer measures an equation's natural size at.
+    /// </summary>
+    [Fact]
+    public void PictureAttributes_MathMlFontSize_IsTheRenderersDefault()
+    {
+        Assert.Equal(PictureAttributes.MathMlFontSize, new DemaConsulting.CanvasNet.MathMl.MathMlRenderOptions().FontSize);
     }
 
     /// <summary>

@@ -28,7 +28,8 @@ N/A - standard test environment. The tests use a temporary folder each and do no
 - A Vega-Lite or OpenSCAD block that names a local file stops the run with the documented message before anything is
   written or drawn.
 - An equation (a `.mml` picture or a `mathml` block) is drawn at scale 2 unless the author scales or sizes it, and shows
-  at its natural width unless the author gives a size, width, or height, on every run.
+  at its natural width in em unless the author gives a size, width, or height (attribute or style), on every run; an
+  equation in a sentence is also set inline on the text's baseline, after which the author's style follows.
 - One job and four jobs give the same output, warnings, cache files, and reported failure, also after a failure that
   later jobs ran past.
 - Every failure has the documented message and code, and the one of the lowest position is reported.
@@ -73,19 +74,28 @@ written to the cache, one `.unsupported` marker is left, and both blocks were dr
 
 **PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth**: Ohm's law as a `.mml` picture with the
 attribute `id`, and the quadratic formula as a captioned `mathml` block, are drawn once each with `--scale=2`, and one
-`.mml` block source is in the cache; the picture keeps `id` and gets `width` of its probed natural width (`<w>px`), the
-block becomes a `Figure` whose image has only `width` of the quadratic formula's natural width, which is wider; a second
+`.mml` block source is in the cache; the picture, alone in its paragraph, keeps `id` and gets `width` of its probed
+natural width in em (`<w/16>em`), the block becomes a `Figure` whose image has only `width` of the quadratic formula's
+natural width in em, which is wider; a second
 run draws nothing and gives the same document.
 
 **PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth**: one equation shown with `width=50%`, `height=2em`,
-`size=400x100`, and `scale=3`, and a text that is not an equation, keep `width=50%`, `height=2em`, nothing, the natural
-`width` (with `scale=3`), and nothing (the probe fails, so the attributes stay as written) respectively; the draws are
-given `--scale=2` (the width and height pictures share one draw, and the broken file has its own), `--scale=3`, and
+`size=400x100`, `scale=3`, and `style=width:3em`, and a text that is not an equation, each alone in its paragraph,
+keep `width=50%`, `height=2em`, nothing, the natural `width` in em (with `scale=3`), `style=width:3em` without a
+width, and nothing (the probe fails, so the attributes stay as written) respectively; the draws are given `--scale=2`,
+(the width, height, and style pictures share one draw, and the broken file has its own), `--scale=3`, and
 `--size=400x100`.
 
 **PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile**: one equation shown plainly and with
-`width=50%` is drawn once with `--scale=2` into one PNG of the cache, which both pictures show; the plain picture gets
-the natural `width` and the other keeps `width=50%`, so the added natural width is not part of the cache key.
+`width=50%`, each alone in its paragraph, is drawn once with `--scale=2` into one PNG of the cache, which both pictures
+show; the plain picture gets the natural `width` in em and the other keeps `width=50%`, so the added natural width is
+not part of the cache key.
+
+**PandocFilterEngine_Run_MathMlInASentence_SitsOnTheBaseline**: y = x², which reaches below its baseline, in the
+sentence `Then <equation>.` with the author's `style=color:red`, and alone in a paragraph, is drawn once; the
+sentence's picture gets `style=display:inline;margin:0;vertical-align:-<depth/16>em;color:red` (the depth being the
+probe's height minus its baseline) and the natural `width` in em, the lone picture only the `width`; a second run
+draws nothing and gives the same document.
 
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine

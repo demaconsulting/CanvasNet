@@ -91,3 +91,17 @@ sections:
           the drawn picture.
         tests:
           - PandocAst_RewriteImage_ChangesOnlySourceAndAttributes
+
+      - id: CanvasNetTool-PandocFilter-PandocAst-RunningText
+        title: >-
+          The PandocAst unit shall tell an Image in running text from an Image on its own: it is in running text when
+          the inlines that hold it hold anything but itself and white space (Space, SoftBreak, LineBreak), moving up
+          through an inline container that holds only it (Emph, Underline, Strong, Strikeout, Superscript, Subscript,
+          SmallCaps, Cite, Link, Span) and counting the quotation marks of Quoted as text; an image alone in a figure,
+          a paragraph, a heading, a table cell, or an image description is on its own.
+        justification: |
+          Pandoc makes an image alone in its paragraph a figure and keeps an image in a sentence in the sentence's
+          paragraph; an equation in a sentence must be set in the line on the text's baseline, while one on its own is
+          shown as a block, so the filter must tell the two apart from the document alone.
+        tests:
+          - PandocAst_IsInRunningText_PandocDocument_TellsInlineFromDisplay

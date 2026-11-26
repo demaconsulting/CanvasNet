@@ -18,7 +18,8 @@
     including the diagram types the filter draws itself, a type the tool does not draw left as written with a warning,
     PlantUML code blocks and `.puml` and `.plantuml` pictures (a changed `!include` file draws them again, and a legacy
     activity diagram is left as written with a warning), MathML code blocks and `.mml` pictures (drawn once, shown
-    with the `width` of their natural size, an author's `width` kept, not drawn again on a second run, and `theme` on an
+    with `style="width:...em"` of their natural size and no HTML `width` attribute, a picture in a sentence also set
+    inline on the text's baseline, an author's `width` kept, not drawn again on a second run, and `theme` on an
     equation an error), Vega-Lite code blocks (a captioned `vega-lite` block becomes a figure drawn from the cache, a
     second run draws nothing) and OpenSCAD code blocks (a `{.openscad .draw}` block becomes a picture without the
     classes `openscad` and `draw`, a plain `openscad` block stays code, and a chart block with a `data.url` or a model
