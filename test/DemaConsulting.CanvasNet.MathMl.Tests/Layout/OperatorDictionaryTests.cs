@@ -28,7 +28,7 @@ public class OperatorDictionaryTests
     ///     gets the same spacing from the Default category without stretching.
     /// </summary>
     [Fact]
-    public void OperatorDictionary_Lookup_EqualsInfix_IsCategoryA()
+    public void OperatorDictionary_Lookup_ArrowInfixIsA_EqualsIsDefault()
     {
         // Act
         var arrow = OperatorDictionary.Lookup("\u2192", OperatorForm.Infix, formIsExplicit: false);
@@ -173,15 +173,16 @@ public class OperatorDictionaryTests
     }
 
     /// <summary>
-    ///     Validates that an explicit form wins and is parsed ASCII case-insensitively, and that it disables the fallback to
-    ///     the other forms.
+    ///     Validates that an explicit form wins and is parsed ASCII case-insensitively but exactly (whitespace around it
+    ///     makes it invalid, as MathML Core matches it), and that it disables the fallback to the other forms.
     /// </summary>
     [Fact]
     public void OperatorDictionary_InferForm_ExplicitAttribute_Wins()
     {
         // Act
-        var parsed = OperatorDictionary.TryParseForm(" POSTFIX ", out var form);
+        var parsed = OperatorDictionary.TryParseForm("POSTFIX", out var form);
         var invalid = OperatorDictionary.TryParseForm("sideways", out _);
+        var padded = OperatorDictionary.TryParseForm(" postfix ", out _);
         var inferred = OperatorDictionary.Lookup("(", OperatorForm.Infix, formIsExplicit: false);
         var explicitForm = OperatorDictionary.Lookup("(", OperatorForm.Infix, formIsExplicit: true);
 
@@ -189,6 +190,7 @@ public class OperatorDictionaryTests
         Assert.True(parsed);
         Assert.Equal(OperatorForm.Postfix, form);
         Assert.False(invalid);
+        Assert.False(padded);
         Assert.Equal(OperatorCategory.F, inferred.Category);
         Assert.Equal(OperatorCategory.Default, explicitForm.Category);
     }

@@ -258,20 +258,23 @@ public class LayoutEngineTests
     }
 
     /// <summary>
-    ///     Validates the attribute reports: legacy and unknown attributes and right-to-left math are reported; global
-    ///     attributes that do not change a picture are silent.
+    ///     Validates the attribute reports: legacy and unknown attributes (the legacy table attributes among them) and
+    ///     right-to-left math are reported; global attributes that do not change a picture are silent.
     /// </summary>
     [Fact]
     public void LayoutEngine_Layout_UnsupportedAttributes_AreReported()
     {
         // Act
         var (_, _, unsupported) = Run("<mi fontweight=\"bold\" id=\"a\" class=\"b\" data-x=\"c\" onclick=\"d\">x</mi><mrow dir=\"rtl\"><ms lquote=\"'\">s</ms></mrow>");
+        var (_, _, legacy) = Run("<mtable align=\"axis\" equalrows=\"true\" columnwidth=\"auto\" groupalign=\"left\"><mtr><mtd groupalign=\"left\"><mi>a</mi></mtd></mtr></mtable>");
 
         // Assert
         Assert.Equal(3, unsupported.Count);
         Assert.Contains("'fontweight'", unsupported[0].Message, StringComparison.Ordinal);
         Assert.Contains("right-to-left", unsupported[1].Message, StringComparison.Ordinal);
         Assert.Contains("'lquote'", unsupported[2].Message, StringComparison.Ordinal);
+        Assert.Equal(5, legacy.Count);
+        Assert.All(legacy, report => Assert.Equal(MathMlDiagnosticCodes.AttributeUnsupported, report.Feature));
     }
 
     /// <summary>
@@ -440,24 +443,38 @@ public class LayoutEngineTests
 
     /// <summary>
     ///     Validates the forms of the operators inside <c>msqrt</c>: the first and last of several children are prefix and
-    ///     postfix, and a lone operator is infix and keeps its spacing (the row of a square root is not an embellished
-    ///     operator).
+    ///     postfix, and a lone operator is infix and gets no operator spacing in the anonymous row of <c>msqrt</c> or
+    ///     <c>mtd</c> (a grouping row, MathML Core 3.1.3, as Chrome), while neither element becomes an embellished
+    ///     operator.
     /// </summary>
     [Fact]
     public void LayoutEngine_Layout_SqrtChildren_InferForms()
     {
         // Act
-        var (box, _, _) = Run("<msqrt><mo>-</mo><mi>x</mi><mo>!</mo></msqrt><msqrt><mo>+</mo></msqrt>");
+        var (box, _, _) = Run("<msqrt><mo>-</mo><mi>x</mi><mo>!</mo></msqrt><msqrt><mo>+</mo></msqrt><mtable><mtr><mtd><mo>=</mo></mtd></mtr></mtable>");
 
-        // Assert
+        // Assert: the forms of several operators
         var forms = Flatten(box.Children[0].Box).Where(entry => entry.Box.Element?.Name == "mo").Select(entry => entry.Box.Operator!.Form);
         Assert.Equal([OperatorForm.Prefix, OperatorForm.Postfix], forms);
+
+        // Assert: the lone operator of msqrt is infix, without spacing, and does not make the radical an embellished operator
         var lone = Assert.Single(box.Children[1].Box.Children).Box;
         var plus = Assert.Single(lone.Children);
         Assert.Equal(OperatorForm.Infix, plus.Box.Operator!.Form);
-        Assert.Equal(plus.Box.Operator.LeadingSpace, plus.X, 9);
+        Assert.True(plus.Box.Operator.LeadingSpace > 0);
+        Assert.Equal(0, plus.X, 9);
+        Assert.Equal(plus.Box.Width, lone.Width, 9);
         Assert.Null(lone.Operator);
         Assert.Null(box.Children[1].Box.Operator);
+
+        // Assert: the lone operator of a cell has no spacing either, and the cell carries no operator
+        var cell = Flatten(box.Children[2].Box).Single(entry => entry.Box.Element?.Name == "mtd").Box;
+        var equals = Flatten(cell).Single(entry => entry.Box.Element?.Name == "mo").Box;
+        var row = Flatten(cell).Single(entry => entry.Box.Children.Any(child => ReferenceEquals(child.Box, equals))).Box;
+        Assert.True(equals.Operator!.LeadingSpace > 0);
+        Assert.Equal(equals.Width, row.Width, 9);
+        Assert.Null(row.Operator);
+        Assert.Null(cell.Operator);
     }
 
     /// <summary>

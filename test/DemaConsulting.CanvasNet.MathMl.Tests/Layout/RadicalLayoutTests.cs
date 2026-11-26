@@ -122,6 +122,31 @@ public class RadicalLayoutTests
     }
 
     /// <summary>
+    ///     Validates the metrics of a root whose index is taller than the raise of its bottom: as Chrome computes them, the
+    ///     ascent is that of the top of the index (the raise from the bottom of the square root plus the descent and the
+    ///     ascent of the index, where MathML Core 3.3.3.3 leaves the descent of the index out), and the descent is the
+    ///     larger of the square root's and the descent of the square root minus the raise plus the height of the index.
+    /// </summary>
+    [Fact]
+    public void RadicalLayout_LayoutRoot_TallIndex_AscentAndDescentAsChrome()
+    {
+        // Arrange: an index 150 px tall, 50 px of it below its baseline
+        var radicand = new MathBox(50, 50, 10);
+        var index = new MathBox(20, 100, 50);
+        var square = Layout().LayoutSquareRoot(radicand, Compact, default);
+        var symbol = StretchyGlyphs.Glyph(MathFont.Default, RadicalLayout.RadicalSymbol, 100);
+
+        // Act
+        var box = Layout().LayoutRoot(radicand, index, Compact, default);
+
+        // Assert: the index is taller than the raise, so it sets both metrics
+        var raise = 35 / 64.0 * symbol.Height;
+        Assert.True(index.Ascent + index.Descent > raise);
+        Assert.Equal(-square.Descent + raise + 50 + 100, box.Ascent, 9);
+        Assert.Equal(System.Math.Max(square.Descent, square.Descent - raise + 150), box.Descent, 9);
+        Assert.Equal(square.Descent - raise - 50, box.Children[0].Y, 9);
+    }
+    /// <summary>
     ///     Validates that the kern after a narrow index is clamped to minus its width, so the square root never starts
     ///     before the index.
     /// </summary>

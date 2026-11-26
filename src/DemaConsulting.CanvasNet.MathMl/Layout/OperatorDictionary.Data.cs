@@ -4,8 +4,10 @@
 namespace DemaConsulting.CanvasNet.MathMl.Layout;
 
 /// <content>
-///     The generated tables of the operator dictionary of MathML Core (Appendix B.1). The tables are properties (read
-///     once), so that the order of the static initializers of the two files of the class does not matter.
+///     The generated tables of the operator dictionary of MathML Core (Appendix B.1). The integer tables are span
+///     properties over constant data of the assembly (nothing is allocated); the string and the category tables are
+///     static readonly fields, built once. The other file of the class declares no static fields, so the order of the
+///     static initializers of the two files does not matter.
 /// </content>
 internal static partial class OperatorDictionary
 {
@@ -13,7 +15,7 @@ internal static partial class OperatorDictionary
     ///     The strings of the special table Operators_2_ascii_chars (Figure 24), in order: the string at index i is looked
     ///     up as the character U+0320 plus i.
     /// </summary>
-    private static string[] TwoAsciiOperators =>
+    private static readonly string[] TwoAsciiOperators =
     [
         "!!",
         "!=",
@@ -330,7 +332,7 @@ internal static partial class OperatorDictionary
     ///     The values of each category (Figure 26): the leading and the trailing space in em, and whether the operators
     ///     of the category are stretchy, symmetric, large operators, and have movable limits.
     /// </summary>
-    private static (OperatorCategory Category, double LeadingSpace, double TrailingSpace, bool Stretchy, bool Symmetric, bool LargeOp, bool MovableLimits)[] CategoryValues =>
+    private static (OperatorCategory Category, double LeadingSpace, double TrailingSpace, bool Stretchy, bool Symmetric, bool LargeOp, bool MovableLimits)[] CategoryValues =
     [
         (OperatorCategory.Default, 0.2777777777777778, 0.2777777777777778, false, false, false, false),
         (OperatorCategory.ForceDefault, 0.2777777777777778, 0.2777777777777778, false, false, false, false),

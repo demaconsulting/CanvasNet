@@ -46,6 +46,27 @@ public class FractionLayoutTests
     }
 
     /// <summary>
+    ///     Validates that the descent of a fraction is at least zero (MathML Core 3.3.2.1 and 3.3.2.2, as Chrome), with a
+    ///     bar and as a stack, when its denominator lies wholly above the baseline (a raised mark such as a ring above).
+    /// </summary>
+    [Fact]
+    public void FractionLayout_Layout_RaisedDenominator_DescentIsZero()
+    {
+        // Arrange: a denominator whose ink is 10 to 110 px above its baseline
+        var numerator = new MathBox(20, 10, 0);
+        var denominator = new MathBox(20, 110, -100);
+
+        // Act
+        var bar = Layout().Layout(numerator, denominator, Compact, Thickness);
+        var stack = Layout().Layout(numerator, denominator, Compact, 0);
+
+        // Assert: the denominator ends above the baseline, and the box still reaches down to it
+        Assert.True(bar.Children[1].Y + denominator.Descent < 0);
+        Assert.True(stack.Children[1].Y + denominator.Descent < 0);
+        Assert.Equal(0, bar.Descent);
+        Assert.Equal(0, stack.Descent);
+    }
+    /// <summary>
     ///     Validates that a compact fraction uses the standard shifts when the children are small:
     ///     FractionNumeratorShiftUp (529) and FractionDenominatorShiftDown (320).
     /// </summary>

@@ -201,6 +201,7 @@ public class LayoutTests
         Assert.Equal([0, enclosure.Children[0].Box.Width], enclosure.Children.Select(child => child.X));
         Assert.All(enclosure.Children, child => Assert.Equal(0, child.Y));
         Assert.Equal(3, box.Children.Count);
+        Assert.Equal([0, enclosure.Width, enclosure.Width + box.Children[1].Box.Width], box.Children.Select(child => child.X));
         Assert.Equal([MathMlDiagnosticCodes.ElementUnsupported, MathMlDiagnosticCodes.AttributeUnsupported], unsupported.Select(report => report.Feature));
         Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, Assert.Single(warnings).Code);
     }
@@ -235,9 +236,9 @@ public class LayoutTests
     }
 
     /// <summary>
-    ///     Validates the bounds of a layout through the subsystem: a work budget smaller than the equation and a canceled
-    ///     token stop it, a table with more grid slots than the limit fails, and the same equation lays out within the
-    ///     default limits.
+    ///     Validates the bounds of a layout through the subsystem: a work budget smaller than the equation, a nesting depth
+    ///     beyond the limit, and a canceled token stop it, a table with more grid slots than the limit fails, and the same
+    ///     equation and table lay out within the default limits.
     /// </summary>
     [Fact]
     public void Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout()
@@ -259,13 +260,186 @@ public class LayoutTests
         var table = Tree(MathMlTestHelpers.Math("<mtable><mtr><mtd columnspan=\"20\"/></mtr><mtr/></mtable>"));
         var cells = Engine(new MathMlLimits { MaxTableCells = 39 }, TestContext.Current.CancellationToken);
         var slots = Assert.Throws<MathMlRenderException>(() => cells.Layout(table, cells.Styles.ResolveRoot(table, 16, new Rgba32(0, 0, 0, 255), null)));
+        var shallow = Engine(new MathMlLimits { MaxNestingDepth = 2 }, TestContext.Current.CancellationToken);
+        var nesting = Assert.Throws<MathMlRenderException>(() => shallow.Layout(root, RootStyle(shallow)));
+        var defaults = Engine(MathMlLimits.Default, TestContext.Current.CancellationToken);
+        var tableBox = defaults.Layout(table, defaults.Styles.ResolveRoot(table, 16, new Rgba32(0, 0, 0, 255), null));
 
         // Assert
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, work.Code);
         Assert.Contains("MathMlLimits.MaxLayoutWork", work.Message, StringComparison.Ordinal);
         Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, slots.Code);
         Assert.Contains("MathMlLimits.MaxTableCells", slots.Message, StringComparison.Ordinal);
+        Assert.Equal(MathMlDiagnosticCodes.LimitExceeded, nesting.Code);
+        Assert.Contains("MathMlLimits.MaxNestingDepth", nesting.Message, StringComparison.Ordinal);
         Assert.NotNull(cancellation);
         Assert.True(box.Width > 0);
+        Assert.True(tableBox.Width > 0);
+    }
+
+    /// <summary>
+    ///     Validates the operator forms through the subsystem: an explicit <c>form</c> wins over the position of the
+    ///     operator in its row and selects the dictionary entry of that form, and an operator that is a script is postfix.
+    /// </summary>
+    [Fact]
+    public void Layout_ExplicitFormAndScriptOperator_FollowTheDictionary()
+    {
+        // Arrange: a plus between two letters would be infix; the explicit prefix form selects its prefix entry
+        var prefix = OperatorDictionary.Lookup("+", OperatorForm.Prefix, formIsExplicit: true);
+
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math("<mi>a</mi><mo form=\"prefix\">+</mo><mi>b</mi><msup><mi>x</mi><mo>+</mo></msup>"));
+
+        // Assert: the explicit form and its spacing
+        var plus = box.Children[1];
+        Assert.Equal(OperatorForm.Prefix, plus.Box.Operator!.Form);
+        Assert.Equal(box.Children[0].Box.Width + (prefix.LeadingSpace * 100), plus.X, 9);
+        Assert.Equal(plus.X + plus.Box.Width + (prefix.TrailingSpace * 100), box.Children[2].X, 9);
+
+        // The operator of the superscript is postfix
+        var script = box.Children[3].Box.Children[1].Box;
+        Assert.Equal(OperatorForm.Postfix, script.Operator!.Form);
+    }
+
+    /// <summary>
+    ///     Validates the other stretching through the subsystem: an over brace stretched along the inline axis covers the
+    ///     row under it, a summation in display style is drawn with a larger size variant of the font than inline,
+    ///     and a stretchy operator that nothing can stretch is reported as <c>mathml-stretch-unavailable</c>.
+    /// </summary>
+    [Fact]
+    public void Layout_InlineStretchLargeOperatorAndReport_FollowTheFont()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+
+        // Act
+        var box = LayoutText(
+            MathMlTestHelpers.Math(
+                "<mover><mrow><mi>a</mi><mi>b</mi><mi>c</mi><mi>d</mi><mi>e</mi></mrow><mo>&#x23DE;</mo></mover>"
+                + "<mo>&#x2211;</mo><mstyle displaystyle=\"true\"><mo>&#x2211;</mo></mstyle>"
+                + "<mo stretchy=\"true\">*</mo><mspace width=\"1em\" height=\"3em\" depth=\"1em\"/>"),
+            100,
+            sink);
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert: the brace covers its base
+        var mover = box.Children[0].Box;
+        var (@base, brace) = (mover.Children[0], mover.Children[1]);
+        var glyphs = brace.Box.Items.OfType<GlyphItem>().ToList();
+        Assert.True(glyphs.Count > 1);
+        var inkLeft = brace.X + glyphs.Min(glyph => glyph.Ink.X);
+        var inkRight = brace.X + glyphs.Max(glyph => glyph.Ink.X + glyph.Ink.Width);
+        Assert.True(inkRight - inkLeft >= @base.Box.Width - 1);
+
+        // The summation is large in display style only
+        var inline = box.Children[1].Box;
+        var display = Assert.Single(box.Children[2].Box.Children).Box;
+        Assert.NotEqual(inline.Items.OfType<GlyphItem>().Single().Glyph, display.Items.OfType<GlyphItem>().Single().Glyph);
+        Assert.True(display.Ascent + display.Descent > inline.Ascent + inline.Descent);
+
+        // The star cannot stretch
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.StretchUnavailable, warning.Code);
+        Assert.Contains("'*'", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the computed style through the subsystem: <c>mathcolor</c> and the inline <c>style</c> color the
+    ///     glyphs, <c>mathvariant="bold"</c> draws the bold letter of the Mathematical Alphanumeric Symbols, and an invalid
+    ///     <c>mathvariant</c> is reported at its attribute and ignored.
+    /// </summary>
+    [Fact]
+    public void Layout_ColorVariantAndInlineStyle_StyleTheGlyphs()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+        var (boldFont, boldGlyph) = MathFont.Default.Resolve(0x1D41A);
+        var (italicFont, italicGlyph) = MathFont.Default.Resolve(0x1D44E);
+
+        // Act
+        var box = LayoutText(
+            "<math>\n<mi mathcolor=\"red\">x</mi><mi style=\"color: lime\">y</mi><mi mathvariant=\"bold\">a</mi>\n<mi mathvariant=\"heavy\">a</mi></math>",
+            100,
+            sink);
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert: the colors
+        GlyphItem Glyph(int index) => box.Children[index].Box.Items.OfType<GlyphItem>().Single();
+        Assert.Equal(new Rgba32(255, 0, 0, 255), Glyph(0).Color);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), Glyph(1).Color);
+
+        // The bold letter, and the automatic italic where the variant is invalid
+        Assert.Equal((boldFont, boldGlyph), (Glyph(2).Font, Glyph(2).Glyph));
+        Assert.Equal((italicFont, italicGlyph), (Glyph(3).Font, Glyph(3).Glyph));
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, warning.Code);
+        Assert.Equal(3, warning.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates through the subsystem that a character no bundled font has is drawn as a missing-glyph box and
+    ///     reported as <c>mathml-text-missing-glyph</c> at its token.
+    /// </summary>
+    [Fact]
+    public void Layout_MissingGlyph_IsReported()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+
+        // Act
+        var box = LayoutText("<math>\n<mi>&#xE000;</mi></math>", 100, sink);
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        Assert.Single(Assert.Single(box.Children).Box.Items.OfType<GlyphItem>());
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.TextMissingGlyph, warning.Code);
+        Assert.Equal(2, warning.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates the MathML 3 table attributes through the subsystem, as Firefox draws them: <c>columnalign</c> aligns
+    ///     the contents left and right in their columns, <c>rowspacing</c> puts 2em between the rows instead of the inner
+    ///     padding, <c>columnlines</c> draws a one-pixel rule between the columns, <c>frame</c> a rule around the table,
+    ///     and an invalid <c>rowlines</c> is reported at its attribute and ignored.
+    /// </summary>
+    [Fact]
+    public void Layout_TableExtensions_AlignSpaceAndRule()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+        const string Narrow = "<mtd><mspace width=\"1em\" height=\"1em\"/></mtd>";
+        const string Wide = "<mtd><mspace width=\"2em\" height=\"1em\"/></mtd>";
+        static bool Near(double a, double b) => System.Math.Abs(a - b) < 1e-9;
+
+        // Act
+        var box = LayoutText(
+            "<math>\n<mtable columnalign=\"left right\" rowspacing=\"2em\" columnlines=\"solid\" frame=\"solid\"\nrowlines=\"wavy\">"
+            + $"<mtr>{Narrow}{Narrow}</mtr><mtr>{Wide}{Wide}</mtr></mtable></math>",
+            100,
+            sink);
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert: the contents (in document order: narrow, narrow, wide, wide)
+        var table = Assert.Single(box.Children).Box;
+        var spaces = Flatten(table).Where(entry => entry.Box.Element?.Name == "mspace").ToList();
+        Assert.Equal(4, spaces.Count);
+        Assert.Equal(spaces[2].X, spaces[0].X, 9);
+        Assert.Equal(spaces[3].X + spaces[3].Box.Width, spaces[1].X + spaces[1].Box.Width, 9);
+        Assert.Equal(200, (spaces[2].Y - spaces[2].Box.Ascent) - (spaces[0].Y + spaces[0].Box.Descent), 9);
+
+        // The column line between the columns and the frame around the table
+        var rules = table.Items.OfType<RuleItem>().Select(rule => rule.Rect).ToList();
+        Assert.Contains(rules, rect => Near(rect.Width, 1) && rect.X > spaces[2].X + spaces[2].Box.Width && rect.X + 1 < spaces[3].X);
+        Assert.Contains(rules, rect => Near(rect.X, 0) && Near(rect.Width, table.Width) && Near(rect.Height, 1));
+
+        // The invalid row lines are reported and draw nothing between the rows
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MathMlDiagnosticCodes.AttributeInvalid, 3), (warning.Code, warning.Location.Line));
+        Assert.DoesNotContain(rules, rect => Near(rect.Height, 1) && rect.Width < table.Width - 1e-9);
     }
 }

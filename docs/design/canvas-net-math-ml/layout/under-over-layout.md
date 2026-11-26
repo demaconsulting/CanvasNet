@@ -22,7 +22,9 @@ Per instance: the math font (the constants of its `MATH` table). The class holds
 - `StretchInline(children, baseIsFixed, relayout)` - the children laid out without an inline constraint are split into
   the embellished operators stretchy along the inline axis (`Operator { Stretchy: true, Axis: Inline }`) and the others;
   a base laid out with the constraint of its parent (the element is itself an embellished operator with a constraint)
-  stays with the others. The target T is the widest of the others, or, when every child stretches, the widest of them
+  stays with the others, so its stretched width counts toward the target (MathML Core 3.4.2.2 takes the target from the
+  other children only; a known difference, which Chrome cannot show because it stretches no scripted operator). The
+  target T is the widest of the others, or, when every child stretches, the widest of them
   laid out with a zero constraint; each stretchy child is laid out again with T through `relayout`.
 - `Layout(base, under, over, style, accentUnder, accent, embellished)` - with the constants at the font size of the
   element:
@@ -58,8 +60,9 @@ finite, clamped lengths; there are no reports.
 
 #### Dependencies
 
-The `MathFont` unit (the limit, stretch stack, overbar, underbar, and accent constants) and the `MathBox` unit (boxes,
-`PlacedBox`, `EmbellishedOperator`). The stretching itself is done by `TokenLayout` through the `relayout` of the
+The `MathFont` unit (the limit, stretch stack, overbar, underbar, and accent constants), the `OperatorDictionary`
+unit (`StretchAxis`), the `StyleResolver` unit (`MathStyle`), and the `MathBox` unit (boxes, `PlacedBox`,
+`EmbellishedOperator`). The stretching itself is done by `TokenLayout` through the `relayout` of the
 engine, so the unit does not depend on `StretchyGlyphs`.
 
 #### Callers

@@ -37,10 +37,13 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/radical-layout.yaml`.
   starts after `RadicalKernBeforeDegree` (not negative) and the square root follows the index after
   `RadicalKernAfterDegree` (not less than minus the width of the index; negative in Noto Sans Math, so the symbol slides
   under the index); the bottom of the index is raised from the bottom of the square root by
-  `RadicalDegreeBottomRaisePercent` (at Chrome's 1/64 precision) of the height of the symbol; the ascent grows to the
-  top of the index, and the descent follows Chrome's formula: with D(B) the descent of the square root B, R the raise,
-  and A(I) and D(I) the ascent and descent of the index, the descent is max(D(B), D(B) − R + A(I) + D(I)), where
-  MathML Core 3.3.3.3 gives max(D(B), D(B) − R + A(I)); the two differ only for an index taller than the raise.
+  `RadicalDegreeBottomRaisePercent` (at Chrome's 1/64 precision) of the height of the symbol; the ascent and the
+  descent follow Chrome's formulas: with A(B) and D(B) the ascent and descent of the square root B, R the raise, and
+  A(I) and D(I) the ascent and descent of the index, the ascent is max(A(B), −D(B) + R + D(I) + A(I)) (the top of the
+  index) and the descent max(D(B), D(B) − R + A(I) + D(I)), where MathML Core 3.3.3.3 gives max(A(B), −D(B) + R + A(I))
+  and max(D(B), D(B) − R + A(I)), leaving the depth of the index out. Chrome draws an index taller than R lower than
+  its raise while keeping that ascent; CanvasNet keeps the bottom of every index R above the bottom of the square root
+  (see *Known Differences* of the system design).
 
 #### Error Handling
 
@@ -50,7 +53,8 @@ A symbol whose assembly needs more glyphs than `MaxAssemblyParts` throws, throug
 #### Dependencies
 
 The `MathFont` unit (the radical constants and the glyph metrics), the `StretchyGlyphs` unit (the stretched symbol and
-its preferred inline size), the `MathBox` unit (boxes, `GlyphItem`, `RuleItem`), and the root namespace's
+its preferred inline size), the `OperatorDictionary` unit (`StretchAxis.Block`), the `StyleResolver` unit
+(`MathStyle`), the `MathBox` unit (boxes, `GlyphItem`, `RuleItem`), and the root namespace's
 `MathMlLimits`, `MathMlLocation`, and `MathMlRenderException`.
 
 #### Callers

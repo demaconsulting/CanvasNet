@@ -75,7 +75,8 @@ public class RowLayoutTests
 
     /// <summary>
     ///     Validates the grouping rules: a row of one operator and space-like elements is an embellished operator that
-    ///     adds no spacing inside (unless it is <c>math</c>), and a row of space-like elements is space-like.
+    ///     adds no spacing inside (unless it is <c>math</c>; the anonymous row of <c>msqrt</c> or <c>mtd</c> adds none
+    ///     either but carries no operator), and a row of space-like elements is space-like.
     /// </summary>
     [Fact]
     public void RowLayout_LayoutRow_Grouping_PropagatesOperatorAndSpaceLikeness()
@@ -88,12 +89,14 @@ public class RowLayoutTests
         // Act
         var embellished = Rows().LayoutRow([space, op], isMath: false);
         var math = Rows().LayoutRow([space, op], isMath: true);
+        var anonymous = Rows().LayoutRow([space, op], isMath: false, isAnonymous: true);
         var plain = Rows().LayoutRow([operand, op], isMath: false);
         var spaces = Rows().LayoutRow([space, space], isMath: false);
 
         // Assert
         Assert.Equal((op.Operator, 8.0), (embellished.Operator, embellished.Width));
         Assert.Equal(((EmbellishedOperator?)null, 15.0), (math.Operator, math.Width));
+        Assert.Equal(((EmbellishedOperator?)null, 8.0), (anonymous.Operator, anonymous.Width));
         Assert.Null(plain.Operator);
         Assert.True(spaces.IsSpaceLike);
         Assert.False(plain.IsSpaceLike);
@@ -101,7 +104,8 @@ public class RowLayoutTests
 
     /// <summary>
     ///     Validates that the italic correction is not added between children (as Chrome) and that the row takes the
-    ///     italic correction of its last child.
+    ///     italic correction of its last child, unless that child is an embellished operator (whose italic correction
+    ///     serves only its own scripts).
     /// </summary>
     [Fact]
     public void RowLayout_LayoutRow_ItalicCorrection_ComesFromTheLastChild()
@@ -112,15 +116,19 @@ public class RowLayoutTests
 
         // Act
         var row = Rows().LayoutRow([slanted, upright, slanted], isMath: false);
+        var largeOp = new MathBox(10, 5, 0) { ItalicCorrection = 2, Operator = new EmbellishedOperator(0, 0) };
+        var endsWithOperator = Rows().LayoutRow([upright, largeOp], isMath: false);
 
         // Assert
         Assert.Equal([0.0, 10.0, 20.0], row.Children.Select(child => child.X));
         Assert.Equal((30.0, 2.0), (row.Width, row.ItalicCorrection));
+        Assert.Equal(0, endsWithOperator.ItalicCorrection);
     }
 
     /// <summary>
     ///     Validates every attribute of <c>mpadded</c>: the requested width, height and depth, the lspace and voffset that
-    ///     move the inner box, and the percentages and negative values that are ignored or clamped.
+    ///     move the inner box, and the percentages and negative values that are ignored or clamped (a negative width
+    ///     reported as an invalid value).
     /// </summary>
     [Fact]
     public void RowLayout_LayoutPadded_Attributes_SetSizeAndMoveContent()
@@ -130,18 +138,27 @@ public class RowLayoutTests
         var sink = new MathMlReportSink(10, false);
         var padded = Node("mpadded", [], ("width", "2em"), ("height", "1em"), ("depth", "0.5em"), ("lspace", "0.25em"), ("voffset", "0.2em"));
         var percentages = Node("mpadded", [], ("width", "50%"), ("height", "-1em"), ("lspace", "-1em"));
+        var negative = Node("mpadded", [], ("width", "-1em"));
+        var warnings = new List<MathMlDiagnostic>();
         var unsupported = new List<MathMlUnsupportedFeature>();
 
         // Act
         var box = Rows(sink).LayoutPadded(padded, Style, inner);
         var clamped = Rows(sink).LayoutPadded(percentages, Style, inner);
-        sink.Deliver(null, unsupported.Add);
+        var ignored = Rows(sink).LayoutPadded(negative, Style, inner);
+        sink.Deliver(warnings.Add, unsupported.Add);
 
         // Assert
         Assert.Equal((200.0, 100.0, 50.0), (box.Width, box.Ascent, box.Descent));
         Assert.Equal((25.0, -20.0), (box.Children[0].X, box.Children[0].Y));
         Assert.Equal((30.0, 0.0, 10.0, 0.0), (clamped.Width, clamped.Ascent, clamped.Descent, clamped.Children[0].X));
         Assert.Equal(MathMlDiagnosticCodes.AttributeUnsupported, Assert.Single(unsupported).Feature);
+
+        // Assert: a negative width keeps the inner width and is reported at the attribute, as for mspace
+        Assert.Equal(30.0, ignored.Width);
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, warning.Code);
+        Assert.Equal(negative.Attributes["width"].Location, warning.Location);
     }
 
     /// <summary>
@@ -277,6 +294,9 @@ public class RowLayoutTests
     /// </summary>
     /// <param name="sink">The sink, or null for a new one.</param>
     /// <returns>The row layout.</returns>
-    private static RowLayout Rows(MathMlReportSink? sink = null) =>
-        new(new StyleResolver(MathFont.Default, sink ?? new MathMlReportSink(10, false)));
+    private static RowLayout Rows(MathMlReportSink? sink = null)
+    {
+        sink ??= new MathMlReportSink(10, false);
+        return new(new StyleResolver(MathFont.Default, sink), sink);
+    }
 }

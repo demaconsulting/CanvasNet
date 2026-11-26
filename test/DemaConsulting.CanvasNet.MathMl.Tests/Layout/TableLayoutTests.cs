@@ -253,12 +253,44 @@ public class TableLayoutTests
     }
 
     /// <summary>
-    ///     Validates the reports: invalid values of the table attributes are reported as
-    ///     <see cref="MathMlDiagnosticCodes.AttributeInvalid"/> and ignored, spans are clamped or reset, and the legacy
-    ///     attributes of <c>mtable</c> are reported as <see cref="MathMlDiagnosticCodes.AttributeUnsupported"/>.
+    ///     Validates that the spans are read with the HTML rules for parsing non-negative integers, as browsers read them:
+    ///     a plus sign and whitespace before the digits are allowed, and characters after them are ignored (and reported
+    ///     as <see cref="MathMlDiagnosticCodes.AttributeInvalid"/>), so <c>2px</c>, <c>+2</c> and <c> 2</c> span two
+    ///     columns.
     /// </summary>
     [Fact]
-    public void TableLayout_Layout_InvalidAndLegacyAttributes_AreReported()
+    public void TableLayout_Layout_SpanValues_ReadAsHtmlIntegers()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(100, false);
+        var table = Table(
+            Row(Cell(10, 10, 0, ("columnspan", "2px"))),
+            Row(Cell(10, 10, 0, ("columnspan", "+2"))),
+            Row(Cell(10, 10, 0, ("columnspan", " 2"))),
+            Row(Cell(30, 10, 0), Cell(50, 10, 0)));
+
+        // Act
+        var box = new TableLayout(MathFont.Default, sink, MathMlLimits.Default).Layout(table, (_, _) => { });
+        var warnings = new List<MathMlDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert: every spanning cell covers both columns
+        var rows = Rows(box);
+        var both = rows[3].Children[0].Box.Width + rows[3].Children[1].Box.Width;
+        Assert.Equal((30 + (2 * Pad)) + (50 + (2 * Pad)), both, 9);
+        Assert.All(rows.Take(3), row => Assert.Equal(both, Assert.Single(row.Children).Box.Width, 9));
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MathMlDiagnosticCodes.AttributeInvalid, warning.Code);
+        Assert.Contains("'2px'", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the reports: invalid values of the table attributes are reported as
+    ///     <see cref="MathMlDiagnosticCodes.AttributeInvalid"/> and ignored, and spans are clamped or reset (the legacy
+    ///     attributes of <c>mtable</c> are reported by the layout engine, see <see cref="LayoutEngineTests"/>).
+    /// </summary>
+    [Fact]
+    public void TableLayout_Layout_InvalidAttributes_AreReported()
     {
         // Arrange
         var sink = new MathMlReportSink(100, false);
@@ -270,10 +302,6 @@ public class TableLayoutTests
         var box = new TableLayout(MathFont.Default, sink, MathMlLimits.Default).Layout(table, (_, _) => { });
         var warnings = new List<MathMlDiagnostic>();
         sink.Deliver(warnings.Add, null);
-        var legacy = new MathMlReportSink(100, false);
-        LayoutText(Math("<mtable align=\"axis\" equalrows=\"true\" columnwidth=\"auto\" groupalign=\"left\"><mtr><mtd groupalign=\"left\"><mi>a</mi></mtd></mtr></mtable>"), 100, legacy);
-        var unsupported = new List<MathMlUnsupportedFeature>();
-        legacy.Deliver(null, unsupported.Add);
 
         // Assert
         Assert.Equal(10, warnings.Count);
@@ -282,8 +310,6 @@ public class TableLayoutTests
         Assert.Equal(3, Rows(box)[0].Children.Count);
         Assert.True(Rows(box)[0].Children[2].X > 0);
         Assert.Empty(box.Items);
-        Assert.Equal(5, unsupported.Count);
-        Assert.All(unsupported, report => Assert.Equal(MathMlDiagnosticCodes.AttributeUnsupported, report.Feature));
     }
 
     /// <summary>

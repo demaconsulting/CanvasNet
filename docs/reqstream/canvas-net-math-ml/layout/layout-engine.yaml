@@ -116,8 +116,11 @@ sections:
                   lay out only the first child of semantics and maction, and shall leave such elements out when it
                   predicts the forms of operators and the children of a fraction, root, or scripted element.
                 justification: |
-                  The user agent stylesheet of MathML Core hides these elements, and an element without a box is not in
-                  flow, so it cannot change the form of an operator beside it.
+                  The user agent stylesheet of MathML Core hides display: none and the children of semantics and maction
+                  but the first. Annotations hold other encodings of the equation (TeX, content MathML) that are not
+                  meant to be seen; MathML Core 3.7 would lay them out like mtext and mrow, and Chrome draws no text of
+                  an annotation, so CanvasNet leaves them out everywhere (a documented known difference). An element
+                  without a box is not in flow, so it cannot change the form of an operator beside it.
                 tests:
                   - LayoutEngine_Layout_HiddenElements_GetNoBox
                   - LayoutEngine_Layout_HiddenChild_KeepsTheEmbellishedOperator
@@ -133,9 +136,10 @@ sections:
 
               - id: CanvasNetMathMl-Layout-LayoutEngine-UnsupportedAttributes
                 title: >-
-                  The LayoutEngine unit shall report the legacy and unknown attributes of an element it draws and
-                  right-to-left math as mathml-attribute-unsupported, and accept the global attributes that do not
-                  change a picture silently.
+                  The LayoutEngine unit shall report the legacy and unknown attributes of an element it draws (the
+                  legacy mtable attributes outside the MathML 3 set that TableLayout draws included) and right-to-left
+                  math as mathml-attribute-unsupported, and accept the global attributes that do not change a picture
+                  silently.
                 justification: |
                   An attribute without effect changes the meaning the author intended; the caller must learn it, without
                   noise for identifiers and classes.
@@ -155,10 +159,14 @@ sections:
                 title: >-
                   The LayoutEngine unit shall give each embellished operator child of a row (and of msqrt) the form of
                   its position among the children that are not space-like, and pass the form of an embellished grouping
-                  element on to its operator.
+                  element on to its operator, and shall lay out the anonymous row of msqrt and of mtd like a grouping
+                  element, so that a lone operator in it gets no operator spacing while the msqrt or mtd itself is not
+                  an embellished operator.
                 justification: |
                   The form decides the dictionary entry of an operator, and an operator wrapped in an mrow or mstyle is
-                  spaced by the position of the wrapper, as MathML Core 3.2.4.2 specifies.
+                  spaced by the position of the wrapper, as MathML Core 3.2.4.2 specifies. MathML Core 3.1.3 lays the
+                  children of msqrt and mtd out in an anonymous mrow, which 3.3.1.2 spaces like any grouping element,
+                  and Chrome does so.
                 tests:
                   - LayoutEngine_Layout_OperatorForms_FollowPositionInRow
                   - LayoutEngine_Layout_SqrtChildren_InferForms

@@ -51,10 +51,13 @@ sections:
                 title: >-
                   The UnderOverLayout unit shall lay the children that are operators stretchy along the inline axis out
                   again with the width of the widest other child, or, when every child stretches, of the widest of them
-                  laid out with a zero constraint, except a base laid out with the constraint of its parent.
+                  laid out with a zero constraint, except a base laid out with the constraint of its parent, which does
+                  not stretch again but counts as one of the other children.
                 justification: |
                   MathML Core 3.4.2.2 stretches braces, arrows and wide accents to the width of the expression they
-                  annotate.
+                  annotate. A base already stretched by its parent counts toward that width, so an accent over a
+                  stretched arrow covers it; MathML Core takes the width from the other children only (a documented
+                  known difference that Chrome, which stretches no scripted operator, cannot show).
                 tests:
                   - UnderOverLayout_StretchInline_StretchesOperatorsToTheWidestChild
                   - UnderOverLayout_StretchInline_AllStretchy_UsesZeroTarget

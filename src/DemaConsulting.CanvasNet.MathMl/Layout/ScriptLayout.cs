@@ -31,7 +31,9 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 ///         an operator drawn with a size variant or an assembly (an operator drawn with its normal glyph and a token such
 ///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction), and
 ///         the width is that of the base and the wider script with SpaceAfterScript, without the italic corrections (MathML
-///         Core adds them).
+///         Core adds them), so a subscript of a large operator that is wider than its superscript is followed by
+///         LargeOpItalicCorrection more space, as in Chrome (verified by the reference fixture
+///         <c>scripts-largeop-wide-limit</c>).
 ///     </para>
 ///     <para>
 ///         <b>mmultiscripts (3.4.3.1).</b> The shifts are the largest over the pairs (each pair as an <c>msubsup</c>);

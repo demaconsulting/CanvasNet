@@ -124,7 +124,8 @@ Asserts at 18 px that an infix plus adds 4 px on each side, a prefix minus nothi
 (measured against the same equations with `lspace="0"` and `rspace="0"`), and that the fixtures `operators-spacing`
 (categories A, B, C, K, M, and Default) and `operators-forms` (prefix, infix, and postfix forms, an explicit form,
 `lspace` and `rspace` with a percentage, a large operator inline, a text operator, a prime, the ForceDefault vertical
-line, and two-character operators) match Chrome's boxes.
+line, and two-character operators), and `operators-lone-in-msqrt-mtd` (a lone operator without spacing in the
+anonymous rows of `msqrt` and `mtd`) match Chrome's boxes.
 
 ### CanvasNetMathMl-StretchyOperators: Stretched And Large Operators
 
@@ -156,8 +157,9 @@ padding; that `bevelled`, `numalign`, and `denomalign` are reported as three `ma
 while the fraction renders pixel for pixel like the one without them; and that the fixtures `mfrac-basic` (inline and
 display style), `mfrac-linethickness` (`0`, `0px`, `200%`, `3px`, `0.2em`, and a negative value), `mfrac-nested`
 (continued fractions, inline and display, whose levels follow `math-depth: auto-add`), `mfrac-operators` (fractions
-between operators and an embellished fraction spaced as its operator), and `mfrac-fenced` (parentheses and brackets
-stretched around fractions) match Chrome's boxes.
+between operators and an embellished fraction spaced as its operator), `mfrac-fenced` (parentheses and brackets
+stretched around fractions), and `mfrac-raised-denominator` (a denominator above its baseline, with a bar and as a
+stack, whose fraction still reaches down to the baseline) match Chrome's boxes.
 
 ### CanvasNetMathMl-Radicals: Radicals Are Drawn
 
@@ -168,7 +170,8 @@ Asserts at 32 px that the overbar of a square root of an empty 40 px base is pur
 whole base, that nothing is painted over the empty base under it, and that the radical symbol is inked left of the base;
 and that the fixtures `msqrt-basic` (one and several children, operators that infer their forms), `msqrt-tall`
 (fractions and tall `mspace` bases that select size variants and the glyph assembly), and `mroot-index` (a cube root
-with a narrow index, a wide index, and nested roots in display style) match Chrome's boxes.
+with a narrow index, a wide index, and nested roots in display style), and `mroot-deep-index` (indexes with a depth,
+which the ascent of the root counts) match Chrome's boxes.
 
 ### CanvasNetMathMl-Scripts: Scripts Are Drawn
 
@@ -180,9 +183,11 @@ its top, that the ink of the subscript of `a₁` starts at the right of its base
 reported; and that the fixtures `msub-msup` (letter, italic *f*, digit, and row bases), `msubsup-gap` (the gap of both
 scripts with `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop`
 (integrals inline and in display style, whose subscript follows the italic correction of the large variant),
-`mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and prescripts
-with `none`), and `scripts-embellished-fence` (scripts on a fenced row, embellished scripted operators spaced by their
-operators) match Chrome's boxes.
+`scripts-largeop-wide-limit` (an integral in display math whose lower limit is wider than its upper limit, followed by
+the space the subscript leaves), `msup-italic-letter` (digit superscripts of ζ and b, inline and cramped under a
+radical), `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and
+prescripts with `none`), and `scripts-embellished-fence` (scripts on a fenced row, embellished scripted operators spaced
+by their operators) match Chrome's boxes.
 
 ### CanvasNetMathMl-UnderOver: Under- And Overscripts Are Drawn
 
@@ -215,7 +220,8 @@ cell, that the frame is inked along the left edge of the table, and that the ins
 that the fixtures `table-matrix` (a 3 by 3 matrix of letters and digits), `table-spans` (`columnspan`, `rowspan`, and
 `rowspan="0"`, whose excess Chrome spreads in proportion), `table-fenced-matrix` (a matrix in stretched parentheses next
 to a fraction in a display equation), and `table-cell-baselines` (fractions, scripts, a radical, and a deep `mspace` in
-cells, compact in a table) match Chrome's boxes.
+cells, compact in a table), and `table-span-values` (the spans `2px`, `+2`, and ` 2` read as browsers read them) match
+Chrome's boxes.
 
 ### CanvasNetMathMl-TableExtensions: The MathML 3 Table Attributes
 

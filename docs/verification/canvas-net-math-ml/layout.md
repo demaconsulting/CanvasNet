@@ -36,6 +36,14 @@ Lays out `x + 1` at 100 px and asserts the width as the advances of the italic x
 dictionary spacing of the operator (category B, 4/18 em) on both sides, the ascent as the rounded-out ink top of the
 three glyphs, and the positions of the three children.
 
+#### CanvasNetMathMl-Layout-Operators: Explicit Forms And Script Operators
+
+**Tests**: `LayoutTests.Layout_ExplicitFormAndScriptOperator_FollowTheDictionary`
+
+Lays out `a + b` with `form="prefix"` on the plus, and an `msup` whose superscript is a plus, at 100 px, and asserts
+that the plus takes the prefix form and is spaced by the leading and trailing space of the prefix entry of the
+dictionary (not the infix spacing of its position), and that the operator of the superscript is postfix.
+
 #### CanvasNetMathMl-Layout-Stretching: Fences Around A Tall Row
 
 **Tests**: `LayoutTests.Layout_StretchyFencesAroundTallRow_MatchConstants`
@@ -44,11 +52,35 @@ Lays out parentheses around an `mspace` of 2 em by 1 em at 100 px and asserts th
 AxisHeight of the font, covers the larger half of the row on both sides of the axis, is as wide as its preferred inline
 size, and is placed without spacing (categories F and G).
 
+#### CanvasNetMathMl-Layout-Stretching: Inline Stretching, Large Operators, And The Report
+
+**Tests**: `LayoutTests.Layout_InlineStretchLargeOperatorAndReport_FollowTheFont`
+
+Lays out an over brace over a row of five letters, a summation inline and in display style, and a `stretchy="true"`
+star beside a tall `mspace` at 100 px, and asserts that the ink of the stretched brace (an assembly of several glyphs)
+spans the width of its base, that the summation in display style is drawn with another, taller glyph (a size variant)
+than inline, and that the star, which nothing can stretch, is reported once as `mathml-stretch-unavailable`.
+
 #### CanvasNetMathMl-Layout-Style And MathFont: Script Levels
 
 **Tests**: `LayoutTests.Layout_ScriptLevel_ScalesTokensWithMathConstants`
 
 Asserts that `scriptlevel="1"` makes the digits 60 % as wide, the ScriptPercentScaleDown constant of the font.
+
+#### CanvasNetMathMl-Layout-Style: Colors, mathvariant, And The Inline Style
+
+**Tests**: `LayoutTests.Layout_ColorVariantAndInlineStyle_StyleTheGlyphs`
+
+Lays out four letters and asserts that `mathcolor="red"` and `style="color: lime"` color their glyphs, that
+`mathvariant="bold"` draws the glyph of the bold letter U+1D41A, and that an invalid `mathvariant` is reported once as
+`mathml-attribute-invalid` at its line while its letter keeps the automatic italic.
+
+#### CanvasNetMathMl-Layout-MathFont: A Character No Font Has
+
+**Tests**: `LayoutTests.Layout_MissingGlyph_IsReported`
+
+Lays out a private-use character and asserts that it is drawn as one glyph (the missing-glyph box) and reported once
+as `mathml-text-missing-glyph` at the line of its token.
 
 #### CanvasNetMathMl-Layout-Fractions, Radicals, And Style: Fractions And Square Roots
 
@@ -69,15 +101,26 @@ SubscriptTopMax, and SubscriptBaselineDropMin + the descent of the base, with th
 SpaceAfterScript; that the bottom of the upper limit is the larger of UpperLimitGapMin and UpperLimitBaselineRiseMin −
 its descent above the summation; and that the hat keeps the font size of its base (100 px).
 
-#### CanvasNetMathMl-Layout-Tables And TableExtensions: A Table
+#### CanvasNetMathMl-Layout-Tables: A Table
 
 **Tests**: `LayoutTests.Layout_Tables_CenterOnAxisWithCorePadding`
 
 Lays out a 2 by 2 table of `mspace` contents (one cell empty) at 100 px and asserts that its height is the padded
 heights of its rows (0.5ex of the font above and below each content), that its ascent is half its height plus
 AxisHeight, that its columns are their widest content plus 80 px, that the first row's baseline lies its padded ascent
-below its top, and that the contents start 0.4em into their cells. The MathML 3 table attributes are exercised through
-the subsystem by the unit tests of `TableLayout` and compared with Firefox at the system level.
+below its top, and that the contents start 0.4em into their cells.
+
+#### CanvasNetMathMl-Layout-TableExtensions: The MathML 3 Table Attributes
+
+**Tests**: `LayoutTests.Layout_TableExtensions_AlignSpaceAndRule`
+
+Lays out a 2 by 2 table of `mspace` contents (1 em wide in the first row, 2 em in the second) with
+`columnalign="left right"`, `rowspacing="2em"`, `columnlines="solid"`, `frame="solid"`, and the invalid
+`rowlines="wavy"` at 100 px, and asserts that the narrow contents are aligned with the left edge of the wide one in the
+first column and with its right edge in the second, that 200 px separate the bottom of the first row's contents from the
+top of the second's, that a one-pixel column line lies between the columns and a one-pixel frame rule runs along the
+top of the table, and that the invalid `rowlines` is reported once as `mathml-attribute-invalid` at its line and draws
+no row line. The layout is compared with Firefox at the system level.
 
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 
@@ -91,14 +134,16 @@ with one `mathml-child-count` warning at line 2, column 2.
 **Tests**: `LayoutTests.Layout_UnsupportedElementsAndAttributes_AreRowsWithReports`
 
 Lays out an `menclose`, an `mi` with `dir="rtl"`, and an `mn` with an invalid `mathcolor`, and asserts that the
-enclosure is a row of its two children on its baseline, that the three boxes follow each other, and the reports
+enclosure is a row of its two children on its baseline, that the three boxes follow each other (each starts where the
+previous one ends), and the reports
 `mathml-element-unsupported` and `mathml-attribute-unsupported`, in order, with one `mathml-attribute-invalid` warning.
 
-#### CanvasNetMathMl-Layout-Bounds: Work, Table Slots, And Cancellation
+#### CanvasNetMathMl-Layout-Bounds: Work, Nesting, Table Slots, And Cancellation
 
 **Tests**: `LayoutTests.Layout_Bounds_WorkBudgetAndCancellation_StopTheLayout`
 
 Asserts that a work limit of 3 fails the layout of a row of three tokens with `mathml-limit-exceeded` naming
-`MathMlLimits.MaxLayoutWork`, that a pre-canceled token throws `OperationCanceledException`, that a table whose cell
+`MathMlLimits.MaxLayoutWork`, that a nesting depth limit of 2 fails it with `mathml-limit-exceeded` naming
+`MathMlLimits.MaxNestingDepth`, that a pre-canceled token throws `OperationCanceledException`, that a table whose cell
 spans 20 columns over two rows (40 slots) fails under 39 table cells with `mathml-limit-exceeded` naming
-`MathMlLimits.MaxTableCells`, and that the same equation lays out within the default limits.
+`MathMlLimits.MaxTableCells`, and that the same equation and the same table lay out within the default limits.

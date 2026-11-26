@@ -33,14 +33,17 @@ sections:
                 title: >-
                   The TableLayout unit shall place each cell in the first column of its row that no cell of an earlier
                   row spans into, with a columnspan from 1 to 1,000 and a rowspan from 0 to 65,534 (0 and any span past
-                  the last row ending at the last row), and spread the excess of a cell that spans several columns or
-                  rows over them in proportion to their sizes, equally when they are empty.
+                  the last row ending at the last row) read with the HTML rules for parsing non-negative integers
+                  (whitespace and a plus sign before the digits allowed, characters after them ignored), and spread the
+                  excess of a cell that spans several columns or rows over them in proportion to their sizes, equally
+                  when they are empty.
                 justification: |
-                  MathML Core gives rowspan and columnspan the semantics of HTML, and Chrome spreads the excess of a
-                  spanning cell in proportion to the spanned sizes.
+                  MathML Core gives rowspan and columnspan the semantics and the parsing of HTML, as browsers read them,
+                  and Chrome spreads the excess of a spanning cell in proportion to the spanned sizes.
                 tests:
                   - TableLayout_Layout_Spans_SpreadTheirExcess
                   - TableLayout_Layout_RowSpanZero_SpansToTheEnd
+                  - TableLayout_Layout_SpanValues_ReadAsHtmlIntegers
 
               - id: CanvasNetMathMl-Layout-TableLayout-Axis
                 title: >-
@@ -92,11 +95,14 @@ sections:
                 title: >-
                   The TableLayout unit shall report an invalid value of an alignment, spacing, line, frame or span
                   attribute as a mathml-attribute-invalid warning at the attribute and ignore it (a span larger than its
-                  maximum is clamped), while the legacy table attributes are reported as mathml-attribute-unsupported.
+                  maximum is clamped), and report characters after the digits of a span at the attribute while using
+                  its number.
                 justification: |
-                  The author must learn that a value was not applied; HTML clamps large spans.
+                  The author must learn that a value was not applied or was read differently than written; HTML clamps
+                  large spans and ignores what follows their digits.
                 tests:
-                  - TableLayout_Layout_InvalidAndLegacyAttributes_AreReported
+                  - TableLayout_Layout_InvalidAttributes_AreReported
+                  - TableLayout_Layout_SpanValues_ReadAsHtmlIntegers
 
               - id: CanvasNetMathMl-Layout-TableLayout-Limit
                 title: >-

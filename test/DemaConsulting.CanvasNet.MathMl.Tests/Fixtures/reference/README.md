@@ -19,22 +19,28 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
   `row-nested`, `mathvariant-normal`, `mpadded`, `mphantom`, `mstyle-scriptlevel`, and `merror`.
 - **Operators**: `operators-spacing` (the categories A, B, C, K, M, and Default) and `operators-forms` (prefix, infix,
   and postfix forms, an explicit form, `lspace` and `rspace` with a percentage, a large operator inline, a text
-  operator, a prime, the ForceDefault vertical line, and two-character operators).
+  operator, a prime, the ForceDefault vertical line, and two-character operators), and `operators-lone-in-msqrt-mtd` (a
+  lone operator in the anonymous rows of `msqrt` and `mtd`, which MathML Core and Chrome space as a grouping element:
+  without operator spacing).
 - **Stretchy and large operators**: `stretchy-parens` (the base glyph, variants, and an assembly),
   `stretchy-brackets-braces`, `stretchy-symmetric` (symmetric and non-symmetric targets, `stretchy="false"`, and an
   operator without a construction), `largeop-display`, `largeop-inline`, and `minsize-maxsize` (lengths and percentages,
   a row of only stretchy operators, and operators wrapped in `mrow` and `mstyle`).
 - **Fractions**: `mfrac-basic` (inline and display style), `mfrac-linethickness` (`0`, `0px`, `200%`, `3px`, `0.2em`,
   and `-1px`), `mfrac-nested` (continued fractions, whose levels follow `math-depth: auto-add`), `mfrac-operators`
-  (fractions between operators and an embellished fraction), and `mfrac-fenced` (stretchy fences around fractions).
+  (fractions between operators and an embellished fraction), `mfrac-fenced` (stretchy fences around fractions), and
+  `mfrac-raised-denominator` (a ring above as the denominator, with a bar and as a stack: the descent of the fraction is
+  at least zero).
 - **Radicals**: `msqrt-basic` (one and several children, with the forms of their operators), `msqrt-tall` (size
-  variants and the glyph assembly of the radical symbol), and `mroot-index` (a narrow index, a wide index, and nested
-  roots).
+  variants and the glyph assembly of the radical symbol), `mroot-index` (a narrow index, a wide index, and nested
+  roots), and `mroot-deep-index` (indexes with a depth, which the ascent of the root counts).
 - **Scripts**: `msub-msup` (letter, italic *f*, digit, and row bases), `msubsup-gap` (the gap of both scripts with
   `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop` (integrals inline
-  and in display style), `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide
-  notation and prescripts with `none`), and `scripts-embellished-fence` (scripts on a fenced row and embellished
-  scripted operators spaced by their operators).
+  and in display style), `scripts-largeop-wide-limit` (an integral in display math whose subscript is wider than its
+  superscript), `msup-italic-letter` (digit superscripts of ζ and b, inline and cramped under a radical),
+  `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and prescripts
+  with `none`), and `scripts-embellished-fence` (scripts on a fenced row and embellished scripted operators spaced by
+  their operators).
 - **Under- and overscripts**: `munderover-limits` (limits of a summation, a union, and a product in display style),
   `movablelimits-inline` (limits moved to the script positions inline, `movablelimits="false"`, a text operator, and a
   letter base), `mover-accents` (combining circumflexes stretched over one and three letters, a tilde, an accent
@@ -43,8 +49,9 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
   bases with labels at the stretch stack gaps, a non-stretchy arrow over a wide label, and an arrow overscript).
 - **Tables**: `table-matrix` (a 3 by 3 matrix of letters and digits), `table-spans` (`columnspan`, `rowspan`, and
   `rowspan="0"`, with `mspace` contents), `table-fenced-matrix` (a matrix in stretched parentheses after `A =` and
-  before a fraction, in a display equation), and `table-cell-baselines` (fractions, scripts, a radical, and a deep
-  `mspace` in the cells of an inline table, followed by an operator and a letter).
+  before a fraction, in a display equation), `table-cell-baselines` (fractions, scripts, a radical, and a deep `mspace`
+  in the cells of an inline table, followed by an operator and a letter), and `table-span-values` (the `columnspan`
+  values `2px`, `+2`, and ` 2`, which browsers read with the HTML rules for parsing non-negative integers).
 
 ## Behaviors Matched
 
@@ -67,7 +74,14 @@ pin them:
   the percentage taken at Chrome's 1/64 precision (`mroot-index`).
 - Only the italic correction of an operator drawn with a size variant or an assembly moves a script (`scripts-largeop`;
   the superscript of an italic *f* starts at its advance, `msub-msup`), and the width of a scripted element is its base
-  and its wider script with SpaceAfterScript, without the italic corrections.
+  and its wider script with SpaceAfterScript, without the italic corrections. Two visible consequences: a large
+  operator whose subscript is wider than its superscript ends LargeOpItalicCorrection plus SpaceAfterScript after its
+  subscript (`scripts-largeop-wide-limit`), and the superscript of an italic letter starts at the advance of the letter
+  with its bottom below the top of a tall letter, so a letter leaning right at its top (ζ, b) may touch it
+  (`msup-italic-letter`).
+- The ascent and the descent of a root count the depth of its index (`mroot-deep-index`; MathML Core leaves it out of
+  both). Chrome draws an index taller than the raise of its bottom lower than that raise, which CanvasNet does not (a
+  known difference), so the fixtures use indexes no taller than the raise.
 - An overscript is centered on its base rather than placed by its top accent attachment, and the gaps of an accent and
   of a script that is neither a limit nor on a stretchy base are measured between the boxes (`mover-accents`).
 - An operator stretched along the inline axis keeps the inline size of its unstretched glyph, its stretched glyph
@@ -92,6 +106,8 @@ pin them:
   test, and `mfrac-fenced` and `mfrac-operators` avoid the letters whose automatic italic Chrome measures on a taller or
   shorter upright letter (see *Known Differences*). The ink width of an assembled radical symbol rounds a pixel narrower
   than Chrome's for the same reason (`msqrt-tall`, within the tolerance).
+- `scripts-largeop-wide-limit` uses letters as limits: a minus sign and an infinity at 60 px each carry a hinted pixel
+  that adds up beyond the tolerance in the height of the scripted element.
 - The script fixtures avoid the same pixel: digits and letters with descenders as scripts at 60 px (`j`, `y`, and the
   `=` sign of a limit), and the `lim` operator in display style (a pixel taller in Chrome), would carry it beyond the
   tolerance together with Chrome's 1/64 pixel flooring of the MATH constants; `msubsup-gap` uses `mspace` scripts to

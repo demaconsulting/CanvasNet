@@ -22,12 +22,13 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.ya
 - `OperatorCategory` - `Default`, `ForceDefault`, and `A` to `M` of Figure 26.
 - `OperatorProperties(Category, LeadingSpace, TrailingSpace, Stretchy, Symmetric, LargeOp, MovableLimits)` - the values
   of a category, with the spacing in em.
-- The generated tables (properties, read once, so that the order of the static initializers of the two files does not
-  matter): `TwoAsciiOperators` (the 18 strings of Operators_2_ascii_chars), `FenceRanges` and `SeparatorRanges`
-  (Operators_fence and Operators_separator as ranges), `InfixRanges`, `PrefixRanges`, and `PostfixRanges` (the mapping
-  of Figure 25 from a code point to a category, as sorted, disjoint ranges per form), `CategoryValues` (Figure 26), and
-  `InlineAxisCodePoints` (Figure 28, ascending). Reading Figure 25 directly is equivalent to the encoded Figure 27 and
-  easier to review.
+- The generated tables (the integer tables are span properties over constant data of the assembly, and the string and
+  category tables static readonly fields built once; the other file of the class declares no static fields, so the order
+  of the static initializers of the two files does not matter): `TwoAsciiOperators` (the 18 strings of
+  Operators_2_ascii_chars), `FenceRanges` and `SeparatorRanges` (Operators_fence and Operators_separator as ranges),
+  `InfixRanges`, `PrefixRanges`, and `PostfixRanges` (the mapping of Figure 25 from a code point to a category, as
+  sorted, disjoint ranges per form), `CategoryValues` (Figure 26), and `InlineAxisCodePoints` (Figure 28, ascending).
+  Reading Figure 25 directly is equivalent to the encoded Figure 27 and easier to review.
 
 #### Key Methods
 
@@ -43,7 +44,8 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/operator-dictionary.ya
 - `Axis(content)` - inline for a text of a single character of the inline list, block otherwise.
 - `InferForm(position, count)` - the first of several in-flow children that are not space-like is prefix, the last of
   several is postfix, any other is infix (MathML Core 3.2.4.2).
-- `TryParseForm(value, out form)` - the value of the `form` attribute, ASCII case-insensitive.
+- `TryParseForm(value, out form)` - the value of the `form` attribute, ASCII case-insensitive and exact (whitespace
+  around it makes it invalid, as MathML Core matches it).
 - `TablesAreWellFormed()` - checks that the generated tables are sorted and disjoint, for the tests.
 
 #### Error Handling
@@ -58,4 +60,5 @@ None beyond the .NET base class library.
 #### Callers
 
 `TokenLayout` resolves the properties of every `mo`; `LayoutEngine` infers the forms of the embellished operators of a
-row; `RowLayout`, `MathFont`, `StretchyGlyphs`, and the `MathBox` records use `StretchAxis` and `OperatorForm`.
+row; `RowLayout`, `RadicalLayout`, `UnderOverLayout`, `MathFont`, `StretchyGlyphs`, and the `MathBox` records use
+`StretchAxis` and `OperatorForm`.

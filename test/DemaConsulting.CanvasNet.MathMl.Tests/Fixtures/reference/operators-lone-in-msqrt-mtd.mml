@@ -1,0 +1,19 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>x</mi>
+  <msqrt>
+    <mo>=</mo>
+  </msqrt>
+  <mi>x</mi>
+  <mtable>
+    <mtr>
+      <mtd>
+        <mo>=</mo>
+      </mtd>
+      <mtd>
+        <mi>x</mi>
+        <mo>=</mo>
+      </mtd>
+    </mtr>
+  </mtable>
+  <mi>x</mi>
+</math>

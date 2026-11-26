@@ -39,12 +39,13 @@ style. The unit's behavior is specified by the `CanvasNetMathMl-Layout-StretchyG
   bearings, which leaves gaps.
 - `SolveAssembly(parts, minOverlap, target, maxParts, location)` - MathML Core 5.3.1: every extender is repeated r times
   and one overlap o joins every pair of adjacent glyphs. The connectors that join two glyphs (every start connector but
-  that of a first non-extender, every end connector but that of a last non-extender) bound o from above; when one is
-  shorter than `MinConnectorOverlap`, it lowers the minimum instead of invalidating the assembly as MathML Core would
-  (the arrows of Noto Sans Math join their extenders without overlap). r is the smallest number of repetitions whose
-  size at the minimum overlap reaches the target (with a tolerance of 1e-9); more than `maxParts` glyphs throw before
-  any glyph is placed. o spreads the extra size evenly, clamped between the minimum overlap and the connectors. An
-  assembly without an extender, or whose extenders do not grow it, is invalid (null).
+  that of a first non-extender, every end connector but that of a last non-extender; the literal text of 5.3.1 names the
+  other two ends, most likely an erratum, while the outer ends join nothing - a known difference) bound o from above;
+  when one is shorter than `MinConnectorOverlap`, it lowers the minimum instead of invalidating the assembly as MathML
+  Core would (the arrows of Noto Sans Math join their extenders without overlap). r is the smallest number of
+  repetitions whose size at the minimum overlap reaches the target (with a tolerance of 1e-9); more than `maxParts`
+  glyphs throw before any glyph is placed. o spreads the extra size evenly, clamped between the minimum overlap and the
+  connectors. An assembly without an extender, or whose extenders do not grow it, is invalid (null).
 - `Assemble` - places the glyphs from the bottom (or the left), each the overlap before the end of the previous one: a
   vertical part with the bottom of its ink on that position, a horizontal part with its origin there. The width of a
   vertical assembly is the largest advance of its parts; the ascent and descent of a horizontal one are the largest of

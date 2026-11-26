@@ -10,7 +10,8 @@ namespace DemaConsulting.CanvasNet.MathMl.Layout;
 ///         <b>Inline stretching (3.4.2.2).</b> The children that are embellished operators stretchy along the inline
 ///         axis are laid out again with an inline stretch size constraint: the width of the widest other child (or, when
 ///         every child stretches, of the widest of them laid out with a zero constraint). A base laid out with the
-///         constraint of its parent (the element is itself an embellished operator) does not take part.
+///         constraint of its parent (the element is itself an embellished operator) does not stretch again but counts
+///         toward the width, where MathML Core takes the width from the other children only (a documented difference).
 ///     </para>
 ///     <para>
 ///         <b>Horizontal placement.</b> The children are centered on each other, the underscript moved left and the

@@ -61,7 +61,8 @@ finite, clamped lengths; there are no reports.
 
 #### Dependencies
 
-The `MathFont` unit (the script constants) and the `MathBox` unit (boxes, `PlacedBox`, `EmbellishedOperator`).
+The `MathFont` unit (the script constants), the `StyleResolver` unit (`MathStyle`: the font size and the math shift),
+and the `MathBox` unit (boxes, `PlacedBox`, `EmbellishedOperator`).
 
 #### Callers
 

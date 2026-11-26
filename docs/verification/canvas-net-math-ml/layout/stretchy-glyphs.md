@@ -48,7 +48,7 @@ of at least 150 px, and that the large variant of a summation is another glyph, 
 Asserts that 744.4 px is a bottom, six extenders, and a top of exactly 744.4 px standing on the baseline with each part
 above the previous; the overlap bounds and the minimal repetitions over the theory; exact sizes for four targets; that
 an assembly without an extender or whose extenders do not grow it is invalid; that the right arrow assembles left to
-right to at least 600 px (its extenders join without overlap); that an over brace assembled to 1000 px has whole-pixel
+right to at least 600 px, its glyphs in left-to-right order; that an over brace assembled to 1000 px has whole-pixel
 ink extents above the baseline (a negative descent); and the preferred inline size as the widest of the base,
 the variants, and the parts (the advance of the letter x for a character without a construction).
 

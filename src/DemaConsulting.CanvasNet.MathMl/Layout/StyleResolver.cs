@@ -141,16 +141,16 @@ internal sealed class StyleResolver
     /// </summary>
     /// <param name="value">The attribute value, or null when absent.</param>
     /// <param name="display">The display mode: block for <c>block</c>, inline otherwise.</param>
-    /// <returns>True when the value is absent, <c>block</c> or <c>inline</c> (ASCII case-insensitive).</returns>
+    /// <returns>True when the value is absent, <c>block</c> or <c>inline</c> (ASCII case-insensitive, without trimming whitespace, as MathML Core matches it).</returns>
     public static bool TryParseDisplay(string? value, out MathMlDisplay display)
     {
         display = MathMlDisplay.Inline;
-        if (value is null || value.Trim().Equals("inline", StringComparison.OrdinalIgnoreCase))
+        if (value is null || value.Equals("inline", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (value.Trim().Equals("block", StringComparison.OrdinalIgnoreCase))
+        if (value.Equals("block", StringComparison.OrdinalIgnoreCase))
         {
             display = MathMlDisplay.Block;
             return true;

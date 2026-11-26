@@ -18,8 +18,8 @@ sections:
                   The FractionLayout unit shall, for a nonzero line thickness, shift the numerator up by the larger of
                   the numerator shift of the MATH table and the gap that keeps the minimum numerator gap above the bar,
                   shift the denominator down likewise below the bar, choose the display-style constants in display
-                  style and the others in compact style, and paint a bar of the line thickness centered on the math
-                  axis across the content box in the color of the fraction.
+                  style and the others in compact style, give the fraction a descent of at least zero, and paint a bar
+                  of the line thickness centered on the math axis across the content box in the color of the fraction.
                 justification: |
                   MathML Core 3.3.2.1 positions the children of a fraction by these constants, and the bar marks the
                   fraction on the math axis.
@@ -28,17 +28,19 @@ sections:
                   - FractionLayout_Layout_Compact_UsesTextShiftsAndGaps
                   - FractionLayout_Layout_TallChildren_PushedByGapRules
                   - FractionLayout_Layout_Bar_IsCenteredOnAxisWithItsThickness
+                  - FractionLayout_Layout_RaisedDenominator_DescentIsZero
 
               - id: CanvasNetMathMl-Layout-FractionLayout-Stack
                 title: >-
                   The FractionLayout unit shall, for a zero line thickness, place the children with the stack shifts of
-                  the MATH table, increase both shifts by half of the gap missing to the minimum stack gap, and paint
-                  no bar.
+                  the MATH table, increase both shifts by half of the gap missing to the minimum stack gap, give the
+                  fraction a descent of at least zero, and paint no bar.
                 justification: |
                   MathML Core 3.3.2.2 lays a fraction without a bar out as a stack, as binomial coefficients are
                   written.
                 tests:
                   - FractionLayout_Layout_ZeroThickness_UsesStackShiftsAndGap
+                  - FractionLayout_Layout_RaisedDenominator_DescentIsZero
 
               - id: CanvasNetMathMl-Layout-FractionLayout-LineThickness
                 title: >-

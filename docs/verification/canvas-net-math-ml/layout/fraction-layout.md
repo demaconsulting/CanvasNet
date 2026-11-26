@@ -32,21 +32,24 @@ rectangle or color, a thickness, or a report that differs from the expected valu
 **Tests**: `FractionLayoutTests.FractionLayout_Layout_DisplayStyle_UsesDisplayShiftsAndGaps`,
 `FractionLayoutTests.FractionLayout_Layout_Compact_UsesTextShiftsAndGaps`,
 `FractionLayoutTests.FractionLayout_Layout_TallChildren_PushedByGapRules`,
-`FractionLayoutTests.FractionLayout_Layout_Bar_IsCenteredOnAxisWithItsThickness`
+`FractionLayoutTests.FractionLayout_Layout_Bar_IsCenteredOnAxisWithItsThickness`,
+`FractionLayoutTests.FractionLayout_Layout_RaisedDenominator_DescentIsZero`
 
 Asserts that small children are shifted by the display-style constants (70.4 px up, 67.3 px down) in display style,
 with the resulting ascent and descent, and by the standard constants (52.9 px and 32 px) in compact style; that a
 numerator descending 40 px and a denominator 60 px tall are pushed to exactly the minimum gaps of 7.1 px from the bar;
 and that the bar is a rule of the given thickness, 1 px from the left edge, as wide as the content, centered on the axis
-of 27.8 px, in the color of the style.
+of 27.8 px, in the color of the style; and that a denominator whose ink lies 10 to 110 px above its baseline, ending
+above the baseline of the fraction, leaves the descent at zero.
 
 ##### CanvasNetMathMl-Layout-FractionLayout-Stack: A Fraction Without A Bar
 
-**Tests**: `FractionLayoutTests.FractionLayout_Layout_ZeroThickness_UsesStackShiftsAndGap`
+**Tests**: `FractionLayoutTests.FractionLayout_Layout_ZeroThickness_UsesStackShiftsAndGap`,
+`FractionLayoutTests.FractionLayout_Layout_RaisedDenominator_DescentIsZero`
 
 Asserts that a zero thickness paints nothing and uses the stack shifts (52.9 px and 32 px) when the gap is large
 enough, and that a gap of 4.9 px is widened to StackGapMin (17.8 px) by moving both children by half of the missing
-12.9 px.
+12.9 px; and that the descent of a stack whose denominator ends above its baseline is zero.
 
 ##### CanvasNetMathMl-Layout-FractionLayout-LineThickness: linethickness
 

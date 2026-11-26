@@ -28,7 +28,7 @@ that differs from the expected value constitutes a failure.
 ##### CanvasNetMathMl-Layout-OperatorDictionary-Categories: Categories And Values
 
 **Tests**: `OperatorDictionaryTests.OperatorDictionary_Lookup_PlusInfix_IsCategoryB`,
-`OperatorDictionaryTests.OperatorDictionary_Lookup_EqualsInfix_IsCategoryA`,
+`OperatorDictionaryTests.OperatorDictionary_Lookup_ArrowInfixIsA_EqualsIsDefault`,
 `OperatorDictionaryTests.OperatorDictionary_Lookup_LeftParenPrefix_IsFenceStretchySymmetric`,
 `OperatorDictionaryTests.OperatorDictionary_Lookup_SumPrefix_IsLargeOpMovableLimits`,
 `OperatorDictionaryTests.OperatorDictionary_Lookup_IntegralPrefix_IsLargeOpNotMovable`,
@@ -60,8 +60,8 @@ the fence and separator defaults (`(` and `||` are fences, `,` is a separator, `
 `OperatorDictionaryTests.OperatorDictionary_InferForm_ExplicitAttribute_Wins`
 
 Asserts prefix, infix, and postfix for the first, middle, and last of three children and infix for a lone child; that
-`POSTFIX` parses as postfix and `sideways` does not; and that an explicit infix form of `(` gives Default while an
-inferred one falls back to F.
+`POSTFIX` parses as postfix while `sideways` and `postfix` (with whitespace around it) do not; and that an explicit
+infix form of `(` gives Default while an inferred one falls back to F.
 
 ##### CanvasNetMathMl-Layout-OperatorDictionary-Axis: The Stretch Axis
 

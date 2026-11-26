@@ -54,6 +54,7 @@ sections:
               - CanvasNetMathMl-Layout-RowLayout-Row
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
+              - Layout_ExplicitFormAndScriptOperator_FollowTheDictionary
 
           - id: CanvasNetMathMl-Layout-Stretching
             title: >-
@@ -84,6 +85,7 @@ sections:
               - CanvasNetMathMl-Layout-MathBox-Operators
             tests:
               - Layout_StretchyFencesAroundTallRow_MatchConstants
+              - Layout_InlineStretchLargeOperatorAndReport_FollowTheFont
 
           - id: CanvasNetMathMl-Layout-Rows
             title: >-
@@ -232,7 +234,7 @@ sections:
               - CanvasNetMathMl-Layout-TableLayout-Lines
               - CanvasNetMathMl-Layout-TableLayout-InvalidValues
             tests:
-              - Layout_Tables_CenterOnAxisWithCorePadding
+              - Layout_TableExtensions_AlignSpaceAndRule
 
           - id: CanvasNetMathMl-Layout-ChildCount
             title: >-
@@ -271,6 +273,7 @@ sections:
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
               - Layout_FractionsAndRadicals_MatchConstants
               - Layout_ScriptsAndLimits_MatchConstants
+              - Layout_ColorVariantAndInlineStyle_StyleTheGlyphs
 
           - id: CanvasNetMathMl-Layout-MathFont
             title: >-
@@ -288,6 +291,7 @@ sections:
             tests:
               - Layout_TokenRow_MatchesFontMetricsAndSpacing
               - Layout_ScriptLevel_ScalesTokensWithMathConstants
+              - Layout_MissingGlyph_IsReported
 
           - id: CanvasNetMathMl-Layout-UnsupportedFeatures
             title: >-

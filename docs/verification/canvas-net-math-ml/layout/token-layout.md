@@ -110,11 +110,13 @@ while a tilde without the attribute is silent.
 
 **Tests**: `TokenLayoutTests.TokenLayout_LayoutToken_LargeOpDisplayStyle_UsesDisplayOperatorMinHeight`,
 `TokenLayoutTests.TokenLayout_LayoutToken_LargeOpInline_KeepsBaseGlyph`,
-`TokenLayoutTests.TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection`
+`TokenLayoutTests.TokenLayout_LayoutOperator_NormalGlyph_HasNoItalicCorrection`,
+`TokenLayoutTests.TokenLayout_LayoutOperator_StretchedToBaseGlyph_HasNoItalicCorrection`
 
 Asserts that a summation in display style draws its large variant, taller than inline and centered on the math axis,
 and that it keeps its base glyph inline and with `largeop="false"`; and that an integral drawn with its base glyph has
-no italic correction while its display variant has the italic correction of its glyph (50 px at 100 px).
+no italic correction while its display variant has the italic correction of its glyph (50 px at 100 px), and that a
+stretchy integral whose base glyph covers its target has no italic correction although its glyph has one.
 
 ##### CanvasNetMathMl-Layout-TokenLayout-MissingGlyph: A Character No Font Has
 

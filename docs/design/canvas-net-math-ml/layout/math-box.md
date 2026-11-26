@@ -59,5 +59,7 @@ subsystem (`Rgba32`).
 
 #### Callers
 
-`TokenLayout`, `RowLayout`, and `LayoutEngine` build boxes and pass operator contexts; `MathMlDocument` frames the
-picture from the content box and the ink of the `math` box; `MathMlPainter` paints the items.
+`TokenLayout`, `RowLayout`, `FractionLayout`, `RadicalLayout`, `ScriptLayout`, `UnderOverLayout`, `TableLayout`, and
+`LayoutEngine` build boxes (and `LayoutEngine` passes operator contexts); `StretchyGlyphs` measures with `MathRect`;
+`MathMlDocument` frames the picture from the content box and the ink of the `math` box; `MathMlPainter` paints the
+items.
