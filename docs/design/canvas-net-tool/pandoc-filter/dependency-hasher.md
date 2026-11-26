@@ -61,10 +61,16 @@ order mark) is parsed as JSON with the walk's options and given to the walk's ow
 `CollectImageLinks`, and `CollectRowLinks` when a url channel names fields); a data URL counts when
 `FilterPaths.LocalDataFile` resolves it, a picture link when `FilterPaths.LocalImageFile` resolves it as written or
 percent-decoded, so the check refuses exactly what the walk would follow and leaves remote links and `data:` URIs to
-the tool. The first string value of the text, in order, that is such a name gives the action (`reads the data file` or
-`draws the picture`) and its line (one more than the line feeds before the token). For `scad` the text is parsed with
-`ScadDocument.Parse`, and the first of its `Directives` gives `includes` or `uses`, its path, and its line; the parser
-ignores comments and never takes a comparison such as `a < b && c > d` for a directive, and `import()` reads no file.
+the tool. The collectors return the JSON string values themselves (the last of a repeated member, as the walk follows
+it), not their text. `OffsetOf` finds each value's position as the offset of its raw text
+(`JsonMarshal.GetRawUtf8Value`) in the parsed bytes, which `JsonDocument.Parse` keeps without copying for the life of
+the document. `FirstInText` then takes the local value written first (a data URL on a tie), which gives the action
+(`reads the data file` or `draws the picture`) and its line (one more than the line feeds before its opening quote). So
+the same text in another member, such as a `title`, never counts, and a name both read and drawn gets the action of the
+member written first. For `scad` the text is parsed with `ScadDocument.Parse`, and the first of its `Directives` gives
+`includes` or `uses`, its path, and its line, which is the lexer's location of the directive keyword, so a comment or
+string naming the same file does not move it; the parser ignores comments and never takes a comparison such as
+`a < b && c > d` for a directive, and `import()` reads no file.
 Text that cannot be parsed (`JsonException`, `ScadSyntaxException`, `InvalidDataException`) gives `null`, and the tool
 then reports the error when it draws the block. Any other kind gives `null`: Mermaid, PlantUML, and MathML blocks keep
 their behavior.

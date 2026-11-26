@@ -30,6 +30,8 @@ N/A - standard test environment. The tests only need a writable temporary direct
   mode, and an unreadable document is the `cannot read` error.
 - The block check finds the first local file a Vega-Lite or OpenSCAD block names, with its action and line, and none
   for a remote link, a `data:` URI, a comment, an import, unreadable text, or another kind.
+- The block check finds exactly what the walks follow, with the action and line of the value or directive that names
+  the file.
 
 #### Test Scenarios
 
@@ -133,3 +135,18 @@ line 2 and uses `more.scad` on line 3 gives `includes 'lib/shapes.scad'` on line
 `use <more.scad>` gives `uses 'more.scad'` on line 1. Directives in a line or block comment, a comparison
 `a < b && d > c`, `import("part.stl")`, a syntax error, and empty text give none, and so do a PlantUML block with an
 `!include` and a Mermaid block with an `<img>`, whose kinds keep their own behavior.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfDataUrl**: a chart whose `title`
+`sales.csv` on line 2 comes before its data URL `sales.csv` on line 3 gives `reads the data file 'sales.csv'` on line 3.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfImageMarkUrl**: a chart whose
+`title` `logo.png` on line 2 comes before its image mark's link `logo.png` on line 4 gives
+`draws the picture 'logo.png'` on line 4.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameNameReadAndDrawn_ReportsActionOfFirstMember**: a chart whose image
+mark links `shared.png` on line 2 and whose data URL is `shared.png` on line 3 gives `draws the picture 'shared.png'`
+on line 2.
+
+**DependencyHasher_FindBlockReference_OpenScad_SameNameInEarlierCommentAndString_ReportsLineOfDirective**: a model that
+names `shapes.scad` in a line comment, a block comment, and a string on lines 1 to 3, then includes it on line 4, gives
+`includes 'shapes.scad'` on line 4.

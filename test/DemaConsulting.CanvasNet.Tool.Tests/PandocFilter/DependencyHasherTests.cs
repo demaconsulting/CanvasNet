@@ -576,6 +576,73 @@ public class DependencyHasherTests
     }
 
     /// <summary>
+    ///     Test that the line of a Vega-Lite data file is that of the <c>data.url</c> value that names it, not of an
+    ///     earlier <c>title</c> with the same text.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfDataUrl()
+    {
+        // Arrange: a title with the same text as the data URL, written before it
+        const string text = "{\n  \"title\": \"sales.csv\",\n  \"data\": {\"url\": \"sales.csv\"},\n  \"mark\": \"bar\"\n}";
+
+        // Act
+        var reference = DependencyHasher.FindBlockReference(PictureAttributes.VegaLite, text);
+
+        // Assert: the line of the data URL
+        Assert.Equal(new BlockReference("reads the data file", "sales.csv", 3), reference);
+    }
+
+    /// <summary>
+    ///     Test that the line of a Vega-Lite picture is that of the image mark's <c>url</c> value that names it, not of an
+    ///     earlier <c>title</c> with the same text.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfImageMarkUrl()
+    {
+        // Arrange: a title with the same text as the image mark's link, written before it
+        const string text = "{\n  \"title\": \"logo.png\",\n  \"data\": {\"values\": [{\"a\": 1}]},\n  \"mark\": {\"type\": \"image\", \"url\": \"logo.png\"}\n}";
+
+        // Act
+        var reference = DependencyHasher.FindBlockReference(PictureAttributes.VegaLite, text);
+
+        // Assert: the line of the image mark's link
+        Assert.Equal(new BlockReference("draws the picture", "logo.png", 4), reference);
+    }
+
+    /// <summary>
+    ///     Test that a name a Vega-Lite chart both draws and reads gets the action and line of the value written first.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_FindBlockReference_VegaLite_SameNameReadAndDrawn_ReportsActionOfFirstMember()
+    {
+        // Arrange: an image mark's link, then a data URL with the same name
+        const string text = "{\n  \"mark\": {\"type\": \"image\", \"url\": \"shared.png\"},\n  \"data\": {\"url\": \"shared.png\"}\n}";
+
+        // Act
+        var reference = DependencyHasher.FindBlockReference(PictureAttributes.VegaLite, text);
+
+        // Assert: the picture, as the image mark comes first
+        Assert.Equal(new BlockReference("draws the picture", "shared.png", 2), reference);
+    }
+
+    /// <summary>
+    ///     Test that the line of an OpenSCAD include is that of the directive, not of an earlier comment or string that
+    ///     names the same file.
+    /// </summary>
+    [Fact]
+    public void DependencyHasher_FindBlockReference_OpenScad_SameNameInEarlierCommentAndString_ReportsLineOfDirective()
+    {
+        // Arrange: a line comment, a block comment, and a string that name the file before the include
+        const string text = "// shapes.scad holds the parts\n/* include <shapes.scad> */\nname = \"shapes.scad\";\ninclude <shapes.scad>\ncube(1);";
+
+        // Act
+        var reference = DependencyHasher.FindBlockReference(PictureAttributes.Scad, text);
+
+        // Assert: the line of the directive
+        Assert.Equal(new BlockReference("includes", "shapes.scad", 4), reference);
+    }
+
+    /// <summary>
     ///     Writes a file below a directory, creating its folder.
     /// </summary>
     /// <param name="directory">The directory.</param>

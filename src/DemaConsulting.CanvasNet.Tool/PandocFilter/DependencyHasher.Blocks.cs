@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Scad;
@@ -11,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 /// </summary>
 /// <param name="Action">What the block does with the file, as a message says it: <c>reads the data file</c>, <c>draws the picture</c>, <c>includes</c>, or <c>uses</c>.</param>
 /// <param name="Path">The name of the file as written in the block.</param>
-/// <param name="Line">The line of the block (1-based) the name is on.</param>
+/// <param name="Line">The line of the block (1-based) of the JSON value or the directive that names the file.</param>
 internal sealed record BlockReference(string Action, string Path, int Line);
 
 /// <summary>
@@ -46,9 +47,13 @@ internal sealed partial class DependencyHasher
     ///     would be looked up in the cache folder. The engine therefore stops the build with a message that says to link
     ///     the chart or model as a picture. A chart is checked with the collectors of the chart walk (data URLs, the links
     ///     of image marks, and the links in the inline rows, as written and percent-decoded), so the check refuses exactly
-    ///     what the walk would follow; a remote link is left to the tool, which never reads it. A model is parsed by the
+    ///     what the walk would follow; a remote link is left to the tool, which never reads it. The action and line are
+    ///     those of the JSON value the walk took the name from, so the same text elsewhere (a title, say) is never taken
+    ///     for it, and a name both read and drawn gets the action of the value written first. A model is parsed by the
     ///     OpenSCAD library, so a comment or a comparison such as <c>a &lt; b &amp;&amp; c &gt; d</c> is never taken for a
-    ///     directive; <c>import()</c> and <c>surface()</c> read no file, so they are not checked. Stateless and thread-safe.
+    ///     directive, and the line is that of the directive's keyword, so a comment or string naming the same file does
+    ///     not move it; <c>import()</c> and <c>surface()</c> read no file, so they are not checked. Stateless and
+    ///     thread-safe.
     /// </remarks>
     internal static BlockReference? FindBlockReference(string kind, string text)
     {
@@ -74,11 +79,9 @@ internal sealed partial class DependencyHasher
             json = json[3..];
         }
 
-        // The names the walk would follow, kept only when they are local
-        HashSet<string> data;
-        HashSet<string> pictures;
         try
         {
+            // The document keeps these bytes, so each value the walk takes is located in them while it is open
             using var document = JsonDocument.Parse(json, ChartJsonOptions);
             var spec = document.RootElement;
             if (!IsTable(spec))
@@ -86,11 +89,13 @@ internal sealed partial class DependencyHasher
                 return null;
             }
 
-            var urls = new HashSet<string>(StringComparer.Ordinal);
+            // The values the walk would follow, kept only when they are local
+            var urls = new List<JsonElement>();
             CollectDataUrls(spec, urls, 0);
-            data = [.. urls.Where(url => FilterPaths.LocalDataFile(AnyFolder, url) != null)];
+            var data = urls.Where(url => FilterPaths.LocalDataFile(AnyFolder, url.GetString()!) != null)
+                .Select(url => ("reads the data file", url));
 
-            var links = new HashSet<string>(StringComparer.Ordinal);
+            var links = new List<JsonElement>();
             var fields = new HashSet<string>(StringComparer.Ordinal);
             CollectImageLinks(spec, links, fields, 0);
             if (fields.Count > 0)
@@ -98,61 +103,73 @@ internal sealed partial class DependencyHasher
                 CollectRowLinks(spec, links, fields, 0);
             }
 
-            pictures = [.. links.Where(link => FilterPaths.LocalImageFile(AnyFolder, link) != null || FilterPaths.LocalImageFile(AnyFolder, FilterPaths.DecodePercent(link)) != null)];
+            var pictures = links.Where(link => IsLocalPicture(link.GetString()!))
+                .Select(link => ("draws the picture", link));
+
+            // The one written first, with its line
+            return FirstInText(json, data.Concat(pictures));
         }
         catch (JsonException)
         {
             return null;
         }
+    }
 
-        if (data.Count == 0 && pictures.Count == 0)
+    /// <summary>
+    ///     Determines whether a link of a chart names a local picture, as written or percent-decoded.
+    /// </summary>
+    /// <param name="link">The link.</param>
+    /// <returns><see langword="true"/> when the link names a local picture.</returns>
+    private static bool IsLocalPicture(string link)
+    {
+        return FilterPaths.LocalImageFile(AnyFolder, link) != null ||
+               FilterPaths.LocalImageFile(AnyFolder, FilterPaths.DecodePercent(link)) != null;
+    }
+
+    /// <summary>
+    ///     Finds the value written first in a chart's text, with the line it is on.
+    /// </summary>
+    /// <param name="json">The bytes the chart was parsed from, without a byte order mark.</param>
+    /// <param name="found">The values with what the chart does with them, data URLs first; they belong to the open document of <paramref name="json"/>.</param>
+    /// <returns>The value written first (a data URL when the same value is both), or <see langword="null"/> when there is none.</returns>
+    private static BlockReference? FirstInText(ReadOnlyMemory<byte> json, IEnumerable<(string Action, JsonElement Value)> found)
+    {
+        (string Action, JsonElement Value)? first = null;
+        var firstOffset = 0;
+        foreach (var candidate in found)
+        {
+            var offset = OffsetOf(json.Span, candidate.Value);
+            if (first == null || offset < firstOffset)
+            {
+                first = candidate;
+                firstOffset = offset;
+            }
+        }
+
+        if (first is not { } reference)
         {
             return null;
         }
 
-        // The first string value in the text that is one of them, with its line
-        return FirstStringValue(json.Span, data, pictures);
+        var line = 1 + json.Span[..firstOffset].Count((byte)'\n');
+        return new BlockReference(reference.Action, reference.Value.GetString()!, line);
     }
 
     /// <summary>
-    ///     Finds the first string value of a chart's text that is one of the local names, in the order of the text.
+    ///     Gets the position of a value in the bytes its document was parsed from.
     /// </summary>
-    /// <param name="json">The text of the chart, without a byte order mark; it is valid JSON.</param>
-    /// <param name="data">The local data URLs.</param>
-    /// <param name="pictures">The local picture links.</param>
-    /// <returns>The first name, as a data file before a picture when a value is both; <see langword="null"/> when none is found.</returns>
-    private static BlockReference? FirstStringValue(ReadOnlySpan<byte> json, HashSet<string> data, HashSet<string> pictures)
+    /// <param name="json">The bytes the document was parsed from.</param>
+    /// <param name="value">A JSON string of the document.</param>
+    /// <returns>The offset of its opening quote.</returns>
+    /// <remarks>
+    ///     <see cref="JsonDocument.Parse(ReadOnlyMemory{byte}, JsonDocumentOptions)"/> uses the caller's bytes for the
+    ///     lifetime of the document without copying them, so the raw text of a value is a slice of them.
+    /// </remarks>
+    private static int OffsetOf(ReadOnlySpan<byte> json, JsonElement value)
     {
-        var reader = new Utf8JsonReader(json, new JsonReaderOptions { MaxDepth = ChartJsonOptions.MaxDepth });
-        while (reader.Read())
-        {
-            if (reader.TokenType != JsonTokenType.String)
-            {
-                continue;
-            }
-
-            var value = reader.GetString()!;
-            string action;
-            if (data.Contains(value))
-            {
-                action = "reads the data file";
-            }
-            else if (pictures.Contains(value))
-            {
-                action = "draws the picture";
-            }
-            else
-            {
-                continue;
-            }
-
-            var line = 1 + json[..(int)reader.TokenStartIndex].Count((byte)'\n');
-            return new BlockReference(action, value, line);
-        }
-
-        return null;
+        _ = json.Overlaps(JsonMarshal.GetRawUtf8Value(value), out var offset);
+        return offset;
     }
-
     /// <summary>
     ///     Finds the first file the text of an OpenSCAD block includes or uses.
     /// </summary>
