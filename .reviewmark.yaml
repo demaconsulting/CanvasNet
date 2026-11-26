@@ -5,6 +5,16 @@
 
 # Patterns identifying all files that require review.
 # Processed in order; prefix a pattern with '!' to exclude.
+# A file must match these patterns to be fingerprinted by any review-set: a review-set's 'paths'
+# only select among them, so a file listed in 'paths' but not matched here is silently dropped.
+# Besides code and documentation, these patterns cover the hand-written, non-code text that the
+# review-sets name: the help cards and help examples shipped as embedded resources, shipped
+# third-party license texts, fixture license texts, PowerShell test and developer scripts, the
+# user-guide gallery diagram sources, and the original test fixtures (inputs and hand-derived
+# expected outputs). They deliberately leave out generated output - the mermaid-cli and PlantUML
+# reference goldens, upstream vectors, scene snapshots, and determinism pins, all of which are
+# recaptured by tools rather than written - and binary fixtures (images, fonts, PDF, Office files);
+# those are reviewed through the provenance README beside them.
 needs-review:
   - "README.md"                   # Root README file
   - "requirements.yaml"           # Root requirements file
@@ -18,6 +28,25 @@ needs-review:
   - "docs/verification/**/*.md"  # Verification documentation files
   - "docs/user_guide/**/*.md"    # User guide documentation
   - "docs/sysml2/**/*.sysml"     # SysML2 architecture model
+  - "docs/user_guide/examples/*.mmd"   # User guide gallery diagram sources (Mermaid)
+  - "docs/user_guide/examples/*.puml"  # User guide gallery diagram sources (PlantUML)
+  - "src/DemaConsulting.CanvasNet.Viewer/Help/Cards/**/*.md"  # Library help cards (embedded resources)
+  - "src/DemaConsulting.CanvasNet.Viewer/Help/Examples/**/*"  # Library help example sources (embedded resources)
+  - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*.md"  # Tool help cards and card overlays (embedded)
+  - "src/**/third-party/*.txt"    # Shipped third-party license texts and notices
+  - "test/**/*.LICENSE"           # License texts of third-party test fixtures
+  - "docs/filters/*.ps1"          # End-to-end test script of the Pandoc filter
+  - "tools/**/*.ps1"              # Developer scripts (golden generators, visual-diff harness)
+  - "test/**/Fixtures/**/*.mmd"   # Original Mermaid test fixtures (not the generated reference/ goldens)
+  - "test/**/Fixtures/**/*.mermaid"   # Original Mermaid test fixtures (alternate extension)
+  - "test/**/Fixtures/**/*.puml"  # Original PlantUML test fixtures (not the generated reference/ goldens)
+  - "test/**/Fixtures/**/*.iuml"  # Original PlantUML include fixtures
+  - "test/**/Fixtures/**/*.pu"    # Original PlantUML test fixtures (alternate extension)
+  - "test/**/Fixtures/**/*.plantuml"  # Original PlantUML test fixtures (alternate extension)
+  - "test/**/ScadFixtures/**/*.scad"  # Original OpenSCAD test fixtures
+  - "test/**/ScadFixtures/**/*.txt"   # Hand-derived expected outputs of the OpenSCAD fixtures
+  - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/*.json"  # Original Vega-Lite fixtures and data
+  - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/*.csv"   # Original Vega-Lite fixture data
   - "!**/obj/**"                  # Exclude build output
   - "!**/bin/**"                  # Exclude build output
   - "!node_modules/**"           # Exclude npm dependencies
@@ -323,6 +352,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngFilterTests.cs"  # shared filter-reversal tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs"  # PngSuite conformance tests
+      - "test/DemaConsulting.CanvasNet.Tests/PngSuite/PngSuite.LICENSE"  # PngSuite fixture license
 
   # CanvasNet-Codecs-TiffCodec Review (one per unit)
   - id: CanvasNet-Codecs-TiffCodec
@@ -700,6 +730,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/TrueTypeFontRealFontIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SyntheticFontBuilder.cs"  # shared test helper
       - "test/DemaConsulting.CanvasNet.Tests/FontFixtures/README.md"  # fixture provenance/licensing documentation
+      - "test/DemaConsulting.CanvasNet.Tests/FontFixtures/*.LICENSE"  # fixture font licenses
 
   # CanvasNet-Fonts-SystemFontCatalog Review (one per unit)
   - id: CanvasNet-Fonts-SystemFontCatalog
@@ -1255,6 +1286,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPatternTileSmoothingTests.cs"  # pattern tile sampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgDefaultFontTests.cs"  # default font resolution unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtures/*.LICENSE"  # fixture licenses
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgLengthUnitTests.cs"  # length unit unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFontSizeTests.cs"  # font-size unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgLengthTestSupport.cs"  # length test helpers
@@ -1485,6 +1517,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxConnectorTests.cs"  # phase 2 follow-up (connector unit tests)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxChartsTests.cs"  # phase 4 unit tests (chart frame integration)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixturesCorpusTests.cs"  # fixture conformance tests
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxFixtures/*.LICENSE"  # fixture licenses
 
   # CanvasNetCharts-Architecture Review (one per system)
   - id: CanvasNetCharts-Architecture
@@ -2831,6 +2864,7 @@ reviews:
       - "tools/README.md"                                        # developer tools overview
       - "tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
       - "tools/visual-diff/README.md"                            # developer visual-diff harness documentation
+      - "tools/visual-diff/compare-with-vega.ps1"                # developer visual-diff against Vega-Lite
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/FuzzRandom.cs"  # seeded random source of the fuzz suite
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzGenerator.cs"  # specification generator
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzMutator.cs"  # fixture mutator
@@ -4277,6 +4311,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/SceneQuery.cs"   # shared scene queries of the layout tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/UpstreamVectors.cs"  # shared upstream-vector loader
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/**"  # mermaid-cli goldens and provenance
+      - "tools/visual-diff/update-mermaid-goldens.ps1"               # golden generator (developer tool)
+      - "tools/visual-diff/compare-with-mermaid.ps1"                 # developer visual-diff against mermaid-cli
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/DemaConsulting.CanvasNet.Mermaid.Tests.csproj"  # test project
       - "src/DemaConsulting.CanvasNet.Mermaid/DemaConsulting.CanvasNet.Mermaid.csproj"  # project file
       - "src/DemaConsulting.CanvasNet.Mermaid/third-party/**"         # license texts and provenance record
