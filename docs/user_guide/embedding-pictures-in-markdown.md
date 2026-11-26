@@ -274,10 +274,10 @@ A slide of a PowerPoint presentation is chosen with `page` as well:
 A page of a Visio drawing is chosen with `page`, and its `dpi` is a whole number:
 
 ```markdown
-![Page 2 of a Visio drawing](davehoward-test4-connectors.vsdx){page=2 dpi=96 width=40%}
+![A client, a service, and a store](hero/drawing.vsdx){page=1 dpi=144 width=70%}
 ```
 
-![Page 2 of a Visio drawing](davehoward-test4-connectors.vsdx){page=2 dpi=96 width=40%}
+![A client, a service, and a store](hero/drawing.vsdx){page=1 dpi=144 width=70%}
 
 ## Equations
 

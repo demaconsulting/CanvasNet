@@ -78,6 +78,9 @@ third party:
 - copied from `showcase/` (themselves original to this repository): `explode.scad`, `slide.pptx`, and
   `mesh-shading.pdf`.
 
+`drawing.vsdx` is also the Visio example of the user guide chapter *Embedding Pictures in Markdown*, which links it as
+`hero/drawing.vsdx` through the guide's resource path.
+
 ## mermaid-gallery.png
 
 `mermaid-gallery.png` (1248x680) is a montage of six Mermaid diagram types (a sequence diagram, a class diagram, a
