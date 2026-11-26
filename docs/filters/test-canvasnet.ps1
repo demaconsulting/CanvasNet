@@ -5,7 +5,8 @@
 .DESCRIPTION
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
     over it, and checks what the filter promises. The filter is a thin Lua shim: it starts "canvasnet pandoc-filter"
-    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid, plantuml, mathml) or a
+    once per Pandoc run, only when the document has a code block of a class the tool draws (mermaid, plantuml, mathml,
+    vega-lite, vegalite, or openscad together with draw) or a
     local picture whose name ends in a suffix the tool draws (lists the shim takes from the tool's own tables when it
     is written),
     and the tool does all the work. Code blocks of other classes, rasters such as BMP, TIFF, ICO, and AVIF, names
@@ -31,7 +32,9 @@
     PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
     changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written,
     MathML equations are drawn from code blocks and from .mml pictures at twice their natural size and shown at their natural
-    width (an author's width is kept), a diagram
+    width (an author's width is kept), Vega-Lite charts are drawn from vega-lite code blocks and OpenSCAD models from
+    openscad code blocks marked .draw (a plain openscad block stays code, and a block that names a local file stops the
+    build, since a block has no folder), a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left
     unchanged (the tool decides); one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -679,6 +682,58 @@ Bob --> Alice : Hi
     Write-Result ($mmlTheme.ExitCode -ne 0 -and $mmlTheme.Log -match 'theme applies to Mermaid diagrams only') `
         'theme on an equation is an error' $mmlTheme.Log
 
+    # --- Vega-Lite and OpenSCAD blocks: a chart block is drawn, a model block only with .draw ------------------
+    # A vega-lite block becomes the picture (a figure with a caption) drawn from a .vl.json file in the cache; an
+    # openscad block marked .draw becomes a picture without the classes openscad and draw; a plain openscad block stays
+    # code. A block has no folder, so a chart block that reads a data file or a model block that includes a file stops
+    # the build with a message that says to link a picture instead.
+    $chartAndModel = @'
+```{.vega-lite #visits caption="Visits per day" scale=2}
+{"data": {"values": [{"day": "Mon", "visits": 3}, {"day": "Tue", "visits": 5}]},
+ "mark": "bar",
+ "encoding": {"x": {"field": "day", "type": "nominal"}, "y": {"field": "visits", "type": "quantitative"}}}
+```
+
+```{.openscad .draw .wide view=iso size=320x240}
+cube([10, 20, 5]);
+```
+
+```openscad
+sphere(5);
+```
+'@
+    $cmBefore = @(Get-Pictures).Count
+    $cm = Invoke-Filter 'chart-model-blocks' $chartAndModel
+    Write-Result ($cm.ExitCode -eq 0 -and $cm.Html -match '<figure[^>]*id="visits"' -and
+        $cm.Html -match 'generated/canvasnet/vegalite-' -and
+        $cm.Html -match '<img\s+src="[^"]*generated/canvasnet/scad-[^"]*"\s+class="wide"' -and
+        $cm.Html -match '<pre class="openscad"><code>sphere\(5\);</code></pre>' -and
+        $cm.Html -notmatch 'class="[^"]*\bdraw\b' -and @(Get-Pictures).Count -eq $cmBefore + 2 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.vl.json').Count -ge 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.scad').Count -ge 1) `
+        'a vega-lite block and an openscad .draw block are drawn, and a plain openscad block stays code' "$($cm.Log)`n$($cm.Html)"
+    $cmStamp = Get-Stamp
+    $cmAgain = Invoke-Filter 'chart-model-blocks' $chartAndModel
+    Write-Result ($cmAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $cmStamp -and $cmAgain.Html -eq $cm.Html) `
+        'a second run draws no chart or model block again and gives the same document' $cmAgain.Log
+    $chartBlockWithUrl = @'
+```vega-lite
+{"data": {"url": "sales.csv"}, "mark": "bar"}
+```
+'@
+    $chartFile = Invoke-Filter 'chart-block-data-url' $chartBlockWithUrl
+    Write-Result ($chartFile.ExitCode -ne 0 -and $chartFile.Log -match "reads the data file 'sales\.csv' at line 1, but a code block has no folder") `
+        'a vega-lite block whose data.url names a local file stops the build with a hint to use a picture' $chartFile.Log
+    $modelBlockWithInclude = @'
+```{.openscad .draw}
+cube(1);
+include <lib.scad>
+```
+'@
+    $modelFile = Invoke-Filter 'model-block-include' $modelBlockWithInclude
+    Write-Result ($modelFile.ExitCode -ne 0 -and $modelFile.Log -match "includes 'lib\.scad' at line 2, but a code block has no folder") `
+        'an openscad .draw block with an include stops the build with a hint to use a picture' $modelFile.Log
+
     # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: with
     # "--defaults ... --lua-filter later.lua", canvasnet.lua sees the mermaid blocks first, and the later filter sees
     # only the blocks left as written. A small Lua filter that marks every code block it sees is the later filter here.
@@ -875,8 +930,9 @@ Bob --> Alice : Hi
         'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
 
     # --- Only what the tool draws starts it ---------------------------------------------------------------
-    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid, plantuml, mathml), or a
-    # local picture whose name ends in one of the suffixes it draws; --write-shim writes both lists from the tool's tables.
+    # The shim starts the tool only for a code block with one of the classes the tool draws (mermaid, plantuml, mathml,
+    # vega-lite, vegalite), a code block with the class draw and one of the classes it draws only then (openscad), or a
+    # local picture whose name ends in one of the suffixes it draws; --write-shim writes the lists from the tool's tables.
     # With a tool that cannot start, a document that does not need it builds, and one that does is a clear error.
     # (Pandoc lowercases the language of a bare fence, so the class Mermaid is written as an attribute, {.Mermaid}.)
     $saved = $env:CANVASNET_TOOL
@@ -886,7 +942,8 @@ Bob --> Alice : Hi
             '![plain](x.png)', '![photo](photo.jpg)', '![bitmap](a.bmp)', '![scan](scan.tif)', '![icon](favicon.ico)',
             '![new](photo.avif)', '![bare](diagram)', '![page](mesh-shading.pdf#page=2)', '![query](t.vl.json?x)',
             '![web](https://example.com/a.scad)', "``````bash`necho hi`n``````", "``````yaml`na: 1`n``````",
-            "``````csharp`nvar x = 1;`n``````", "``````text`nonly the text block`n``````", "``````{.Mermaid}`nflowchart LR`n``````") -join "`n`n"
+            "``````csharp`nvar x = 1;`n``````", "``````text`nonly the text block`n``````", "``````{.Mermaid}`nflowchart LR`n``````",
+            "``````openscad`ncube(1);`n``````", "``````json`n{`"mark`": `"bar`"}`n``````") -join "`n`n"
         $plain = Invoke-Filter 'plain' $plainMarkdown
         Write-Result ($plain.ExitCode -eq 0 -and $plain.Html.Contains('src="a.bmp"') -and $plain.Html.Contains('only the text block')) `
             'code blocks of other classes, rasters, extension-less, fragment, and remote pictures never start the tool' $plain.Log
@@ -902,6 +959,18 @@ Bob --> Alice : Hi
         $mmlBlock = Invoke-Filter 'missing-tool-mathml-block' "``````mathml`n<math><mi>x</mi></math>`n``````"
         Write-Result ($mmlBlock.ExitCode -ne 0 -and $mmlBlock.Log -match 'cannot run the canvasnet tool') `
             'one mathml block starts the tool' $mmlBlock.Log
+        $vlBlock = Invoke-Filter 'missing-tool-vega-lite-block' "``````vega-lite`n{`"mark`": `"bar`"}`n``````"
+        Write-Result ($vlBlock.ExitCode -ne 0 -and $vlBlock.Log -match 'cannot run the canvasnet tool') `
+            'one vega-lite block starts the tool' $vlBlock.Log
+        $scadBlock = Invoke-Filter 'missing-tool-openscad-block' "``````{.openscad .draw}`ncube(1);`n``````"
+        Write-Result ($scadBlock.ExitCode -ne 0 -and $scadBlock.Log -match 'cannot run the canvasnet tool') `
+            'one openscad .draw block starts the tool' $scadBlock.Log
+
+        # The shim lists the classes the tool draws, and those it draws only together with the class draw
+        $shimClasses = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))
+        Write-Result ($shimClasses.Contains('local CLASSES = { "mermaid", "plantuml", "mathml", "vega-lite", "vegalite" }') -and
+            $shimClasses.Contains('local DRAW_CLASSES = { "openscad" }')) `
+            'the shim lists the code-block classes the tool draws, and openscad only with draw' $shimClasses
 
         # Every suffix the shim lists starts the tool, in any letter case; the list is the one the engine draws
         $shimSource = [System.IO.File]::ReadAllText((Join-Path $tree 'docs/filters/canvasnet.lua'))

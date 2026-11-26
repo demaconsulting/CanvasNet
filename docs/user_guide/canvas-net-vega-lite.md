@@ -4534,6 +4534,24 @@ specification's folder.
 
 ![Crates sold per stall](examples/stall-sales.vl.json){scale=2 width=60%}
 
+A chart can also be written in the document as a code block of class `vega-lite` (or `vegalite`), which takes the same
+attributes and a `caption`. A block has no folder of its own, so its data must be written in the specification: a
+block whose `data.url` names a local file stops the build and must be a `.vl.json` picture like the one above (see
+*Embedding Pictures in Markdown*). A specification shown as code uses the class `json`.
+
+````markdown
+```{.vega-lite scale=2 width=40%}
+{
+  "data": {"values": [{"stall": "Apples", "crates": 28}, {"stall": "Pears", "crates": 55}]},
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "stall", "type": "nominal"},
+    "y": {"field": "crates", "type": "quantitative"}
+  }
+}
+```
+````
+
 ### Example 43: Layers, a Box Plot, and an Error Band
 
 ```csharp
