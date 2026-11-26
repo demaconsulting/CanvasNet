@@ -19,8 +19,8 @@ sections:
                   borders with their bounds), and shall give its content box and the union of the ink of its items and
                   its children, a phantom and an empty box having no ink.
                 justification: |
-                  The picture of an equation is the union of its content box and its ink, and the painter draws the
-                  items of the boxes.
+                  The picture of an equation is the union of its content box and its ink (with an antialiasing
+                  allowance), and the painter draws the items of the boxes.
                 tests:
                   - MathBox_ContentRect_SpansAscentAndDescent
                   - MathBox_InkBounds_UnitesItemsAndChildren

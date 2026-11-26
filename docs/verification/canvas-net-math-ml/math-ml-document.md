@@ -56,14 +56,23 @@ TeX annotation with its encoding.
 
 **Tests**: `MathMlDocumentTests.MathMlDocument_Measure_EmptyMath_IsOnePixel`,
 `MathMlDocumentTests.MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded`,
-`MathMlDocumentTests.MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow`
+`MathMlDocumentTests.MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow`,
+`MathMlDocumentTests.MathMlDocument_Render_TallStretchedInk_IsNeverCutAtTheEdges`
 
 Asserts that an empty `math` measures 1 by 1 and renders transparent, and that an `mspace` wider than a surface can be
 fails with `mathml-limit-exceeded` while the fitting overload still renders it into a small size. For an italic f,
 whose ink reaches outside its content box, at scale 1.5 asserts that the measured size is the union of the content box
-and the ink with its edges rounded out (floor of the left and top, ceiling of the right and bottom), that the baseline
-row is the rounded-out top above the origin, that the rendered surface has the measured size, and that the row just
-above the baseline holds ink.
+and the ink grown by the antialiasing allowance with its edges rounded out (floor of the left and top, ceiling of the
+right and bottom), that the baseline row is the rounded-out top above the origin, that the rendered surface has the
+measured size, and that the row just above the baseline holds ink. For nested stretched parentheses around a sum and
+fractions, a radical around a shallow row (the damped frequency, whose radical tail reaches the bottom of the content
+box), a radical around tall nested fractions, and a display integral with infinite limits, each at scales 0.5, 1, 1.5,
+2, 3, and 6, asserts that the measured size and baseline are the rendered ones, that painting the same layout unclipped
+into a surface 8 pixels larger on every side at the same pixel offset puts no ink outside the picture and matches the
+picture inside it (within 4 levels of alpha, the rounding of the moved pen positions), and that the outermost rows and
+columns of the picture are fully transparent; and fitted into exact sizes (four times the natural size, two by five
+times, three times the width plus 7 by the natural height, and half the natural size) that the outermost rows and
+columns stay transparent while the picture holds ink.
 
 #### CanvasNetMathMl-MathMlDocument-RenderOptions: Defaults And Validation
 

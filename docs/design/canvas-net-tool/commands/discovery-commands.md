@@ -104,7 +104,7 @@ For a MathML equation, one line:
 `{path}: mathml, {w}x{h} px (laid out), equation, {display}, {n} element[s], baseline {b}[, alttext "{alttext}"]`,
 then `[, {n} annotation[s] ({encoding}, ...)], {bytes} bytes` (an annotation without an encoding is listed as
 `no encoding`; for example
-`quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, 590 bytes`;
+`quadratic.mml: mathml, 138x44 px (laid out), equation, block, 22 elements, baseline 32, 590 bytes`;
 an alttext of several lines is joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:

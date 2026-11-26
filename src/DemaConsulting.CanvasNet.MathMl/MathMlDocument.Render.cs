@@ -11,7 +11,9 @@ namespace DemaConsulting.CanvasNet.MathMl;
 ///     Pipeline of one call: the reports found while reading are recorded first; the style of the <c>math</c> element is
 ///     computed from the options, the layout engine lays the tree out into boxes over the bundled math font, and the
 ///     painter draws them. The picture is the union of the content box of the <c>math</c> element and the ink of
-///     everything painted, rounded out to whole pixels, so a glyph that overhangs its box (an italic f) is never clipped.
+///     everything painted grown by an antialiasing allowance (one CSS pixel, and at least one device pixel), rounded out
+///     to whole pixels, so ink that overhangs its box (an italic f, a stretched fence, the tail of a radical) is never
+///     clipped and never reaches the outermost rows and columns of the picture.
 ///     The reports of the call are buffered and delivered once, on the calling thread, after the work.
 /// </remarks>
 public sealed partial class MathMlDocument
@@ -28,6 +30,9 @@ public sealed partial class MathMlDocument
     ///         returns for the same options: the natural size of the equation in CSS pixels at
     ///         <see cref="MathMlRenderOptions.FontSize"/> multiplied by <see cref="MathMlRenderOptions.Scale"/> and rounded
     ///         out, with the row of the alphabetic baseline, so that a caller can place the picture in a line of text. The
+    ///         natural size is the layout box of the equation united with its ink grown by an antialiasing allowance of one
+    ///         CSS pixel (at least one device pixel), so a side where ink reaches the edge of the layout box grows by up to
+    ///         that allowance; the baseline row stays the row of the origin of the <c>math</c> box. The
     ///         equation is laid out, and the same warnings and unsupported-feature reports are delivered as for rendering,
     ///         in the same order and on the calling thread. Nothing is drawn.
     ///     </para>
@@ -164,14 +169,40 @@ public sealed partial class MathMlDocument
     }
 
     /// <summary>
-    ///     Gets the extent of the picture of a box in CSS pixels: its content box united with its ink.
+    ///     Gets the extent of the picture of a box in CSS pixels at a scale: its content box united with its ink grown on
+    ///     every side by the antialiasing allowance (<see cref="InkAllowance(double)"/>), so that no ink, antialiasing
+    ///     included, reaches the outermost rows and columns of pixels.
     /// </summary>
     /// <param name="box">The box of the <c>math</c> element.</param>
+    /// <param name="scale">The device pixels per CSS pixel; greater than zero.</param>
     /// <returns>The extent relative to the origin of the box.</returns>
-    internal static MathRect PictureExtent(MathBox box)
+    internal static MathRect PictureExtent(MathBox box, double scale) => PictureExtent(box, box.InkBounds(), InkAllowance(scale));
+
+    /// <summary>
+    ///     Gets the antialiasing allowance around the ink of a picture at a scale: one CSS pixel, and at least one device
+    ///     pixel at a scale below 1.
+    /// </summary>
+    /// <param name="scale">The device pixels per CSS pixel; greater than zero.</param>
+    /// <returns>The allowance in CSS pixels.</returns>
+    internal static double InkAllowance(double scale) => Math.Max(1, 1 / scale);
+
+    /// <summary>
+    ///     Gets the extent of the picture of a box with its ink and an allowance around the ink.
+    /// </summary>
+    /// <param name="box">The box of the <c>math</c> element.</param>
+    /// <param name="ink">The ink bounds of the box, or null when it paints nothing.</param>
+    /// <param name="allowance">The allowance around the ink in CSS pixels.</param>
+    /// <returns>The extent relative to the origin of the box.</returns>
+    private static MathRect PictureExtent(MathBox box, MathRect? ink, double allowance)
     {
         var content = box.ContentRect;
-        return box.InkBounds() is { } ink ? content.Union(ink) : content;
+        if (ink is not { } bounds)
+        {
+            return content;
+        }
+
+        var grown = new MathRect(bounds.X - allowance, bounds.Y - allowance, bounds.Width + (2 * allowance), bounds.Height + (2 * allowance));
+        return content.Union(grown);
     }
 
     /// <summary>
@@ -225,7 +256,7 @@ public sealed partial class MathMlDocument
     /// <exception cref="MathMlRenderException">Thrown when the picture has no finite size.</exception>
     private (double Left, double Top, double Width, double Height) RoundedExtent(MathBox box, double scale)
     {
-        var extent = PictureExtent(box);
+        var extent = PictureExtent(box, scale);
         var left = Math.Floor((extent.X * scale) + RoundingTolerance);
         var top = Math.Floor((extent.Y * scale) + RoundingTolerance);
         var right = Math.Ceiling((extent.Right * scale) - RoundingTolerance);
@@ -243,19 +274,52 @@ public sealed partial class MathMlDocument
     /// <summary>
     ///     Computes the placement that fits the picture of a box into a size, centered.
     /// </summary>
+    /// <remarks>
+    ///     The extent depends on the scale through the antialiasing allowance, so the scale is chosen first with the
+    ///     allowance of one CSS pixel (correct at a scale of 1 or more); below 1 the allowance is one device pixel, which
+    ///     widens each side by at most two device pixels, so the scale that fits the extent without allowance into the size
+    ///     less two pixels fits the extent with it. A size of two pixels or less fits the extent without allowance.
+    /// </remarks>
     /// <param name="box">The box of the <c>math</c> element.</param>
     /// <param name="width">The surface width.</param>
     /// <param name="height">The surface height.</param>
     /// <returns>The placement.</returns>
     private static MathPlacement Fit(MathBox box, int width, int height)
     {
-        // An empty picture keeps its natural scale; otherwise the smaller of the two ratios fits both sides
-        var extent = PictureExtent(box);
-        var scale = extent.Width > 0 && extent.Height > 0 ? Math.Min(width / extent.Width, height / extent.Height) : 1;
+        var ink = box.InkBounds();
+        var extent = PictureExtent(box, ink, InkAllowance(1));
+        var scale = Ratio(extent, width, height);
+        if (scale < 1)
+        {
+            var bare = PictureExtent(box, ink, 0);
+            var reduced = Ratio(bare, width - 2, height - 2);
+            if (reduced > 0)
+            {
+                scale = reduced;
+                extent = PictureExtent(box, ink, InkAllowance(scale));
+            }
+            else
+            {
+                scale = Ratio(bare, width, height);
+                extent = bare;
+            }
+        }
+
         var originX = ((width - (extent.Width * scale)) / 2) - (extent.X * scale);
         var originY = ((height - (extent.Height * scale)) / 2) - (extent.Y * scale);
         return new MathPlacement(scale, originX, originY);
     }
+
+    /// <summary>
+    ///     Computes the scale that fits an extent into a size: the smaller of the two ratios, or 1 for an empty extent (an
+    ///     empty picture keeps its natural scale).
+    /// </summary>
+    /// <param name="extent">The extent in CSS pixels.</param>
+    /// <param name="width">The width in pixels.</param>
+    /// <param name="height">The height in pixels.</param>
+    /// <returns>The scale; zero or less when the size is not positive.</returns>
+    private static double Ratio(MathRect extent, double width, double height) =>
+        extent.Width > 0 && extent.Height > 0 ? Math.Min(width / extent.Width, height / extent.Height) : 1;
 
     /// <summary>
     ///     Paints a box onto a new surface.

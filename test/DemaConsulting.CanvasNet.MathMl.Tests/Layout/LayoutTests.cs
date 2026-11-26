@@ -522,9 +522,10 @@ public class LayoutTests
 
     /// <summary>
     ///     Validates through the subsystem that everything the painter draws, antialiasing included, lies inside the
-    ///     content box united with the ink bounds of the equation rounded out to whole pixels, the extent of the picture:
-    ///     painted into a larger surface at several font sizes, equations whose ink reaches the edges of the picture (an
-    ///     integral with limits, a final italic letter, a large parenthesis) leave every pixel outside it transparent.
+    ///     content box united with the ink bounds of the equation rounded out to whole pixels: painted into a larger
+    ///     surface at several font sizes, equations whose ink reaches past their content box (an integral with limits, a
+    ///     final italic letter, nested stretched parentheses around a sum and fractions, the tail of a radical around
+    ///     tall content) leave every pixel outside it transparent.
     /// </summary>
     [Fact]
     public void Layout_PaintedInk_StaysInsideTheExtent()
@@ -535,11 +536,14 @@ public class LayoutTests
             "<mi>f</mi><mo>=</mo><msubsup><mo>&#x222B;</mo><mn>1</mn><mi>&#x221E;</mi></msubsup><mi>x</mi>",
             "<mrow><mo>(</mo><mfrac><mn>1</mn><msup><mi>n</mi><mi>s</mi></msup></mfrac><mo>)</mo></mrow>",
             "<munderover><mo>&#x2211;</mo><mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow><mi>&#x221E;</mi></munderover><mi>j</mi>",
+            "<mrow><mo>(</mo><mrow><mo>(</mo><munderover><mo>&#x2211;</mo><mi>k</mi><mi>m</mi></munderover><mfrac><mi>x</mi>"
+                + "<mi>k</mi></mfrac><mo>)</mo></mrow><mo>&#x2212;</mo><mfrac><mn>1</mn><mi>n</mi></mfrac><mo>)</mo></mrow>",
+            "<msqrt><mfrac><mfrac><mn>1</mn><mi>y</mi></mfrac><mfrac><mi>g</mi><mn>2</mn></mfrac></mfrac></msqrt>",
         ];
 
         foreach (var equation in equations)
         {
-            foreach (var size in new[] { 16.0, 20, 23, 32 })
+            foreach (var size in new[] { 16.0, 20, 23, 32, 57, 96 })
             {
                 // Act
                 var box = LayoutText(MathMlTestHelpers.Math(equation, "display=\"block\""), size);

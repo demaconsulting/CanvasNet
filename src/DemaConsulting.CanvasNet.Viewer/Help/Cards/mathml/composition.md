@@ -24,7 +24,7 @@ quadratic beside it).
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160">
   <rect width="480" height="160" fill="#f8fafc"/>
   <text x="24" y="40" font-family="sans-serif" font-size="18">The roots of a quadratic</text>
-  <image href="quadratic.mml" x="103" y="56" width="274" height="88"/>
+  <image href="quadratic.mml" x="102" y="56" width="276" height="88"/>
 </svg>
 ```
 
@@ -32,7 +32,7 @@ quadratic beside it).
 
 ```mermaid
 flowchart LR
-    eq@{ img: "quadratic.mml", label: "Roots", w: 206, h: 66 }
+    eq@{ img: "quadratic.mml", label: "Roots", w: 207, h: 66 }
     eq --> check[Check the discriminant]
 ```
 
@@ -42,7 +42,7 @@ flowchart LR
 {
   "width": 300, "height": 120, "padding": 0,
   "data": { "values": [ { "x": 5 } ] },
-  "mark": { "type": "image", "width": 206, "height": 66 },
+  "mark": { "type": "image", "width": 207, "height": 66 },
   "encoding": {
     "x": { "field": "x", "type": "quantitative", "scale": { "domain": [0, 10] }, "axis": null },
     "y": { "value": 60 },
@@ -54,8 +54,8 @@ flowchart LR
 ## Size and display
 
 - Size the placement at the natural size of the equation times one factor for
-  the whole document (the quadratic formula is 137 by 44 at its natural 16
-  pixels per em: 274 by 88 doubles it, 206 by 66 is one and a half times), so
+  the whole document (the quadratic formula is 138 by 44 at its natural 16
+  pixels per em: 276 by 88 doubles it, 207 by 66 is one and a half times), so
   every equation has the same text size. A probe (`SourceLoader.Probe`) reports
   the natural size and the baseline.
 - A box of another aspect ratio leaves a transparent margin; the equation is

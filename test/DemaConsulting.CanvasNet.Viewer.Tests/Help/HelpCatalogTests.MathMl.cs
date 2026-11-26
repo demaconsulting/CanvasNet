@@ -121,9 +121,9 @@ public partial class HelpCatalogTests
 
         // Assert: the numbers the guide's text and the size of the quadratic placements are written with
         Assert.Equal((MathMlDisplay.Block, 22), (equation.Display, equation.ElementCount));
-        Assert.Equal(new MathMlSize(137, 44, 32), natural);
-        Assert.Equal((410, 131), (picture.Width, picture.Height));
-        Assert.Equal((95, 32), (inline.Width, inline.Height));
+        Assert.Equal(new MathMlSize(138, 44, 32), natural);
+        Assert.Equal((413, 131), (picture.Width, picture.Height));
+        Assert.Equal((96, 33), (inline.Width, inline.Height));
     }
 
     /// <summary>

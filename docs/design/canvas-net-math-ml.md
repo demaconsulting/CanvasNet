@@ -148,25 +148,25 @@ The text is read (strict UTF-8 for streams and files) and checked against the si
 pre-pass rewrites the named references into numeric references and records where each line shifted; the `MathMlReader`
 reads the rewritten text with the hardened XML reader, maps every position back to the original text, and builds the
 equation tree, keeping what it finds to report (foreign elements, links, stray text) as pending reports and the
-annotations as raw text. The document keeps the tree, the reports, and the description. A measure or render call
-creates a report sink, replays the pending reports, resolves the style of the `math` element from the options, and has
-the `LayoutEngine` lay the tree out into a tree of boxes over the bundled math font, reporting what it does not draw.
-Within each row, the engine infers the form of every embellished operator from its position, the token layout gives
-the operator the spacing and properties of the operator dictionary (overridden by its attributes), and the row lays
-its stretchy operators out again to the height of their neighbors, stretched by the size variants and glyph assemblies
-of the `MATH` table or their fallbacks. The children of a fraction and of a root get the user agent rules of their
+annotations as raw text. The document keeps the tree, the reports, and the description. A measure or render call creates
+a report sink, replays the pending reports, resolves the style of the `math` element from the options, and has the
+`LayoutEngine` lay the tree out into a tree of boxes over the bundled math font, reporting what it does not draw. Within
+each row, the engine infers the form of every embellished operator from its position, the token layout gives the
+operator the spacing and properties of the operator dictionary (overridden by its attributes), and the row lays its
+stretchy operators out again to the height of their neighbors, stretched by the size variants and glyph assemblies of
+the `MATH` table or their fallbacks. The children of a fraction and of a root get the user agent rules of their
 positions (script level and math style) before their own attributes; the fraction layout places the numerator and the
 denominator around a bar on the math axis, and the radical layout stretches the radical symbol over its base. The
-scripts of a scripted element are postfix operators one script level smaller (an accent keeps the size of its base);
-the script layout shifts subscripts and superscripts by the script constants, and the under- and overscript layout
-places limits, accents, and other scripts around their base after the operators stretchy along the inline axis are laid
-out again to the width of the widest other child; outside display style, the limits of an operator with
-`movablelimits` are laid out as scripts. The cells of a table are laid out as rows of their children in compact math
-style; the table layout places them on the grid of their spans, pads them, aligns them on the baselines of their rows,
-and centers the table on the math axis.
-The picture is the content box of the `math` element united with the ink of every painted item, rounded out to whole
-pixels at the scale, with the baseline on a whole row; `Measure` returns its size and `Render` has the painter draw the
-boxes onto a new surface. The reports are delivered once, on the calling thread, after the work.
+scripts of a scripted element are postfix operators one script level smaller (an accent keeps the size of its base); the
+script layout shifts subscripts and superscripts by the script constants, and the under- and overscript layout places
+limits, accents, and other scripts around their base after the operators stretchy along the inline axis are laid out
+again to the width of the widest other child; outside display style, the limits of an operator with `movablelimits` are
+laid out as scripts. The cells of a table are laid out as rows of their children in compact math style; the table layout
+places them on the grid of their spans, pads them, aligns them on the baselines of their rows, and centers the table on
+the math axis. The picture is the content box of the `math` element united with the ink of every painted item grown by
+an antialiasing allowance (one CSS pixel, and at least one device pixel), rounded out to whole pixels at the scale, with
+the baseline on a whole row; `Measure` returns its size and `Render` has the painter draw the boxes onto a new surface.
+The reports are delivered once, on the calling thread, after the work.
 
 ## Design Constraints
 
@@ -207,11 +207,13 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
 
 ### Known Differences
 
-- **Picture box** - the picture is the content box united with the ink, so an overhanging glyph (an italic *f*) is
-  never clipped; a browser's `math` box is the content box only. The picture has no margin, so ink may reach its outer
-  pixel rows and columns (the lower limit of an integral, a final italic letter, a large parenthesis); everything
-  painted, antialiasing included, lies inside it (verified at several font sizes). The reference tests compare element
-  boxes, not picture sizes.
+- **Picture box** - the picture is the content box united with the ink grown by an antialiasing allowance of one CSS
+  pixel (at least one device pixel), so ink that overhangs its box (an italic *f*, a stretched fence, the tail of a
+  radical, the limits of an integral) is never clipped and never reaches the outermost pixel rows and columns; a
+  browser's `math` box is the content box only, so the picture can be a pixel or so larger on a side where ink reaches
+  the content box (the quadratic formula is 138 by 44 pixels where its content box rounds out to 137 by 44). The
+  baseline stays on the row of the origin of the `math` box, so `Measure` places the picture in a line of text as
+  before. The reference tests compare element boxes, not picture sizes.
 - **Token metrics** - a token has the ink ascent and descent of its glyphs rounded out to whole CSS pixels, also when
   its text has a space, as Chrome lays tokens out; MathML Core lays a text with a soft wrap opportunity out as a line of
   text.

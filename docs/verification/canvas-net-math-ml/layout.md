@@ -144,10 +144,12 @@ descent, deeper.
 
 **Tests**: `LayoutTests.Layout_PaintedInk_StaysInsideTheExtent`
 
-Paints an integral with limits followed by an italic x, a large parenthesis around a fraction, and a summation with
-limits followed by an italic j, each at 16, 20, 23, and 32 px, into a surface 8 pixels larger on every side than their
-content box united with their ink bounds rounded out to whole pixels (the extent of the picture), and asserts that every
-pixel outside that extent stays transparent (the antialiasing included) while the extent holds ink.
+Paints an integral with limits followed by an italic x, a large parenthesis around a fraction, a summation with limits
+followed by an italic j, nested stretched parentheses around a sum and fractions, and a radical around tall nested
+fractions, each at 16, 20, 23, 32, 57, and 96 px, into a surface 8 pixels larger on every side than their content box
+united with their ink bounds rounded out to whole pixels, and asserts that every pixel outside that box stays
+transparent (the antialiasing included) while the box holds ink: the ink bounds of the layout cover everything the
+painter draws.
 
 #### CanvasNetMathMl-Layout-ChildCount: An Invalid Fraction
 

@@ -66,11 +66,18 @@ requirements in
   drop the UTF-8 byte-order mark, decode as strict UTF-8 (invalid bytes are a `MathMlSyntaxException` with a hint),
   and continue as `Parse`; the source name of a file is its path unless the options name it.
 - `Measure(options, token)` - runs the pipeline and returns the frame of the picture: the content box of the `math`
-  box united with its ink (`PictureExtent`), scaled and rounded out to whole pixels with a tolerance of 1e-6, at least
-  one pixel on each side, with the origin on a whole row so that the baseline is exact.
+  box united with its ink grown on every side by the antialiasing allowance (`PictureExtent(box, scale)`;
+  `InkAllowance(scale)` is one CSS pixel, or one device pixel below scale 1), scaled and rounded out to whole pixels
+  with a tolerance of 1e-6, at least one pixel on each side, with the origin on a whole row so that the baseline is
+  exact. The allowance keeps the ink, antialiasing included, off the outermost rows and columns of the picture, so a
+  stretched fence, the tail of a radical, or the limit of an integral that reaches the edge of the content box is
+  never cut; a side grows only where the ink comes within the allowance of the content box.
 - `Render(options, token)` - the same frame, painted with `MathMlPainter` at the scale of the options.
 - `Render(width, height, options, token)` - validates the size first, then fits the picture extent into the size with
-  the smaller of the two ratios, centered (an empty picture keeps scale 1).
+  the smaller of the two ratios, centered (an empty picture keeps scale 1). The scale is chosen with the allowance of
+  one CSS pixel; when it comes out below 1 the allowance is one device pixel, which widens each side by at most two
+  device pixels, so the scale that fits the extent without the allowance into the size less two pixels is used (a
+  size of two pixels or less fits the extent without the allowance).
 - `MeasureNatural(options, token)` (internal) - the size of the picture at the scale, rounded out like `Measure` but
   without the `Surface.MaxDimension` check (each side at most `int.MaxValue`), for the image source, which only needs
   the aspect ratio of a picture larger than a surface.

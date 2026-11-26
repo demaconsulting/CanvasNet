@@ -30,7 +30,7 @@ diagram, or a document page that lies beside the diagram. See the pattern in
 - Write `id@{ img: "part.scad", label: "Part", w: 120, h: 120 }` in a
   flowchart. Give every picture node its `w` and `h`: they keep the layout
   stable, and a probe lays the diagram out without the pictures.
-- An equation is a picture too: `eq@{ img: "quadratic.mml", w: 206, h: 66 }`
+- An equation is a picture too: `eq@{ img: "quadratic.mml", w: 207, h: 66 }`
   shows a MathML equation in a node; size it from its natural size (see
   [[mathml/composition]]).
 - Pick the view or the variant per node with a fragment:

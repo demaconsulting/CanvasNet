@@ -42,17 +42,20 @@ sections:
           - id: CanvasNetMathMl-MathMlDocument-MeasureRender
             title: >-
               The MathMlDocument unit shall measure and render the picture of an equation as its content box united
-              with its ink and rounded out to whole pixels (at least one pixel on each side), with the baseline on a
-              whole row, shall render an empty equation as one transparent pixel, shall refuse a picture larger than a
-              surface can be with a located mathml-limit-exceeded error, and shall still fit such an equation into an
-              exact size.
+              with its ink grown by an antialiasing allowance of one CSS pixel (at least one device pixel) and rounded
+              out to whole pixels (at least one pixel on each side), with the baseline on a whole row, so that no ink
+              reaches the outermost rows and columns of a natural or a fitted picture, shall render an empty equation
+              as one transparent pixel, shall refuse a picture larger than a surface can be with a located
+              mathml-limit-exceeded error, and shall still fit such an equation into an exact size.
             justification: |
-              The measured size must be the rendered size, a glyph that overhangs its box must never be clipped, and an
-              oversized equation must fail predictably instead of allocating an impossible surface.
+              The measured size must be the rendered size, ink that overhangs its box (an italic letter, a stretched
+              fence, the tail of a radical, the limits of an integral) must never be clipped or cut at the edge of the
+              picture, and an oversized equation must fail predictably instead of allocating an impossible surface.
             tests:
               - MathMlDocument_Measure_EmptyMath_IsOnePixel
               - MathMlDocument_Measure_HugeSpace_ThrowsLimitExceeded
               - MathMlDocument_Measure_OverhangingGlyph_IsRoundedOutWithBaselineRow
+              - MathMlDocument_Render_TallStretchedInk_IsNeverCutAtTheEdges
 
           - id: CanvasNetMathMl-MathMlDocument-RenderOptions
             title: >-

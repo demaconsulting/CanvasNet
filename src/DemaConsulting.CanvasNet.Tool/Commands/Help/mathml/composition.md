@@ -25,7 +25,7 @@ examples:
 - Pandoc: a code block of class mathml and a picture whose source ends in .mml
   are drawn by the filter (see [[pandoc]]). Unless size or
   scale is given the equation is drawn at scale 2, and without a size, width,
-  or height it is shown at its natural width (width="137px" for the quadratic
+  or height it is shown at its natural width (width="138px" for the quadratic
   formula), so every equation of the document shows at the 16 px font size; an
   author's size, width, height, or scale is kept.
 - Montage and flatten: canvasnet montage takes .mml inputs, and canvasnet

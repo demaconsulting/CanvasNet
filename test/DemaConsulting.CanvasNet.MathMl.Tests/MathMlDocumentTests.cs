@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.MathMl.Tests;
 
@@ -141,7 +142,7 @@ public class MathMlDocumentTests
         var options = new MathMlRenderOptions { Scale = 1.5 };
         var box = document.LayoutBox(options, TestContext.Current.CancellationToken);
         var content = box.ContentRect;
-        var extent = MathMlDocument.PictureExtent(box);
+        var extent = MathMlDocument.PictureExtent(box, 1.5);
         var expectedWidth = (int)(Math.Ceiling(extent.Right * 1.5) - Math.Floor(extent.X * 1.5));
         var expectedHeight = (int)(Math.Ceiling(extent.Bottom * 1.5) - Math.Floor(extent.Y * 1.5));
         var expectedBaseline = (int)-Math.Floor(extent.Y * 1.5);
@@ -155,6 +156,83 @@ public class MathMlDocumentTests
         Assert.Equal(new MathMlSize(expectedWidth, expectedHeight, expectedBaseline), size);
         Assert.Equal((size.Width, size.Height), (surface.Width, surface.Height));
         Assert.Contains(Enumerable.Range(0, surface.Width), x => surface[x, size.Baseline - 1].A > 0);
+    }
+
+    /// <summary>
+    ///     Validates that a picture holds all the ink of tall stretched constructions, antialiasing included, with its
+    ///     outermost rows and columns clear: nested stretched parentheses around a sum and fractions, radicals around
+    ///     shallow and tall content, and a display integral with infinite limits, rendered at their natural size at
+    ///     scales from 0.5 to 6 equal an unclipped painting of the same layout into a larger surface, keep the baseline
+    ///     on the row of the origin, and fitted into exact sizes keep their edges clear too.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Render_TallStretchedInk_IsNeverCutAtTheEdges()
+    {
+        // Arrange: the ink of each reaches past its content box (fences, the tail of a radical, the limits of an integral)
+        string[] equations =
+        [
+            "<mrow><mo>(</mo><mrow><mo>(</mo><munderover><mo>&#x2211;</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow>"
+                + "<mi>m</mi></munderover><mfrac><msup><mi>x</mi><mi>k</mi></msup><mi>k</mi></mfrac><mo>)</mo></mrow>"
+                + "<mo>&#x2212;</mo><mfrac><msup><mi>x</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msup>"
+                + "<mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mfrac><mo>)</mo></mrow>",
+            "<msub><mi>&#x3C9;</mi><mi>d</mi></msub><mo>=</mo><msub><mi>&#x3C9;</mi><mi>n</mi></msub>"
+                + "<msqrt><mn>1</mn><mo>&#x2212;</mo><msup><mi>&#x3B6;</mi><mn>2</mn></msup></msqrt>",
+            "<msqrt><mfrac><mfrac><mn>1</mn><mi>y</mi></mfrac><mfrac><mi>g</mi><mrow><mn>1</mn><mo>&#x2212;</mo>"
+                + "<msup><mi>&#x3B6;</mi><mn>2</mn></msup></mrow></mfrac></mfrac></msqrt>",
+            "<mi>F</mi><mo>=</mo><msubsup><mo>&#x222B;</mo><mrow><mo>&#x2212;</mo><mi>&#x221E;</mi></mrow><mi>&#x221E;</mi>"
+                + "</msubsup><mi>f</mi><mo>(</mo><mi>t</mi><mo>)</mo><mspace width=\"0.1667em\"/><mi>d</mi><mi>t</mi>",
+        ];
+        const int Margin = 8;
+        var token = TestContext.Current.CancellationToken;
+
+        foreach (var equation in equations)
+        {
+            var document = MathMlDocument.Parse(MathMlTestHelpers.Math(equation, "display=\"block\""));
+            foreach (var scale in new[] { 0.5, 1, 1.5, 2, 3, 6 })
+            {
+                // Act: the natural picture, and the same layout painted unclipped with a margin around the frame
+                var options = new MathMlRenderOptions { Scale = scale };
+                var size = document.Measure(options, token);
+                using var picture = document.Render(options, token);
+                var box = document.LayoutBox(options, token);
+                var extent = MathMlDocument.PictureExtent(box, scale);
+                var originX = -Math.Floor((extent.X * scale) + 1e-6);
+                var originY = -Math.Floor((extent.Y * scale) + 1e-6);
+                using var unclipped = new Surface(picture.Width + (2 * Margin), picture.Height + (2 * Margin));
+                MathMlPainter.Paint(unclipped, box, new MathPlacement(scale, Margin + originX, Margin + originY), null, 10_000, token);
+
+                // Assert: the unclipped painting is the picture (within the rounding of the moved pen positions), nothing
+                // more, and the edges of the picture are clear
+                var label = $"{equation} at scale {scale}";
+                Assert.Equal((size.Width, size.Height, size.Baseline), (picture.Width, picture.Height, (int)originY));
+                for (var y = 0; y < unclipped.Height; y++)
+                {
+                    for (var x = 0; x < unclipped.Width; x++)
+                    {
+                        var inside = x >= Margin && x < Margin + picture.Width && y >= Margin && y < Margin + picture.Height;
+                        var expected = inside ? picture[x - Margin, y - Margin].A : 0;
+                        var tolerance = inside ? 4 : 0;
+                        Assert.True(Math.Abs(expected - unclipped[x, y].A) <= tolerance, $"{label}: pixel {x - Margin},{y - Margin} differs from the unclipped painting");
+                    }
+                }
+
+                Assert.True(EdgesClear(picture), $"{label}: ink on the outermost rows or columns of {picture.Width}x{picture.Height}");
+                Assert.True(MathMlTestHelpers.InkedPixels(picture) > 0, label);
+            }
+
+            // Act / Assert: fitted into exact sizes, larger, smaller, and of other aspect ratios, the edges stay clear
+            var natural = document.Measure(cancellationToken: token);
+            foreach (var (width, height) in new[]
+            {
+                (natural.Width * 4, natural.Height * 4), (natural.Width * 2, natural.Height * 5),
+                ((natural.Width * 3) + 7, natural.Height), (natural.Width / 2, natural.Height / 2),
+            })
+            {
+                using var fitted = document.Render(width, height, cancellationToken: token);
+                Assert.True(EdgesClear(fitted), $"{equation} fitted into {width}x{height}: ink on the outermost rows or columns");
+                Assert.True(MathMlTestHelpers.InkedPixels(fitted) > 0);
+            }
+        }
     }
 
     /// <summary>
@@ -312,6 +390,34 @@ public class MathMlDocumentTests
         Assert.False(MathMlDocument.IsLayoutDefect(new MathMlUnsupportedFeatureException()));
         Assert.False(MathMlDocument.IsLayoutDefect(new OperationCanceledException()));
         Assert.False(MathMlDocument.IsLayoutDefect(new ObjectDisposedException("surface")));
+    }
+
+    /// <summary>
+    ///     Gets whether the outermost rows and columns of a surface are fully transparent.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <returns>Whether no pixel of the edges has ink.</returns>
+    private static bool EdgesClear(Surface surface)
+    {
+        var last = surface.Height - 1;
+        var right = surface.Width - 1;
+        for (var x = 0; x < surface.Width; x++)
+        {
+            if (surface[x, 0].A != 0 || surface[x, last].A != 0)
+            {
+                return false;
+            }
+        }
+
+        for (var y = 0; y < surface.Height; y++)
+        {
+            if (surface[0, y].A != 0 || surface[right, y].A != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

@@ -399,7 +399,7 @@ checkout.puml: plantuml, 254x354 px (laid out), sequence, 3 participants, 4 mess
 $ canvasnet info ticket.puml
 ticket.puml: plantuml, 272x419 px (laid out), activity, 8 nodes, 9 edges, 0 subgraphs, title "Handling a ticket", 233 bytes
 $ canvasnet info quadratic.mml
-quadratic.mml: mathml, 137x44 px (laid out), equation, block, 22 elements, baseline 32, alttext "x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a", 648 bytes
+quadratic.mml: mathml, 138x44 px (laid out), equation, block, 22 elements, baseline 32, alttext "x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a", 648 bytes
 ```
 
 ### render and convert
@@ -2237,7 +2237,7 @@ alphabetic baseline in the natural picture, in pixels from the top), `altText` o
 and `annotations` (the `encoding` of each annotation in order, an empty string for one without; always present):
 
 ```json
-{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"quadratic.mml","format":"mathml","bytes":648},"image":{"width":137,"height":44,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"equation":{"display":"block","elements":22,"baseline":32,"altText":"x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a","annotations":[]}}
+{"schemaVersion":2,"ok":true,"command":"info","input":{"path":"quadratic.mml","format":"mathml","bytes":648},"image":{"width":138,"height":44,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"equation":{"display":"block","elements":22,"baseline":32,"altText":"x equals minus b plus or minus the square root of b squared minus 4 a c, all over 2 a","annotations":[]}}
 ```
 
 `render`, `convert`, and the transformation commands add:

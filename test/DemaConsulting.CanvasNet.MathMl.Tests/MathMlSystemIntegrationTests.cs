@@ -218,7 +218,7 @@ public class MathMlSystemIntegrationTests
         var document = MathMlDocument.Parse(PixelText);
         var options = new MathMlRenderOptions { FontSize = 32 };
         var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var originX = -Math.Floor(extent.X + 1e-6);
         var originY = -Math.Floor(extent.Y + 1e-6);
         var boxes = MathMlTestHelpers.Flatten(root);
@@ -261,7 +261,7 @@ public class MathMlSystemIntegrationTests
         var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<mo>(</mo><mspace width=\"8px\" height=\"4em\" depth=\"3em\"/><mo>)</mo>"));
         var options = new MathMlRenderOptions { FontSize = 32 };
         var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var originX = -Math.Floor(extent.X + 1e-6);
         var originY = -Math.Floor(extent.Y + 1e-6);
         var parens = MathMlTestHelpers.Flatten(root).Where(entry => entry.Box.Element?.Name == "mo").ToList();
@@ -460,7 +460,11 @@ public class MathMlSystemIntegrationTests
         var digitsWidth = size.Width / 2;
         Assert.Contains(surface.GetRowSpan(size.Baseline - 1)[..digitsWidth].ToArray(), pixel => pixel.A > 0);
         Assert.DoesNotContain(surface.GetRowSpan(size.Baseline + 1)[..digitsWidth].ToArray(), pixel => pixel.A > 0);
-        Assert.Contains(surface.GetRowSpan(size.Height - 1).ToArray(), pixel => pixel.A > 0);
+
+        // The descender of y sets the bottom: its ink ends within the antialiasing allowance (1.5 device pixels) of the
+        // bottom edge, and the last row is clear
+        Assert.Contains(Enumerable.Range(size.Height - 3, 2), row => surface.GetRowSpan(row).ToArray().Any(pixel => pixel.A > 0));
+        Assert.DoesNotContain(surface.GetRowSpan(size.Height - 1).ToArray(), pixel => pixel.A > 0);
     }
 
     /// <summary>
@@ -616,7 +620,7 @@ public class MathMlSystemIntegrationTests
         var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<mfrac linethickness=\"4px\"><mspace width=\"30px\" height=\"10px\"/><mspace width=\"30px\" height=\"10px\"/></mfrac>"));
         var options = new MathMlRenderOptions { FontSize = 32 };
         var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var originX = -Math.Floor(extent.X + 1e-6);
         var originY = -Math.Floor(extent.Y + 1e-6);
         var (fraction, fractionX, _) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "mfrac");
@@ -656,7 +660,7 @@ public class MathMlSystemIntegrationTests
         var document = MathMlDocument.Parse(MathMlTestHelpers.Math("<msqrt><mspace width=\"40px\" height=\"20px\" depth=\"5px\"/></msqrt>"));
         var options = new MathMlRenderOptions { FontSize = 32 };
         var root = document.LayoutBox(options, TestContext.Current.CancellationToken);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var originX = -Math.Floor(extent.X + 1e-6);
         var originY = -Math.Floor(extent.Y + 1e-6);
         var (sqrt, sqrtX, _) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "msqrt");
@@ -721,7 +725,7 @@ public class MathMlSystemIntegrationTests
             "<mtr><mtd/><mtd><mspace width=\"20px\" height=\"10px\" depth=\"5px\"/></mtd></mtr></mtable>"));
         var (options, warnings, unsupported) = MathMlTestHelpers.Collecting(fontSize: 32);
         var root = document.LayoutBox(new MathMlRenderOptions { FontSize = 32 }, TestContext.Current.CancellationToken);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var originX = -Math.Floor(extent.X + 1e-6);
         var originY = -Math.Floor(extent.Y + 1e-6);
         var (table, tableX, tableY) = MathMlTestHelpers.Flatten(root).Single(entry => entry.Box.Element?.Name == "mtable");
@@ -836,7 +840,7 @@ public class MathMlSystemIntegrationTests
         var braceInk = brace.Box.InkBounds()!.Value;
         Assert.True(braceInk.Width >= @base.Box.Width - 1e-6);
         Assert.True(brace.X + braceInk.X <= @base.X + 1 && brace.X + braceInk.Right >= @base.X + @base.Box.Width - 1);
-        var extent = MathMlDocument.PictureExtent(root);
+        var extent = MathMlDocument.PictureExtent(root, 1);
         var row = (int)(-Math.Floor(extent.Y + 1e-6) + moverY + brace.Y + braceInk.Y + (braceInk.Height / 2));
         var left = (int)(-Math.Floor(extent.X + 1e-6) + moverX + brace.X + braceInk.X);
         var rows = Enumerable.Range(Math.Max(0, row - 6), 12).Where(y => y < picture.Height).ToList();

@@ -65,8 +65,9 @@ public sealed partial class MathMlDocument
 - `Render()` draws the equation onto a new `Surface` at its **natural size**: the equation at
   `MathMlRenderOptions.FontSize` (16 CSS pixels, the default size of a browser), multiplied by `Scale`. The equation is
   laid out again at the final size, so it is sharp at every scale. The picture is the content box of the `math` element
-  united with the ink of everything painted, rounded out to whole pixels, so a glyph that overhangs its box (an italic
-  *f*) is never clipped. The caller owns, and must dispose, the returned surface.
+  united with the ink of everything painted and a margin of one CSS pixel around the ink for antialiasing, rounded out
+  to whole pixels, so ink that overhangs its box (an italic *f*, a stretched fence, the tail of a radical) is never
+  clipped or cut at the edge of the picture. The caller owns, and must dispose, the returned surface.
 - `Render(width, height)` draws onto a surface of exactly that size: the equation is scaled uniformly to fit and
   centered, and the margins take the background. `Scale` is not used.
 
@@ -342,8 +343,9 @@ The codes, with their kind and when each is reported:
 - **`mathml-css-unsupported`**: Unsupported: A declaration of the `style` attribute outside the supported subset (such
   as `border` or `padding`); it is ignored.
 - **`mathml-syntax-error`**: Error (mathml-error): the text is not valid UTF-8 or not well-formed XML, declares a
-  document type, uses a named reference that is not in the W3C set, or its root is not `math`; the message gives the
-  file, the line, and the column (an empty file is line 1, column 1), and the hint suggests the fix.
+  document type, uses a named reference that is not in the W3C set, or its root is not
+  `math`; the message gives the file, the line, and the column (an empty file is line 1, column 1), and the hint
+  suggests the fix.
 - **`mathml-limit-exceeded`**: Error (budget-exceeded): a limit of the library (elements, nesting, token length, table
   cells, layout work, painted glyphs, or a picture larger than the largest image); see the card `limits`.
 - **`mathml-render-failed`**: Error (mathml-error): the equation cannot be laid out; please report it.
@@ -397,8 +399,9 @@ attributes by Firefox) with the same font, and the boxes of every element agree 
   and ignores the table attributes.
 - **ms and percentages.** `ms` is drawn without quotes, as MathML Core and Chrome draw it, and the percentages of
   `mspace` and `mpadded` are ignored, as MathML Core says.
-- **Picture box.** The picture is the content box united with the ink, so an overhanging glyph is never clipped; a
-  browser's box may be a pixel smaller.
+- **Picture box.** The picture is the content box united with the ink and a one-pixel margin around the ink, so an
+  overhanging glyph, a stretched fence, or the tail of a radical is never clipped; a browser's box may be a pixel or
+  two smaller.
 - **Errors.** For invalid text a browser draws what it can; this package throws a located `MathMlSyntaxException`.
 
 The design documentation lists every difference of the layout in detail.
@@ -440,7 +443,7 @@ using var surface = SvgCodec.Load("assets/figure.svg", 800, 600, fonts: null, op
 ```
 
 Place each equation at its natural size times one factor for the whole document, so every equation has the same text
-size: the quadratic formula of Example 78 is 137 by 44 pixels at its natural size, so a placement of 274 by 88 draws it
+size: the quadratic formula of Example 78 is 138 by 44 pixels at its natural size, so a placement of 276 by 88 draws it
 at twice that size.
 
 ## Examples
@@ -488,13 +491,13 @@ Console.WriteLine($"{equation.Display}, {equation.ElementCount} elements");  // 
 // Measure lays the equation out without drawing; Render draws it sharply at three times the size
 MathMlSize natural = equation.Measure();
 Console.WriteLine($"{natural.Width}x{natural.Height}, baseline {natural.Baseline}");
-                                                                             // Output: 137x44, baseline 32
+                                                                             // Output: 138x44, baseline 32
 using var picture = equation.Render(new MathMlRenderOptions { Scale = 3, Background = new Rgba32(255, 255, 255, 255) });
-PngCodec.Save(picture, "quadratic.png");                                     // 410x131 pixels, white background
+PngCodec.Save(picture, "quadratic.png");                                     // 413x131 pixels, white background
 
 // The same equation inline: the fraction is compact
 MathMlSize inline = equation.Measure(new MathMlRenderOptions { Display = MathMlDisplay.Inline });
-Console.WriteLine($"{inline.Width}x{inline.Height}");                        // Output: 95x32
+Console.WriteLine($"{inline.Width}x{inline.Height}");                        // Output: 96x33
 
 // Fit the equation into a fixed box over a transparent background: it is scaled uniformly and centered
 using var thumbnail = equation.Render(300, 100);
@@ -508,9 +511,9 @@ using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 var info = SourceLoader.Probe(InputReference.Parse("quadratic.mml#display=inline"));
-Console.WriteLine($"{info.Equation!.Display}, {info.Width}x{info.Height}");  // Output: inline, 95x32
+Console.WriteLine($"{info.Equation!.Display}, {info.Width}x{info.Height}");  // Output: inline, 96x33
 
-using var image = CanvasNetViewer.Render("quadratic.mml", new ViewerRenderOptions { Width = 411, ThrowOnUnsupportedFeature = true });
+using var image = CanvasNetViewer.Render("quadratic.mml", new ViewerRenderOptions { Width = 414, ThrowOnUnsupportedFeature = true });
 Console.WriteLine($"{image.Format} {image.Surface.Width}x{image.Surface.Height}");
 ```
 
@@ -571,13 +574,13 @@ Through the Viewer and the tool the same failures are `ViewerException`s: the sy
 ### Example 80: An Equation in an SVG Figure, a Mermaid Node, and a Vega-Lite Chart
 
 Save the quadratic formula of Example 78 as `quadratic.mml` and link it like any picture. An SVG figure places it at
-twice its natural size (137 by 44):
+twice its natural size (138 by 44):
 
 ```xml
 <svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160">
   <rect width="480" height="160" fill="#f8fafc"/>
   <text x="24" y="40" font-family="sans-serif" font-size="18">The roots of a quadratic</text>
-  <image href="quadratic.mml" x="103" y="56" width="274" height="88"/>
+  <image href="quadratic.mml" x="102" y="56" width="276" height="88"/>
 </svg>
 ```
 
@@ -585,7 +588,7 @@ A node of a Mermaid flowchart shows it at one and a half times its natural size:
 
 ```mermaid
 flowchart LR
-    eq@{ img: "quadratic.mml", label: "Roots", w: 206, h: 66 }
+    eq@{ img: "quadratic.mml", label: "Roots", w: 207, h: 66 }
     eq --> check[Check the discriminant]
 ```
 
@@ -595,7 +598,7 @@ An `image` mark of a Vega-Lite chart shows it through its `url` channel:
 {
   "width": 300, "height": 120, "padding": 0,
   "data": { "values": [ { "x": 5 } ] },
-  "mark": { "type": "image", "width": 206, "height": 66 },
+  "mark": { "type": "image", "width": 207, "height": 66 },
   "encoding": {
     "x": { "field": "x", "type": "quantitative", "scale": { "domain": [0, 10] }, "axis": null },
     "y": { "value": 60 },
