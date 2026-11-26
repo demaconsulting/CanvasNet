@@ -33,12 +33,14 @@ by the `CanvasNetMathMl-Layout-ScriptLayout-*` requirements in
     descent) is less than `SubSuperscriptGapMin`, the superscript is raised by the missing gap, but no further than its
     bottom at `SuperscriptBottomMaxWithSubscript`, then the subscript is lowered by the rest.
   - **Placement** - the base at 0; the subscript at the base's width − LargeOpItalicCorrection; the superscript at the
-    base's width + ItalicCorrection (`ItalicCorrections`), and, when the base is a slanted token (not an operator,
-    with an italic correction) whose ink the ink of the superscript would overlap (the hook of a zeta reaching past its
-    advance), also after the clearance of `MathBox.Clearance` (the italic correction of the base, or the overlap when
-    larger). The width is the base's plus the wider script's (the superscript with that clearance) plus
-    `SpaceAfterScript`; the ascent and the descent are the largest over the base and the shifted scripts, and at least
-    zero. The operator of an embellished element (given by the engine) is kept on the box.
+    base's width + ItalicCorrection (`ItalicCorrections`), and, when the base is not an operator and the ink of the
+    superscript would overlap the ink at the end of the base (a token, or the last token of a row: the hook of a zeta,
+    the arm of a y, whatever the glyph of the superscript), also after the clearance of `MathBox.ScriptClearance` (the
+    italic correction of the base, or the overlap when larger). The element ends `SpaceAfterScript` after the base or
+    the script that ends last as placed (the subscript of a large operator ends LargeOpItalicCorrection earlier than
+    the base and the subscript side by side; the superscript ends after its italic correction and clearance); the
+    ascent and the descent are the largest over the base and the shifted scripts, and at least zero. The operator of
+    an embellished element (given by the engine) is kept on the box.
 - `LayoutMultiscripts(base, postscripts, prescripts, separator, style, embellished)` - 3.4.3.1: the shifts are the
   largest over the pairs, each pair computed as an `msubsup` with its gap; each prescript pair follows
   `SpaceAfterScript` and its scripts are aligned right in the column of the wider one; the base and the box of
@@ -51,14 +53,16 @@ by the `CanvasNetMathMl-Layout-ScriptLayout-*` requirements in
 
 #### Behaviors Matched With Chrome
 
-The reference layouts come from Chrome, which differs from a literal reading of MathML Core in three points that
-`ScriptLayout` follows:
+The reference layouts come from Chrome, which differs from a literal reading of MathML Core in the points below;
+`ScriptLayout` follows it except where noted:
 
 - The italic correction of a token glyph (an italic `mi` such as *b*) does not move a superscript whose ink stays clear
   of the ink of the glyph; only the italic correction of a stretched or large operator always does. MathML Core
   3.2.1.1 gives a single slanted glyph its italic correction and 3.4.1.3 always adds it; CanvasNet adds it where the
   inks would otherwise collide (a known difference from Chrome, which lets them overlap).
-- The width does not include the italic corrections (MathML Core adds them).
+- Unlike Chrome, which counts the whole of the wider script after the base, the element ends after the scripts as
+  placed, so an integral with a wide lower limit does not leave LargeOpItalicCorrection of extra space before its
+  integrand (a deliberate difference, closer to TeX).
 - The ascent and the descent of the element are at least zero.
 
 #### Error Handling

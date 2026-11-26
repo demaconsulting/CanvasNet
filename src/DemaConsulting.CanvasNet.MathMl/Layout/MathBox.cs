@@ -361,6 +361,67 @@ internal sealed class MathBox
     }
 
     /// <summary>
+    ///     Computes the ink bounds at the end of the box: those of the token reached by following the last child down (a
+    ///     row ends with its last child), relative to the origin of this box, with the same stops as
+    ///     <see cref="LeadingInk"/>.
+    /// </summary>
+    /// <returns>The bounds, or null when the end of the box is not a painted token.</returns>
+    public MathRect? TrailingInkBounds()
+    {
+        var x = 0.0;
+        var y = 0.0;
+        var box = this;
+        while (!box.IsPhantom)
+        {
+            if (box.Children.Count == 0)
+            {
+                return box.InkBounds()?.Offset(x, y);
+            }
+
+            if (box.Items.Count > 0)
+            {
+                return null;
+            }
+
+            var last = box.Children[^1];
+            x += last.X;
+            y += last.Y;
+            box = last.Box;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Computes the clearance that keeps the ink of a superscript from overlapping the ink at the end of its base,
+    ///     whatever the glyphs: a superscript is raised beside the top of the base, so a slanted script after a slanted
+    ///     letter (the superscript k of a y) collides as readily as an upright one.
+    /// </summary>
+    /// <param name="baseInk">The ink at the end of the base, relative to the origin of the scripted element, or null.</param>
+    /// <param name="baseItalic">The italic correction of the base (0 for an operator, whose own correction is applied).</param>
+    /// <param name="sup">The superscript.</param>
+    /// <param name="x">The horizontal position of the superscript before the clearance.</param>
+    /// <param name="y">The vertical position of the superscript.</param>
+    /// <returns>0 when the inks do not overlap; otherwise the overlap, and at least the italic correction of the base.</returns>
+    public static double ScriptClearance(MathRect? baseInk, double baseItalic, MathBox sup, double x, double y)
+    {
+        ArgumentNullException.ThrowIfNull(sup);
+        if (baseInk is not { } before || sup.LeadingInk() is not { } leading)
+        {
+            return 0;
+        }
+
+        var after = leading.Ink.Offset(x, y);
+        var overlap = before.Right - after.X;
+        if (overlap <= 0 || after.Bottom <= before.Y || after.Y >= before.Bottom)
+        {
+            return 0;
+        }
+
+        return Math.Max(overlap, baseItalic);
+    }
+
+    /// <summary>
     ///     Unions two optional rectangles.
     /// </summary>
     /// <param name="a">The first rectangle, or null.</param>

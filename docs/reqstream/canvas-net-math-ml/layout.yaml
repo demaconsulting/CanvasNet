@@ -184,6 +184,7 @@ sections:
               - Layout_ScriptsAndLimits_MatchConstants
               - Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide
               - Layout_SubscriptOfCharacter_IgnoresItsDescender
+              - Layout_IntegralWithLimits_IntegrandFollowsTheLimits
 
           - id: CanvasNetMathMl-Layout-UnderOver
             title: >-

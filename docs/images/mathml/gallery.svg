@@ -13,10 +13,10 @@
   <image href="quadratic.mml" x="354" y="86" width="552" height="176"/>
   <text class="label" x="630" y="366">Quadratic formula</text>
   <rect class="cell" x="1260" y="24" width="1212" height="300"/>
-  <image href="binomial-theorem.mml" x="1512" y="86" width="708" height="176"/>
+  <image href="binomial-theorem.mml" x="1510" y="86" width="712" height="176"/>
   <text class="label" x="1866" y="366">Binomial theorem</text>
   <rect class="cell" x="24" y="388" width="1212" height="300"/>
-  <image href="fourier-transform.mml" x="230" y="450" width="800" height="176"/>
+  <image href="fourier-transform.mml" x="240" y="450" width="780" height="176"/>
   <text class="label" x="630" y="730">Fourier transform</text>
   <rect class="cell" x="1260" y="388" width="1212" height="300"/>
   <image href="transfer-function.mml" x="1454" y="454" width="824" height="168"/>

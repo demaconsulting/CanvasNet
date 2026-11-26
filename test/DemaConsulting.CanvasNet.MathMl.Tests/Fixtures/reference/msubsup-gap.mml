@@ -1,6 +1,6 @@
 <math xmlns="http://www.w3.org/1998/Math/MathML">
   <msubsup>
-    <mi>x</mi>
+    <mi>u</mi>
     <mi>i</mi>
     <mi>k</mi>
   </msubsup>
@@ -26,7 +26,7 @@
       <mi>c</mi>
     </msup>
     <msup>
-      <mi>v</mi>
+      <mi>u</mi>
       <mi>c</mi>
     </msup>
   </mfrac>

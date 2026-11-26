@@ -304,24 +304,25 @@ affiliated with the W3C or Unicode, Inc. The bundled Noto Sans Math font and its
   of these points.
 - **Scripts** - as Chrome lays them out, the italic correction of an operator drawn with a size variant or an assembly
   moves a script, and the italic correction of a token glyph (MathML Core 3.2.1.1, which 3.4.1.3 always adds before a
-  superscript) does not, except where the ink of the superscript would overlap the ink of a slanted token base: the
-  superscript of ζ then follows the italic correction of ζ (Chrome lets the 2 of ζ² collide with the hook of the ζ), and
-  the element is wider by it. The width of a scripted element is that of its base and its wider script with
-  SpaceAfterScript, without the italic corrections MathML Core adds. A scripted element whose base is a stretchy
-  operator is an embellished operator that its row stretches (MathML Core 3.2.4.1 and 3.3.1.1); Chrome stretches only
-  operators that are not scripted, so this case is verified by the unit tests and not compared with Chrome. The form of
-  the operator at the base of a scripted element is the form of the scripted element in its row (MathML Core 3.2.4.2);
-  Chrome infers it from the position of the operator inside the scripted element, so the reference fixtures use
-  operators without a prefix form there. Chrome computes the width of an `mmultiscripts` with both prescripts and
-  postscripts from its postscript pairs only (its box is wider than its content), so the reference fixture uses script
-  pairs of one width. Two visible consequences match Chrome: a large operator with a subscript wider than its
-  superscript (the lower limit of an integral) ends LargeOpItalicCorrection plus SpaceAfterScript after its subscript,
-  because the subscript starts LargeOpItalicCorrection before the end of the base while the width counts the whole base
-  (`scripts-largeop-wide-limit`); and the superscript of a letter that is clear of its ink (b²) starts at the advance of
-  the letter, with its bottom SuperscriptShiftUp (or the cramped shift, or the ascent of the letter less
-  SuperscriptBaselineDropMax) above the baseline, beside the ascender (`msup-italic-letter`). The reference fixtures
-  keep the letters whose ink the clearance moves (an italic *f* or ζ before a superscript, a brace, or a parenthesis)
-  out of the comparison with Chrome; the unit and subsystem tests verify the clearance.
+  superscript) does not, except where the ink of the superscript would overlap the ink at the end of the base (a token,
+  or the last token of a row), whatever the two glyphs: the superscript then follows the italic correction of the base,
+  or the overlap when larger (Chrome lets the 2 of ζ² collide with the hook of the ζ and the k of y^k with the arm of
+  the y). A scripted element ends SpaceAfterScript after the base or the script that ends last as placed, a deliberate
+  difference from Chrome, which counts the whole of the wider script after the base: the lower limit of an integral is
+  pulled back under it by LargeOpItalicCorrection, so Chrome leaves that much extra space (nearly 1em with the operator
+  spacing) before the integrand, where CanvasNet leaves about 0.25em, close to TeX; a superscript moved by an italic
+  correction or the clearance widens the element by it. A scripted element whose base is a stretchy operator is an
+  embellished operator that its row stretches (MathML Core 3.2.4.1 and 3.3.1.1); Chrome stretches only operators that
+  are not scripted, so this case is verified by the unit tests and not compared with Chrome. The form of the operator at
+  the base of a scripted element is the form of the scripted element in its row (MathML Core 3.2.4.2); Chrome infers it
+  from the position of the operator inside the scripted element, so the reference fixtures use operators without a
+  prefix form there. Chrome computes the width of an `mmultiscripts` with both prescripts and postscripts from its
+  postscript pairs only (its box is wider than its content), so the reference fixture uses script pairs of one width.
+  The superscript of a letter that is clear of its ink (b²) starts at the advance of the letter, with its bottom
+  SuperscriptShiftUp (or the cramped shift, or the ascent of the letter less SuperscriptBaselineDropMax) above the
+  baseline, beside the ascender (`msup-italic-letter`). The reference fixtures keep the letters whose ink the clearance
+  moves (an italic *f* or ζ before a superscript, a brace, or a parenthesis) out of the comparison with Chrome; the unit
+  and subsystem tests verify the clearance.
 - **Under- and overscripts** - as Chrome lays them out, an overscript is centered on its base (MathML Core places it
   by its top accent attachment) and the gaps of an accent and of a script that is neither a limit nor on a stretchy
   base are measured between the boxes (MathML Core measures them from the baseline of the script). Accents come from

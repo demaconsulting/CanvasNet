@@ -406,7 +406,11 @@ attributes by Firefox) with the same font, and the boxes of every element agree 
   overhanging glyph, a stretched fence, or the tail of a radical is never clipped; a browser's box may be a pixel or
   two smaller.
 - **Slanted letters.** A slanted letter gets its italic correction as clearance before a fence or a superscript where
-  its ink would otherwise collide with it (the 2 of ζ², a parenthesis after *f*); Chrome lets them touch.
+  its ink would otherwise collide with it (the 2 of ζ², the k of y to the k, a parenthesis after *f*); Chrome lets them
+  touch.
+- **Integrals with limits.** A scripted element ends after its scripts as they are placed (the lower limit of an
+  integral is pulled back under the sign), so the integrand follows the limits about a quarter em after them, close to
+  TeX; Chrome counts the whole lower limit after the sign and leaves nearly 1em there.
 - **Subscripts of letters.** The subscript of a single character stays at the normal subscript shift of the font
   whatever the descender of the character, as TeX sets it, so the subscript n of γ sits as low as the subscript n of
   x; MathML Core and Chrome lower it below the descender.

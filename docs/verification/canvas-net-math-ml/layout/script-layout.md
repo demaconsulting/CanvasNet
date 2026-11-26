@@ -35,7 +35,8 @@ Asserts that a small subscript is shifted down by SubscriptShiftDown (21 px), a 
 SubscriptTopMax (27 px), and a subscript of a base descending 30 px by SubscriptBaselineDropMin + 30 (44 px), with the
 resulting ascent and descent; and that the subscript of a large operator with an italic correction of 50 px starts
 50 px before the end of the operator while its superscript starts at the end, the width being the operator, the wider
-script, and SpaceAfterScript, and the operator kept on the box; and that the subscript of a single character
+script, and SpaceAfterScript, and the operator kept on the box, while a subscript 90 px wide ends the element 50 px
+earlier than side by side (100 − 50 + 90 px and SpaceAfterScript); and that the subscript of a single character
 descending 40 px is shifted by SubscriptShiftDown only, while the subscript of the same extents drawn with two glyphs is
 SubscriptBaselineDropMin + 40 px down.
 
@@ -48,7 +49,8 @@ SubscriptBaselineDropMin + 40 px down.
 Asserts that a small superscript is shifted up by SuperscriptShiftUp (39 px), by SuperscriptShiftUpCramped (28 px)
 when `math-shift` is compact, by SuperscriptBottomMin + its descent for a deep script (53.4 px), and by the base's
 ascent − SuperscriptBaselineDropMax for a tall base (66 px); that the superscript of an operator with an italic
-correction of 6 px starts 6 px after its end while its subscript and the width ignore the correction; that a base
+correction of 6 px starts 6 px after its end while its subscript ignores the correction and the element ends after
+the superscript; that a base
 that is not an operator and paints nothing moves no script; and that the superscript of a slanted letter whose ink
 reaches 11 px past its advance (italic correction 13 px) starts 13 px after the advance, clear of the ink, with the
 width grown by 13 px, while a letter whose ink stays within its advance keeps the superscript at the advance.
@@ -56,11 +58,13 @@ width grown by 13 px, while a letter whose ink stays within its advance keeps th
 ##### CanvasNetMathMl-Layout-ScriptLayout-SubSuperscript: Both Scripts
 
 **Tests**: `ScriptLayoutTests.ScriptLayout_LayoutSubSup_GapIsEnforced`,
-`ScriptLayoutTests.ScriptLayout_Layout_SpaceAfterScriptIsAdded`
+`ScriptLayoutTests.ScriptLayout_Layout_SpaceAfterScriptIsAdded`,
+`ScriptLayoutTests.ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript`
 
 Asserts that a 60 px tall subscript and a superscript descending 20 px, overlapping at the standard shifts, end with the
 bottom of the superscript at SuperscriptBottomMaxWithSubscript (43 px), the subscript lowered to 33 px, and a gap of
-exactly SubSuperscriptGapMin (16 px); that the width is the base, the wider script, and SpaceAfterScript (4 px); that a
+exactly SubSuperscriptGapMin (16 px); that the element ends SpaceAfterScript (4 px) after the script that ends last as
+placed (the subscript of a large operator pulled back by its italic correction); that a
 descent below zero is clamped to zero; and that a layout without scripts throws `ArgumentException`.
 
 ##### CanvasNetMathMl-Layout-ScriptLayout-Multiscripts: Prescripts And Postscripts

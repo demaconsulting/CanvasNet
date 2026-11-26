@@ -36,8 +36,11 @@ The equation is laid out by the rules of MathML Core and compared with Chrome
 - A character that Noto Sans Math lacks is drawn with the bundled Noto Sans and
   the other fallback fonts; the picture never depends on installed fonts.
 - A slanted letter gets its italic correction as clearance before a fence or a
-  superscript where its ink would otherwise collide with it (the 2 of ζ², a
-  parenthesis after f); Chrome lets them touch.
+  superscript where its ink would otherwise collide with it (the 2 of ζ², the k
+  of y to the k, a parenthesis after f); Chrome lets them touch.
+- A scripted element ends after its scripts as they are placed, so the
+  integrand follows an integral with limits about a quarter em after the
+  limits, close to TeX; Chrome leaves nearly 1em there.
 - The subscript of a single character stays at the normal subscript shift of
   the font whatever its descender, as TeX sets it (the n of γ as low as the n
   of x); MathML Core and Chrome lower it below the descender.

@@ -130,7 +130,17 @@ Lays out at 100 px the italic *f* between stretchy and non-stretchy braces and p
 of a function application, `√(1 − ζ²)` in display style, and `(√(b² − 4ac))/2` in display style (the radical in the
 compact numerator), and asserts that no two consecutive glyphs of the fenced letters overlap, that the superscript 2 is
 clear of the ink of ζ and of b, and that the overbar of each radical lies at least RadicalDisplayStyleVerticalGap
-(display) or RadicalVerticalGap (compact) above the ink of its content, whose top is the ink of the superscript.
+(display) or RadicalVerticalGap (compact) above the ink of its content, whose top is the ink of the superscript; and
+that the superscripts k, n, and 2 of the slanted letters f, y, v, w, ψ, and γ, alone and at the end of a row, inline
+and in display style, are clear of the ink of the letter.
+
+#### CanvasNetMathMl-Layout-Scripts: The Integrand After An Integral With Limits
+
+**Tests**: `LayoutTests.Layout_IntegralWithLimits_IntegrandFollowsTheLimits`
+
+Lays out at 100 px in display style `∫` from −∞ to ∞ followed by `f`, and `∫` from 1 to ∞ followed by a fraction, and
+asserts that the ink of the integrand starts between 1 px and 30 px (0.3em) after the ink of the integral and its
+limits ends.
 
 #### CanvasNetMathMl-Layout-Scripts: The Subscript Of A Character
 

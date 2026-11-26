@@ -70,7 +70,8 @@ public class ScriptLayoutTests
 
     /// <summary>
     ///     Validates that the superscript of an operator drawn with a size variant or an assembly follows its italic
-    ///     correction, while a base that is not an operator (an italic <c>mi</c>) moves no script, as in Chrome.
+    ///     correction and the element ends after it as placed, while a base that is not an operator and paints nothing
+    ///     moves no script, as in Chrome.
     /// </summary>
     [Fact]
     public void ScriptLayout_LayoutSup_ItalicCorrectionMovesSuperscript()
@@ -84,10 +85,10 @@ public class ScriptLayoutTests
         var operatorBox = layout.Layout(stretched, new MathBox(20, 10, 0), new MathBox(20, 10, 0), Compact);
         var letterBox = layout.Layout(letter, null, new MathBox(20, 10, 0), Compact);
 
-        // Assert: the superscript after the correction, the subscript at the width, the box without the correction
+        // Assert: the superscript after the correction, the subscript at the width, the box ending after the superscript
         Assert.Equal(56, operatorBox.Children[2].X, 9);
         Assert.Equal(50, operatorBox.Children[1].X, 9);
-        Assert.Equal(50 + 20 + Space, operatorBox.Width, 9);
+        Assert.Equal(56 + 20 + Space, operatorBox.Width, 9);
         Assert.Equal(50, letterBox.Children[1].X, 9);
         Assert.Equal((0.0, 0.0), ScriptLayout.ItalicCorrections(letter));
     }
@@ -152,7 +153,9 @@ public class ScriptLayoutTests
 
     /// <summary>
     ///     Validates that the subscript of a large operator is pulled back by its italic correction
-    ///     (LargeOpItalicCorrection) and its superscript is not moved.
+    ///     (LargeOpItalicCorrection) and its superscript is not moved, and that the element ends SpaceAfterScript after the
+    ///     script that ends last as placed: a subscript wider than the superscript ends the correction earlier than the
+    ///     base and the subscript side by side would (Chrome counts the whole subscript after the base).
     /// </summary>
     [Fact]
     public void ScriptLayout_LayoutSub_LargeOpItalicCorrectionPullsSubscript()
@@ -162,11 +165,13 @@ public class ScriptLayoutTests
 
         // Act
         var box = new ScriptLayout(MathFont.Default).Layout(integral, new MathBox(30, 30, 0), new MathBox(35, 30, 0), Compact, integral.Operator);
+        var wideLimit = new ScriptLayout(MathFont.Default).Layout(integral, new MathBox(90, 30, 0), new MathBox(35, 30, 0), Compact, integral.Operator);
 
         // Assert
         Assert.Equal(50, box.Children[1].X, 9);
         Assert.Equal(100, box.Children[2].X, 9);
         Assert.Equal(100 + 35 + Space, box.Width, 9);
+        Assert.Equal(100 - 50 + 90 + Space, wideLimit.Width, 9);
         Assert.Same(integral.Operator, box.Operator);
     }
 

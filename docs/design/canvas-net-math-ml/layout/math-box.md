@@ -53,6 +53,11 @@ requirements in `docs/reqstream/canvas-net-math-ml/layout/math-box.yaml`.
   start before its origin and the token before is not slanted or the next box starts with a slanted token; otherwise
   the overlap, and at least the italic correction of a slanted token before a box that is not slanted (MathML Core
   3.3.1.2 and 3.4.1.3). `RowLayout` and `ScriptLayout` use it so that glyphs never collide.
+- `TrailingInkBounds()` - the ink of the token at the end of a box (following the last child down), relative to the box,
+  with the same stops as `LeadingInk()`.
+- `ScriptClearance(baseInk, baseItalic, sup, x, y)` - how far a superscript must move right so that its leading ink does
+  not overlap the ink at the end of its base, whatever the two glyphs: nothing when the inks stay apart, otherwise the
+  overlap and at least the italic correction of the base. `ScriptLayout` uses it.
 - `MathRect.Union` and `Offset` - the smallest rectangle around two, and a rectangle moved.
 
 #### Error Handling

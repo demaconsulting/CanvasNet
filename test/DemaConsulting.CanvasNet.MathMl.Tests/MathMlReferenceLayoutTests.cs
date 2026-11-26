@@ -54,6 +54,12 @@ public class MathMlReferenceLayoutTests
         ["arrow-over 1 <munderover> height"] = "Chrome's hinted arrow bounds and its 1/64 pixel MATH constants",
         ["arrow-over 1/1 <mi> y"] = "Chrome's hinted arrow bounds and its 1/64 pixel MATH constants",
         ["overbrace-underbrace math height"] = "Chrome's hinted under brace bounds and its 1/64 pixel MATH constants",
+
+        // A scripted large operator ends after its scripts as placed; Chrome adds the whole subscript after the operator,
+        // which leaves LargeOpItalicCorrection of extra space before the integrand (a deliberate difference)
+        ["scripts-largeop math width"] = "the scripted integral ends after its subscript as placed",
+        ["scripts-largeop 2 <mstyle> width"] = "the scripted integral ends after its subscript as placed",
+        ["scripts-largeop 2/2 <msub> width"] = "the scripted integral ends after its subscript as placed",
     };
 
     /// <summary>

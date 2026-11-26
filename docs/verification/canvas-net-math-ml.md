@@ -189,8 +189,7 @@ its top, that the ink of the subscript of `a₁` starts at the right of its base
 reported; and that the fixtures `msub-msup` (letter, italic *b*, digit, and row bases), `msubsup-gap` (the gap of both
 scripts with `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop`
 (integrals inline and in display style, whose subscript follows the italic correction of the large variant),
-`scripts-largeop-wide-limit` (an integral in display math whose lower limit is wider than its upper limit, followed by
-the space the subscript leaves), `msup-italic-letter` (digit superscripts of b, inline and cramped under a
+`msup-italic-letter` (digit superscripts of b, inline and cramped under a
 radical), `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and
 prescripts with `none`), and `scripts-embellished-fence` (scripts on a fenced row, embellished scripted operators spaced
 by their operators) match Chrome's boxes.

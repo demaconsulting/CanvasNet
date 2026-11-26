@@ -2,7 +2,7 @@
   <mtable>
     <mtr>
       <mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd>
-      <mtd><msup><mi>x</mi><mi>k</mi></msup></mtd>
+      <mtd><msup><mi>u</mi><mi>k</mi></msup></mtd>
       <mtd><mi>z</mi></mtd>
     </mtr>
     <mtr>

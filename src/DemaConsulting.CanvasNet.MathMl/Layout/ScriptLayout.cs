@@ -31,13 +31,12 @@ internal readonly record struct ScriptPair(MathBox Sub, MathBox Sup);
 ///         is not a large operator); SpaceAfterScript follows the scripts. As Chrome, the italic correction is only that of
 ///         an operator drawn with a size variant or an assembly (an operator drawn with its normal glyph and a token such
 ///         as an italic <c>mi</c> have none; MathML Core 3.2.1.1 gives a single slanted glyph its italic correction),
-///         except that a superscript whose ink would overlap the ink of a slanted token base (the hook of a zeta) moves
-///         right by the italic correction of the base, or by the overlap when larger (<see cref="MathBox.Clearance"/>),
-///         and widens the element by it, so glyphs never collide; and
-///         the width is that of the base and the wider script with SpaceAfterScript, without the italic corrections (MathML
-///         Core adds them), so a subscript of a large operator that is wider than its superscript is followed by
-///         LargeOpItalicCorrection more space, as in Chrome (verified by the reference fixture
-///         <c>scripts-largeop-wide-limit</c>).
+///         except that a superscript whose ink would overlap the ink at the end of the base (the hook of a zeta, the arm
+///         of a y, whatever the glyph of the superscript) moves right by the italic correction of the base, or by the
+///         overlap when larger (<see cref="MathBox.ScriptClearance"/>), so glyphs never collide. The element ends
+///         SpaceAfterScript after the base or the script that ends last as placed (a deliberate difference from Chrome,
+///         which adds the whole of the wider script after the base, leaving LargeOpItalicCorrection of extra space after
+///         the lower limit of an integral).
 ///     </para>
 ///     <para>
 ///         <b>mmultiscripts (3.4.3.1).</b> The shifts are the largest over the pairs (each pair as an <c>msubsup</c>);
@@ -92,17 +91,17 @@ internal sealed class ScriptLayout
             (subShift, supShift) = EnforceGap(sub, sup, subShift, supShift, size);
         }
 
-        // The scripts follow the base, moved by the italic corrections; the width is that of the base and the wider
-        // script with SpaceAfterScript, without the italic corrections, as Chrome
+        // The scripts follow the base, moved by the italic corrections; the element ends SpaceAfterScript after the base
+        // or the script that ends last as placed (a subscript pulled back under a large operator ends earlier)
         var (italic, largeOpItalic) = ItalicCorrections(@base);
         var children = new List<PlacedBox>(3) { new(@base, 0, 0) };
-        var scripts = 0.0;
+        var end = @base.Width;
         var ascent = @base.Ascent;
         var descent = @base.Descent;
         if (sub is not null)
         {
             children.Add(new PlacedBox(sub, @base.Width - largeOpItalic, subShift));
-            scripts = sub.Width;
+            end = Math.Max(end, @base.Width - largeOpItalic + sub.Width);
             ascent = Math.Max(ascent, sub.Ascent - subShift);
             descent = Math.Max(descent, sub.Descent + subShift);
         }
@@ -111,16 +110,16 @@ internal sealed class ScriptLayout
         {
             // A superscript whose ink would collide with the ink of a slanted token base (the hook of a zeta) follows its
             // italic correction, as MathML Core places it; otherwise it starts at the advance, as Chrome places it
-            var clearance = italic > 0 || @base.Operator is not null || @base.Children.Count > 0
+            var clearance = italic > 0 || @base.Operator is not null
                 ? 0
-                : MathBox.Clearance(@base.InkBounds(), @base.ItalicCorrection, sup, @base.Width, -supShift);
+                : MathBox.ScriptClearance(@base.TrailingInkBounds(), @base.ItalicCorrection, sup, @base.Width, -supShift);
             children.Add(new PlacedBox(sup, @base.Width + italic + clearance, -supShift));
-            scripts = Math.Max(scripts, clearance + sup.Width);
+            end = Math.Max(end, @base.Width + italic + clearance + sup.Width);
             ascent = Math.Max(ascent, sup.Ascent + supShift);
             descent = Math.Max(descent, sup.Descent - supShift);
         }
 
-        var width = @base.Width + scripts + _font.Constant(MathConstant.SpaceAfterScript, size);
+        var width = end + _font.Constant(MathConstant.SpaceAfterScript, size);
         return new MathBox(width, Math.Max(0, ascent), Math.Max(0, descent), children) { Operator = embellished };
     }
 

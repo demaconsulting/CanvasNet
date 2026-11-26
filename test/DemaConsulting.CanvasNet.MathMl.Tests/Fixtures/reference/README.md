@@ -36,8 +36,7 @@ element inside it (`getBoundingClientRect`, relative to the top left corner of t
   roots), and `mroot-deep-index` (indexes with a depth, which the ascent of the root counts).
 - **Scripts**: `msub-msup` (letter, italic *b*, digit, and row bases), `msubsup-gap` (the gap of both scripts with
   `mspace` scripts, the cramped superscript under a radical and in a denominator), `scripts-largeop` (integrals inline
-  and in display style), `scripts-largeop-wide-limit` (an integral in display math whose subscript is wider than its
-  superscript), `msup-italic-letter` (digit superscripts of b, inline and cramped under a radical),
+  and in display style), `msup-italic-letter` (digit superscripts of b, inline and cramped under a radical),
   `mmultiscripts-tensor` (postscript pairs with `none`), `mmultiscripts-prescripts` (the nuclide notation and prescripts
   with `none`), and `scripts-embellished-fence` (scripts on a fenced row and embellished scripted operators spaced by
   their operators).
@@ -76,10 +75,11 @@ pin them:
   the percentage taken at Chrome's 1/64 precision (`mroot-index`).
 - Only the italic correction of an operator drawn with a size variant or an assembly moves a script whose ink stays
   clear of its base (`scripts-largeop`; the superscript of an italic *b* starts at its advance, `msub-msup`), and the
-  width of a scripted element is its base and its wider script with SpaceAfterScript, without the italic corrections.
-  Two visible consequences: a large operator whose subscript is wider than its superscript ends LargeOpItalicCorrection
-  plus SpaceAfterScript after its subscript (`scripts-largeop-wide-limit`), and the superscript of a tall italic letter
-  clear of its ink starts at the advance of the letter with its bottom beside its ascender (`msup-italic-letter`).
+  superscript of a tall italic letter clear of its ink starts at the advance of the letter with its bottom beside its
+  ascender (`msup-italic-letter`). A scripted element ends SpaceAfterScript after the script that ends last as placed,
+  where Chrome adds the whole of the wider script after the base, so the display integral with a subscript of
+  `scripts-largeop` is narrower than Chrome's by LargeOpItalicCorrection (documented exceptions: `math width`, `2
+  <mstyle> width`, and `2/2 <msub> width`).
 - The ascent and the descent of a root count the depth of its index (`mroot-deep-index`; MathML Core leaves it out of
   both). Chrome draws an index taller than the raise of its bottom lower than that raise, which CanvasNet does not (a
   known difference), so the fixtures use indexes no taller than the raise.
@@ -107,8 +107,6 @@ pin them:
   test, and `mfrac-fenced` and `mfrac-operators` avoid the letters whose automatic italic Chrome measures on a taller or
   shorter upright letter (see *Known Differences*). The ink width of an assembled radical symbol rounds a pixel narrower
   than Chrome's for the same reason (`msqrt-tall`, within the tolerance).
-- `scripts-largeop-wide-limit` uses letters as limits: a minus sign and an infinity at 60 px each carry a hinted pixel
-  that adds up beyond the tolerance in the height of the scripted element.
 - The script fixtures avoid the same pixel: digits and letters with descenders as scripts at 60 px (`j`, `y`, and the
   `=` sign of a limit), and the `lim` operator in display style (a pixel taller in Chrome), would carry it beyond the
   tolerance together with Chrome's 1/64 pixel flooring of the MATH constants; `msubsup-gap` uses `mspace` scripts to

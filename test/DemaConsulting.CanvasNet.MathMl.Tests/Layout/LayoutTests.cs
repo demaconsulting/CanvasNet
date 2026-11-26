@@ -448,7 +448,9 @@ public class LayoutTests
     ///     and parentheses (stretchy or not) and before the parenthesis of a function application, the digit superscript
     ///     of a zeta and of a b under a radical sign in display style and in the numerator of a fraction, with the
     ///     radical overbar at least its vertical gap (RadicalDisplayStyleVerticalGap or RadicalVerticalGap) above the
-    ///     ink of its content, the superscript included.
+    ///     ink of its content, the superscript included; and the letter and digit superscripts (k, n, 2) of the slanted
+    ///     letters f, y, v, w, ψ, and γ, inline and in display style, and of a row ending in y, as in the binomial
+    ///     theorem.
     /// </summary>
     [Fact]
     public void Layout_SlantedLettersScriptsAndRadicals_InkDoesNotCollide()
@@ -475,6 +477,23 @@ public class LayoutTests
         for (var i = 1; i < glyphs.Count; i++)
         {
             Assert.False(Overlap(glyphs[i - 1].Ink, glyphs[i].Ink), $"glyphs {i - 1} and {i} overlap");
+        }
+
+        // The letter and digit superscripts of slanted letters are clear of the letters
+        foreach (var letter in new[] { "f", "y", "v", "w", "&#x3C8;", "&#x3B3;" })
+        {
+            foreach (var script in new[] { "<mi>k</mi>", "<mi>n</mi>", "<mn>2</mn>" })
+            {
+                foreach (var display in new[] { string.Empty, "display=\"block\"" })
+                {
+                    var power = LayoutText(MathMlTestHelpers.Math($"<msup><mi>{letter}</mi>{script}</msup><msup><mrow><mi>a</mi><mi>{letter}</mi></mrow>{script}</msup>", display));
+                    foreach (var child in power.Children)
+                    {
+                        var inks = Glyphs(child.Box);
+                        Assert.False(Overlap(inks[^2].Ink, inks[^1].Ink), $"the superscript {script} of {letter} overlaps it");
+                    }
+                }
+            }
         }
 
         // The superscripts are clear of their bases, and the overbar of each radical clears its superscript
@@ -573,6 +592,33 @@ public class LayoutTests
                 Assert.True(outside == 0, $"{equation} at {size} px paints {outside} pixels outside its extent");
                 Assert.True(MathMlTestHelpers.InkedPixels(surface) > 0);
             }
+        }
+    }
+
+    /// <summary>
+    ///     Validates through the subsystem that the integrand follows an integral with limits at a TeX-like distance: the
+    ///     element ends SpaceAfterScript after the limit that ends last as placed (the lower limit is pulled back by the
+    ///     italic correction of the integral), so the gap between the ink of the limits and the ink of the integrand is
+    ///     at most 0.3em (Chrome leaves nearly 1em), and the integrand never touches the limits.
+    /// </summary>
+    [Fact]
+    public void Layout_IntegralWithLimits_IntegrandFollowsTheLimits()
+    {
+        // Act
+        var box = LayoutText(MathMlTestHelpers.Math(
+            "<msubsup><mo>&#x222B;</mo><mrow><mo>&#x2212;</mo><mi>&#x221E;</mi></mrow><mi>&#x221E;</mi></msubsup><mi>f</mi>"
+            + "<mspace width=\"1em\"/><msubsup><mo>&#x222B;</mo><mn>1</mn><mi>&#x221E;</mi></msubsup><mfrac><mi mathvariant=\"normal\">d</mi><mrow><mi mathvariant=\"normal\">d</mi><mi>x</mi></mrow></mfrac>",
+            "display=\"block\""));
+
+        // Assert: the gap from the right edge of the ink of the integral and its limits to the ink of the integrand
+        foreach (var index in new[] { 0, 3 })
+        {
+            var integral = box.Children[index];
+            var integrand = box.Children[index + 1];
+            var limitsRight = integral.X + integral.Box.InkBounds()!.Value.Right;
+            var integrandLeft = integrand.X + integrand.Box.InkBounds()!.Value.X;
+            var gap = integrandLeft - limitsRight;
+            Assert.InRange(gap, 1, 30);
         }
     }
 }
