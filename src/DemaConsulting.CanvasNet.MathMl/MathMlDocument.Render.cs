@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.MathMl.Layout;
 
@@ -377,7 +378,7 @@ public sealed partial class MathMlDocument
             {
                 var engine = new LayoutEngine(MathFont.Default, options.Limits, sink, cancellationToken);
                 var style = engine.Styles.ResolveRoot(Root, options.FontSize, options.Color, options.Display);
-                result = finish(engine.Layout(Root, style));
+                result = RunWithLayoutStack(() => finish(engine.Layout(Root, style)));
             }
             catch (Exception ex) when (IsLayoutDefect(ex))
             {
@@ -405,6 +406,58 @@ public sealed partial class MathMlDocument
             throw;
         }
 
+        return result;
+    }
+
+    /// <summary>
+    ///     The stack size of the layout thread. The layout recurses a few frames per nesting level, and the default
+    ///     stack of a thread differs by platform (on macOS .NET 8 it overflowed at about 240 levels), so the layout gets
+    ///     a stack far larger than <see cref="MathMlLimits.MaxNestingDepth"/> at its ceiling of 1,024 levels needs;
+    ///     operating systems commit thread stack memory only as it is used.
+    /// </summary>
+    private const int LayoutStackSize = 64 * 1024 * 1024;
+
+    /// <summary>
+    ///     Runs the layout and painting on a thread with a stack of <see cref="LayoutStackSize"/>, so every nesting depth
+    ///     the limits accept fits on every platform, and rethrows its exception on the calling thread unchanged.
+    /// </summary>
+    /// <typeparam name="T">The kind of result.</typeparam>
+    /// <param name="work">The work.</param>
+    /// <returns>The result of the work.</returns>
+    private static T RunWithLayoutStack<T>(Func<T> work)
+    {
+        // A platform without threads runs the work on the calling thread
+        if (OperatingSystem.IsBrowser() || OperatingSystem.IsWasi())
+        {
+            return work();
+        }
+
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+        T result = default!;
+        ExceptionDispatchInfo? failure = null;
+        var thread = new Thread(
+            () =>
+            {
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = uiCulture;
+                try
+                {
+                    result = work();
+                }
+                catch (Exception ex)
+                {
+                    failure = ExceptionDispatchInfo.Capture(ex);
+                }
+            },
+            LayoutStackSize)
+        {
+            IsBackground = true,
+            Name = "CanvasNet MathML layout",
+        };
+        thread.Start();
+        thread.Join();
+        failure?.Throw();
         return result;
     }
 
