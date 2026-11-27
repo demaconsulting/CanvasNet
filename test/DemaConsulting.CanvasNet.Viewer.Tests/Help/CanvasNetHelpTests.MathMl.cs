@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.MathMl;
 using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
@@ -13,7 +14,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 ///     their triggers, the advice they give holds for the real layout, the cards cover the authoring tasks, and the lists
 ///     of the cards and the guide are the same.
 /// </summary>
-public partial class HelpCatalogTests
+public partial class CanvasNetHelpTests
 {
     /// <summary>
     ///     The MathML cards that teach one authoring task, each with at least one source example.
@@ -51,11 +52,11 @@ public partial class HelpCatalogTests
     ///     fragments of single elements are not equations and are not rendered.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics()
+    public void CanvasNetHelp_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics()
     {
         // Arrange: the whole equations of the MathML cards
         var equations = HelpCardText.Subtree(HelpCardText.Card("mathml"))
-            .SelectMany(card => MathMlEquations(card.Markdown).Select(equation => (card.Id, Equation: equation)))
+            .SelectMany(card => MathMlEquations(card.Body).Select(equation => (card.Id, Equation: equation)))
             .ToList();
 
         // Act / Assert: there are some, and each renders strictly without a diagnostic
@@ -72,7 +73,7 @@ public partial class HelpCatalogTests
     ///     strict mode without a diagnostic.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics()
+    public void CanvasNetHelp_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics()
     {
         // Arrange: the whole equations of the guide
         var guide = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-math-ml.md")).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -93,7 +94,7 @@ public partial class HelpCatalogTests
     ///     the inline size, in the library block and in the Viewer block.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers()
+    public void CanvasNetHelp_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers()
     {
         // Arrange: the section of Example 78 and the equation it parses (its raw string without the indentation)
         var guide = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-math-ml.md")).Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -132,10 +133,10 @@ public partial class HelpCatalogTests
     ///     the natural size the card quotes is the size a probe reports.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation()
+    public void CanvasNetHelp_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation()
     {
         // Arrange: the blocks of the card and the equation they link
-        var blocks = FencedBlock.Matches(HelpCardText.Card("mathml/composition").Markdown)
+        var blocks = FencedBlock.Matches(HelpCardText.Card("mathml/composition").Body)
             .Select(m => (Language: m.Groups["language"].Value, Content: m.Groups["content"].Value))
             .ToList();
         using var directory = new TempDirectory();
@@ -164,7 +165,7 @@ public partial class HelpCatalogTests
     ///     as its detail code); only the generic warning code and the code of an internal layout failure have no trigger.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers()
+    public void CanvasNetHelp_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers()
     {
         // Arrange: a trigger for each code, with the limits it needs
         var triggers = new (string Code, string Markup, string Expected, MathMlLimits? Limits)[]
@@ -216,7 +217,7 @@ public partial class HelpCatalogTests
     ///     <c>= -40</c> narrower than a minus spaced like a binary operator.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlPitfalls_StretchyFalseParentheses_AreNarrower()
+    public void CanvasNetHelp_MathMlPitfalls_StretchyFalseParentheses_AreNarrower()
     {
         // Arrange: the advice of the card, and the two forms of each construct
         var pitfalls = HelpCardText.TextOf("mathml/pitfalls");
@@ -241,7 +242,7 @@ public partial class HelpCatalogTests
     ///     and every example of the tree is a source example in a <c>.mml</c> file.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlCards_CoverTheAuthoringTasks()
+    public void CanvasNetHelp_MathMlCards_CoverTheAuthoringTasks()
     {
         // Arrange
         var root = HelpCardText.Card("mathml");
@@ -255,8 +256,8 @@ public partial class HelpCatalogTests
         }
 
         // Assert: the root leads to the pitfalls and to composition, and has its aliases
-        Assert.Contains("mathml/pitfalls", root.Markdown, StringComparison.Ordinal);
-        Assert.Contains("mathml/composition", root.Markdown, StringComparison.Ordinal);
+        Assert.Contains("mathml/pitfalls", root.Body, StringComparison.Ordinal);
+        Assert.Contains("mathml/composition", root.Body, StringComparison.Ordinal);
         Assert.Equal(["mml", "equation"], root.Aliases);
 
         // Assert: the reference cards and their sections
@@ -280,7 +281,7 @@ public partial class HelpCatalogTests
     ///     bullet of <c>mathml/unsupported</c> or <c>mathml/diagnostics</c>.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide()
+    public void CanvasNetHelp_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide()
     {
         // Arrange: the guide
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-math-ml.md"));

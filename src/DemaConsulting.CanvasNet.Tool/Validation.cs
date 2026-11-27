@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.HelpCards.Catalog;
 using DemaConsulting.TestResults.IO;
 
 namespace DemaConsulting.CanvasNet.Tool;
@@ -1132,14 +1133,17 @@ internal static class Validation
     /// <returns><see langword="null"/> when every example rendered without a diagnostic, otherwise a description of the failure.</returns>
     private static string? CheckHelpExamplesRender(string directory)
     {
-        foreach (var (card, example) in HelpTopics.SourceExamples())
+        var sourceExamples = HelpTopics.Catalog.Cards
+            .SelectMany(c => c.Examples.Where(e => e.Kind == HelpExample.SourceKind), (c, e) => (Card: c, Example: e));
+        foreach (var (card, example) in sourceExamples)
         {
-            var input = PathHelpers.SafePathCombine(directory, $"{card.RootId}-{example.FileName}");
-            var output = PathHelpers.SafePathCombine(directory, $"{card.RootId}-{example.Name}.png");
+            var rootId = card.Id.Split('/')[0];
+            var input = PathHelpers.SafePathCombine(directory, $"{rootId}-{example.FileName}");
+            var output = PathHelpers.SafePathCombine(directory, $"{rootId}-{example.Name}.png");
             File.WriteAllText(input, example.Content);
 
             // A model is drawn small: the default 800x800 picture is not needed to prove that it renders
-            string[] size = card.RootId == "scad" ? ["--size", "64x64"] : [];
+            string[] size = rootId == "scad" ? ["--size", "64x64"] : [];
             string[] arguments = ["render", input, "--strict", "--json", "-o", output, .. size];
             var json = RunCommand(directory, arguments);
             using var document = JsonDocument.Parse(json);
@@ -1160,9 +1164,9 @@ internal static class Validation
     /// <returns><see langword="null"/> when the output is the source, otherwise a description of the failure.</returns>
     private static string? CheckHelpExamplePrint(string directory)
     {
-        var card = HelpTopics.Get("scad");
+        var catalog = HelpTopics.Catalog;
         var printed = RunCommand(directory, "help", "scad", "--example", "plate").Replace("\r\n", "\n", StringComparison.Ordinal);
-        return printed.TrimEnd('\n') == HelpTopics.RenderExample(card, "plate")
+        return printed.TrimEnd('\n') == catalog.RenderExample(catalog.Find("scad")!, "plate")
             ? null
             : "'help scad --example plate' did not print the example source";
     }
@@ -1178,7 +1182,7 @@ internal static class Validation
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         var ids = root.GetProperty("cards").EnumerateArray().Select(t => t.GetProperty("id").GetString()).ToList();
-        return root.GetProperty("kind").GetString() == "topics" && ids.SequenceEqual(HelpTopics.All.Select(c => c.Id))
+        return root.GetProperty("kind").GetString() == "topics" && ids.SequenceEqual(HelpTopics.Catalog.Cards.Select(c => c.Id))
             ? null
             : "'help topics --json' does not list every help card";
     }

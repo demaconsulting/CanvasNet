@@ -51,8 +51,8 @@ not an option (or the value of an option) is the command name.
 - **Mistakes.** An unknown option or command is an error that names the closest valid one (`Did you mean '--fit'?`).
 - **Help.** `canvasnet --help` lists the commands and the help topics, `canvasnet help <command>` and
   `canvasnet <command> --help` show the usage, examples, and every option of a command, and
-  `canvasnet help <topic> [<card> ...]` explains an input format or a cross-cutting subject, one short card at a time
-  (see *Help Topics*).
+  `canvasnet help <topic> [<card> ...]` explains an input format or a cross-cutting subject, one short card at a time,
+  and `canvasnet help --search <word>` finds the cards about a word (see *Help Topics*).
 - **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool. The files a document
   references (pictures, includes, data files) are read relative to the file that names them, like Pandoc reads
   images; `--file-access` and `--allow-root` confine them (see *File Access*).
@@ -2081,10 +2081,10 @@ topic may be named by an alias.
 | `style` | | Making pictures look good: palette, font sizes, spacing, backgrounds, resolution, and checking the PNG |
 | `composition` | | Combining diagrams, charts, models, and pages in one figure |
 | `positions` | `position` | Where the nodes, edges, marks, and axes of a diagram or chart land in the picture |
-| `json` | | The `--json` result documents |
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
 | `files` | `file-access`, `links` | Which files a document may reference, `--file-access`, and the Pandoc filter |
+| `json` | | The `--json` result documents |
 | `pandoc` | `filter` | The Pandoc filter: the Lua shim, the picture attributes, the cache, and the variables |
 
 ### Help Cards
@@ -2098,15 +2098,18 @@ canvasnet help mermaid             # the index of the Mermaid cards
 canvasnet help mermaid gantt       # gantt chart syntax and tags
 canvasnet help mmd gantt settings  # the gantt settings and known differences
 canvasnet help svg composition     # SVG as the layout of a figure
-canvasnet help topics              # every card, one line each, with its path and summary
+canvasnet help topics              # every card, one line each, with its command and summary
+canvasnet help --search gantt      # the cards about a word, best first
+canvasnet help --tag mathml         # the cards that have a tag
 ```
 
-A card is plain text in Markdown form: its title, its summary, and its body as written, followed by a generated footer.
-The footer lists the cards below it (`## Cards`), its examples (`## Examples`), and related cards (`## See also`).
-Every entry of the footer is the exact command that prints the card, with that card's summary, so a reader follows a
-link by running it. For example, `help mermaid gantt` leads to `help mermaid style`, which leads to `help mermaid
-composition` and the `style` and `composition` topics. Every card is at most 7,000 characters, and an index card at
-most 4,000.
+A card is plain text in Markdown form: its title, its summary, a `Tags:` line, and its body as written, followed by a
+generated footer. The footer lists the cards below it (`## Cards`), its examples (`## Examples`), and related cards
+(`## See also`). Every entry of the footer is the exact command that prints the card, with that card's summary, so a
+reader follows a link by running it; a link in the body to an example reads as the full command that prints it,
+`canvasnet help <card> --example <name>`, naming the card that holds the example. For example, `help mermaid gantt`
+leads to `help mermaid style`, which leads to `help mermaid composition` and the `style` and `composition` topics. Every
+card is at most 7,000 characters, and an index card at most 4,000.
 
 The tree of a format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that
 apply, the **diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original
@@ -2152,13 +2155,50 @@ canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
   example of `svg` is a diagram that links a model, a chart, and an SVG file beside it, the `pictures` example of
   `mermaid` a flowchart whose nodes show a model and a chart, and the `report` example of `svg` a figure that embeds the
   styled diagram and chart).
+- `--examples` on a card without examples, of its own or below it, says so and lists nothing.
+- `--search <text>` lists the cards whose title, summary, aliases, tags, or example names match the words, best first,
+  each with the command that prints it (it does not search the bodies). `--tag <tag>` (repeatable) lists the cards
+  that have any of the tags, `--all` lists every card in the index instead of the topics, and `--source <name>`
+  (`canvasnet-viewer` for the cards about the formats, `canvasnet-tool` for the tool's) limits the index, a search, or
+  a tag list to one source.
+- `--format text`, `markdown`, or `json` (in any case) chooses the output (`json` is the same as `--json`, also for
+  failures), and `--width <columns>` (20 to 500, or `auto`) wraps the generated text at another width than 78.
 - `--json` writes any help output as one JSON document, without a banner or color codes (see *Help Documents*).
 - An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
   lists the valid subjects. An unknown card below a card is a `usage-error` that names the closest card and lists the
-  cards at that level. `--example` and `--examples` need a card that has examples, and an unknown example name lists
-  the names.
+  cards at that level (`Unknown help card 'giant' under 'mermaid'.`). `--example` and `--examples` need a card (a
+  command, `topics`, or `help` has none: `'render' has no examples; only help cards do.`), an unknown example name
+  lists the names, and an unknown option, an option without its value, and two of `--example`, `--examples`, and
+  `--search` together are usage errors. Every mistake exits with 1 and prints `Error: usage-error: ...` and
+  `Hint: ...` on standard error (with `--json` or `--format json`, the `hint` of the failure document). A mistake for
+  which HelpCards has no hint of its own gets
+  `Hint: Run 'canvasnet help' for the help options, or 'canvasnet help topics' to list the help cards.`
+- A leading `help` is ignored: `canvasnet help help mermaid` prints the `mermaid` card.
 - A topic name used as a command (`canvasnet scad`) is an unknown command whose hint says that it is a help topic and
   to run `canvasnet help scad`. `canvasnet scad --help` prints the `scad` index card.
+
+### Changes in the Help Command
+
+The help cards are now read and printed by the DemaConsulting.HelpCards library. The cards, their paths, the subjects,
+and the JSON contract (the envelope, the `kind` of each document, the keys a reader uses, the failure document, and exit
+code 1) are the same; these things differ from earlier versions:
+
+- The `json` and `pandoc` topics are listed after `files`, in the index, in `help topics`, and in the JSON documents.
+- `canvasnet help` lists the help topics as the commands that print them, after a `Help options:` section, and ends with
+  `Run 'canvasnet help' for topics and examples.`; the aliases of the topics are no longer listed there.
+- A card shows a `Tags:` line, and a link to an example reads as the full command that names the card that holds the
+  example. `help topics` lists every card as its command, indented by depth.
+- The JSON documents have more keys (see *Added keys*), and the keys of a `card` document and of the entries of the
+  `topics` document are written in another order (`title` and `summary` before `aliases` and `tags`).
+- The new options `--search`, `--tag`, `--source`, `--all`, `--format`, and `--width`; `--examples` on a card without
+  examples lists nothing instead of failing.
+- The words of the errors below a topic (an unknown card or example, a wrong option) are those of HelpCards.
+- An option without its value, `--example` or `--examples` without a card path, and two of `--example`, `--examples`,
+  and `--search` together have HelpCards' words (for example `option '--tag' needs a value.`). They share one hint,
+  `Run 'canvasnet help' for the help options, or 'canvasnet help topics' to list the help cards.`, instead of a hint
+  for each case.
+- A leading `help` is ignored (`help help mermaid` prints the `mermaid` card), and a help path may have any number of
+  words.
 
 ## JSON Output
 
@@ -2325,26 +2365,43 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 
 `help --json` (also `--help --json` and `help help --json`), `help topics --json`, `help <command> --json` (also
 `<command> --help --json`), and `help <topic> [<card> ...] --json` write the help as one document in the same envelope,
-with no banner and no color codes, and a `kind` that tells which document it is:
+with no banner and no color codes, and a `kind` that tells which document it is. The cards are rendered by the
+DemaConsulting.HelpCards library inside the envelope of the tool, so the documents carry the keys below, in the order
+written (the keys that HelpCards adds are listed in their places and under *Added keys*):
 
-- **`index`** (for the tool): `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions`.
+- **`index`** (for the tool): `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions`, then
+  `tool`, `version`, `sources`, `cards`.
 - **`command`** (for a command): `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions`.
-- **`topics`** (for `help topics`): `cards` (each `{"id","aliases","tags","summary","command"}`, every card, depth
-  first).
-- **`card`** (for a help card): `id`, `aliases`, `tags`, `title`, `summary`, `body`, `children`, `seeAlso`, `examples`.
+- **`topics`** (for `help topics`): `tool`, `version`, `sources`, then `cards` (each
+  `{"id","title","summary","aliases","tags","source","depth","command"}`, every card, depth first).
+- **`card`** (for a help card): `id`, `title`, `summary`, `aliases`, `tags`, `source`, `culture`, `body`, `children`,
+  `seeAlso`, `examples`, `links`.
 - **`examples`** (for `help <topic> [<card> ...] --examples`): `id`, `examples` (the card's own, each
   `{"name","kind","language","fileName","description","content"}`), `cards` (each
   `{"id","summary","command","examples"}`, the cards below it that have examples).
-- **`example`** (for `help <topic> [<card> ...] --example <name>`): `id`, `example` (the same fields, plus the `card` it
-  belongs to).
+- **`example`** (for `help <topic> [<card> ...] --example <name>`): `id` (the card that was asked for), `example`
+  (`card`, the card that holds it, then the same fields).
+- **`search`** (for `help --search <text>`): `query` and `results`
+  (each `{"id","title","summary","source","score","matchedOn","command"}`).
+- **`cards`** (for `help --tag <tag>`): `filter` (`{"tags","sources"}`) and `cards` (each
+  `{"id","title","summary","tags","source","command"}`).
 
-The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is `{"id","summary","command"}`, where
-`command` is the exact command that prints that card. The `tags` of a card are its format tag, if any, and its scope
-tags (see *Help Cards*), in the order the card lists them; a program can keep only the cards it needs, for example the
-`authoring` cards of one format. Each option is `{"name","aliases","takesValue","valueName",
+The `body` of a card is its Markdown text. Each entry of `children` and `seeAlso` is
+`{"id","title","summary","command"}`, where `command` is the exact command that prints that card. The `tags` of a card
+are its format tag, if any, and its scope tags (see *Help Cards*), in the order the card lists them; a program can keep
+only the cards it needs, for example the `authoring` cards of one format. Each option is
+`{"name","aliases","takesValue","valueName",
 "description"}`, and an example of a card carries its `content`, which is the source of a file or a command line
-(`fileName` only for a file). A mistake, such as an unknown subject or card, is the failure document of the `help`
-command.
+(`fileName` only for a file). A mistake, such as an unknown subject, card, example, or option, is the failure document
+of the `help` command, `{"schemaVersion":2,"ok":false,"command":"help","error":{"code":"usage-error",...}}`, with no
+`kind`, and exits with 1.
+
+**Added keys.** The `index` document continues with `tool`, `version`, `sources` (each `{"name","title","summary"}`),
+and `cards` (the topics, or every card with `--all`); the `topics` document has `tool`, `version`, and `sources` before
+`cards`, whose entries also have `title`, `source`, and `depth`; a `card` document has `source`, `culture`, and `links`
+(the link targets of the body); and an entry of `children` or `seeAlso` has a `title`.
+The `json` and `pandoc` topics are listed after the other topics. Adding a key is not a breaking change, so a reader
+that ignores unknown keys and reads keys by name needs no change.
 
 > **Schema version 2.** Version 2 replaced the help `topic` document (with its `topic` and `sections` keys) by the
 > `card` and `topics` documents, and dropped the constant `topic` key of the `index` document. Every other document is
@@ -2833,7 +2890,8 @@ as pictures it can compare with a reference. A few conventions make this reliabl
   `canvasnet help composition` explain how to make a picture look good and how to combine pictures. Add `--json` to
   parse any of them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
   `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the link rule, and the
-  `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
+  `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram. `canvasnet help --search`
+  `<word> --json` finds the cards about a subject when the agent does not know where it is.
 - For a document you did not write, add `--file-access roots,no-symlinks --allow-root <the document's folder>` (and
   one more `--allow-root` for each other folder its files may come from), so that it cannot make the tool read a file
   elsewhere on the machine. Without `--allow-root`, `roots` also allows everything under the current folder; see

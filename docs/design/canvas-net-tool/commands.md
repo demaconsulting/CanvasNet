@@ -12,7 +12,7 @@ commands is its own unit behind the same contract and registry. It contains nine
 `CommandRegistry`, which also documents the supporting types `ICommand` and
 `OptionSpec`; `HelpTopics`, the tree of help cards (the formats, style and composition, the JSON documents, the errors,
 the limits, and file access) with their tiny examples, which the built-in `help` command of the registry prints: the
-help catalog of the Viewer library with the tool's own cards and command-line sections layered on it;
+help cards of the Viewer library with the tool's own cards and command-line sections layered on them;
 `DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
@@ -31,16 +31,18 @@ expected failures by throwing `ToolException`, and never writes to the console d
 `usage-error`) when the command is missing or unknown, and re-throws the command's own `ToolException` after
 recording the command name on it.
 
-**CommandRegistry.RenderHelp(string?, bool)** and **RenderHelp(IReadOnlyList<string>, bool)** (provided to `Program`):
-return the help for a subject or a help path, as plain text or, with the flag, as JSON: the index (no subject, or
-`help`), the tree of every card (`topics`), a command's help, or a help card (`mermaid gantt`). An unknown subject or
-card throws a `ToolException` (code `usage-error`) that lists the valid choices.
+**CommandRegistry.RunHelp(Context, arguments)** (provided to `Program` for `--help`) and **RenderHelp(...)**: print or
+return the help for a subject or a help path, as plain text or, with `--json`, as JSON: the index (no subject, or
+`help`), the tree of every card (`topics`), a command's help, a help card (`mermaid gantt`), its examples, a search, or
+a tag list. The help command runs on `HelpCli` of the OTS library `DemaConsulting.HelpCards` with the tool's JSON
+envelope, error object, and exit code 1. An unknown subject throws a `ToolException` (code `usage-error`) that lists
+the valid choices; an unknown card or option is written as the same error and fails the command.
 
-**HelpTopics** (consumed by `CommandRegistry` and `Validation`): the tree of help cards (`All`, `Roots`, `Get`,
-`Find`, `Resolve`, `TopicNames`, `SourceExamples`) and the renderings of a card, the tree, and the examples as text
-and JSON. The cards about the formats are the help catalog of the Viewer library (`HelpCatalog.Default`); the tool's
-own cards and its command-line sections are embedded in the tool assembly as Markdown cards with YAML front matter and
-layered on the catalog with `HelpCatalog.Extend`.
+**HelpTopics** (consumed by `CommandRegistry` and `Validation`): the combined catalog of help cards (`Catalog`,
+`Roots`, `Find`, `TopicNames`), the render options, the JSON envelope and error object of the tool, and the tree of
+every card. The cards about the formats are the library cards of the Viewer (`CanvasNetHelp`); the tool's own cards
+and its command-line sections are embedded in the tool assembly as Markdown cards with YAML front matter in a source
+that imports the library source, composed by `DemaConsulting.HelpCards`.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
 ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,

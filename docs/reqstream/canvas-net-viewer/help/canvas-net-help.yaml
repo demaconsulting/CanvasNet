@@ -1,0 +1,423 @@
+---
+# Software Unit Requirements for the CanvasNetHelp Class
+#
+# The CanvasNetHelp class is the public entry point of the help cards of the library: short Markdown cards with YAML
+# front matter, one per subject, under sixteen root cards - the quick reference for each format the library reads
+# (what is supported and what is not, the library options that apply, the diagnostics and what strict mode does with
+# them, and the known differences from the original program), guidance on making pictures look good, on composing them,
+# and on the positions of their features, the errors, the limits, and the files a document may read - with tiny
+# examples that are verified to render without a diagnostic. The cards ship inside the library, so they work offline,
+# and they are verified against the code so that they cannot drift from what the library does. The class names the
+# cards (the library source), fills in the live limits, gives the closed tag vocabulary of HelpTags, and builds the
+# library catalog; reading, linking, filtering, extending, and rendering the cards is done by the OTS item
+# DemaConsulting.HelpCards (docs/reqstream/ots/help-cards.yaml). The requirements below state what the library cards
+# are and say; the rules beyond those of HelpCards (the budgets, the column limits, the folders, the example names,
+# and the absence of command-line text) are CanvasNet's own.
+sections:
+  - title: CanvasNetHelp Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Catalog
+        title: >-
+          The CanvasNetHelp class shall provide the library catalog, built once on first use from content shipped
+          inside the library and the same for every caller on every thread, whose root cards are scad, vega-lite,
+          mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster, style, composition, positions, errors, limits, and
+          files in that order, shall provide the library cards as a named source that a host can import into its own,
+          and shall resolve a card by a path of names or aliases ignoring case.
+        justification: |
+          A host must find a card by the same paths a person types; a fixed order of the roots makes the tree read the
+          same way every time, one shared catalog is not built twice under concurrent readers, and a named source lets
+          a host layer its own cards on the library's.
+        children:
+          - CanvasNet-OTS-HelpCards-Load
+        tests:
+          - CanvasNetHelp_Source_LoadsTheEmbeddedCardsAndExamples
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Catalog_IsThreadSafe_AndReturnsTheSameInstance
+          - CanvasNetHelp_Default_EveryCardLoads_WithTitleSummaryAndBody
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_Default_ConcurrentReads_GiveTheSameResults
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Tokens
+        title: >-
+          The CanvasNetHelp class shall state the limits in the text of the library cards with the values of the code
+          (the image size, resolution, and quality limits, the resource limits of each format, and the limits of
+          fragments and positions), formatted without a thousands separator, and shall leave no unresolved token in
+          any card.
+        justification: |
+          A limit written as a number in a card would drift from the code; a token filled in from the constant of the
+          code is always the limit of the build in use.
+        tests:
+          - CanvasNetHelp_Tokens_AreTheCodeConstants
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+      - id: CanvasNetViewer-Help-CanvasNetHelp-TreeIntegrity
+        title: >-
+          The CanvasNetHelp class shall ship exactly the library cards, their example files, and the file that names
+          the source, shall require the children of every card to be exactly the card files of its folder and every
+          related card to name another card once, so that every card is reachable from a root, shall require the names
+          and aliases of siblings and of roots and the example names of a root's tree to be unique ignoring case, and
+          shall keep a card body free of a top-level heading, of the headings of the generated footer, and of an
+          unclosed code block or one that names no language.
+        justification: |
+          A link that leads nowhere, a card that no path reaches, or a body that breaks the footer would make the help
+          lie about its own structure; folders that mirror the tree let an author find a card by its path.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
+        tests:
+          - CanvasNetHelp_Default_Tree_ChildrenAndSeeAlsoResolve
+          - CanvasNetHelp_Default_Resources_AreExactlyTheLibraryCards
+          - CanvasNetHelp_Default_Children_AreTheCardFilesOfTheFolder
+          - CanvasNetHelp_Default_ChildNames_AreUniqueAmongSiblings
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SizeBudget
+        title: >-
+          The CanvasNetHelp class shall keep every library card at most 6,000 characters, a root card that has cards
+          below it at most 3,500 characters, every summary on one line of at most 60 characters for a root card and 100
+          characters for any other card, and every line of a card at most 80 columns outside a fenced code block and
+          120 columns inside one.
+        justification: |
+          The readers are mostly agents with a limited context and people at a terminal: a short card costs few tokens,
+          a short index card lets them find the right card before reading it, and short lines read without wrapping.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
+        tests:
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+          - CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Tags
+        title: >-
+          The CanvasNetHelp class shall give every card at least one tag, each from the closed vocabulary of the format
+          tags svg, mermaid, plantuml, mathml, scad, vega-lite, pdf, pptx, vsdx, and raster and the scope tags
+          authoring, design, composition, diagnostics, limits, hosting, and file-access, with no tag repeated and at
+          least one scope tag, shall give every card of the tree of a format the tag of that format and no other format
+          tag, and shall apply the same vocabulary to the cards a host adds and to the filters of a view.
+        justification: |
+          A host chooses the cards its reader may see by tags; a vocabulary that is closed and checked when the cards
+          load means a filter written today selects the same kind of cards tomorrow.
+        children:
+          - CanvasNet-OTS-HelpCards-Views
+        tests:
+          - HelpTags_All_IsTheFormatTagsThenTheScopeTags
+          - CanvasNetHelp_Default_Tags_AreFromTheClosedVocabulary_AndEveryCardHasAScopeTag
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
+          - CanvasNetHelp_Configure_AppliesTheTagVocabulary
+          - CanvasNetHelp_Catalog_Filter_UnknownTag_ThrowsArgumentException
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Examples
+        title: >-
+          The CanvasNetHelp class shall give each example of a library card a name unique below its root, the kind
+          source (a file that renders on its own) or snippet (a file that refers to sibling files), a language, a file
+          name, a description, and the content of its file exactly as it ships, next to its card, shall ship no
+          command-line example in the library cards, and shall ship source examples that render under strict mode
+          without any diagnostic and snippets that do so once their sibling files exist.
+        justification: |
+          A tiny example that is known to work is the fastest way to start with a format; an example that is verified
+          cannot mislead, and a snippet that links other files is verified together with them.
+        tests:
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
+          - CanvasNetHelp_Catalog_HasTheLibraryRootsTagsAndNoCommandExamples
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-NoCommandLineText
+        title: >-
+          The CanvasNetHelp class shall keep the titles, summaries, bodies, example descriptions, and example contents
+          of the library cards free of the name of the command-line tool as a word and of command-line options, apart
+          from the documented namespace of the position bindings.
+        justification: |
+          A library host has no command line; a card that tells its reader to run a command or pass a flag sends it
+          somewhere it cannot go.
+        tests:
+          - CanvasNetHelp_LibraryCards_HaveNoCommandLineText
+          - CanvasNetHelp_LibraryCards_CommandLineTextScan_FindsWhatItLooksFor
+          - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-FormatContent
+        title: >-
+          The CanvasNetHelp class shall give the cards of each format (scad, vega-lite, mermaid, plantuml, mathml, svg,
+          pdf, pptx, vsdx, and raster) the sections of what is supported, what is not supported, the library options
+          that apply, the diagnostics and what strict mode does with them, and the known differences from the original
+          program, and each drawing format at least two examples.
+        justification: |
+          Whether a feature will render is the first question about a format; an answer that always has the same
+          parts can be read by a person and found by an agent without trial and error.
+        tests:
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-StyleGuidance
+        title: >-
+          The CanvasNetHelp class shall provide the style card (palette and contrast, font sizes relative to the output
+          size, spacing, light, dark, and transparent backgrounds, resolution, strict mode, and checking the rendered
+          picture) and a style card for each drawing format linked to it both ways, with a styled Mermaid flowchart and
+          a styled Vega-Lite chart as examples that render under strict mode without a diagnostic; every Mermaid theme
+          the mermaid style card lists shall render, every config key of the styled chart shall change the picture,
+          and a chart that sets a transparent background shall show the page of an SVG drawing that embeds it.
+        justification: |
+          Most pictures are drawn by agents for documents; guidance on how to make them look good, with examples that
+          look good and advice that is checked against the renderer, turns a correct picture into a usable figure.
+        tests:
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_MermaidStyleCard_EveryListedThemeRenders
+          - CanvasNetHelp_VegaLiteStyledExample_ConfigChangesThePicture
+          - CanvasNetHelp_StyleAdvice_TransparentChartInsideSvg_ShowsThePage
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-CompositionGuidance
+        title: >-
+          The CanvasNetHelp class shall provide the composition card (choosing the outer picture, sizing an embedded
+          picture, the fragments of a placement, the nesting and file-access limits, and the render, look, and fix
+          loop) and a composition card for each drawing format linked to it both ways, with an SVG figure that embeds
+          the styled Mermaid flowchart and the styled Vega-Lite chart as a snippet that renders under strict mode
+          without a diagnostic; and shall provide the svg framed-figure card (the layers of a framed figure, sizing its
+          picture, marker arrows, and finding where a feature is), linked both ways with the composition, svg
+          composition, svg style, and scad anchors cards, with a framed figure of a model as a snippet whose callout
+          arrows end on the anchors of the model, and whose advice that a picture rendered alone at the size of its box
+          is the picture the figure embeds holds for a diagram, a chart, and a model.
+        justification: |
+          A figure for a document often combines a diagram, a chart, a model, and text; showing how the formats nest,
+          with a complete figure that is verified to render, saves an agent from discovering the patterns by trial and
+          error, and a callout is only useful when it lands on the feature.
+        tests:
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards
+          - CanvasNetHelp_FramedFigureExample_CalloutsEndOnTheModelAnchors
+          - CanvasNetHelp_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SvgArrows
+        title: >-
+          The CanvasNetHelp class shall provide the svg arrows card (aliases markers and arrowheads) below the svg card,
+          linked both ways with the svg style, svg framed-figure, and composition cards, that teaches a marker with
+          orient="auto" on marker-end and auto-start-reverse on marker-start instead of a hand-drawn head, drawing a
+          connector from its source to its target, that the head follows the final tangent of the path, a
+          tip-anchored refX="10" that lands the tip on the end of the path, and the svg-arrowhead-shape warning; with
+          an example whose rendered heads land on the edges of their target boxes.
+        justification: |
+          Arrowheads that point the wrong way or stop short are the most common flaw of hand-written figures; one card
+          with a verified example lets an agent draw connectors that land correctly the first time.
+        tests:
+          - CanvasNetHelp_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers
+          - CanvasNetHelp_ArrowsExample_TipsLandOnTheTargetEdges
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-SvgImageLinks
+        title: >-
+          The CanvasNetHelp class shall state in the svg embedding card which file types an image element may link
+          (exactly the file name extensions the library renders), that a linked model, chart, document page, or SVG
+          file is drawn at the size of the placement, the link rule, and the diagnostic codes svg-image-unresolved,
+          svg-image-too-large, and image-access-denied with an example; in the svg fragments card the page fragment
+          (its grammar, the parameter of each format, that page 1 is drawn without one, the codes, and what strict mode
+          does with them); and in the limits card the limits of a fragment, quoted from the code; the scad and
+          vega-lite cards shall point to the svg embedding card, and the pdf, pptx, vsdx, and scad cards shall show
+          the fragment of their format.
+        justification: |
+          An agent that wants a model, a chart, or page 2 of a document inside a diagram must find out that an image
+          element can link it, and what it may link, without reading the source; a list of file types that is compared
+          with the library cannot omit a type that works or promise one that does not.
+        tests:
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_SvgEmbedding_ImageLinks_StateSizeLinkRuleDiagnosticsAndExample
+          - CanvasNetHelp_Snippets_RenderStrictWithTheirSiblingFiles
+          - CanvasNetHelp_SvgFragments_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
+          - CanvasNetHelp_FormatAndLimitsCards_DocumentFragmentsAndTheirLimits
+          - CanvasNetHelp_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
+          - CanvasNetHelp_ScadAndVegaLiteCards_PointToImageHrefLinking
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-ViewAngles
+        title: >-
+          The CanvasNetHelp class shall state in the scad views and svg fragments cards that the variable $vpr set to
+          [90-elevation,0,azimuth] draws what the azimuth and elevation view options draw, so that a link, which takes
+          no angles, can turn the view of an embedded model.
+        justification: |
+          A link takes no azimuth or elevation, so the mapping to $vpr is the only way to turn the view of an embedded
+          model; a mapping that is checked by rendering both ways cannot mislead.
+        tests:
+          - CanvasNetHelp_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Consistency
+        title: >-
+          The CanvasNetHelp class shall state only facts verified against the library: the error codes listed in the
+          errors codes card shall be every library error code (every code of the error contract except
+          operation-failed, threshold-failed, and pandoc-filter-error, which only a host raises), the diagnostic
+          identifiers cited in a card shall exist in the libraries and be produced by the input that is said to
+          trigger them (reported as unsupported under strict mode), and the numeric limits shall be the values used by
+          the code.
+        justification: |
+          Help that disagrees with the library is worse than no help; checking the content against the code makes
+          every statement of a card a tested statement, so a change of the code that makes a card untrue fails a test.
+        tests:
+          - CanvasNetHelp_ErrorsCodes_ListsEveryLibraryErrorCode
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_DiagnosticTriggers_ProduceTheCitedIds
+          - CanvasNetHelp_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Mermaid
+        title: >-
+          The CanvasNetHelp class shall provide the mermaid cards (alias mmd) with what a diagram may use (flowcharts,
+          sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts, gantt charts,
+          mindmaps, packet diagrams, and git graphs, one card per diagram type with its settings on a card below it),
+          each diagram type and construct that is not drawn with the identifier of its diagnostic, the library options
+          that apply (the theme, the scale, the background, and strict mode), the diagnostics and errors with their
+          codes, and the known differences from Mermaid; source examples of every diagram type that render under strict
+          mode without a diagnostic and a snippet whose nodes show a model and a chart that renders the same way once
+          those files exist; shall quote the limits of the Mermaid library from the code; shall state in the gantt
+          card that the gridColor theme variable colors no grid line and that the themeCSS rules for .grid .tick and
+          .grid .tick text recolor the grid lines and resize the tick labels, as verified by rendering; and shall list
+          .mmd and .mermaid among the file types an image element of an SVG file may link.
+        justification: |
+          An agent that is asked to draw a diagram must learn from the library itself which diagram types and
+          constructs are drawn, how to choose a theme, and how to show a picture in a node, and get a working diagram
+          to start from; checking the cards against the code keeps every statement of them true.
+        tests:
+          - CanvasNetHelp_MermaidComposition_PicturesSnippet_RendersStrictWithItsSiblingFiles
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MermaidGuideParity
+        title: >-
+          The CanvasNetHelp class shall give in the mermaid cards, row for row and in order, the same syntax, relation,
+          tag, and setting rows of each diagram type and the same unsupported-feature and warning codes as the Mermaid
+          user guide, worded the same, code spans included.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - CanvasNetHelp_MermaidCards_DiagramSyntaxItems_MatchUserGuide
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-PlantUml
+        title: >-
+          The CanvasNetHelp class shall provide the plantuml cards (alias puml) with what a diagram may use (sequence
+          diagrams, activity diagrams, class, object, state, use case, component, and deployment diagrams and their
+          elements, links, notes, and page texts, the preprocessor subset and local includes under the file-access
+          policy, the supported skinparam settings, colors, and fonts, and the composition of a diagram in an SVG
+          figure, a Mermaid node, and a contact sheet), each diagram type and construct that is not drawn with the
+          identifier of its diagnostic, the library options that apply (the scale, the background, strict mode, and
+          the file-access policy) and that the theme and the feature positions do not, the diagnostics and errors with
+          their codes, and the known differences from PlantUML; source examples that render under strict mode without
+          a diagnostic; shall quote the limits of the PlantUML library from the code; shall be linked from the style
+          and composition hubs; and shall list .puml, .plantuml, and .pu among the file types an image element of an
+          SVG file may link.
+        justification: |
+          An agent that is asked to draw a PlantUML diagram must learn from the library itself which diagram types and
+          constructs are drawn and how to style and place a diagram, and get a working diagram to start from.
+        tests:
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-PlantUmlGuideParity
+        title: >-
+          The CanvasNetHelp class shall give in the plantuml sequence, activity, class, object, state, usecase,
+          component, and deployment cards, row for row and in order, the same supported syntax rows, and in the
+          plantuml unsupported and diagnostics cards the same unsupported-feature, warning, and error codes as the
+          PlantUML user guide, worded the same, code spans included.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - CanvasNetHelp_PlantUmlCards_DiagramSyntaxItems_MatchUserGuide
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMl
+        title: >-
+          The CanvasNetHelp class shall provide the mathml cards (aliases mml and equation) that teach how to write a
+          good-looking equation: the file and its tokens, fractions and roots, scripts and primes, sums, integrals, and
+          limits, stretchy fences, matrices and case analyses, aligned derivations with equation numbers, units and
+          numbers, Greek letters and named entities, accents and labeled braces, worked engineering formulas, styling,
+          the pitfalls and the markup to write instead, and the composition of an equation in an SVG figure, a Mermaid
+          node, and a Vega-Lite chart; the supported elements and attributes, the library options that apply (the
+          scale, the size, the background, strict mode, the limits, and the display mode) and that the theme and the
+          feature positions do not, the diagnostics and errors with their codes, what is not drawn, and the known
+          differences from browsers; source examples for every authoring task that render under strict mode without a
+          diagnostic; shall quote the limits of the MathML library from the code; shall be linked from the style and
+          composition hubs; and shall list .mml among the file types an image element of an SVG file may link.
+        justification: |
+          Engineers and agents write equations by hand; they must learn from the library itself which MathML is drawn,
+          how to make an equation look right, and how to place it in a figure, and get a working equation for every
+          task to start from.
+        tests:
+          - CanvasNetHelp_Default_Find_EveryLibraryAlias_ResolvesIgnoringCase
+          - CanvasNetHelp_FormatCards_SubtreesHaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - CanvasNetHelp_Default_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - CanvasNetHelp_SourceExamples_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_Default_Text_HasNoUnresolvedTokens_AndQuotesTheLiveLimits
+          - CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards
+          - CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays
+          - CanvasNetHelp_CitedDiagnosticIds_ExistInTheLibraries
+          - CanvasNetHelp_SvgEmbedding_HrefFileTypes_MatchTheViewerExtensions
+          - CanvasNetHelp_MathMlCards_CoverTheAuthoringTasks
+          - CanvasNetHelp_MathMlComposition_FigureBlocks_RenderStrictWithTheEquation
+          - CanvasNetHelp_MathMlDiagnostics_CitedCodes_AreReportedByTheirTriggers
+          - CanvasNetHelp_MathMlPitfalls_StretchyFalseParentheses_AreNarrower
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMlGuideParity
+        title: >-
+          The CanvasNetHelp class shall give in the mathml elements and attributes cards, row for row and in order, the
+          same supported element and attribute rows, and in the mathml unsupported and diagnostics cards the same
+          unsupported-feature, warning, and error codes as the MathML user guide, worded the same, code spans
+          included.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - CanvasNetHelp_MathMlCards_ElementAttributeAndCodeItems_MatchUserGuide
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-MathMlEquations
+        title: >-
+          The CanvasNetHelp class shall show, in the mathml cards and in the MathML user guide, only whole equations (in
+          xml code blocks and in Pandoc mathml code blocks) that render under strict mode without a diagnostic, and
+          shall state in the guide's rendering example the element count and the sizes the library reports.
+        justification: |
+          An equation an agent copies from the help or a person copies from the guide must draw as shown; an example
+          that warns or fails would teach the mistake it was meant to prevent, and a number the guide states must be
+          the number the library gives.
+        tests:
+          - CanvasNetHelp_MathMlCards_FencedEquations_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_MathMlGuide_FencedEquations_RenderStrictWithoutDiagnostics
+          - CanvasNetHelp_MathMlGuide_RenderingExample_StatesTheMeasuredNumbers
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Positions
+        title: >-
+          The CanvasNetHelp class shall provide the root card positions, with cards for the selectors (the grammar, the
+          matching of channels and data fields, and the limits), the Mermaid and Vega-Lite kinds, ids, values, data
+          fields (with the 2012 base year of a month time unit), and attachment points, and the geometry; shall link it
+          with the framed-figure, anchors, and composition cards; and shall teach in the framed-figure card to read the
+          pixel of a position of the picture rendered at the size of its image, with an example whose arrows end on
+          those positions.
+        justification: |
+          Every claim of the help must hold when the library runs it, so agents can follow the cards literally.
+        tests:
+          - CanvasNetHelp_PositionsCard_IsInTheTreeAndLinked
+          - CanvasNetHelp_PositionsLimits_AreTheLimitsOfTheCode
+          - CanvasNetHelp_PositionsSelectors_Examples_MatchAsTheCardsSay
+          - CanvasNetHelp_PositionsVegaLite_DataFieldExample_SelectsThePoint
+          - CanvasNetHelp_PositionsSelectors_MetadataExamples_SelectOneItem
+          - CanvasNetHelp_PositionsMermaid_KindsPerType_AreTheKindsReported
+          - CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions
+
+      - id: CanvasNetViewer-Help-CanvasNetHelp-Bindings
+        title: >-
+          The CanvasNetHelp class shall provide the card svg bindings that names the namespace, the attributes, the
+          value syntax, every binding code, and svg-binding-failed; the framed-figure card shall recommend a binding
+          first, then the reported positions with the image x and y added by hand, then a labeled grid; and its
+          framed-flow example shall bind every arrow tip with cn:x2y2 to a position that the diagram rendered alone at
+          the size of its image reports, plus the image x and y.
+        justification: |
+          Agents learn the features from the help; the advice must lead to the exact way first, and the example must
+          work.
+        tests:
+          - CanvasNetHelp_SvgBindings_ListsTheNamespaceAndEveryCode
+          - CanvasNetHelp_FramedFigure_RecommendsBindingsFirst
+          - CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions

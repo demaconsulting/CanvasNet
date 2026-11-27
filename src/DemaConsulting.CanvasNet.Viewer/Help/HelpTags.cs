@@ -7,8 +7,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Help;
 /// <remarks>
 ///     <para>
 ///         Every card has at least one scope tag and may have format tags; a card without a format tag is general (it
-///         applies to every format). The loader rejects a tag that is not in this vocabulary, so a host can rely on
-///         these constants when it chooses what to give an agent with <see cref="HelpCatalog.Filter"/>, for example
+///         applies to every format). <see cref="CanvasNetHelp.Configure"/> gives this vocabulary to the catalog builder,
+///         which rejects a tag that is not in it and a card without a scope tag, so a host can rely on these constants
+///         when it chooses what to give an agent with <c>CanvasNetHelp.Catalog.Filter</c>, for example
 ///         only <see cref="Authoring"/> and <see cref="Design"/> knowledge, without the <see cref="Hosting"/> and
 ///         <see cref="FileAccess"/> cards about what the host application controls.
 ///     </para>

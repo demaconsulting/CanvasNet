@@ -1,0 +1,94 @@
+---
+# DemaConsulting.HelpCards OTS Software Requirements
+#
+# Requirements for the DemaConsulting.HelpCards runtime library functionality, pinned at 0.1.0-beta.4. The library
+# reads, composes, validates, filters, links, searches, and renders the help cards of the Viewer library
+# (CanvasNetHelp) and of the canvasnet tool (HelpTopics), and runs the tool's help command (HelpCli). It is verified
+# indirectly: the CanvasNet tests that build, validate, filter, and render the real cards and run the help command are
+# the evidence that the library behaves as these requirements state.
+
+sections:
+  - title: OTS Software Requirements
+    sections:
+      - title: DemaConsulting.HelpCards Requirements
+        requirements:
+          - id: CanvasNet-OTS-HelpCards-Load
+            title: >-
+              DemaConsulting.HelpCards shall load help cards embedded in an assembly as a named source, replace the
+              tokens of the cards and their example files with the values the source gives (with a backslash before
+              two opening braces as the escape of literal braces), let a source import another so that its overlays
+              extend the imported cards and its links name them, and report every defect of the sources with its file,
+              line, and rule when the catalog is created.
+            justification: |
+              The Viewer library ships its cards in its own assembly and the tool layers its overlays and its own cards
+              on them; a defect of a card must fail the build where it is written, and a Mermaid hexagon node must
+              keep its double braces.
+            tags: [ots]
+            tests:
+              - CanvasNetHelp_Source_LoadsTheEmbeddedCardsAndExamples
+              - CanvasNetHelp_Configure_AppliesTheTagVocabulary
+              - HelpSubsystem_HostSource_IsLayeredOnTheLibraryCards
+              - HelpSubsystem_HostSource_BrokenLink_FailsWithTheFileAndTheLine
+              - HelpTopics_OverlayCards_BodyIsTheLibraryBodyThenTheOverlayBody
+              - CanvasNetTool_HelpTopics_MindmapExample_PrintsTheHexagonAndRendersStrict
+
+          - id: CanvasNet-OTS-HelpCards-Views
+            title: >-
+              DemaConsulting.HelpCards shall give a view of a catalog with the cards that have any of some tags and none
+              of others, in which a hidden card is not found, not listed, and not linked, its visible descendants move
+              up to the nearest visible ancestor or become roots, and an unknown tag is refused.
+            justification: |
+              A host of the Viewer library gives its agent only the cards it may read and must never point it at a card
+              it hides.
+            tags: [ots]
+            tests:
+              - CanvasNetHelp_DefaultFiltered_NeverPointsAtAHiddenCard
+              - CanvasNetHelp_DefaultFiltered_VisibleCardBelowAHiddenRoot_IsARootFoundByItsPath
+              - CanvasNetHelp_Catalog_Filter_UnknownTag_ThrowsArgumentException
+              - HelpSubsystem_FilteredView_HidesExcludedCardsFromTreeLookupAndLinks
+
+          - id: CanvasNet-OTS-HelpCards-Render
+            title: >-
+              DemaConsulting.HelpCards shall render a card, its examples, and an index as deterministic plain text with
+              LF line endings and as one-line ASCII JSON, with the links written in plain words, as the command that
+              prints the target, or by a callback of the host, and the JSON wrapped in an envelope the host writes.
+            justification: |
+              The library renders a card for an agent and the tool prints it on the command line in its own JSON
+              envelope; the same input must give the same output on every machine.
+            tags: [ots]
+            tests:
+              - CanvasNetHelp_Default_RenderTextAndJson_AreDeterministicPlainAndComplete
+              - HelpTopics_RenderText_IsDeterministicPlainAndComplete
+              - HelpTopics_RenderJson_HasTheDocumentedShape
+              - HelpTopics_CommandLineText_WritesLinksAsHelpCommands
+
+          - id: CanvasNet-OTS-HelpCards-Cli
+            title: >-
+              DemaConsulting.HelpCards shall run a help command from its arguments (the index, a card, its examples, one
+              example, a search, and a tag list), offer the path words to a resolver of the host first, and write its
+              JSON documents, its JSON errors, and its exit codes in the shape the host configures.
+            justification: |
+              The canvasnet tool keeps its help command and its JSON contract (the envelope, the error object, and exit
+              code 1 for every failure) while the cards are answered by the library.
+            tags: [ots]
+            tests:
+              - CommandRegistry_Run_HelpUnknownCard_ListsChildren
+              - CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics
+              - CommandRegistry_RenderHelp_SearchTagAndAll_AnswerInTheToolEnvelope
+              - CommandRegistry_RenderHelp_WrongHelpOptions_AreUsageErrors
+              - CanvasNetTool_HelpTopics_RunAsProcess_JsonFailures_HaveTheToolShapeAndExitCode1
+
+          - id: CanvasNet-OTS-HelpCards-Validate
+            title: >-
+              DemaConsulting.HelpCards shall validate the cards of a catalog against configurable budgets (characters
+              of a card and of a root index, characters of a summary, and columns of a line outside and inside a fenced
+              code block), reserved headings, code fence languages, unused tokens, command examples that parse as a
+              command line of the tool without shell expansion, and rules of the host.
+            justification: |
+              CanvasNet keeps stricter rules than the defaults of the library; the validator applies them to every card
+              in a test, so a card that breaks one fails the build.
+            tags: [ots]
+            tests:
+              - CanvasNetHelp_LibraryCards_PassTheStrictValidation
+              - HelpTopics_Cards_PassTheStrictValidation
+              - HelpTopics_Validation_UnquotedPagePattern_IsReported

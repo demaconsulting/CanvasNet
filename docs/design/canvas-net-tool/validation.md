@@ -165,16 +165,15 @@ other file, no network, and no installed font.
 
 **RunHelpExamplesTest**: the help self-test (the 20th and last self-test, `CanvasNetTool_HelpExamples`), run through
 `RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
-writes every source example of the help cards (`HelpTopics.SourceExamples`, the examples of the library cards: the
+writes every source example of the help cards (the `source` examples of `HelpTopics.Catalog`, the library cards: the
 OpenSCAD models, the Vega-Lite charts, the Mermaid and PlantUML diagrams, the MathML equations, and the SVG drawings) to
-a file named
-`<root>-<file name>` and runs `render <file> --strict --json -o <root>-<example>.png` (with `--size 64x64` for a model,
-which only needs to render), requiring `ok` true and no diagnostic: the documented examples are accepted by the shipped
-renderers even under `--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that the output,
-apart from its final line feed, equals the embedded source of the example, so that a printed example can be saved and
-run as it is. `CheckHelpTree` runs `help topics --json` and requires the `topics` document to list exactly the cards of
-`HelpTopics.All`, depth first. This exercises the embedded help resources, the `help` command, and the `render` command
-together in the deployment environment.
+a file named `<root>-<file name>` and runs `render <file> --strict --json -o <root>-<example>.png` (with `--size 64x64`
+for a model, which only needs to render), requiring `ok` true and no diagnostic: the documented examples are accepted by
+the shipped renderers even under `--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that
+the output, apart from its final line feed, equals the embedded source of the example, so that a printed example can be
+saved and run as it is. `CheckHelpTree` runs `help topics --json` and requires the `topics` document to list exactly the
+cards of `HelpTopics.Catalog`, depth first. This exercises the embedded help resources, the `help` command, and the
+`render` command together in the deployment environment.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.

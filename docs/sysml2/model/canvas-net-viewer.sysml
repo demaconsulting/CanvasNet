@@ -15,7 +15,7 @@ package CanvasNetViewer {
             requirementFiles = ("docs/reqstream/canvas-net-viewer.yaml");
         }
 
-        comment /* CanvasNetViewer references the core CanvasNet package (the ImageSources subsystem: IImageSource, FolderImageResolver, ImageSourceSet, and RasterImageSource; the Positions subsystem: ImagePosition, PositionSelection, and PositionCollector) and the Svg, Pdf, Pptx, Vsdx, Scad, VegaLite, Mermaid, PlantUml, and MathMl packages for their image sources; Render3D is referenced explicitly (the OpenSCAD views of the Imaging subsystem) and Charts arrives transitively. It is a leaf of the dependency graph: no other package references it, and only the command-line tool consumes it. */
+        comment /* CanvasNetViewer references the core CanvasNet package (the ImageSources subsystem: IImageSource, FolderImageResolver, ImageSourceSet, and RasterImageSource; the Positions subsystem: ImagePosition, PositionSelection, and PositionCollector) and the Svg, Pdf, Pptx, Vsdx, Scad, VegaLite, Mermaid, PlantUml, and MathMl packages for their image sources; Render3D is referenced explicitly (the OpenSCAD views of the Imaging subsystem) and Charts arrives transitively. It is a leaf of the dependency graph: no other package references it, and only the command-line tool consumes it. Its only OTS runtime dependency is DemaConsulting.HelpCards, which the Help subsystem uses for its help cards and which is part of its public API (documented in docs/design/ots/help-cards.md). */
 
         part canvasNetViewer : CanvasNetViewer;
         part viewerException : ViewerException;

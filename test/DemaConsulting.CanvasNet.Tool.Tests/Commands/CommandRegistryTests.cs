@@ -611,6 +611,21 @@ public class CommandRegistryTests
     }
 
     /// <summary>
+    ///     Runs the help command with arguments that HelpCards refuses, and captures what it writes.
+    /// </summary>
+    /// <param name="registry">The registry.</param>
+    /// <param name="json">Whether the global <c>--json</c> option is on.</param>
+    /// <param name="args">The arguments after <c>help</c>.</param>
+    /// <returns>The captured standard output and standard error, and the exit code of the context.</returns>
+    private static (string StdOut, string StdErr, int ExitCode) RunHelpFailed(CommandRegistry registry, bool json, params string[] args)
+    {
+        string[] arguments = json ? ["--json", "help", .. args] : ["help", .. args];
+        using var context = Context.Create(arguments);
+        var (stdOut, stdErr) = ToolHost.Capture(() => registry.Run(context));
+        return (stdOut, stdErr, context.ExitCode);
+    }
+
+    /// <summary>
     ///     Runs the help command with arguments and returns the error it fails with.
     /// </summary>
     /// <param name="registry">The registry.</param>
@@ -635,7 +650,7 @@ public class CommandRegistryTests
         var help = registry.RenderHelp("svg");
 
         // Assert: it is the root card, not a command help
-        Assert.Equal(HelpTopics.RenderText(HelpTopics.Get("svg")), help);
+        Assert.Equal(HelpView.RenderText(HelpView.Get("svg")), help);
         Assert.StartsWith("# SVG drawings (.svg)", help);
         Assert.Contains("## Cards", help);
         Assert.Contains("- canvasnet help svg embedding", help);
@@ -650,7 +665,7 @@ public class CommandRegistryTests
     {
         // Arrange: a registry
         var registry = CreateHelpRegistry();
-        var card = HelpTopics.Get("mermaid/gantt");
+        var card = HelpView.Get("mermaid/gantt");
 
         // Act: print the card by its path, by aliases, and as JSON
         var text = RunHelp(registry, false, "mermaid", "gantt");
@@ -659,15 +674,17 @@ public class CommandRegistryTests
         var json = RunHelp(registry, true, "mermaid", "gantt");
 
         // Assert: the card text and document
-        Assert.Equal(HelpTopics.RenderText(card) + "\n", text.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.Equal(HelpView.RenderText(card) + "\n", text.Replace("\r\n", "\n", StringComparison.Ordinal));
         Assert.Equal(text, aliased);
         Assert.Equal(text, slashed);
-        Assert.Equal(HelpTopics.RenderJson(card), json.TrimEnd());
-        Assert.Equal(registry.RenderHelp(["mermaid", "gantt"]), HelpTopics.RenderText(card));
+        Assert.Equal(HelpView.RenderJson(card), json.TrimEnd());
+        Assert.Equal(registry.RenderHelp(["mermaid", "gantt"]), HelpView.RenderText(card));
     }
 
     /// <summary>
-    ///     Test that an unknown word below a card is a usage error that lists the cards at that level.
+    ///     Test that an unknown word below a card is a usage error that lists the cards at that level: on standard error
+    ///     as <c>Error: usage-error:</c> and <c>Hint:</c> lines with exit code 1, and with <c>--json</c> also as the
+    ///     failure document of the tool on standard output.
     /// </summary>
     [Fact]
     public void CommandRegistry_Run_HelpUnknownCard_ListsChildren()
@@ -675,14 +692,37 @@ public class CommandRegistryTests
         // Arrange: a registry
         var registry = CreateHelpRegistry();
 
-        // Act: ask for a mistyped card
-        var exception = RunHelpFailing(registry, "mermaid", "giant");
+        // Act: ask for a mistyped card, as text and as JSON
+        var (textOut, textErr, textExit) = RunHelpFailed(registry, false, "mermaid", "giant");
+        var (jsonOut, jsonErr, jsonExit) = RunHelpFailed(registry, true, "mermaid", "giant");
 
-        // Assert: a usage error that suggests the card and lists the cards under mermaid
+        // Assert: the error lines suggest the card and list the cards under mermaid, and the exit code is 1
+        Assert.Equal(1, textExit);
+        Assert.Empty(textOut);
+        var lines = textErr.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
+        Assert.Equal("Error: usage-error: Unknown help card 'giant' under 'mermaid'.", lines[0]);
+        Assert.StartsWith("Hint: Did you mean 'gantt'? Cards under 'mermaid': flowchart,", lines[1]);
+        Assert.Equal(2, lines.Length);
+
+        // Assert: the JSON failure document has the tool's shape: no kind, and the error object
+        Assert.Equal(1, jsonExit);
+        Assert.Equal(textErr, jsonErr);
+        using var document = System.Text.Json.JsonDocument.Parse(jsonOut);
+        var root = document.RootElement;
+        Assert.Equal(["schemaVersion", "ok", "command", "error"], root.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
+        Assert.False(root.GetProperty("ok").GetBoolean());
+        Assert.Equal("help", root.GetProperty("command").GetString());
+        var error = root.GetProperty("error");
+        Assert.Equal(["code", "message", "hint"], error.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(ErrorCodes.UsageError, error.GetProperty("code").GetString());
+        Assert.Equal("Unknown help card 'giant' under 'mermaid'.", error.GetProperty("message").GetString());
+        Assert.Equal(lines[1]["Hint: ".Length..], error.GetProperty("hint").GetString());
+
+        // Assert: the convenience method throws the same error
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["mermaid", "giant"]));
         Assert.Equal(ErrorCodes.UsageError, exception.Code);
         Assert.Equal("Unknown help card 'giant' under 'mermaid'.", exception.Message);
-        Assert.Contains("Did you mean 'gantt'?", exception.Hint);
-        Assert.Contains("Cards under 'mermaid': flowchart,", exception.Hint);
         Assert.Equal("help", exception.Command);
     }
 
@@ -699,13 +739,26 @@ public class CommandRegistryTests
         // Act
         var command = RunHelpFailing(registry, "render", "gantt");
         var topics = RunHelpFailing(registry, "topics", "mermaid");
-        var help = RunHelpFailing(registry, "help", "mermaid");
+        var help = RunHelpFailing(registry, "help", "help", "mermaid");
 
         // Assert: each is a usage error that says so
         Assert.Equal(ErrorCodes.UsageError, command.Code);
         Assert.Equal("'render' has no help cards below it.", command.Message);
         Assert.Equal("'topics' has no help cards below it.", topics.Message);
         Assert.Equal("'help' has no help cards below it.", help.Message);
+    }
+
+    /// <summary>
+    ///     Test that a leading <c>help</c> word is ignored, so <c>help help mermaid</c> prints the mermaid card.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_RenderHelp_LeadingHelpWord_IsIgnored()
+    {
+        // Arrange: a registry
+        var registry = CreateHelpRegistry();
+
+        // Act / Assert
+        Assert.Equal(registry.RenderHelp("mermaid"), registry.RenderHelp(["help", "mermaid"]));
     }
 
     /// <summary>
@@ -737,15 +790,21 @@ public class CommandRegistryTests
         var json = registry.RenderHelp("TOPICS", json: true);
 
         // Assert: it is the tree, not the index
-        Assert.Equal(HelpTopics.RenderTopicsText(), help);
-        Assert.Equal(HelpTopics.RenderTopicsJson(), json);
+        Assert.Equal(HelpTopics.RenderTopics(false), help);
+        Assert.Equal(HelpTopics.RenderTopics(true), json);
         Assert.NotEqual(registry.RenderHelp(), help);
-        Assert.Contains("mermaid gantt settings", help);
-        Assert.All(HelpTopics.All, card => Assert.Contains(card.Path, help));
+        Assert.Contains("canvasnet help mermaid gantt settings", help);
+        Assert.All(HelpView.All, card => Assert.Contains(card.Command, help));
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal(["schemaVersion", "ok", "command", "kind"], document.RootElement.EnumerateObject().Select(p => p.Name).Take(4));
+        Assert.Equal("topics", document.RootElement.GetProperty("kind").GetString());
+        var cardKeys = document.RootElement.GetProperty("cards")[0].EnumerateObject().Select(p => p.Name).ToList();
+        Assert.All(["id", "aliases", "tags", "summary", "command"], key => Assert.Contains(key, cardKeys));
     }
 
     /// <summary>
-    ///     Test that the top-level help lists the help topics, with their aliases, and how to read a card.
+    ///     Test that the top-level help lists the usage, the commands, the options, the help options, and the help topics
+    ///     with the command that prints each, and how to read a card.
     /// </summary>
     [Fact]
     public void CommandRegistry_RenderHelp_TopLevel_ListsHelpTopics()
@@ -757,15 +816,17 @@ public class CommandRegistryTests
         var help = registry.RenderHelp();
         var flat = HelpCardText.Flatten(help.Replace("\r\n", "\n", StringComparison.Ordinal));
 
-        // Assert: the usage line of help, the topic section with every root, an alias, and the pointers
-        Assert.Contains("canvasnet help [<command> | <topic> [<card> ...] | topics] [--example <name> | --examples] [--json]", help);
-        Assert.Contains("Help topics:", help);
-        Assert.All(HelpTopics.TopicNames, name => Assert.Contains($"  {name} ", help));
-        Assert.Contains("scad = openscad", help);
-        Assert.Contains("'canvasnet help <topic> [<card> ...]'", flat);
-        Assert.Contains("'canvasnet help topics' lists every card", flat);
+        // Assert: the usage line of help, the sections, every root, and the pointers
+        Assert.Contains("canvasnet help [<command> | <topic> [<card> ...] | topics] [<help options>] [--json]", help);
+        Assert.Contains("\nHelp options:\n", help);
+        Assert.Contains("--example <name>", help);
+        Assert.Contains("--search <text>", help);
+        Assert.Contains("\nHelp topics:\n", help);
+        Assert.All(HelpTopics.TopicNames, name => Assert.Contains($"canvasnet help {name} ", help));
+        Assert.Contains("'canvasnet help topics' to list every help card", flat);
         Assert.Contains("'canvasnet help style'", flat);
         Assert.Contains("'canvasnet help composition'", flat);
+        Assert.EndsWith("Run 'canvasnet help' for topics and examples.", help);
     }
 
     /// <summary>
@@ -818,7 +879,8 @@ public class CommandRegistryTests
     }
 
     /// <summary>
-    ///     Test that the index as JSON lists the commands and the topics.
+    ///     Test that the index as JSON lists the usage, the commands, the topics, and the global options in the tool's
+    ///     envelope and order, followed by the fields HelpCards adds.
     /// </summary>
     [Fact]
     public void CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics()
@@ -831,12 +893,13 @@ public class CommandRegistryTests
         using var document = System.Text.Json.JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        // Assert: the index has the usage, the commands, all topics with aliases, and the global options
+        // Assert: the index has the usage, the commands, all topics with aliases, and the global options, first
         Assert.Equal(json, registry.RenderHelp("help", json: true));
         Assert.Equal(
             ["schemaVersion", "ok", "command", "kind", "usage", "commands", "topics", "globalOptions"],
-            root.EnumerateObject().Select(p => p.Name));
+            root.EnumerateObject().Select(p => p.Name).Take(8));
         Assert.Equal("index", root.GetProperty("kind").GetString());
+        Assert.Equal(System.Text.Json.JsonValueKind.String, root.GetProperty("usage").ValueKind);
         Assert.Contains("canvasnet help", root.GetProperty("usage").GetString());
         Assert.Equal(["render"], root.GetProperty("commands").EnumerateArray().Select(c => c.GetProperty("name").GetString()));
         var topics = root.GetProperty("topics").EnumerateArray().ToList();
@@ -847,22 +910,95 @@ public class CommandRegistryTests
     }
 
     /// <summary>
-    ///     Test that <c>help &lt;topic&gt; --example</c> writes only the source of the example.
+    ///     Test that <c>help &lt;topic&gt; --example</c> writes only the source of the example, and the example document
+    ///     with <c>--json</c>.
     /// </summary>
     [Fact]
     public void CommandRegistry_Run_HelpExample_WritesOnlyTheSource()
     {
-        // Arrange: a registry, and the expected source and JSON
+        // Arrange: a registry, and the expected source
         var registry = CreateHelpRegistry();
-        var topic = HelpTopics.Get("svg");
+        var topic = HelpView.Get("svg");
 
         // Act: print the shapes example as text and as JSON
         var text = RunHelp(registry, false, "svg", "--example", "shapes");
-        var json = RunHelp(registry, true, "svg", "--example=shapes");
+        var json = RunHelp(registry, true, "svg", "--example", "shapes");
 
-        // Assert: the text is the source and one line end; the JSON is the example document
-        Assert.Equal(HelpTopics.RenderExample(topic, "shapes") + "\n", text.Replace("\r\n", "\n", StringComparison.Ordinal));
-        Assert.Equal(HelpTopics.RenderExampleJson(topic, "shapes"), json.TrimEnd());
+        // Assert: the text is the source and one line end; the JSON is the example document, whose id is the card that
+        // was asked for and whose example names the card that holds it
+        Assert.Equal(HelpView.RenderExample(topic, "shapes") + "\n", text.Replace("\r\n", "\n", StringComparison.Ordinal));
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal("example", document.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("svg", document.RootElement.GetProperty("id").GetString());
+        Assert.Equal("svg/supported", document.RootElement.GetProperty("example").GetProperty("card").GetString());
+        Assert.Equal(HelpView.RenderExample(topic, "shapes"), document.RootElement.GetProperty("example").GetProperty("content").GetString());
+    }
+
+    /// <summary>
+    ///     Test that the document of an example found below the requested card keeps the requested card as its
+    ///     <c>id</c>, and differs from the document asked for at the card that holds the example only in that value.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_RenderHelp_ExampleBelowTheCard_KeepsTheRequestedCardAsId()
+    {
+        // Arrange: a registry
+        var registry = CreateHelpRegistry();
+
+        // Act: ask for the shapes example at the topic and at the card that holds it
+        var viaTopic = registry.RenderHelp(["svg", "--example", "shapes"], json: true);
+        var viaOwner = registry.RenderHelp(["svg", "supported", "--example", "shapes"], json: true);
+
+        // Assert: the keys of the document in order, the two ids, the card that holds the example, and the same bytes
+        // apart from the id
+        using var topicDocument = System.Text.Json.JsonDocument.Parse(viaTopic);
+        using var ownerDocument = System.Text.Json.JsonDocument.Parse(viaOwner);
+        Assert.Equal(
+            ["schemaVersion", "ok", "command", "kind", "id", "example"],
+            topicDocument.RootElement.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("svg", topicDocument.RootElement.GetProperty("id").GetString());
+        Assert.Equal("svg/supported", ownerDocument.RootElement.GetProperty("id").GetString());
+        Assert.Equal("svg/supported", topicDocument.RootElement.GetProperty("example").GetProperty("card").GetString());
+        Assert.Equal("svg/supported", ownerDocument.RootElement.GetProperty("example").GetProperty("card").GetString());
+        Assert.Equal(viaOwner.Replace("\"id\":\"svg/supported\"", "\"id\":\"svg\"", StringComparison.Ordinal), viaTopic);
+    }
+
+    /// <summary>
+    ///     Test that the value of a help option may follow an equals sign, as for every other command, but not after
+    ///     <c>--</c>.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_RenderHelp_HelpOptionValueAfterEqualsSign_IsAccepted()
+    {
+        // Arrange: a registry
+        var registry = CreateHelpRegistry();
+
+        // Act / Assert: each form with an equals sign gives the same answer as the form with two words
+        Assert.Equal(
+            registry.RenderHelp(["svg", "--example", "shapes"]),
+            registry.RenderHelp(["svg", "--example=shapes"]));
+        Assert.Equal(
+            registry.RenderHelp(["svg", "--example", "shapes"], json: true),
+            registry.RenderHelp(["svg", "--example=shapes"], json: true));
+        Assert.Equal(
+            RunHelp(registry, true, "svg", "--example", "shapes"),
+            RunHelp(registry, true, "svg", "--example=shapes"));
+        Assert.Equal(
+            registry.RenderHelp(["--search", "gantt"], json: true),
+            registry.RenderHelp(["--search=gantt"], json: true));
+        Assert.Equal(
+            registry.RenderHelp(["--tag", "mathml"], json: true),
+            registry.RenderHelp(["--tag=mathml"], json: true));
+        Assert.Equal(
+            registry.RenderHelp(["mermaid"], json: true),
+            registry.RenderHelp(["mermaid", "--format=json"]));
+        Assert.Equal(
+            registry.RenderHelp(["mermaid", "--width", "60"]),
+            registry.RenderHelp(["mermaid", "--width=60"]));
+
+        // Act / Assert: after '--' the word is a path word, and so an unknown subject
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["--", "--example=shapes"]));
+        Assert.Equal(ErrorCodes.UsageError, exception.Code);
+        Assert.Contains("'--example=shapes'", exception.Message);
     }
 
     /// <summary>
@@ -874,8 +1010,8 @@ public class CommandRegistryTests
     {
         // Arrange: a registry, the svg topic, and its flatten card
         var registry = CreateHelpRegistry();
-        var topic = HelpTopics.Get("svg");
-        var flatten = HelpTopics.Get("svg/flatten");
+        var topic = HelpView.Get("svg");
+        var flatten = HelpView.Get("svg/flatten");
 
         // Act: print the examples of the topic and of one card
         var text = RunHelp(registry, false, "svg", "--examples").Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -883,31 +1019,33 @@ public class CommandRegistryTests
         var one = RunHelp(registry, false, "svg", "flatten", "--examples").Replace("\r\n", "\n", StringComparison.Ordinal);
 
         // Assert: the card prints its own examples in full; the topic points at the cards below with examples
-        Assert.Equal(HelpTopics.RenderExamples(flatten) + "\n", one);
         Assert.All(flatten.Examples, example => Assert.Contains(example.Content, one));
-        Assert.Equal(HelpTopics.RenderExamples(topic) + "\n", text);
-        Assert.All(HelpTopics.CardsBelowWithExamples(topic), card => Assert.Contains($"{card.Command} --examples", text));
+        Assert.All(HelpView.CardsBelowWithExamples(topic), card => Assert.Contains($"{card.Command} --examples", text));
         Assert.DoesNotContain(flatten.Examples[0].Content, text);
-        Assert.Equal(HelpTopics.RenderExamplesJson(topic), json.TrimEnd());
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal("examples", document.RootElement.GetProperty("kind").GetString());
+        Assert.Equal(
+            HelpView.CardsBelowWithExamples(topic).Select(c => c.Id),
+            document.RootElement.GetProperty("cards").EnumerateArray().Select(c => c.GetProperty("id").GetString()));
     }
 
     /// <summary>
-    ///     Test that <c>--examples</c> on a card without examples, of its own or below it, is a usage error that points at
-    ///     the examples of its topic.
+    ///     Test that <c>--examples</c> on a card without examples, of its own or below it, succeeds with empty lists.
     /// </summary>
     [Fact]
-    public void CommandRegistry_Run_HelpExamplesOnCardWithoutExamples_ThrowsUsageError()
+    public void CommandRegistry_RenderHelp_ExamplesOnCardWithoutExamples_GivesEmptyLists()
     {
         // Arrange: a registry
         var registry = CreateHelpRegistry();
 
         // Act
-        var exception = RunHelpFailing(registry, "mermaid", "differences", "--examples");
+        var text = registry.RenderHelp(["mermaid", "differences", "--examples"]);
+        using var document = System.Text.Json.JsonDocument.Parse(registry.RenderHelp(["mermaid", "differences", "--examples"], json: true));
 
         // Assert
-        Assert.Equal(ErrorCodes.UsageError, exception.Code);
-        Assert.Equal("'mermaid differences' has no examples.", exception.Message);
-        Assert.Contains("canvasnet help mermaid --examples", exception.Hint);
+        Assert.Contains("has no examples of its own", text);
+        Assert.Empty(document.RootElement.GetProperty("examples").EnumerateArray());
+        Assert.Empty(document.RootElement.GetProperty("cards").EnumerateArray());
     }
 
     /// <summary>
@@ -920,44 +1058,260 @@ public class CommandRegistryTests
         var registry = CreateHelpRegistry();
 
         // Act: ask for an example that does not exist
-        var exception = RunHelpFailing(registry, "svg", "--example", "nothing");
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["svg", "--example", "nothing"]));
 
         // Assert: a usage error naming the topic, the example, and the valid examples
         Assert.Equal(ErrorCodes.UsageError, exception.Code);
-        Assert.Equal("Help card 'svg' has no example 'nothing'.", exception.Message);
+        Assert.Equal("The help card 'svg' has no example 'nothing'.", exception.Message);
         Assert.Contains("shapes", exception.Hint);
     }
 
     /// <summary>
-    ///     Test that examples of a command (which has usage text, not examples) are a usage error.
+    ///     Test that the wrong uses of the help options are usage errors: examples of a command or of the tree, an option
+    ///     that needs a card without one, two modes at once, an unknown option, an empty value after an equals sign, and a
+    ///     flag with a value.
     /// </summary>
     [Fact]
-    public void CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError()
+    public void CommandRegistry_RenderHelp_WrongHelpOptions_AreUsageErrors()
     {
         // Arrange: a registry with a command
         var registry = CreateHelpRegistry();
 
-        // Act / Assert: --example and --examples on a command or on 'topics' are usage errors
-        Assert.Equal(ErrorCodes.UsageError, RunHelpFailing(registry, "render", "--example", "x").Code);
-        Assert.Contains("has no examples", RunHelpFailing(registry, "render", "--examples").Message);
-        Assert.Equal(ErrorCodes.UsageError, RunHelpFailing(registry, "topics", "--examples").Code);
-        Assert.Contains("has no examples", RunHelpFailing(registry, "help", "--examples").Message);
+        // Act / Assert: each is a usage error of the help command
+        foreach (var arguments in new[]
+                 {
+                     new[] { "render", "--example", "x" },
+                     ["render", "--examples"],
+                     ["topics", "--examples"],
+                     ["--example", "x"],
+                     ["--examples"],
+                     ["svg", "--example", "shapes", "--examples"],
+                     ["svg", "extra"],
+                     ["--bogus"],
+                     ["svg", "--example="],
+                     ["svg", "--examples=x"],
+                     ["mermaid", "--lang", "de"]
+                 })
+        {
+            var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(arguments));
+            Assert.Equal(ErrorCodes.UsageError, exception.Code);
+            Assert.Equal("help", exception.Command);
+        }
     }
 
     /// <summary>
-    ///     Test that --example without a topic, and --example together with --examples, are usage errors.
+    ///     Test that the argument errors that HelpCards reports without a hint (an option without its value,
+    ///     <c>--example</c> or <c>--examples</c> without a card path, and two modes together) get the tool's hint, in
+    ///     text, with <c>--json</c>, with <c>--format json</c>, and from <c>RenderHelp</c>.
     /// </summary>
     [Fact]
-    public void CommandRegistry_Run_HelpExampleWithoutSubject_ThrowsUsageError()
+    public void CommandRegistry_Run_HelpArgumentErrorsWithoutAHint_GetTheHelpOptionsHint()
+    {
+        // Arrange: a registry with a command, and the hint of the tool
+        var registry = CreateHelpRegistry();
+        const string hint = "Run 'canvasnet help' for the help options, or 'canvasnet help topics' to list the help cards.";
+
+        foreach (var (arguments, message) in new[]
+                 {
+                     (new[] { "--example", "x" }, "option '--example' needs a card path."),
+                     (["--examples"], "option '--examples' needs a card path."),
+                     (["help", "--examples"], "option '--examples' needs a card path."),
+                     (["svg", "--examples", "--example", "x"], "options '--examples' and '--example' cannot be combined."),
+                     (["--search", "gantt", "--examples"], "options '--examples' and '--search' cannot be combined."),
+                     (["svg", "--example"], "option '--example' needs a value."),
+                     (["--tag"], "option '--tag' needs a value.")
+                 })
+        {
+            // Act: as text, with the global --json, and with '--format json' before the options (after a leading 'help',
+            // which names the index again only as the first word), where a trailing option would read it as its value
+            string[] formatArguments = arguments[0] == "help"
+                ? ["help", "--format", "json", .. arguments[1..]]
+                : ["--format", "json", .. arguments];
+            var (textOut, textErr, textExit) = RunHelpFailed(registry, false, arguments);
+            var (jsonOut, jsonErr, jsonExit) = RunHelpFailed(registry, true, arguments);
+            var (formatOut, _, formatExit) = RunHelpFailed(registry, false, formatArguments);
+
+            // Assert: the Error and Hint lines, exit code 1, and no text output
+            Assert.Equal(1, textExit);
+            Assert.Empty(textOut);
+            var lines = textErr.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
+            Assert.Equal([$"Error: usage-error: {message}", $"Hint: {hint}"], lines);
+
+            // Assert: the failure document has the hint, the same for --json and '--format json'
+            Assert.Equal(1, jsonExit);
+            Assert.Equal(1, formatExit);
+            Assert.Equal(textErr, jsonErr);
+            Assert.Equal(jsonOut, formatOut);
+            using var document = System.Text.Json.JsonDocument.Parse(jsonOut);
+            var error = document.RootElement.GetProperty("error");
+            Assert.Equal(["code", "message", "hint"], error.EnumerateObject().Select(p => p.Name));
+            Assert.Equal(ErrorCodes.UsageError, error.GetProperty("code").GetString());
+            Assert.Equal(message, error.GetProperty("message").GetString());
+            Assert.Equal(hint, error.GetProperty("hint").GetString());
+
+            // Assert: the convenience method throws the same error with the hint
+            var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(arguments));
+            Assert.Equal(message, exception.Message);
+            Assert.Equal(hint, exception.Hint);
+        }
+    }
+
+    /// <summary>
+    ///     Test that <c>--format json</c>, with the value in any case, gives the same documents as <c>--json</c> for the
+    ///     subjects the tool answers itself (a command and <c>topics</c>) and for a card.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_HelpFormatJsonInAnyCase_GivesTheToolsOwnDocuments()
+    {
+        // Arrange: a registry with a command
+        var registry = CreateHelpRegistry();
+
+        // Act: ask with '--format' in other cases and with the global --json
+        var command = RunHelp(registry, false, "render", "--format", "JSON");
+        var topics = RunHelp(registry, false, "topics", "--format", "Json");
+        var card = RunHelp(registry, false, "svg", "--format", "JSON");
+
+        // Assert: each is the document of --json, with the kind of the tool
+        Assert.Equal(RunHelp(registry, true, "render"), command);
+        Assert.Equal(RunHelp(registry, true, "topics"), topics);
+        Assert.Equal(RunHelp(registry, true, "svg"), card);
+        using var commandDocument = System.Text.Json.JsonDocument.Parse(command);
+        Assert.Equal("command", commandDocument.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("render", commandDocument.RootElement.GetProperty("topic").GetString());
+        using var topicsDocument = System.Text.Json.JsonDocument.Parse(topics);
+        Assert.Equal("topics", topicsDocument.RootElement.GetProperty("kind").GetString());
+    }
+
+    /// <summary>
+    ///     Test that a failure of a subject the tool answers itself, asked with <c>--format json</c>, writes the
+    ///     <c>Error:</c> and <c>Hint:</c> lines and the failure document once, with exit code 1, while the global
+    ///     <c>--json</c> path still leaves the document to <c>Program</c>.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_HelpFormatJsonFailureOfOwnSubject_WritesTheFailureDocument()
+    {
+        // Arrange: a registry with a command
+        var registry = CreateHelpRegistry();
+
+        foreach (var path in new[] { new[] { "nosuch" }, ["render", "extra"] })
+        {
+            // Act: ask with '--format json', and without it for the expected error
+            var (stdOut, stdErr, exitCode) = RunHelpFailed(registry, false, [.. path, "--format", "json"]);
+            var expected = RunHelpFailing(registry, path);
+
+            // Assert: the error lines, exit code 1, and the failure document of the same error
+            Assert.Equal(1, exitCode);
+            var lines = stdErr.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
+            Assert.Equal([$"Error: usage-error: {expected.Message}", $"Hint: {expected.Hint}"], lines);
+            Assert.Equal(ResultWriter.Failure("help", expected), stdOut.TrimEnd());
+            using var document = System.Text.Json.JsonDocument.Parse(stdOut);
+            var root = document.RootElement;
+            Assert.Equal(["schemaVersion", "ok", "command", "error"], root.EnumerateObject().Select(p => p.Name));
+            Assert.Equal(["code", "message", "hint"], root.GetProperty("error").EnumerateObject().Select(p => p.Name));
+        }
+
+        Assert.Equal("Unknown help subject 'nosuch'.", RunHelpFailing(registry, "nosuch").Message);
+        Assert.Equal("'render' has no help cards below it.", RunHelpFailing(registry, "render", "extra").Message);
+
+        // Assert: with the global --json the registry still throws and writes nothing itself
+        using var context = Context.Create(["--json", "help", "nosuch"]);
+        var (jsonOut, _) = ToolHost.Capture(() =>
+        {
+            Assert.Throws<ToolException>(() => registry.Run(context));
+        });
+        Assert.Empty(jsonOut);
+
+        // Assert: the convenience method throws the error
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["nosuch", "--format", "json"]));
+        Assert.Equal(ErrorCodes.UsageError, exception.Code);
+        Assert.Equal("help", exception.Command);
+        Assert.Equal("Unknown help subject 'nosuch'.", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that the examples of a command, an alias, or <c>topics</c> are a usage error that says only help cards
+    ///     have examples, as text and as JSON, while an option error still comes first.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_Run_HelpExamplesOfOwnSubject_SaysOnlyHelpCardsHaveExamples()
+    {
+        // Arrange: a registry with an aliased command
+        var registry = CreateHelpRegistry();
+
+        foreach (var (arguments, subject) in new[]
+                 {
+                     (new[] { "render", "--examples" }, "render"),
+                     (["convert", "--example", "x"], "convert"),
+                     (["topics", "--examples"], "topics")
+                 })
+        {
+            // Act: ask as text, with the global --json, and with '--format json'
+            var (textOut, textErr, textExit) = RunHelpFailed(registry, false, arguments);
+            var (jsonOut, jsonErr, jsonExit) = RunHelpFailed(registry, true, arguments);
+            var (formatOut, _, formatExit) = RunHelpFailed(registry, false, [.. arguments, "--format", "json"]);
+
+            // Assert: the tool's message and hint, exit code 1, and no text output
+            var message = $"'{subject}' has no examples; only help cards do.";
+            var hint = $"Run 'canvasnet help {subject}' for its usage, or 'canvasnet help topics' to list the help cards.";
+            Assert.Equal(1, textExit);
+            Assert.Empty(textOut);
+            var lines = textErr.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
+            Assert.Equal([$"Error: usage-error: {message}", $"Hint: {hint}"], lines);
+
+            // Assert: the failure document carries the same error, identical for --json and '--format json'
+            Assert.Equal(1, jsonExit);
+            Assert.Equal(1, formatExit);
+            Assert.Equal(textErr, jsonErr);
+            Assert.Equal(jsonOut, formatOut);
+            using var document = System.Text.Json.JsonDocument.Parse(jsonOut);
+            var error = document.RootElement.GetProperty("error");
+            Assert.Equal(ErrorCodes.UsageError, error.GetProperty("code").GetString());
+            Assert.Equal(message, error.GetProperty("message").GetString());
+            Assert.Equal(hint, error.GetProperty("hint").GetString());
+        }
+
+        // Assert: the convenience method throws the message
+        var exception = Assert.Throws<ToolException>(() => registry.RenderHelp(["render", "--examples"]));
+        Assert.Equal("'render' has no examples; only help cards do.", exception.Message);
+        Assert.Equal("help", exception.Command);
+
+        // Assert: option errors keep their precedence
+        Assert.Equal(
+            "Unknown option '--bogus'.",
+            Assert.Throws<ToolException>(() => registry.RenderHelp(["render", "--examples", "--bogus"])).Message);
+        Assert.NotEqual(
+            "'render' has no examples; only help cards do.",
+            Assert.Throws<ToolException>(() => registry.RenderHelp(["render", "--example", "x", "--examples"])).Message);
+    }
+
+    /// <summary>
+    ///     Test that the search, tag, and whole-tree options of HelpCards answer in the tool's envelope.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_RenderHelp_SearchTagAndAll_AnswerInTheToolEnvelope()
     {
         // Arrange: a registry
         var registry = CreateHelpRegistry();
 
-        // Act / Assert: no topic, and both options together, are usage errors
-        Assert.Contains("need a help card", RunHelpFailing(registry, "--example", "x").Message);
-        Assert.Contains("need a help card", RunHelpFailing(registry, "--examples").Message);
-        Assert.Contains("cannot be combined", RunHelpFailing(registry, "svg", "--example", "shapes", "--examples").Message);
-        Assert.Equal(ErrorCodes.UsageError, RunHelpFailing(registry, "svg", "extra").Code);
+        // Act
+        using var search = System.Text.Json.JsonDocument.Parse(registry.RenderHelp(["--search", "gantt"], json: true));
+        using var tag = System.Text.Json.JsonDocument.Parse(registry.RenderHelp(["--tag", "mathml"], json: true));
+        using var all = System.Text.Json.JsonDocument.Parse(registry.RenderHelp(["--all"], json: true));
+        var text = registry.RenderHelp(["--search", "gantt"]);
+
+        // Assert: the envelope and kind of each, and the cards they find
+        foreach (var (document, kind) in new[] { (search, "search"), (tag, "cards"), (all, "index") })
+        {
+            var root = document.RootElement;
+            Assert.Equal(["schemaVersion", "ok", "command", "kind"], root.EnumerateObject().Select(p => p.Name).Take(4));
+            Assert.Equal("help", root.GetProperty("command").GetString());
+            Assert.Equal(kind, root.GetProperty("kind").GetString());
+        }
+
+        Assert.Contains(search.RootElement.GetProperty("results").EnumerateArray(), r => r.GetProperty("id").GetString() == "mermaid/gantt");
+        Assert.All(tag.RootElement.GetProperty("cards").EnumerateArray(), c => Assert.Contains("mathml", c.GetProperty("tags").EnumerateArray().Select(t => t.GetString())));
+        Assert.Equal(HelpView.All.Select(c => c.Id), all.RootElement.GetProperty("cards").EnumerateArray().Select(c => c.GetProperty("id").GetString()));
+        Assert.Contains("canvasnet help mermaid gantt", text);
     }
 
     /// <summary>
@@ -998,6 +1352,17 @@ public class CommandRegistryTests
         Assert.StartsWith("Valid subjects:", exception.Hint);
     }
 
+    /// <summary>
+    ///     Test that the text error of HelpCards splits into its message and hint, and that other text is the message.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_SplitTextError_DocumentedFormat_GivesMessageAndHint()
+    {
+        // Act / Assert
+        Assert.Equal(("Bad.", "Try this."), CommandRegistry.SplitTextError("Error: Bad.\nTry this.\n"));
+        Assert.Equal(("Bad.", (string?)null), CommandRegistry.SplitTextError("Error: Bad.\r\n"));
+        Assert.Equal(("Something else", (string?)null), CommandRegistry.SplitTextError("Something else"));
+    }
     /// <summary>
     ///     Test that a topic name typed as a command points at <c>help</c>.
     /// </summary>

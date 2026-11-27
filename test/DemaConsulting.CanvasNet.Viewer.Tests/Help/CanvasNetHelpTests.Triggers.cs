@@ -4,10 +4,10 @@ using DemaConsulting.CanvasNet.Viewer.Imaging;
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     The trigger table of the HelpCatalog tests: for every diagnostic identifier a library card cites, a tiny source
+///     The trigger table of the CanvasNetHelp tests: for every diagnostic identifier a library card cites, a tiny source
 ///     that makes the real pipeline report it.
 /// </summary>
-public partial class HelpCatalogTests
+public partial class CanvasNetHelpTests
 {
     /// <summary>
     ///     A diagnostic identifier cited by a card and a source that triggers it.
@@ -82,7 +82,7 @@ public partial class HelpCatalogTests
     /// <param name="cited">The cited identifier.</param>
     [Theory]
     [MemberData(nameof(TriggerData))]
-    public void HelpCatalog_DiagnosticTriggers_ProduceTheCitedIds(string cited)
+    public void CanvasNetHelp_DiagnosticTriggers_ProduceTheCitedIds(string cited)
     {
         // Arrange: the source of the trigger saved with the extension of its format; a model is drawn small
         var trigger = Triggers.First(t => t.Cited == cited);
@@ -116,7 +116,7 @@ public partial class HelpCatalogTests
     [InlineData("report.pdf#page=1&amp;page=2", "image-fragment-duplicate-parameter", ImageDiagnosticSeverity.Warning, false)]
     [InlineData("report.pdf#page=0", "image-fragment-invalid", ImageDiagnosticSeverity.Unsupported, true)]
     [InlineData("report.pdf#page=9", "image-page-out-of-range", ImageDiagnosticSeverity.Unsupported, true)]
-    public void HelpCatalog_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity(string href, string code, ImageDiagnosticSeverity severity, bool strictFails)
+    public void CanvasNetHelp_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity(string href, string code, ImageDiagnosticSeverity severity, bool strictFails)
     {
         // Arrange: a diagram linking a two-page PDF
         using var directory = new TempDirectory();
@@ -145,7 +145,7 @@ public partial class HelpCatalogTests
     [Theory]
     [InlineData("scad-module-offset")]
     [InlineData("vl-mark-<type>")]
-    public void HelpCatalog_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature(string cited)
+    public void CanvasNetHelp_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature(string cited)
     {
         // Arrange: the source of an unsupported-feature trigger
         var trigger = Triggers.First(t => t.Cited == cited);

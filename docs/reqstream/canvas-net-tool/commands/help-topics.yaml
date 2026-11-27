@@ -2,32 +2,32 @@
 # Software Unit Requirements for the HelpTopics Class
 #
 # The HelpTopics class is the command-line layer of the help cards. The cards about the drawing and file formats (what
-# a file may contain, style, composition, positions, errors, limits, and file access) are the library catalog of the
-# Viewer (the HelpCatalog unit of the CanvasNetViewer Help subsystem), which a library host reads programmatically.
-# The tool layers on that catalog its own cards (the json result documents and the pandoc filter) and, for library
-# cards, overlays that add the command-line sections (the flags, the command examples, shell quoting, and the commands
-# that render, inspect, compare, montage, and flatten), so that a command-line user sees one card per subject. The class
-# keeps the seventeen help topics in their fixed order, resolves a card by its path of names or aliases with a usage
-# error for an unknown card, writes the links of a card as the canvasnet help commands that print their targets, and
-# renders a card, the tree, and the examples as plain text or as the help JSON documents.
-
+# a file may contain, style, composition, positions, errors, limits, and file access) are the library cards of the
+# Viewer (the CanvasNetHelp unit of the CanvasNetViewer Help subsystem), which a library host reads programmatically.
+# The tool layers on them, in a source of its own that imports the library source, its own cards (the json result
+# documents and the pandoc filter) and, for library cards, overlays that add the command-line sections (the flags, the
+# command examples, shell quoting, and the commands that render, inspect, compare, montage, and flatten), so that a
+# command-line user sees one card per subject. The class composes the combined catalog with its eighteen help topics in
+# a fixed order and gives the help command the render options and the JSON envelope of the tool; the cards are read,
+# composed, validated, and rendered by the OTS item DemaConsulting.HelpCards.
 sections:
   - title: HelpTopics Unit Requirements
     requirements:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
-          The HelpTopics class shall provide a tree of help cards made of the library help catalog of the Viewer, the
-          tool's own cards, and the tool's command-line sections of library cards, whose root cards are the eighteen
-          topics scad, vega-lite, mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster, style, composition,
-          positions, json,
-          errors, limits, files, and pandoc, in that fixed order, each card with a title, a one-line summary, tags, and
-          a body, shall resolve a card by a path of names or aliases (a root, then a card below each previous one,
-          ignoring case, with the words separate or joined by a slash), and shall give no root a name or alias that is
-          the name or alias of another root, of a command, or of the help subjects help and topics.
+          The HelpTopics class shall provide a tree of help cards made of the library cards of the Viewer, the tool's
+          own cards, and the tool's command-line sections of library cards, whose root cards are the eighteen topics
+          scad, vega-lite, mermaid, plantuml, mathml, svg, pdf, pptx, vsdx, raster, style, composition, positions,
+          errors, limits, files, json, and pandoc, in that fixed order, each card with a title, a one-line summary,
+          tags, and a body, shall resolve a card by a path of names or aliases (a root, then a card below each previous
+          one, ignoring case, with the words separate or joined by a slash), and shall give no root a name or alias
+          that is the name or alias of another root, of a command, or of the help subjects help and topics.
         justification: |
           A person or an agent learns the formats and the limits of the tool from the tool itself, offline and in the
           version it has installed; the knowledge about the formats is shared with the library, and stable names and
           aliases that never collide make every path select exactly one card.
+        children:
+          - CanvasNet-OTS-HelpCards-Load
         tests:
           - HelpTopics_All_EveryCardLoads_WithTitleSummaryAndBody
           - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
@@ -36,7 +36,6 @@ sections:
           - HelpTopics_Resolve_PathsAndAliases_FindTheCard
           - HelpTopics_Resolve_UnknownChild_ThrowsUsageErrorListingChildren
           - HelpTopics_Text_HasNoUnresolvedTokens
-
       - id: CanvasNetTool-Commands-HelpTopics-Overlays
         title: >-
           The HelpTopics class shall ship as its own card files only cards of the json and pandoc topics and overlays
@@ -58,42 +57,59 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-CommandLineLinks
         title: >-
           The HelpTopics class shall write every link of a card body as the command that prints its target (canvasnet
-          help a b for a card, canvasnet help a b --example name for an example of a card, and --example name for an
-          example of the card being read), in the text and in the JSON documents, never as link markup or in the words
-          of the library.
+          help a b for a card, and canvasnet help a b --example name for an example, naming the card that holds the
+          example), in the text and in the JSON documents, never as link markup or in the words of the library.
         justification: |
-          A command-line reader follows a link by running it; a link that states its exact command lets an agent follow
-          it without guessing.
+          A command-line reader follows a link by running it; a link that states its exact command, wherever it is
+          copied, lets an agent follow it without guessing.
+        children:
+          - CanvasNet-OTS-HelpCards-Render
         tests:
           - HelpTopics_CommandLineText_WritesLinksAsHelpCommands
           - HelpTopics_OverlayCards_BodyIsTheLibraryBodyThenTheOverlayBody
-
       - id: CanvasNetTool-Commands-HelpTopics-TreeIntegrity
         title: >-
-          The HelpTopics class shall load exactly the embedded tool card files, shall require every child and related
-          card of the combined tree to name another card once, so that every card is reachable from a topic, and shall
-          keep a card body free of a top-level heading and of the headings of the generated footer, with every fenced
-          code block closed and naming its language.
+          The HelpTopics class shall ship exactly the tool's card files and the file that names its source, shall
+          require the children of every tool card to be exactly the card files of its folder and every child and
+          related card of the combined tree to name another card once, so that every card is reachable from a topic,
+          and shall keep a card body free of a top-level heading and of the headings of the generated footer, with
+          every fenced code block closed and naming its language.
         justification: |
           A link that leads nowhere, a card that no path reaches, or a body that breaks the footer would make the help
           lie about its own structure; checking the combined tree keeps every path and link valid.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
         tests:
           - HelpTopics_Tree_ChildrenAndSeeAlsoResolve
           - HelpTopics_Tree_ResourcesAreExactlyTheToolCardsAndOverlays
           - HelpTopics_ChildNames_AreUniqueAmongSiblings
-          - HelpTopics_Bodies_DoNotUseReservedHeadingsOrTopLevelHeadings
-
+          - HelpTopics_Cards_PassTheStrictValidation
       - id: CanvasNetTool-Commands-HelpTopics-SizeBudget
         title: >-
-          The HelpTopics class shall keep the text of every card, with its command-line section, at most 7,000
-          characters, the text of a root card that has cards below it at most 4,000 characters, and every summary on
-          one line of at most 60 characters for a root card and 100 characters for any other card.
+          The HelpTopics class shall keep every card, with its command-line section, at most 7,000 characters, a root
+          card that has cards below it at most 4,000 characters, every summary on one line of at most 60 characters for
+          a root card and 100 characters for any other card, and every line of a card file at most 80 columns outside
+          a fenced code block and 120 columns inside one.
         justification: |
           The readers are mostly agents with a limited context: a short card costs few tokens, and a short index card
           lets them find the right card before reading it; the command-line section adds a little to the library card.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
         tests:
-          - HelpTopics_Cards_FitTheSizeBudget
+          - HelpTopics_Cards_PassTheStrictValidation
 
+      - id: CanvasNetTool-Commands-HelpTopics-CommandExamplesParse
+        title: >-
+          The HelpTopics class shall ship only command examples that parse as one canvasnet command line in which no
+          shell would expand a character, with every such character quoted.
+        justification: |
+          A person or an agent pastes a command example into a shell as it is; an unquoted brace or wildcard would be
+          expanded by some shells and run a different command than the card shows.
+        children:
+          - CanvasNet-OTS-HelpCards-Validate
+        tests:
+          - HelpTopics_Cards_PassTheStrictValidation
+          - HelpTopics_Validation_UnquotedPagePattern_IsReported
       - id: CanvasNetTool-Commands-HelpTopics-FormatContent
         title: >-
           The HelpTopics class shall give the cards of each input format (scad, vega-lite, mermaid, plantuml, mathml,
@@ -111,15 +127,16 @@ sections:
         title: >-
           The HelpTopics class shall give each example of a card a name unique below its root and a kind (source text,
           a command line that starts with canvasnet, or a snippet), shall find an example of a card or of a card below
-          it, shall return the source text of an example exactly as it ships, or the command line of a command example,
-          shall print every example of a card in full (its name, kind, file name, description, and content in a code
-          fence that its content cannot end) followed by the cards below it that have examples, each with the command
-          that prints them, shall report an unknown example name as a usage error listing the names of the examples,
-          and shall ship command lines (in examples and in the code blocks of a card) that use known commands, options,
-          and help cards.
+          it, shall print the source text of an example exactly as it ships, or the command line of a command example,
+          shall print every example of a card in full (its name, kind, description, and content in a code fence of its
+          language) followed by the cards below it that have examples, each with the command that prints them, shall
+          report an unknown example name as a usage error listing the names of the examples, and shall ship command
+          lines (in examples and in the code blocks of a card) that use known commands, options, and help cards.
         justification: |
           A tiny example that is known to work is the fastest way to start with a format; an example that is printed
           alone can be saved to a file and used as it is, and a command line that is verified cannot mislead.
+        children:
+          - CanvasNet-OTS-HelpCards-Render
         tests:
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
           - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
@@ -127,29 +144,27 @@ sections:
           - HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent
           - HelpTopics_RenderExamples_CardWithExamples_PrintsEachExampleInFull
           - HelpTopics_RenderExamples_IndexCard_ListsCardsBelowWithExamples
-          - HelpTopics_CodeFence_IsLongerThanAnyBacktickRunInTheContent
-
       - id: CanvasNetTool-Commands-HelpTopics-Rendering
         title: >-
           The HelpTopics class shall render a card as plain text without color codes and with the same bytes every
-          time - its title, summary, aliases, and body, followed by the cards below it, its examples, and its See also
-          links, each link with the command that prints the target and the summary of the target - with the generated
-          lines wrapped to a fixed width without splitting a word; shall render the whole tree as one line per card
-          with its path and summary; and shall render a card as a JSON document with the kind card and the id, aliases,
-          tags, title, summary, body, children, seeAlso, and examples of the card, in that order, the tree as a JSON
-          document with the kind topics whose entries carry the tags of each card, the examples of a card as a JSON
-          document with the kind examples, and one example as a JSON document, all of schema version 2.
+          time - its title, summary, tags, and body, followed by the cards below it, its examples, and its See also
+          links, each link with the command that prints the target and the summary of the target; shall render the
+          whole tree as one line per card with the command that prints it and its summary; and shall render a card as
+          a JSON document with the kind card and at least the id, aliases, tags, title, summary, body, children,
+          seeAlso, and examples of the card, the tree as a JSON document with the kind topics whose entries carry the
+          id, aliases, tags, summary, and command of each card, the examples of a card as a JSON document with the kind
+          examples, and one example as a JSON document, all in the envelope of schema version 2.
         justification: |
           The text is read in terminals and pasted into other tools, so it must be plain and stable; agents parse the
-          JSON, so its shape is a versioned contract, and the tags are added to it without breaking a reader of the
+          JSON, so its keys are a versioned contract, to which keys are only added without breaking a reader of the
           earlier documents.
+        children:
+          - CanvasNet-OTS-HelpCards-Render
         tests:
-          - HelpTopics_RenderText_IsDeterministicPlainAndWrapped
-          - HelpTopics_AppendWrapped_LongWord_IsNotSplit
+          - HelpTopics_RenderText_IsDeterministicPlainAndComplete
           - HelpTopics_RenderJson_HasTheDocumentedShape
           - HelpTopics_RenderTopics_ListsEveryCard
           - HelpTopics_RenderExamplesJson_HasTheDocumentedShape
-
       - id: CanvasNetTool-Commands-HelpTopics-Consistency
         title: >-
           The HelpTopics class shall state on the command line only facts verified against the tool: the options named

@@ -16,7 +16,8 @@ detailed approach and named test scenarios.
 
 CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools and the
 runtime library dependencies shipped in the compiled NuGet packages (`System.Numerics.Tensors` with the core
-package and `DemaConsulting.TestResults` with the tool package);
+package, `DemaConsulting.HelpCards` with the Viewer and tool packages, and `DemaConsulting.TestResults` with the tool
+package);
 verification approach differs slightly for the runtime dependencies since they have no CLI to self-validate
 (see their individual verification documents for detail).
 
@@ -42,3 +43,4 @@ verification approach differs slightly for the runtime dependencies since they h
 | --- | --- |
 | System.Numerics.Tensors | Indirect evidence via `Surface` unit tests of every `TensorPrimitives` method used |
 | DemaConsulting.TestResults | Indirect evidence via tests that run the self-validation and check the results files |
+| DemaConsulting.HelpCards | Indirect evidence via tests that build, render, and validate the real help cards |

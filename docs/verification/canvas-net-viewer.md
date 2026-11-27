@@ -243,7 +243,7 @@ tag and not the `hosting` tag, that its Markdown is not empty and holds no comma
 text starts with its title, that every link the host was asked to write names a card the view finds, that every
 visible card is a Mermaid card, and that the hosting card `mermaid/options` is not found. The tags, the hidden-card
 rules, the links, the extensions, the renderings, and the verified content are verified by the *Help Subsystem
-Verification Design* and the *HelpCatalog* and *HelpFrontMatter Unit Verification Design*.
+Verification Design*, the *CanvasNetHelp Unit Verification Design*, and the *DemaConsulting.HelpCards OTS Verification*.
 
 ### Integration: User Guide Examples Compile
 

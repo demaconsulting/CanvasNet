@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Positions;
 using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
@@ -11,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 ///     runs them: the selector examples, the kinds of each diagram type, the view paths, the limits, the links, and the
 ///     callouts of the framed flowchart example.
 /// </summary>
-public partial class HelpCatalogTests
+public partial class CanvasNetHelpTests
 {
     /// <summary>
     ///     Renders a file with selectors and returns the picture with its positions.
@@ -36,11 +37,11 @@ public partial class HelpCatalogTests
     ///     ways with the framed-figure, anchors, and composition cards.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PositionsCard_IsInTheTreeAndLinked()
+    public void CanvasNetHelp_PositionsCard_IsInTheTreeAndLinked()
     {
         // Arrange
         var root = HelpCardText.Card("positions");
-        var roots = HelpCatalog.LibraryRootOrder.ToList();
+        var roots = CanvasNetHelp.RootIds.ToList();
 
         // Assert: the root, its cards, and the links
         Assert.Equal(roots.IndexOf("composition") + 1, roots.IndexOf("positions"));
@@ -58,7 +59,7 @@ public partial class HelpCatalogTests
     ///     Test that the limits the cards state are the limits of the code.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PositionsLimits_AreTheLimitsOfTheCode()
+    public void CanvasNetHelp_PositionsLimits_AreTheLimitsOfTheCode()
     {
         // Arrange
         var limits = HelpCardText.TextOf("limits");
@@ -80,7 +81,7 @@ public partial class HelpCatalogTests
     ///     selector with the source date matches nothing.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PositionsVegaLite_DataFieldExample_SelectsThePoint()
+    public void CanvasNetHelp_PositionsVegaLite_DataFieldExample_SelectsThePoint()
     {
         // Arrange
         using var directory = new TempDirectory();
@@ -114,7 +115,7 @@ public partial class HelpCatalogTests
     ///     Test the selector examples of the cards by running them on the help examples: what each matches.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PositionsSelectors_Examples_MatchAsTheCardsSay()
+    public void CanvasNetHelp_PositionsSelectors_Examples_MatchAsTheCardsSay()
     {
         // Arrange: the flowchart, the git graph, and the bar chart examples
         using var directory = new TempDirectory();
@@ -149,7 +150,7 @@ public partial class HelpCatalogTests
     ///     concatenation.
     /// </summary>
     [Fact]
-    public void HelpCatalog_PositionsSelectors_MetadataExamples_SelectOneItem()
+    public void CanvasNetHelp_PositionsSelectors_MetadataExamples_SelectOneItem()
     {
         // Arrange: two parallel edges, and two charts side by side
         using var directory = new TempDirectory();
@@ -188,7 +189,7 @@ public partial class HelpCatalogTests
     [InlineData("mindmap", "node")]
     [InlineData("packet", "title,block")]
     [InlineData("gitgraph", "title,commit,branch,tag")]
-    public void HelpCatalog_PositionsMermaid_KindsPerType_AreTheKindsReported(string example, string kinds)
+    public void CanvasNetHelp_PositionsMermaid_KindsPerType_AreTheKindsReported(string example, string kinds)
     {
         // Arrange
         using var directory = new TempDirectory();
@@ -212,7 +213,7 @@ public partial class HelpCatalogTests
     ///     and that at least two different positions are hit.
     /// </summary>
     [Fact]
-    public void HelpCatalog_FramedFlowExample_CalloutsEndOnPositions()
+    public void CanvasNetHelp_FramedFlowExample_CalloutsEndOnPositions()
     {
         // Arrange: the figure, the diagram image, and the bound callout lines
         XNamespace cn = "https://demaconsulting.com/canvasnet";

@@ -7,13 +7,12 @@ namespace DemaConsulting.CanvasNet.Viewer.Help;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <see cref="HelpCatalog.Default"/> is the catalog of the library cards. Each <see cref="HelpCard"/> has a
-///         Markdown body, tags from <see cref="HelpTags"/>, children, related cards, and tiny
-///         <see cref="HelpExample"/> files. <see cref="HelpCatalog.Filter"/> gives a view with only some tags (a link to
-///         a hidden card becomes plain text), <see cref="HelpCatalog.Find"/> resolves a path, and
-///         <see cref="HelpCatalog.RenderText"/> and <see cref="HelpCatalog.RenderJson"/> write a card.
-///         <see cref="HelpCatalog.FormatMarkdown"/> writes the in-text links (<see cref="HelpLink"/>) in a host's own
-///         words, and <see cref="HelpCatalog.Extend"/> layers a host's cards on the library's.
+///         The cards are read and shown by DemaConsulting.HelpCards. <see cref="CanvasNetHelp.Catalog"/> is the catalog
+///         of the library cards; each card has a Markdown body, tags from <see cref="HelpTags"/>, children, related
+///         cards, and tiny example files. Its <c>Filter</c> gives a view with only some tags (a link to a hidden card
+///         becomes plain text), <c>Find</c> resolves a path, and <c>Render</c> writes a card as text, Markdown, or JSON.
+///         <see cref="CanvasNetHelp.Source"/> is the source a host imports to layer its own cards on the library's, and
+///         <see cref="CanvasNetHelp.Configure"/> adds the library cards to a catalog builder.
 ///     </para>
 ///     <para>Every type is immutable and safe to use from several threads.</para>
 /// </remarks>
@@ -21,8 +20,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Help;
 ///     Give an agent the Mermaid authoring and composition knowledge, without what the host controls:
 ///     <code language="csharp">
 ///     using DemaConsulting.CanvasNet.Viewer.Help;
+///     using DemaConsulting.HelpCards.Presentation;
 ///
-///     var view = HelpCatalog.Default.Filter([HelpTags.Mermaid], [HelpTags.Hosting]);
+///     var view = CanvasNetHelp.Catalog.Filter([HelpTags.Mermaid], [HelpTags.Hosting]);
 ///     foreach (var root in view.Roots)
 ///     {
 ///         Console.WriteLine($"{root.Id}: {root.Summary}");
@@ -31,7 +31,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Help;
 ///     var gantt = view.Find("mermaid/gantt");
 ///     if (gantt != null)
 ///     {
-///         Console.WriteLine(view.RenderText(gantt));
+///         Console.WriteLine(view.Render(gantt, new HelpRenderOptions { Format = HelpFormat.Text }));
 ///     }
 ///     </code>
 /// </example>

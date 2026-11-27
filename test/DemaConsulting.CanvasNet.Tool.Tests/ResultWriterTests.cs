@@ -60,6 +60,52 @@ public class ResultWriterTests
     }
 
     /// <summary>
+    ///     Test that an envelope with <c>ok</c> true is the success document, byte for byte.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_Envelope_OkTrue_EqualsSuccess()
+    {
+        // Arrange: the fields of a document
+        static void Fields(Utf8JsonWriter writer)
+        {
+            writer.WriteString("output", "out.png");
+            writer.WriteNumber("width", 816);
+        }
+
+        // Act: write the envelope with ok true and the success document
+        var envelope = ResultWriter.Envelope("render", true, Fields);
+        var success = ResultWriter.Success("render", Fields);
+
+        // Assert: the same document
+        Assert.Equal(success, envelope);
+        Assert.Equal("{\"schemaVersion\":2,\"ok\":true,\"command\":\"render\",\"output\":\"out.png\",\"width\":816}", envelope);
+    }
+
+    /// <summary>
+    ///     Test that an envelope with <c>ok</c> false writes the envelope and then the fields of the caller, byte for
+    ///     byte, which for an error object of the caller is the failure document.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_Envelope_OkFalse_WritesEnvelopeThenFields()
+    {
+        // Arrange / Act: write the envelope with ok false and an error object of the caller
+        var json = ResultWriter.Envelope("help", false, writer =>
+        {
+            writer.WriteStartObject("error");
+            writer.WriteString("code", "usage-error");
+            writer.WriteString("message", "Unknown help subject 'x'.");
+            writer.WriteEndObject();
+        });
+
+        // Assert: exactly this document, which is the failure document of the same error
+        Assert.Equal(
+            "{\"schemaVersion\":2,\"ok\":false,\"command\":\"help\","
+            + "\"error\":{\"code\":\"usage-error\",\"message\":\"Unknown help subject 'x'.\"}}",
+            json);
+        Assert.Equal(ResultWriter.Failure("help", "usage-error", "Unknown help subject 'x'.", null), json);
+    }
+
+    /// <summary>
     ///     Test that the failure document carries the code, message, and hint, byte for byte.
     /// </summary>
     [Fact]
@@ -325,6 +371,8 @@ public class ResultWriterTests
         // Arrange / Act / Assert: each null argument throws
         Assert.Throws<ArgumentNullException>(() => ResultWriter.Success(null!, _ => { }));
         Assert.Throws<ArgumentNullException>(() => ResultWriter.Success("c", null!));
+        Assert.Throws<ArgumentNullException>(() => ResultWriter.Envelope(null!, true, _ => { }));
+        Assert.Throws<ArgumentNullException>(() => ResultWriter.Envelope("c", false, null!));
         Assert.Throws<ArgumentNullException>(() => ResultWriter.Failure("c", null!, "m", null));
         Assert.Throws<ArgumentNullException>(() => ResultWriter.Failure("c", "x", null!, null));
         Assert.Throws<ArgumentNullException>(() => ResultWriter.Failure("c", null!));

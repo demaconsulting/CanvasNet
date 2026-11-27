@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
@@ -11,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 ///     Unit tests for the style and composition guidance of the library help cards: the cards exist and link to each
 ///     other, and the advice they give holds for the real renderer.
 /// </summary>
-public partial class HelpCatalogTests
+public partial class CanvasNetHelpTests
 {
     /// <summary>
     ///     The drawing formats, which each have a style card and a composition card.
@@ -28,7 +29,7 @@ public partial class HelpCatalogTests
     ///     kind, and that its root card lists both.
     /// </summary>
     [Fact]
-    public void HelpCatalog_DrawingFormats_HaveStyleAndCompositionCards()
+    public void CanvasNetHelp_DrawingFormats_HaveStyleAndCompositionCards()
     {
         // Act / Assert: each format has both cards, below its root, linked to the hubs
         foreach (var format in DrawingFormats)
@@ -52,7 +53,7 @@ public partial class HelpCatalogTests
     ///     other, that the format cards link back, and that a reader of a diagram card reaches the hubs in a few steps.
     /// </summary>
     [Fact]
-    public void HelpCatalog_StyleAndCompositionHubs_LinkBothWays()
+    public void CanvasNetHelp_StyleAndCompositionHubs_LinkBothWays()
     {
         // Arrange: the hubs
         var style = HelpCardText.Card("style");
@@ -83,7 +84,7 @@ public partial class HelpCatalogTests
     [InlineData("dark")]
     [InlineData("forest")]
     [InlineData("neutral")]
-    public void HelpCatalog_MermaidStyleCard_EveryListedThemeRenders(string theme)
+    public void CanvasNetHelp_MermaidStyleCard_EveryListedThemeRenders(string theme)
     {
         // Arrange: the card's list of themes, and the two examples
         var themes = HelpCardText.Bullets("mermaid/style", "Themes")[0];
@@ -107,7 +108,7 @@ public partial class HelpCatalogTests
     ///     from the chart drawn with it.
     /// </summary>
     [Fact]
-    public void HelpCatalog_VegaLiteStyledExample_ConfigChangesThePicture()
+    public void CanvasNetHelp_VegaLiteStyledExample_ConfigChangesThePicture()
     {
         // Arrange: the example, its config keys, and the card text
         var source = HelpCardText.Example("vega-lite", "styled");
@@ -141,7 +142,7 @@ public partial class HelpCatalogTests
     ///     inside an SVG figure, while a chart without it keeps its white background there.
     /// </summary>
     [Fact]
-    public void HelpCatalog_StyleAdvice_TransparentChartInsideSvg_ShowsThePage()
+    public void CanvasNetHelp_StyleAdvice_TransparentChartInsideSvg_ShowsThePage()
     {
         // Arrange: a yellow page that places the styled chart, once as it is and once transparent
         var source = HelpCardText.Example("vega-lite", "styled");
@@ -175,7 +176,7 @@ public partial class HelpCatalogTests
     ///     <c>scad/composition</c> cards, and the <c>positions</c> card.
     /// </summary>
     [Fact]
-    public void HelpCatalog_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards()
+    public void CanvasNetHelp_FramedFigureCard_IsLinkedFromTheCompositionAndAnchorCards()
     {
         // Arrange: the card and the cards that teach composition, style, and anchors
         var card = HelpCardText.Card("svg/framed-figure");
@@ -193,7 +194,7 @@ public partial class HelpCatalogTests
     ///     image, plus the image x and y; that at least two different anchors are hit; and that the arrows use a marker.
     /// </summary>
     [Fact]
-    public void HelpCatalog_FramedFigureExample_CalloutsEndOnTheModelAnchors()
+    public void CanvasNetHelp_FramedFigureExample_CalloutsEndOnTheModelAnchors()
     {
         // Arrange: the figure, the model image, and the callout lines
         var figure = XDocument.Parse(HelpCardText.Example("svg", "framed"));
@@ -231,17 +232,17 @@ public partial class HelpCatalogTests
     ///     <c>refX="10"</c>.
     /// </summary>
     [Fact]
-    public void HelpCatalog_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers()
+    public void CanvasNetHelp_ArrowsCard_IsLinkedBothWaysAndTeachesMarkers()
     {
         // Arrange: the card and the cards it is linked with
         var card = HelpCardText.Card("svg/arrows");
         string[] linked = ["svg/style", "svg/framed-figure", "composition"];
-        var text = HelpCardText.Flatten(card.Markdown);
+        var text = HelpCardText.Flatten(card.Body);
 
         // Assert: listed under svg, found by its aliases, and linked both ways
         Assert.Contains(card.Id, HelpCardText.Card("svg").ChildIds);
-        Assert.Equal(card.Id, HelpCatalog.Default.Find("svg markers")?.Id);
-        Assert.Equal(card.Id, HelpCatalog.Default.Find("svg/arrowheads")?.Id);
+        Assert.Equal(card.Id, CanvasNetHelp.Catalog.Find("svg markers")?.Id);
+        Assert.Equal(card.Id, CanvasNetHelp.Catalog.Find("svg/arrowheads")?.Id);
         Assert.All(linked, id => Assert.Contains(id, card.SeeAlsoIds));
         Assert.All(linked, id => Assert.Contains(card.Id, HelpCardText.Card(id).SeeAlsoIds));
 
@@ -260,7 +261,7 @@ public partial class HelpCatalogTests
     ///     head color just before the end, beside the stroke, and the white of the target box just past it.
     /// </summary>
     [Fact]
-    public void HelpCatalog_ArrowsExample_TipsLandOnTheTargetEdges()
+    public void CanvasNetHelp_ArrowsExample_TipsLandOnTheTargetEdges()
     {
         // Arrange: the example, its marker, and its connectors
         var source = HelpCardText.Example("svg", "arrows");
@@ -310,7 +311,7 @@ public partial class HelpCatalogTests
     [InlineData("mermaid", "flowchart", "flow.mmd", 430, 280)]
     [InlineData("vega-lite", "bar", "bar.vl.json", 400, 300)]
     [InlineData("scad", "anchors", "anchors.scad", 440, 300)]
-    public void HelpCatalog_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds(string root, string example, string file, int width, int height)
+    public void CanvasNetHelp_FramedFigureAdvice_PictureAloneAtTheBoxSize_IsThePictureTheFigureEmbeds(string root, string example, string file, int width, int height)
     {
         // Arrange: the picture, and a figure that embeds it in a box of that size at the origin
         using var directory = new TempDirectory();
@@ -333,7 +334,7 @@ public partial class HelpCatalogTests
     ///     link without escaping.
     /// </summary>
     [Fact]
-    public void HelpCatalog_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation()
+    public void CanvasNetHelp_ScadViewsAdvice_VprDefine_EqualsAzimuthAndElevation()
     {
         // Arrange: the cards, the plate example, and a figure that links the model with the fragment
         Assert.Contains("part.scad#def.$vpr=[70,0,45] is azimuth 45, elevation 20", HelpCardText.TextOf("scad/views"), StringComparison.Ordinal);
@@ -363,7 +364,7 @@ public partial class HelpCatalogTests
     ///     <c>.grid .tick text</c> resizes the tick labels, all without a diagnostic.
     /// </summary>
     [Fact]
-    public void HelpCatalog_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor()
+    public void CanvasNetHelp_MermaidGanttAdvice_ThemeCssStylesTheGridNotGridColor()
     {
         // Arrange: the card's two CSS rules, and the gantt example with each change
         var bullets = HelpCardText.Bullets("mermaid/gantt", "Syntax");

@@ -122,6 +122,6 @@ error.
 
 `PositionCollector` (it evaluates every selector of its selection against every candidate), `ImagePosition` (it uses
 `IsKindWord`), the `RenderCommand` unit of the `CanvasNetTool` system (`PositionSelection.Parse` of the `--positions`
-texts), the `HelpCatalog` unit of the `CanvasNetViewer` system (the `MaxSelectors`, `MaxSelectorLength`, and
+texts), the `CanvasNetHelp` unit of the `CanvasNetViewer` system (the `MaxSelectors`, `MaxSelectorLength`, and
 `MaxPredicates` tokens of its help cards), the `CanvasNetViewer` system (the `PositionSelection` of its options), and
 applications.

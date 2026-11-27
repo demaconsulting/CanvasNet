@@ -5,23 +5,26 @@ repository.
 
 ## Overview
 
-CanvasNet has one shipped runtime NuGet package dependency, `System.Numerics.Tensors` (used by the
-`Canvas.Surface` unit's vectorized bulk pixel operations — see *Surface Unit Design*
-(`canvas-net/canvas/surface.md`) for details), and otherwise implements every unit exclusively
-against the .NET Base Class Library. The separate CanvasNet tool package has one runtime dependency of
-its own, `DemaConsulting.TestResults` (used by the tool's self-validation — see *Validation Unit Design*
-(`canvas-net-tool/validation.md`)). The remaining OTS items listed below are a separate category: they are
-build-time and quality-pipeline tools, not runtime library dependencies of the shipped package.
-Each OTS item provides one stage of the documentation, requirements-traceability, testing, and
-quality-reporting pipeline invoked by `build.ps1`, `lint.ps1`, and the `.github/workflows/build.yaml`
-CI workflow. None of these tools are linked into, or shipped with, the compiled NuGet package.
+CanvasNet has one shipped runtime NuGet package dependency of the core package, `System.Numerics.Tensors` (used by the
+`Canvas.Surface` unit's vectorized bulk pixel operations — see *Surface Unit Design* (`canvas-net/canvas/surface.md`)
+for details), and otherwise implements every unit of the format packages exclusively against the .NET Base Class
+Library. The Viewer package depends on `DemaConsulting.HelpCards` (the help cards of the `Help` subsystem — see
+*CanvasNetHelp Unit Design* (`canvas-net-viewer/help/canvas-net-help.md`)). The separate CanvasNet tool package has two
+runtime dependencies of its own, `DemaConsulting.TestResults` (used by the tool's self-validation — see *Validation Unit
+Design* (`canvas-net-tool/validation.md`)) and `DemaConsulting.HelpCards` (the help cards and the help command — see
+*HelpTopics Unit Design* (`canvas-net-tool/commands/help-topics.md`)). The remaining OTS items listed below are a
+separate category: they are build-time and quality-pipeline tools, not runtime library dependencies of the shipped
+package. Each OTS item provides one stage of the documentation, requirements-traceability, testing, and
+quality-reporting pipeline invoked by `build.ps1`, `lint.ps1`, and the `.github/workflows/build.yaml` CI workflow. None
+of these tools are linked into, or shipped with, the compiled NuGet package.
 
 ## OTS Items
 
 CanvasNet's OTS items fall into two categories: build-time/quality-pipeline tools (used to build,
 document, and verify the repository, but never shipped) and the runtime library dependencies that
 are shipped in the compiled NuGet packages: `System.Numerics.Tensors` as a transitive dependency of the
-core package, and `DemaConsulting.TestResults`, whose assemblies are bundled inside the tool package.
+core package, `DemaConsulting.HelpCards` as a dependency of the Viewer package, and `DemaConsulting.TestResults` and
+`DemaConsulting.HelpCards`, whose assemblies are bundled inside the tool package.
 
 ### Build-Time and Quality-Pipeline Tools
 
@@ -45,6 +48,7 @@ core package, and `DemaConsulting.TestResults`, whose assemblies are bundled ins
 | --- | --- |
 | System.Numerics.Tensors | Vectorized numerics for the `Surface` bulk pixel operations; shipped transitively |
 | DemaConsulting.TestResults | Self-validation result recording and TRX/JUnit output in the tool package |
+| DemaConsulting.HelpCards | Help cards of the Viewer and tool: loading, validation, rendering, help command |
 
 Each item's individual design document (`docs/design/ots/{ots-name}.md`) records its Purpose,
 Features Used, and Integration Pattern. Each item's requirements and verification evidence are

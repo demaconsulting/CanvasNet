@@ -1,10 +1,11 @@
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Viewer.Help;
+using DemaConsulting.HelpCards.Catalog;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Help;
 
 /// <summary>
-///     Reads the library help cards of <see cref="HelpCatalog.Default"/> for the tests: the cards of a tree, their
+///     Reads the library help cards of <see cref="CanvasNetHelp.Catalog"/> for the tests: the cards of a tree, their
 ///     examples, the flattened text of a card or a tree of cards, and the bullets of a card with their terms.
 /// </summary>
 internal static class HelpCardText
@@ -22,13 +23,31 @@ internal static class HelpCardText
         new(@"^(?:`(?<term>[^`]+)`|\*\*(?<term>[^*]+)\*\*): (?<text>.*)$", RegexOptions.CultureInvariant | RegexOptions.Singleline, TimeSpan.FromSeconds(5));
 
     /// <summary>
+    ///     The prefix of the logical names of the embedded files of the library cards.
+    /// </summary>
+    private const string ResourcePrefix = "DemaConsulting.CanvasNet.Viewer.Help/";
+
+    /// <summary>
+    ///     Gets the paths of the files embedded for the library cards: the cards, their example sources, and the file that
+    ///     names the source, with <c>/</c> between the folders whatever separator the build used.
+    /// </summary>
+    /// <returns>The paths below the help folder, in ordinal order.</returns>
+    public static IReadOnlyList<string> EmbeddedFiles()
+    {
+        return typeof(CanvasNetHelp).Assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal))
+            .Select(n => n[ResourcePrefix.Length..].Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+    }
+    /// <summary>
     ///     Gets a card of the library catalog.
     /// </summary>
     /// <param name="id">The identifier of the card.</param>
     /// <returns>The card.</returns>
     public static HelpCard Card(string id)
     {
-        var card = HelpCatalog.Default.Find(id);
+        var card = CanvasNetHelp.Catalog.Find(id);
         Assert.True(card != null && card.Id == id, $"The library has no card '{id}'.");
         return card;
     }
@@ -41,7 +60,7 @@ internal static class HelpCardText
     public static IEnumerable<HelpCard> Subtree(HelpCard card)
     {
         yield return card;
-        foreach (var child in HelpCatalog.Default.GetChildren(card).SelectMany(Subtree))
+        foreach (var child in CanvasNetHelp.Catalog.GetChildren(card).SelectMany(Subtree))
         {
             yield return child;
         }
@@ -52,7 +71,7 @@ internal static class HelpCardText
     /// </summary>
     /// <returns>The card and the example, in catalog order.</returns>
     public static IEnumerable<(HelpCard Card, HelpExample Example)> AllExamples() =>
-        HelpCatalog.Default.Cards.SelectMany(c => c.Examples.Select(e => (c, e)));
+        CanvasNetHelp.Catalog.Cards.SelectMany(c => c.Examples.Select(e => (c, e)));
 
     /// <summary>
     ///     Gets the examples of a kind, with the card each belongs to.
@@ -112,7 +131,7 @@ internal static class HelpCardText
         var parts = new List<string>();
         foreach (var card in Subtree(Card(id)))
         {
-            parts.Add(Flatten(card.Markdown));
+            parts.Add(Flatten(card.Body));
             parts.AddRange(card.Examples.Select(e => e.Description));
         }
 
@@ -131,7 +150,7 @@ internal static class HelpCardText
         string? current = null;
         var inSection = heading == null;
         var inFence = false;
-        foreach (var line in Card(id).Markdown.Split('\n'))
+        foreach (var line in Card(id).Body.Split('\n'))
         {
             if (line.StartsWith("```", StringComparison.Ordinal))
             {

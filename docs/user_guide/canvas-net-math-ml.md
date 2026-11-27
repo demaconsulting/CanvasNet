@@ -186,7 +186,7 @@ alternative:
 - `mrow` groups children. A fraction, a root with an index, and every script take an exact number of children, so
   wrap a part of several children in `mrow`.
 
-The help cards of the Viewer's `HelpCatalog` (and `canvasnet help mathml`) teach each authoring task with worked
+The help cards of the Viewer's `CanvasNetHelp` (and `canvasnet help mathml`) teach each authoring task with worked
 examples that are rendered in strict mode by the tests: `mathml/basics`, `fractions`, `scripts`, `large-operators`,
 `fences`, `matrices`, `aligned`, `units`, `symbols`, `accents`, `formulas`, `style`, `pitfalls`, and `composition`.
 
@@ -365,7 +365,7 @@ The codes, with their kind and when each is reported:
 - **`mathml-diagnostics-suppressed`**: Warning: more reports than the diagnostics limit; the rest are not listed.
 
 The codes of this list are also the bullets of the help cards `mathml/unsupported` and `mathml/diagnostics` (of the
-Viewer's `HelpCatalog`, and `canvasnet help mathml unsupported` and `diagnostics`); a test keeps them the same. In the
+Viewer's `CanvasNetHelp`, and `canvasnet help mathml unsupported` and `diagnostics`); a test keeps them the same. In the
 `canvasnet` tool and the Viewer, the errors are `mathml-error` (with the file, the line, the column, and the specific
 code), a limit is `budget-exceeded`, a text over the size limit is `corrupt-input`, and a warning is a note with the
 source `mathml` and the code `mathml-warning`, the specific code being in its `detail`.

@@ -151,8 +151,8 @@ constituent software items, specifically:
   containing two direct units, `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException`
   (with `ErrorCodes`), and an `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`,
   `ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
-  `MontageBuilder`, and `SvgFlattener` units, and a `Help` subsystem with the `HelpCatalog` and `HelpFrontMatter` units
-  (the help cards about the formats) — see *CanvasNetViewer System Verification* (`canvas-net-viewer.md`)
+  `MontageBuilder`, and `SvgFlattener` units, and a `Help` subsystem with the `CanvasNetHelp` unit (the help cards
+  about the formats) — see *CanvasNetViewer System Verification* (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry`, `HelpTopics`,
@@ -176,6 +176,7 @@ The following OTS items are also covered:
 - **System.Numerics.Tensors** — vectorized bulk pixel-arithmetic runtime library
 - **DemaConsulting.TestResults** — self-validation result recording and TRX/JUnit serialization library of the
   tool package
+- **DemaConsulting.HelpCards** — help-card library of the Viewer and tool packages
 - **VersionMark** — tool-version documentation tool
 - **WeasyPrint** — HTML-to-PDF conversion tool
 - **xUnit** — unit-testing framework

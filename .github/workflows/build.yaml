@@ -455,6 +455,7 @@ jobs:
               'DemaConsulting.CanvasNet.MathMl.dll',
               'DemaConsulting.CanvasNet.Viewer.dll',
               'DemaConsulting.TestResults.dll',
+              'DemaConsulting.HelpCards.dll',
               'System.Numerics.Tensors.dll'
             )
             foreach ($framework in 'net10.0', 'net11.0') {

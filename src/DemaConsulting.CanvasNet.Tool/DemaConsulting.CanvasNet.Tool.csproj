@@ -55,6 +55,10 @@
          package carries no <dependencies>. Do not add PrivateAssets="all" here: it also drops the assembly from the
          publish output, which breaks the tool's self-validation at run time. -->
     <PackageReference Include="DemaConsulting.TestResults" Version="1.10.0" />
+    <!-- DemaConsulting.HelpCards reads, composes, and renders the help cards, and runs the help command. The direct
+         reference is required, not only the one that comes through the Viewer: its build targets, which embed the
+         tool's help cards, apply only to a project that references the package itself. -->
+    <PackageReference Include="DemaConsulting.HelpCards" Version="0.1.0-beta.4" />
   </ItemGroup>
 
   <!-- Build Tool Dependencies -->
@@ -110,17 +114,15 @@
   </ItemGroup>
 
   <!-- The tool's own help cards and its additions to the library's cards (one Markdown file with YAML front matter per
-       card, in folders that mirror the help tree), layered on the Viewer library's HelpCatalog: the json and pandoc
-       trees are tool-only cards, and every other file is an overlay ('extends: <path>') that adds the command-line
-       flags, command examples, and tool cards to the library card at the same path. Cards about drawing and file
-       formats belong in the Viewer (src\DemaConsulting.CanvasNet.Viewer\Help\Cards); a non-overlay card here under a
-       library topic fails to load. A card's logical name is its path under Commands\Help (the loader turns a '\' of
-       RecursiveDir into '/'); example files (none today) have flat names. WithCulture="false" keeps MSBuild from
-       reading a dotted name as a satellite-resource culture. -->
-  <ItemGroup>
-    <EmbeddedResource Include="Commands\Help\**\*.md" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.Help/%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Commands\Help\Examples\*" WithCulture="false" LogicalName="DemaConsulting.CanvasNet.Tool.Help.Examples.%(Filename)%(Extension)" />
-  </ItemGroup>
+       card, in folders that mirror the help tree, and the _source.md file that names the source), layered on the Viewer
+       library's cards: the json and pandoc trees are tool-only cards, and every other file is an overlay ('extends:
+       <path>') that adds the command-line flags, command examples, and tool cards to the library card at the same path.
+       Cards about drawing and file formats belong in the Viewer (src\DemaConsulting.CanvasNet.Viewer\Help\Cards). The
+       targets of DemaConsulting.HelpCards embed every file below HelpCardsDirectory as the resource
+       'DemaConsulting.CanvasNet.Tool.Help/<path>', which HelpTopics.Source reads. -->
+  <PropertyGroup>
+    <HelpCardsDirectory>Commands\Help</HelpCardsDirectory>
+  </PropertyGroup>
 
   <!-- The template of the Lua shim of the Pandoc filter, which the write-shim option of the pandoc-filter command fills with the filter's tables and writes -->
   <ItemGroup>

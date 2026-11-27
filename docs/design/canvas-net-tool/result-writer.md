@@ -37,6 +37,16 @@ A failure document has no exit-code field: every failure exits with code 1.
 - *Returns*: `string` - the document, without a trailing newline.
 - *Preconditions*: neither argument is null.
 
+**Envelope(command, ok, writeFields)**: writes `schemaVersion`, `ok` (as given), and `command`, then calls
+`writeFields` with the writer positioned inside the top-level object. `Success` delegates to it with `ok` true. The
+help command uses it through `HelpTopics.Envelope` to wrap the documents of DemaConsulting.HelpCards, with `ok` false
+for its failure documents, whose `error` object it writes itself in the shape of `Failure`.
+
+- *Parameters*: `string command`; `bool ok`; `Action<Utf8JsonWriter> writeFields` (must write complete properties
+  only).
+- *Returns*: `string` - the document, without a trailing newline.
+- *Preconditions*: neither reference argument is null.
+
 **Failure(command, code, message, hint)**: writes the failure document. An overload with a fifth parameter,
 `Action<Utf8JsonWriter>? resultFields`, calls it after the `error` object so that the document also carries the
 fields of a result (it must write complete properties only); the four-parameter form passes `null`.
@@ -78,4 +88,5 @@ not contain such text.
 
 - **Program** - writes the failure document for an expected failure when `--json` is on the command line.
 - **Commands** - each command that supports `--json` writes its success document through `Success`.
+- **Help command** - wraps the documents of DemaConsulting.HelpCards through `Envelope` (`HelpTopics.Envelope`).
 - **Validation** - checks the structure of the formats document.
