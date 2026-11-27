@@ -90,12 +90,16 @@ that a whitespace source name throws while no limits mean the defaults.
 **Tests**: `MathMlLimitsTests.MathMlLimits_Default_HasDocumentedValues`,
 `MathMlLimitsTests.MathMlLimits_ValueBelowOne_Throws`,
 `MathMlLimitsTests.MathMlLimits_MaxNestingDepth_OutsideRange_Throws`,
-`MathMlDocumentTests.MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException`
+`MathMlDocumentTests.MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException`,
+`MathMlDocumentTests.MathMlDocument_Render_ShortCallerStack_RetriesOnLayoutThread`,
+`MathMlDocumentTests.MathMlDocument_Render_LayoutThreadCannotStart_ThrowsLocatedLimitException`
 
 Asserts every documented default (`MaxAssemblyParts` 1,000 and `MaxTableCells` 100,000 among them), that zero throws
 for every limit (with the property name, `MaxTableCells` included, which accepts 1), that a nesting depth of 0
 or 1,025 throws, and that a small `MaxLayoutWork` fails a render with a located `mathml-limit-exceeded` naming the
-property.
+property. With the inline attempt skipped through a test hook, a render restarts on the layout thread and gives the
+same pixels and the same reports, delivered once; a layout thread that cannot be started fails with a located
+`mathml-limit-exceeded` that keeps the cause and names `MaxNestingDepth`.
 
 #### CanvasNetMathMl-MathMlDocument-Records: Records, Exceptions, And Codes
 

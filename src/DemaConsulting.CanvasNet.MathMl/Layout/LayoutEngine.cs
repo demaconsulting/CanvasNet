@@ -205,7 +205,9 @@ internal sealed partial class LayoutEngine
     /// <returns>The box, or null when the element is not displayed.</returns>
     private MathBox? LayoutElement(MathElement element, MathStyle style, int depth, OperatorContext context = default)
     {
-        // The bounds of every element: cancellation, the work budget, and the depth of the recursion
+        // The bounds of every element: cancellation, the work budget, and the depth of the recursion; a stack too small
+        // for this depth throws InsufficientExecutionStackException, which MathMlDocument retries on its layout thread
+        System.Runtime.CompilerServices.RuntimeHelpers.EnsureSufficientExecutionStack();
         Enter(element, depth);
         if (style.DisplayNone || element.Name is "annotation" or "annotation-xml")
         {
@@ -404,6 +406,7 @@ internal sealed partial class LayoutEngine
     /// <returns>True when it is space-like.</returns>
     private bool IsSpaceLike(MathElement element)
     {
+        System.Runtime.CompilerServices.RuntimeHelpers.EnsureSufficientExecutionStack();
         if (_spaceLike.TryGetValue(element, out var cached))
         {
             return cached;
@@ -430,6 +433,7 @@ internal sealed partial class LayoutEngine
     /// <returns>True when it is an embellished operator.</returns>
     private bool IsEmbellishedOperator(MathElement element)
     {
+        System.Runtime.CompilerServices.RuntimeHelpers.EnsureSufficientExecutionStack();
         if (_embellished.TryGetValue(element, out var cached))
         {
             return cached;

@@ -94,11 +94,13 @@ requirements in
   Core has no external references, so the request's resolver and file access are never used.
 - `Run` (the pipeline; internal so that a test can drive a defect through it) - creates a `MathMlReportSink`, replays
   the pending reports of reading, creates a `LayoutEngine` over `MathFont.Default`, resolves the style of `math` from
-  the options, lays the tree out, and finishes (measure or paint). The layout recurses a few frames per nesting level,
-  so the layout and the finish run on a thread with a 64 MB stack (`RunWithLayoutStack`; the operating system commits
-  only what is used) and every depth `MaxNestingDepth` accepts fits on every platform; its exception is rethrown on the
-  calling thread unchanged, and a platform without threads runs them on the calling thread. The reports are delivered
-  after the work; see *Error Handling*.
+  the options, lays the tree out, and finishes (measure or paint). It runs on the calling thread first; the layout
+  checks the stack at every element (`EnsureSufficientExecutionStack`), and when the stack of the calling thread runs
+  short (a property of the caller, not the equation) the call starts again from a fresh sink on a dedicated thread with
+  a 32 MiB stack (`RunOnLayoutThread`, the pattern of the OpenSCAD parser): at most one per processor (at least two)
+  run at once, a thread that cannot be started (no address space, or a platform without threads) or a stack that still
+  runs short is a located `mathml-limit-exceeded`, and any other exception is rethrown on the calling thread
+  unchanged. The reports are delivered after the work; see *Error Handling*.
 - `MathMlReportSink.Warn` and `Unsupported` - record a report unless an identical one was recorded; beyond
   `MaxDiagnostics` the first further report becomes one `mathml-diagnostics-suppressed` notice and the rest are dropped
   without being remembered, so the de-duplication sets stop growing too; in strict mode the first unsupported feature is
