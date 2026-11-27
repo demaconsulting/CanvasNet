@@ -266,6 +266,77 @@ public class MathMlDocumentTests
     }
 
     /// <summary>
+    ///     Validates that a layout whose calling thread runs short of stack is laid out again on the dedicated layout
+    ///     thread, with the same pixels and the same reports delivered once.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Render_ShortCallerStack_RetriesOnLayoutThread()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("<math><mi href=\"#\">x</mi><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac></math>");
+        var token = TestContext.Current.CancellationToken;
+        var inlineReports = new List<string>();
+        var threadReports = new List<string>();
+        using var inline = document.Render(new MathMlRenderOptions { UnsupportedFeatureHandler = report => inlineReports.Add(report.Feature) }, token);
+        var before = MathMlDocument.LayoutThreadCount;
+
+        // Act
+        Surface retried;
+        MathMlDocument.ForceLayoutThreadForCurrentThread = true;
+        try
+        {
+            retried = document.Render(new MathMlRenderOptions { UnsupportedFeatureHandler = report => threadReports.Add(report.Feature) }, token);
+        }
+        finally
+        {
+            MathMlDocument.ForceLayoutThreadForCurrentThread = false;
+        }
+
+        // Assert
+        using (retried)
+        {
+            Assert.True(MathMlDocument.LayoutThreadCount > before);
+            Assert.Equal((inline.Width, inline.Height), (retried.Width, retried.Height));
+            for (var y = 0; y < inline.Height; y++)
+            {
+                Assert.True(inline.GetRowSpanBytes(y).SequenceEqual(retried.GetRowSpanBytes(y)));
+            }
+
+            Assert.Equal(inlineReports, threadReports);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a layout thread that cannot be started is a located limit exception, not a runtime failure.
+    /// </summary>
+    [Fact]
+    public void MathMlDocument_Render_LayoutThreadCannotStart_ThrowsLocatedLimitException()
+    {
+        // Arrange
+        var document = MathMlDocument.Parse("\n<math><mi>x</mi></math>", new MathMlOpenOptions { SourceName = "deep.mml" });
+        var refused = new OutOfMemoryException("no address space");
+
+        // Act
+        MathMlRenderException ex;
+        MathMlDocument.ForceLayoutThreadForCurrentThread = true;
+        MathMlDocument.ThreadStarterForCurrentThread = _ => throw refused;
+        try
+        {
+            ex = Assert.Throws<MathMlRenderException>(() => document.Render(cancellationToken: TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            MathMlDocument.ForceLayoutThreadForCurrentThread = false;
+            MathMlDocument.ThreadStarterForCurrentThread = null;
+        }
+
+        // Assert
+        Assert.Equal((MathMlDiagnosticCodes.LimitExceeded, new MathMlLocation("deep.mml", 2, 2)), (ex.Code, ex.Location));
+        Assert.Same(refused, ex.InnerException);
+        Assert.Contains("MaxNestingDepth", ex.Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that an empty equation measures one pixel and renders transparent.
     /// </summary>
     [Fact]

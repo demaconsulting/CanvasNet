@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.MathMl.Layout;
 
@@ -363,41 +364,43 @@ public sealed partial class MathMlDocument
     /// <returns>The result.</returns>
     internal T Run<T>(MathMlRenderOptions options, CancellationToken cancellationToken, Func<MathBox, T> finish)
     {
-        var sink = new MathMlReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
+        // Each attempt starts from a fresh sink, so a restart on the layout thread neither repeats reports nor charges
+        // the work twice
+        MathMlReportSink? sink = null;
+        T Attempt()
+        {
+            sink = new MathMlReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
+            return LayOut(sink, options, cancellationToken, finish);
+        }
+
         T result;
         try
         {
-            // The reports of reading come first, in text order (strict mode throws at the first unsupported one)
-            foreach (var report in Reports)
-            {
-                report.Replay(sink);
-            }
-
             try
             {
-                var engine = new LayoutEngine(MathFont.Default, options.Limits, sink, cancellationToken);
-                var style = engine.Styles.ResolveRoot(Root, options.FontSize, options.Color, options.Display);
-                result = finish(engine.Layout(Root, style));
+                if (ForceLayoutThreadForCurrentThread)
+                {
+                    throw new InsufficientExecutionStackException();
+                }
+
+                result = Attempt();
             }
-            catch (Exception ex) when (IsLayoutDefect(ex))
+            catch (InsufficientExecutionStackException)
             {
-                throw new MathMlRenderException(
-                    MathMlDiagnosticCodes.RenderFailed,
-                    $"the layout failed unexpectedly ({ex.GetType().Name}: {ex.Message})",
-                    Root.Location,
-                    "simplify the equation, and report it to the CanvasNet project",
-                    ex);
+                // The stack of the calling thread is too small for this nesting, a property of the caller and not of
+                // the equation: lay it out again from the start on the dedicated layout thread
+                result = RunOnLayoutThread(Attempt);
             }
         }
         catch
         {
-            sink.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler);
+            sink?.DeliverIgnoringHandlerFailures(options.WarningHandler, options.UnsupportedFeatureHandler);
             throw;
         }
 
         try
         {
-            sink.Deliver(options.WarningHandler, options.UnsupportedFeatureHandler);
+            sink!.Deliver(options.WarningHandler, options.UnsupportedFeatureHandler);
         }
         catch
         {
@@ -407,6 +410,147 @@ public sealed partial class MathMlDocument
 
         return result;
     }
+
+    /// <summary>
+    ///     Replays the reports of reading into a sink, lays the tree out, and finishes, converting a layout defect into a
+    ///     located render failure.
+    /// </summary>
+    /// <typeparam name="T">The kind of result.</typeparam>
+    /// <param name="sink">The sink of this attempt.</param>
+    /// <param name="options">The effective options.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <param name="finish">Produces the result from the box of the <c>math</c> element.</param>
+    /// <returns>The result.</returns>
+    private T LayOut<T>(MathMlReportSink sink, MathMlRenderOptions options, CancellationToken cancellationToken, Func<MathBox, T> finish)
+    {
+        // The reports of reading come first, in text order (strict mode throws at the first unsupported one)
+        foreach (var report in Reports)
+        {
+            report.Replay(sink);
+        }
+
+        try
+        {
+            var engine = new LayoutEngine(MathFont.Default, options.Limits, sink, cancellationToken);
+            var style = engine.Styles.ResolveRoot(Root, options.FontSize, options.Color, options.Display);
+            return finish(engine.Layout(Root, style));
+        }
+        catch (Exception ex) when (IsLayoutDefect(ex))
+        {
+            throw new MathMlRenderException(
+                MathMlDiagnosticCodes.RenderFailed,
+                $"the layout failed unexpectedly ({ex.GetType().Name}: {ex.Message})",
+                Root.Location,
+                "simplify the equation, and report it to the CanvasNet project",
+                ex);
+        }
+    }
+
+    /// <summary>
+    ///     The stack size of the layout thread (32 MiB). The layout recurses a few frames per nesting level; the default
+    ///     stack of a secondary thread overflowed at about 240 levels on macOS with .NET 8, so 32 MiB leaves a wide margin
+    ///     for the ceiling of 1,024 levels of <see cref="MathMlLimits.MaxNestingDepth"/>. The memory is reserved address
+    ///     space that is committed only as it is touched.
+    /// </summary>
+    private const int LayoutStackSize = 32 * 1024 * 1024;
+
+    /// <summary>The most layout threads that may run at once; each reserves <see cref="LayoutStackSize"/>.</summary>
+    private static readonly SemaphoreSlim LayoutThreadGate = new(Math.Max(2, Environment.ProcessorCount), Math.Max(2, Environment.ProcessorCount));
+
+    /// <summary>The number of layouts restarted on the layout thread (updated with <see cref="Interlocked"/>).</summary>
+    private static long _layoutThreadCount;
+
+    /// <summary>Gets the number of layouts restarted on the layout thread since process start (a test hook).</summary>
+    internal static long LayoutThreadCount => Interlocked.Read(ref _layoutThreadCount);
+
+    /// <summary>Gets or sets whether the calling thread skips the inline attempt (a test hook).</summary>
+    [ThreadStatic]
+    internal static bool ForceLayoutThreadForCurrentThread;
+
+    /// <summary>Gets or sets how the calling thread starts the layout thread, instead of <see cref="Thread.Start()"/> (a test hook).</summary>
+    [ThreadStatic]
+    internal static Action<Thread>? ThreadStarterForCurrentThread;
+
+    /// <summary>
+    ///     Runs a layout attempt on a dedicated thread with a stack of <see cref="LayoutStackSize"/>, after waiting for one
+    ///     of the slots of <see cref="LayoutThreadGate"/>, and returns its result or rethrows its exception unchanged.
+    /// </summary>
+    /// <remarks>
+    ///     As the OpenSCAD parser does: a thread that cannot be created or started (not enough address space, or a
+    ///     platform without threads), or a stack that still runs short, is a located limit exception rather than a crash.
+    /// </remarks>
+    /// <typeparam name="T">The kind of result.</typeparam>
+    /// <param name="work">The attempt.</param>
+    /// <returns>The result of the attempt.</returns>
+    private T RunOnLayoutThread<T>(Func<T> work)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+        var result = default(T);
+        ExceptionDispatchInfo? failure = null;
+
+        LayoutThreadGate.Wait();
+        try
+        {
+            Interlocked.Increment(ref _layoutThreadCount);
+            Thread thread;
+            try
+            {
+                thread = new Thread(
+                    () =>
+                    {
+                        CultureInfo.CurrentCulture = culture;
+                        CultureInfo.CurrentUICulture = uiCulture;
+                        try
+                        {
+                            result = work();
+                        }
+                        catch (Exception ex)
+                        {
+                            failure = ExceptionDispatchInfo.Capture(ex);
+                        }
+                    },
+                    LayoutStackSize)
+                {
+                    IsBackground = true,
+                    Name = "CanvasNet MathML layout",
+                };
+                (ThreadStarterForCurrentThread ?? (started => started.Start()))(thread);
+            }
+            catch (Exception ex) when (ex is OutOfMemoryException or ThreadStartException or PlatformNotSupportedException)
+            {
+                throw StackLimit($"the dedicated {LayoutStackSize / (1024 * 1024)} MiB layout thread could not be started ({ex.GetType().Name})", ex);
+            }
+
+            thread.Join();
+        }
+        finally
+        {
+            LayoutThreadGate.Release();
+        }
+
+        if (failure?.SourceException is InsufficientExecutionStackException shortage)
+        {
+            throw StackLimit($"even the {LayoutStackSize / (1024 * 1024)} MiB stack of the layout thread ran short", shortage);
+        }
+
+        failure?.Throw();
+        return result!;
+    }
+
+    /// <summary>
+    ///     Creates the located limit exception of an equation that is nested too deeply for any stack this call can get.
+    /// </summary>
+    /// <param name="reason">Why no stack was large enough.</param>
+    /// <param name="inner">The exception behind it.</param>
+    /// <returns>The exception.</returns>
+    private MathMlRenderException StackLimit(string reason, Exception inner) =>
+        new(
+            MathMlDiagnosticCodes.LimitExceeded,
+            $"the equation is nested too deeply for the stack of the calling thread, and {reason}",
+            Root.Location,
+            "lower MathMlLimits.MaxNestingDepth or the nesting of the equation, or render on a thread with a larger stack",
+            inner);
 
     /// <summary>
     ///     The pixel frame of a picture.

@@ -76,14 +76,20 @@ sections:
               The MathMlDocument unit shall provide resource limits with documented defaults (text size, elements,
               nesting depth from 1 to 1,024, token length, layout work, painted glyphs, reports, the glyphs of a
               stretched operator, and the grid slots of a table), refuse values below one, and fail a call that exceeds
-              the layout work with a located render exception that names the limit.
+              the layout work with a located render exception that names the limit. Every accepted nesting depth shall
+              be laid out whatever the stack of the calling thread, by restarting on a dedicated large-stack thread when
+              that stack runs short, and a call for which no such thread can be started shall fail with a located limit
+              exception instead of crashing the process.
             justification: |
               The caller tunes the bounds of untrusted input, and an exceeded bound must name the setting to change.
+              The default stack of a thread differs by platform, so a depth the limits accept must not overflow it.
             tests:
               - MathMlLimits_Default_HasDocumentedValues
               - MathMlLimits_ValueBelowOne_Throws
               - MathMlLimits_MaxNestingDepth_OutsideRange_Throws
               - MathMlDocument_Render_LayoutWorkLimit_ThrowsRenderException
+              - MathMlDocument_Render_ShortCallerStack_RetriesOnLayoutThread
+              - MathMlDocument_Render_LayoutThreadCannotStart_ThrowsLocatedLimitException
 
           - id: CanvasNetMathMl-MathMlDocument-Records
             title: >-
