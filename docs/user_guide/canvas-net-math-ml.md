@@ -600,7 +600,7 @@ twice its natural size (138 by 44):
 
 A node of a Mermaid flowchart shows it at one and a half times its natural size:
 
-```mermaid
+```text
 flowchart LR
     eq@{ img: "quadratic.mml", label: "Roots", w: 207, h: 66 }
     eq --> check[Check the discriminant]
@@ -631,9 +631,11 @@ cannot draw MathML.
 A document built with Pandoc and the CanvasNet filter (see *Using the Tool in Pandoc Documents* in the tool guide) draws
 an equation written in a fenced code block of class `mathml`, or linked as a `.mml` picture such as
 `![The roots of a quadratic](quadratic.mml)`. The equation is drawn at twice its natural size, so it stays sharp in
-print, and shown at its natural width (the filter adds `width="Npx"` when the author gives no `size`, `width`, or
-`height`), so every equation of the document shows at the same 16 pixel font size. With a `caption` it becomes a
-figure, like the one below, which this guide draws as it is built:
+print, and shown at the size of the text around it: when the author gives no `size`, `width`, or `height`, the filter
+adds its natural width in em (`width="Nem"`, the natural width over the 16 pixel font size), which browsers and PDF
+renderers such as WeasyPrint honor. An equation in a sentence, such as `the roots ![x](quadratic.mml) of the
+equation`, also sits on the line of text with its baseline on the text's; an equation alone in its paragraph is shown
+on its own. With a `caption` it becomes a figure, like the one below, which this guide draws as it is built:
 
 ````markdown
 ```{.mathml caption="Ohm's law and the power it dissipates"}
@@ -655,12 +657,12 @@ figure, like the one below, which this guide draws as it is built:
 
 An equation file is linked like any other picture. The quadratic formula of Example 78 is the file
 `examples/mathml-quadratic.mml` of this guide, and `![The roots of a quadratic](examples/mathml-quadratic.mml)` draws
-it, also at its natural width:
+it, also at the size of the text:
 
 ![The roots of a quadratic](examples/mathml-quadratic.mml)
 
-A `theme` attribute is refused (an equation has none), and `size`, `scale`, `width`, and `height` work as for any other
-picture of the filter.
+A `theme` attribute is refused (an equation has none), and `size`, `scale`, `width`, `height`, and `style` work as for
+any other picture of the filter (a `width` or `height`, as an attribute or in the `style`, replaces the natural size).
 
 ### Example 82: The MathML Gallery
 

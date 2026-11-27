@@ -8,7 +8,9 @@ files, and pictures to a temporary directory (`TempDirectory`) and passes the co
 (`FilterPaths.Collapse`) and the file-access policy (`null` for the default mode, or a core `FileAccessPolicy`). Nothing
 is stubbed: the walks read the file system, and `FilterPaths` and `PictureAttributes` are the real units. The assertions
 read the label of each part (the text before its first line feed), the full bytes of a part where the format matters,
-the composite flag, and the code and exact message of each `ToolException`.
+the composite flag, and the code and exact message of each `ToolException`. The block check `FindBlockReference` is
+called with the text of a code block written in the test and needs no file; its result is compared as a whole
+`BlockReference`.
 
 #### Test Environment
 
@@ -26,6 +28,10 @@ N/A - standard test environment. The tests only need a writable temporary direct
 - In a restrictive mode a file outside the folders, a file behind a link that leads outside them, and under
   `no-symlinks` a file reached through any link are not hashed, an allowed file is hashed exactly as in the default
   mode, and an unreadable document is the `cannot read` error.
+- The block check finds the first local file a Vega-Lite or OpenSCAD block names, with its action and line, and none
+  for a remote link, a `data:` URI, a comment, an import, unreadable text, or another kind.
+- The block check finds exactly what the walks follow, with the action and line of the value or directive that names
+  the file.
 
 #### Test Scenarios
 
@@ -116,3 +122,31 @@ only the model's part.
 
 **DependencyHasher_ForPicture_MissingDocument_ThrowsCannotRead**: a `pdf` picture whose file does not exist fails with
 `cannot read 'gone.pdf'`.
+
+**DependencyHasher_FindBlockReference_VegaLite_FindsLocalDataAndPicturesOnly**: a chart whose data URL is `sales.csv`
+gives `reads the data file 'sales.csv'` on line 1; a chart whose image mark links `logo.png` on line 3 gives
+`draws the picture 'logo.png'` on line 3; a chart with a byte order mark whose url channel names the field `img`, whose
+inline row holds `pics/a%20b.png` on line 2 and whose layer reads `later.csv` on line 5, gives the picture on line 2
+(the first in the text). An `https` or `//` data URL, a `data:` URI image, a file name that is only a value or a title,
+a JSON string, text that is not JSON, and empty text give none.
+
+**DependencyHasher_FindBlockReference_OpenScad_FindsIncludeAndUseWithLine**: a model that includes `lib/shapes.scad` on
+line 2 and uses `more.scad` on line 3 gives `includes 'lib/shapes.scad'` on line 2, and a model that starts with
+`use <more.scad>` gives `uses 'more.scad'` on line 1. Directives in a line or block comment, a comparison
+`a < b && d > c`, `import("part.stl")`, a syntax error, and empty text give none, and so do a PlantUML block with an
+`!include` and a Mermaid block with an `<img>`, whose kinds keep their own behavior.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfDataUrl**: a chart whose `title`
+`sales.csv` on line 2 comes before its data URL `sales.csv` on line 3 gives `reads the data file 'sales.csv'` on line 3.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameTextInEarlierTitle_ReportsLineOfImageMarkUrl**: a chart whose
+`title` `logo.png` on line 2 comes before its image mark's link `logo.png` on line 4 gives
+`draws the picture 'logo.png'` on line 4.
+
+**DependencyHasher_FindBlockReference_VegaLite_SameNameReadAndDrawn_ReportsActionOfFirstMember**: a chart whose image
+mark links `shared.png` on line 2 and whose data URL is `shared.png` on line 3 gives `draws the picture 'shared.png'`
+on line 2.
+
+**DependencyHasher_FindBlockReference_OpenScad_SameNameInEarlierCommentAndString_ReportsLineOfDirective**: a model that
+names `shapes.scad` in a line comment, a block comment, and a string on lines 1 to 3, then includes it on line 4, gives
+`includes 'shapes.scad'` on line 4.

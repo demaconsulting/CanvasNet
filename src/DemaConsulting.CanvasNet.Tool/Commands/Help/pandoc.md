@@ -12,6 +12,8 @@ see-also:
   - mermaid
   - plantuml
   - mathml
+  - vega-lite
+  - scad
   - svg
 examples:
   - name: write-shim
@@ -37,14 +39,13 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
   list the file under filters in the Pandoc defaults file. Write it again after
   each update of the tool: the shim lists what that tool draws (see fast path),
   so an old shim keeps working but may start the tool when it is not needed or
-  miss a new format: with a shim from before MathML, a document whose only
-  pictures are equations (mathml code blocks, .mml pictures) never starts the
-  tool and its MathML is left as it is. Run --write-shim again after updating.
-  The tool also says when the protocol of the shim changed.
+  miss a newer format: a document whose only pictures are of such a format
+  (mathml, vega-lite, or openscad .draw blocks) never starts the tool.
 - `fast path`: The shim starts the tool only for a code block of class mermaid,
-  plantuml, or mathml (exact), or a local picture whose name ends in .svg,
-  .vl.json, .vl, .scad, .vsdx, .pptx, .pdf, .mmd, .mermaid, .puml, .plantuml,
-  .pu, or .mml in any letter case (a name with a #fragment or ?query does not).
+  plantuml, mathml, vega-lite, vegalite, or openscad with draw (exact), or a
+  local picture whose name ends in .svg, .vl.json, .vl, .scad, .vsdx, .pptx,
+  .pdf, .mmd, .mermaid, .puml, .plantuml, .pu, or .mml in any letter case (a
+  name with a #fragment or ?query does not).
   Any other document is left as it is without starting the tool, so code-only
   documents build without it.
 - `pictures`: A picture of a .scad model, a .vl.json or .vl chart, a .vsdx,
@@ -73,21 +74,25 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 - `others`: Every other attribute (width, an id, a class) stays on the picture.
   An attribute of another input type is an error, not ignored.
 
-## Mermaid, PlantUML, and MathML blocks
+## Code blocks
 
 - `code block`: A fenced code block of class mermaid is drawn like a .mmd
   picture, one of class plantuml like a .puml picture (@startuml is optional),
-  and one of class mathml like a .mml picture. With caption="..." it becomes a
-  figure whose caption is read as Markdown and which takes the id; otherwise a
-  paragraph holds the picture.
+  mathml like a .mml picture, and vega-lite or vegalite like a .vl.json chart.
+  An openscad block stays code unless it also has the class draw:
+  {.openscad .draw view=iso} is drawn like a .scad model. With caption="..." it
+  becomes a figure whose caption is read as Markdown and which takes the id;
+  otherwise a paragraph holds the picture.
 - `not drawn`: A diagram type the tool does not draw
   (mermaid-diagram-unsupported, plantuml-diagram-unsupported) is left as
   written, with a warning.
 - `natural width`: A .mml picture or mathml block without a size, width, or
-  height attribute gets width="Npx", the width of its natural size, so every
-  equation shows at the 16 px font size; an author's attribute is kept.
-- `includes`: A changed !include file draws its .puml picture again; a
-  plantuml block finds no relative include (use a .puml picture).
+  height (attribute or style) gets width="Nem" (natural width / 16 px): text
+  size. In a sentence a style also sets it on the baseline; the author's wins.
+- `includes`: A changed !include file draws its .puml picture again. A code
+  block has no folder: a plantuml block finds no relative include, and a
+  vega-lite block naming a local file or an openscad block with include or use
+  stops the build; link a picture.
 
 ## Cache
 

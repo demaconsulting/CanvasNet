@@ -1,0 +1,7 @@
+%% How a change ships: the Mermaid diagram of the chapter "Embedding Pictures in Markdown" (original, MIT)
+flowchart LR
+    build[Build] --> test[Test]
+    test --> pass{Passed?}
+    pass -->|yes| release([Release])
+    pass -->|no| fix[Fix]
+    fix --> build

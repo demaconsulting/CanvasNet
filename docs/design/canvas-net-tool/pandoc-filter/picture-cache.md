@@ -45,7 +45,9 @@ several dashes).
 kind)` is
 the SHA-1 of `canvasnet.lua <kind> block\n` and the text (the block's text and a line feed, as written to the file)
 with `.mmd` for a `mermaid` block (the name of earlier versions, so a cache keeps its block sources), `.puml` for a
-`plantuml` block, and `.mml` for a `mathml` block. All are joined to the cache folder with `FilterPaths.Join`.
+`plantuml` block, `.mml` for a `mathml` block, `.vl.json` for a `vegalite` block (class `vega-lite` or `vegalite`, which
+share one file for the same text), and `.scad` for a `scad` block (class `openscad` with `draw`), so the tool reads each
+file as its kind. All are joined to the cache folder with `FilterPaths.Join`.
 
 **PartialFile(folder, key, extension)**: `<key>.<9 random digits>.partial.<extension>` in the cache folder (`png` or
 `svg`), so that the links a flattened copy rebases for the cache folder are right after the rename. The digits come from

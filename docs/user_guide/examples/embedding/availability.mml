@@ -1,0 +1,13 @@
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"
+      alttext="A equals MTBF over MTBF plus MTTR">
+  <mi>A</mi>
+  <mo>=</mo>
+  <mfrac>
+    <mi>MTBF</mi>
+    <mrow>
+      <mi>MTBF</mi>
+      <mo>+</mo>
+      <mi>MTTR</mi>
+    </mrow>
+  </mfrac>
+</math>

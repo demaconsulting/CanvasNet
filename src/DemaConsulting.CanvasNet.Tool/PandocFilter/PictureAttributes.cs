@@ -13,7 +13,19 @@ namespace DemaConsulting.CanvasNet.Tool.PandocFilter;
 internal sealed record PictureOptions(IReadOnlyList<string> Options, IReadOnlyList<KeyValuePair<string, string>> Keep);
 
 /// <summary>
-///     Reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block: which kind of input a picture is, the checks of every
+///     A class that makes a code block a picture, and the kind the block is drawn as.
+/// </summary>
+/// <param name="Class">The class as the author writes it, for example <c>vega-lite</c>.</param>
+/// <param name="Kind">The kind the block is drawn as (one of the <see cref="PictureAttributes"/> kind constants).</param>
+/// <param name="NeedsDraw">
+///     Whether the block is drawn only when it also has <see cref="PictureAttributes.DrawClass"/> (an <c>openscad</c> block);
+///     without it the block stays code.
+/// </param>
+internal sealed record BlockClass(string Class, string Kind, bool NeedsDraw);
+
+/// <summary>
+///     Reads the attributes of a picture or a code block the filter draws (<c>mermaid</c>, <c>plantuml</c>, <c>mathml</c>,
+///     <c>vega-lite</c>, or <c>openscad</c> with <c>draw</c>): which kind of input a picture is, the checks of every
 ///     drawing attribute with the Lua filter's messages, the defaults, the sorted options, and the attributes that stay.
 /// </summary>
 /// <remarks>
@@ -54,6 +66,12 @@ internal static class PictureAttributes
     /// <summary>The scale an equation is drawn at unless <c>size</c> or <c>scale</c> is given: sharp in print.</summary>
     internal const string MathMlDefaultScale = "2";
 
+    /// <summary>
+    ///     The font size, in pixels, an equation's natural size is measured at (the default
+    ///     <see cref="DemaConsulting.CanvasNet.MathMl.MathMlRenderOptions.FontSize"/>): one <c>em</c> of the size the filter shows an equation at.
+    /// </summary>
+    internal const int MathMlFontSize = 16;
+
     /// <summary>The size a model is drawn at unless <c>size</c> or <c>scale</c> is given.</summary>
     internal const string ScadDefaultSize = "1600x1200";
 
@@ -80,10 +98,23 @@ internal static class PictureAttributes
     ];
 
     /// <summary>
-    ///     The classes of the code blocks the filter draws, each with the kind it draws them as (the class is the name of the
-    ///     kind).
+    ///     The class that asks for a code block whose class is shown as code by default to be drawn (<c>{.openscad .draw}</c>).
     /// </summary>
-    private static readonly (string Class, string Kind)[] BlockClassKinds = [(Mermaid, Mermaid), (PlantUml, PlantUml), (MathMl, MathMl)];
+    internal const string DrawClass = "draw";
+
+    /// <summary>
+    ///     The classes of the code blocks the filter draws, each with the kind it draws them as, checked in this order.
+    /// </summary>
+    /// <remarks>
+    ///     A Vega-Lite chart has two classes (<c>vega-lite</c> and its alias <c>vegalite</c>). An OpenSCAD model is drawn
+    ///     only when the block also has <see cref="DrawClass"/>: a plain <c>openscad</c> block is common in documentation as
+    ///     highlighted code, so it is left alone unless the author asks for the picture.
+    /// </remarks>
+    private static readonly BlockClass[] BlockClassTable =
+    [
+        new(Mermaid, Mermaid, false), new(PlantUml, PlantUml, false), new(MathMl, MathMl, false),
+        new("vega-lite", VegaLite, false), new("vegalite", VegaLite, false), new("openscad", Scad, true)
+    ];
 
     /// <summary>
     ///     Gets the lowercase file name ends of every local picture the filter may change: <see cref="SvgSuffix"/> and the
@@ -96,16 +127,29 @@ internal static class PictureAttributes
     internal static IReadOnlyList<string> PictureSuffixes { get; } = [SvgSuffix, .. Suffixes.Select(s => s.Suffix)];
 
     /// <summary>
-    ///     Gets the classes of the code blocks the filter draws (exact, case-sensitive); any other code block is left alone,
-    ///     so the shim writes this list into its fast path (<see cref="PandocFilterShim"/>).
+    ///     Gets the classes of the code blocks the filter draws by default (exact, case-sensitive), so the shim writes this
+    ///     list into its fast path (<see cref="PandocFilterShim"/>).
     /// </summary>
-    internal static IReadOnlyList<string> BlockClasses { get; } = [.. BlockClassKinds.Select(b => b.Class)];
+    internal static IReadOnlyList<string> BlockClasses { get; } = [.. BlockClassTable.Where(b => !b.NeedsDraw).Select(b => b.Class)];
+
+    /// <summary>
+    ///     Gets the classes of the code blocks the filter draws only when the block also has <see cref="DrawClass"/> (exact,
+    ///     case-sensitive), so the shim writes this list into its fast path (<see cref="PandocFilterShim"/>); any other code
+    ///     block is left alone.
+    /// </summary>
+    internal static IReadOnlyList<string> DrawBlockClasses { get; } = [.. BlockClassTable.Where(b => b.NeedsDraw).Select(b => b.Class)];
 
     /// <summary>The views of a model.</summary>
     private static readonly HashSet<string> Views = new(StringComparer.Ordinal) { "iso", "front", "back", "left", "right", "top", "bottom" };
 
     /// <summary>The projections of a model.</summary>
     private static readonly HashSet<string> Projections = new(StringComparer.Ordinal) { "ortho", "orthographic", "perspective" };
+
+    /// <summary>
+    ///     The characters trimmed from the end of an author's style: <c>;</c> and white space, so a declaration Pandoc or
+    ///     the filter adds joins it with one <c>;</c>.
+    /// </summary>
+    private static readonly char[] StyleEnd = [';', ' ', '\t', '\r', '\n', '\f'];
 
     /// <summary>The themes of a Mermaid diagram.</summary>
     private static readonly HashSet<string> Themes = new(StringComparer.Ordinal) { "default", "base", "dark", "forest", "neutral" };
@@ -157,21 +201,35 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Gets the kind a code block is drawn as, from its classes.
+    ///     Gets the class that makes a code block a picture, from its classes.
     /// </summary>
     /// <param name="classes">The block's classes.</param>
-    /// <returns>The kind of the first of <see cref="BlockClasses"/> the block has, or <see langword="null"/> when it has none (it is left alone).</returns>
-    internal static string? BlockKindOf(IReadOnlyList<string> classes)
+    /// <returns>
+    ///     The first row of the class table the block has (a row of <see cref="DrawBlockClasses"/> counts only when the
+    ///     classes also hold <see cref="DrawClass"/>), or <see langword="null"/> when it has none (it is left alone).
+    /// </returns>
+    internal static BlockClass? BlockOf(IReadOnlyList<string> classes)
     {
-        foreach (var (blockClass, kind) in BlockClassKinds)
+        var draw = classes.Contains(DrawClass, StringComparer.Ordinal);
+        foreach (var row in BlockClassTable)
         {
-            if (classes.Contains(blockClass, StringComparer.Ordinal))
+            if ((!row.NeedsDraw || draw) && classes.Contains(row.Class, StringComparer.Ordinal))
             {
-                return kind;
+                return row;
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Gets the kind a code block is drawn as, from its classes.
+    /// </summary>
+    /// <param name="classes">The block's classes.</param>
+    /// <returns>The kind of the class <see cref="BlockOf"/> finds, or <see langword="null"/> when it finds none (the block is left alone).</returns>
+    internal static string? BlockKindOf(IReadOnlyList<string> classes)
+    {
+        return BlockOf(classes)?.Kind;
     }
 
     /// <summary>
@@ -281,7 +339,7 @@ internal static class PictureAttributes
         }
 
         // An equation is drawn at twice its natural size unless a size or a scale is given, so it stays sharp in print
-        // (the engine shows it at its natural width; see NaturalWidthNeeded)
+        // (the engine shows it at its natural size; see NaturalSizeNeeded)
         if (kind == MathMl && !values.ContainsKey("size") && !values.ContainsKey("scale"))
         {
             values["scale"] = MathMlDefaultScale;
@@ -294,20 +352,107 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Determines whether the engine gives a picture its natural display width: an equation whose attributes set no
-    ///     <c>size</c>, <c>width</c>, or <c>height</c>.
+    ///     Determines whether the engine gives a picture its natural size: an equation whose attributes set no
+    ///     <c>size</c>, <c>width</c>, or <c>height</c>, and whose <c>style</c> declares no <c>width</c> or <c>height</c>.
     /// </summary>
     /// <param name="kind">The kind of the picture (one of the kind constants).</param>
     /// <param name="attributes">The picture's attributes, in their order.</param>
     /// <returns>
-    ///     <see langword="true"/> for a <see cref="MathMl"/> picture without those attributes: it is drawn at
-    ///     <see cref="MathMlDefaultScale"/> (or its own <c>scale</c>) and shown at the width of its natural size, so every
-    ///     equation of a document shows at the same 16-pixel font size whatever its pixel scale; an author's own
-    ///     <c>size</c>, <c>width</c>, or <c>height</c> is kept as written.
+    ///     <see langword="true"/> for a <see cref="MathMl"/> picture the author did not size: it is drawn at
+    ///     <see cref="MathMlDefaultScale"/> (or its own <c>scale</c>) and shown at its natural size in <c>em</c>
+    ///     (<see cref="WithNaturalSize"/>), so every equation shows at the size of the text around it whatever its pixel
+    ///     scale; an author's own <c>size</c>, <c>width</c>, <c>height</c>, or sizing <c>style</c> is kept as written and
+    ///     nothing is added.
     /// </returns>
-    internal static bool NaturalWidthNeeded(string kind, IEnumerable<KeyValuePair<string, string>> attributes)
+    internal static bool NaturalSizeNeeded(string kind, IEnumerable<KeyValuePair<string, string>> attributes)
     {
-        return kind == MathMl && !attributes.Any(a => a.Key is "size" or "width" or "height");
+        return kind == MathMl && !attributes.Any(a =>
+            a.Key is "size" or "width" or "height"
+            || (a.Key == "style" && (StyleDeclares(a.Value, "width") || StyleDeclares(a.Value, "height"))));
+    }
+
+    /// <summary>
+    ///     Writes a length of an equation's natural size in <c>em</c> of <see cref="MathMlFontSize"/>.
+    /// </summary>
+    /// <param name="pixels">The length in pixels at scale 1 and the 16-pixel font size.</param>
+    /// <returns>The length over 16 with <see cref="FormatNumber"/>, followed by <c>em</c>, for example <c>3.25em</c>.</returns>
+    internal static string Em(int pixels)
+    {
+        return FormatNumber((double)pixels / MathMlFontSize) + "em";
+    }
+
+    /// <summary>
+    ///     Adds an equation's natural size to the attributes that stay on its picture.
+    /// </summary>
+    /// <param name="keep">The attributes that stay, as <see cref="Build"/> gave them (no <c>width</c>, see <see cref="NaturalSizeNeeded"/>).</param>
+    /// <param name="width">The natural width in pixels.</param>
+    /// <param name="height">The natural height in pixels.</param>
+    /// <param name="baseline">The row of the equation's baseline in the natural picture, in pixels from the top.</param>
+    /// <param name="inRunningText">Whether the picture stands in running text (<see cref="PandocAst.IsInRunningText"/>).</param>
+    /// <returns>
+    ///     The attributes with <c>width</c> set to <see cref="Em"/> of the natural width, after the others (Pandoc's HTML writer
+    ///     turns it into a <c>style</c> width, which every browser and WeasyPrint honor; LaTeX and Word read it too). No
+    ///     <c>height</c> is set, so the picture keeps its aspect ratio. In running text the <c>style</c> also starts with
+    ///     <c>display:inline;margin:0;vertical-align:-D</c>, where D is the depth below the baseline
+    ///     (<paramref name="height"/> - <paramref name="baseline"/>) in <c>em</c>, so the equation sits on the line of text;
+    ///     the author's own declarations follow in the same <c>style</c>, trimmed of white space and trailing <c>;</c>, so
+    ///     they win; on its own the author's style is kept, trimmed the same way, so Pandoc's appended width joins it with
+    ///     one <c>;</c>, and a style with nothing left once trimmed is left out.
+    /// </returns>
+    internal static IReadOnlyList<KeyValuePair<string, string>> WithNaturalSize(
+        IReadOnlyList<KeyValuePair<string, string>> keep, int width, int height, int baseline, bool inRunningText)
+    {
+        // The author's style without white space or a trailing ';', so a declaration added after it joins with one ';'
+        var author = keep.Where(a => a.Key == "style").Select(a => a.Value).LastOrDefault()?.Trim().TrimEnd(StyleEnd)
+            ?? string.Empty;
+
+        // In running text the picture is placed in the line, its baseline on the text's, before any declaration of the author
+        var style = author;
+        if (inRunningText)
+        {
+            var depth = height - baseline;
+            var align = depth == 0 ? "0" : FormatNumber(-(double)depth / MathMlFontSize) + "em";
+            var placement = $"display:inline;margin:0;vertical-align:{align}";
+            style = author.Length == 0 ? placement : $"{placement};{author}";
+        }
+
+        // The style goes in the author's position; a style left empty is not written
+        var list = new KeepList();
+        foreach (var (key, value) in keep)
+        {
+            if (key != "style")
+            {
+                list.Set(key, value);
+            }
+            else if (style.Length > 0)
+            {
+                list.Set(key, style);
+            }
+        }
+
+        // Without a style of the author's, the filter's placement goes after the others (a known key keeps its place)
+        if (style.Length > 0)
+        {
+            list.Set("style", style);
+        }
+
+        list.Set("width", Em(width));
+        return list.Items;
+    }
+
+    /// <summary>
+    ///     Determines whether a CSS declaration list declares a property.
+    /// </summary>
+    /// <param name="style">The declarations, for example <c>vertical-align:-0.2em; width:3em</c>.</param>
+    /// <param name="property">The property, in lowercase.</param>
+    /// <returns><see langword="true"/> when a declaration names the property, compared without case.</returns>
+    private static bool StyleDeclares(string style, string property)
+    {
+        return style.Split(';').Any(declaration =>
+        {
+            var colon = declaration.IndexOf(':', StringComparison.Ordinal);
+            return colon > 0 && string.Equals(declaration[..colon].Trim(), property, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     /// <summary>
@@ -338,7 +483,7 @@ internal static class PictureAttributes
     }
 
     /// <summary>
-    ///     Splits the <c>caption</c> attribute off the attributes of a Mermaid, PlantUML, or MathML code block.
+    ///     Splits the <c>caption</c> attribute off the attributes of a code block the filter draws.
     /// </summary>
     /// <param name="attributes">The block's attributes, in their order.</param>
     /// <returns>
@@ -369,17 +514,20 @@ internal static class PictureAttributes
     /// </summary>
     /// <param name="identifier">The block's identifier; empty when it has none.</param>
     /// <param name="text">The block's text.</param>
-    /// <param name="kind">The kind the block is drawn as (<see cref="Mermaid"/>, <see cref="PlantUml"/>, or <see cref="MathMl"/>), which is its class.</param>
+    /// <param name="blockClass">
+    ///     The class that made the block a picture, as the author wrote it (<see cref="BlockClass.Class"/>: <c>mermaid</c>,
+    ///     <c>plantuml</c>, <c>mathml</c>, <c>vega-lite</c>, <c>vegalite</c>, or <c>openscad</c>).
+    /// </param>
     /// <returns>
     ///     <c>mermaid block #id</c>, or <c>mermaid block (first line)</c> with the first non-blank line trimmed and cut to 40
-    ///     characters followed by <c>...</c> (<c>plantuml block ...</c> for a PlantUML block, <c>mathml block ...</c> for a
-    ///     MathML block).
+    ///     characters followed by <c>...</c> (<c>plantuml block ...</c> for a PlantUML block, <c>vega-lite block ...</c> for a
+    ///     block of class <c>vega-lite</c>, and so on).
     /// </returns>
-    internal static string BlockName(string identifier, string text, string kind = Mermaid)
+    internal static string BlockName(string identifier, string text, string blockClass = Mermaid)
     {
         if (identifier.Length > 0)
         {
-            return $"{kind} block #{identifier}";
+            return $"{blockClass} block #{identifier}";
         }
 
         // The first line after any leading white space, without trailing white space
@@ -392,7 +540,7 @@ internal static class PictureAttributes
             first = string.Concat(runes.Take(40).Select(r => r.ToString())) + "...";
         }
 
-        return $"{kind} block ({first})";
+        return $"{blockClass} block ({first})";
     }
 
     /// <summary>

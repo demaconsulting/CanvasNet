@@ -1,12 +1,13 @@
 ---
 # Software Unit Requirements for the PictureAttributes Class
 #
-# The PictureAttributes class reads the attributes of a picture or a Mermaid, PlantUML, or MathML code block for the
-# Pandoc filter: it
+# The PictureAttributes class reads the attributes of a picture or a code block (Mermaid, PlantUML, MathML, Vega-Lite,
+# or OpenSCAD marked draw) for the Pandoc filter: it
 # decides which kind of input a picture names, checks every drawing attribute with the messages of the Lua filter
 # (version 16), adds the defaults of each kind, writes the sorted tool options, and keeps the attributes that stay on
-# the picture. It also names Mermaid code blocks for messages and splits off their caption. The supporting record
-# PictureOptions holds the sorted options and the kept attributes.
+# the picture. It also names code blocks for messages and splits off their caption. The supporting records
+# PictureOptions (the sorted options and the kept attributes) and BlockClass (a code-block class and its kind)
+# belong to it.
 
 sections:
   - title: PictureAttributes Unit Requirements
@@ -28,13 +29,16 @@ sections:
       - id: CanvasNetTool-PandocFilter-PictureAttributes-Registry
         title: >-
           The PictureAttributes unit shall list the picture name ends the filter may change (.svg, then the ends of the
-          inputs it draws) and the code-block classes it draws (mermaid, compared exactly), and shall give a code block
-          the kind of the first listed class it has, leaving a block without one alone.
+          inputs it draws), the code-block classes it draws (mermaid, plantuml, mathml, vega-lite, and vegalite,
+          compared exactly), and the code-block classes it draws only when the block also has the class draw
+          (openscad), and shall give a code block the kind of the first listed class it has (an opt-in class counting
+          only with draw), leaving a block without one alone.
         justification: |
           One table decides both what the engine draws and what the shim's fast path starts the tool for, so the two
           cannot drift apart.
         tests:
           - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
+          - PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass
 
       - id: CanvasNetTool-PandocFilter-PictureAttributes-Checks
         title: >-
@@ -130,14 +134,62 @@ sections:
           mathml among the code-block classes; shall draw an equation at scale 2 unless size or scale is given, keeping
           an author's size, scale, and background as written; shall refuse theme, page, dpi, and the attributes of the
           other kinds on an equation with the message of the filter; and shall tell the engine to show an equation at
-          its natural width only when none of size, width, and height is given.
+          its natural size only when none of size, width, and height is given, as an attribute or as a declaration of
+          its style (property names in any letter case).
         justification: |
-          An equation printed at twice its natural pixel size stays sharp on paper; showing it at its natural width
-          keeps the 16 pixel font size of the equation in the document whatever scale it was drawn at, so every
-          equation of a document has the same text size, while an author who sizes an equation keeps that size.
+          An equation printed at twice its natural pixel size stays sharp on paper; showing it at its natural size
+          keeps it at the size of the text around it whatever scale it was drawn at, while an author who sizes an
+          equation, by attribute or by style, keeps that size.
         tests:
           - PictureAttributes_KindOf_Mml_IsMathMl
           - PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo
           - PictureAttributes_Build_MathMlTheme_IsRefused
           - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
           - PictureAttributes_BlockNameAndCaption_FollowTheLuaFilter
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-EquationSize
+        title: >-
+          The PictureAttributes unit shall give an equation shown at its natural size the attribute width of its
+          natural width in em of the 16 pixel font size it is measured at (the renderer's default font size), after
+          the attributes that stay and with no height; and for an equation in running text shall also set the
+          attribute style to display:inline;margin:0;vertical-align: minus its depth below the baseline in em (0 when
+          it has none), followed by the author's own style declarations; and shall trim an author's style of white
+          space and trailing semicolons, on its own as in running text, writing no style on an equation on its own
+          when nothing is left.
+        justification: |
+          Pandoc's HTML writer turns a width in em into a style that browsers and WeasyPrint honor without
+          presentational hints (a width in pixels becomes an HTML attribute that WeasyPrint ignores), and LaTeX and
+          Word read it too; in em the equation follows the size of the text around it, in a 10 point PDF as in a
+          16 pixel browser. Leaving out the height keeps the aspect ratio when a narrow column limits the width. In
+          running text the style keeps the equation in the line even under a style sheet that makes pictures blocks
+          and puts its baseline on the text's, and the author's declarations come later so they win.
+        tests:
+          - PictureAttributes_WithNaturalSize_DisplayAndRunningText_AreInEm
+          - PictureAttributes_WithNaturalSize_AuthorStyleEndingInSemicolon_IsTrimmed
+          - PictureAttributes_MathMlFontSize_IsTheRenderersDefault
+          - PictureAttributes_Build_MathMlPicture_DefaultsToScaleTwo
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-VegaLiteBlocks
+        title: >-
+          The PictureAttributes unit shall draw a code block of class vega-lite or its alias vegalite (exact) as a
+          Vega-Lite chart that takes the attributes of a .vl.json picture (size, scale, background, and param-NAME),
+          and shall name it in messages by the class the author wrote (vega-lite block or vegalite block).
+        justification: |
+          A small chart is often clearer written in place than kept in a separate file, and both spellings of the
+          format's name are in common use; naming the block by its own class points the author at the block as
+          written.
+        tests:
+          - PictureAttributes_BlockOf_VegaLiteAndItsAlias_AreCharts
+          - PictureAttributes_BlockName_NamesTheClassTheAuthorWrote
+
+      - id: CanvasNetTool-PandocFilter-PictureAttributes-OpenScadBlocks
+        title: >-
+          The PictureAttributes unit shall draw a code block of class openscad (exact) as an OpenSCAD model only when
+          the block also has the class draw (exact), taking the attributes and defaults of a .scad picture, shall leave
+          a block of class openscad without draw alone, and shall name a drawn block in messages as an openscad block.
+        justification: |
+          Documentation often shows OpenSCAD source as highlighted code, so drawing every openscad block would replace
+          examples their authors meant to show as code; the class draw makes the picture an explicit choice.
+        tests:
+          - PictureAttributes_BlockOf_OpenScadNeedsTheDrawClass
+          - PictureAttributes_BlockName_NamesTheClassTheAuthorWrote

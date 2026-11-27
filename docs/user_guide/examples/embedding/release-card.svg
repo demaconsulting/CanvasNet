@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="300" viewBox="0 0 640 300">
+  <!-- A card that links a Mermaid diagram and a MathML equation; the Pandoc filter flattens it (original, MIT) -->
+  <rect x="1" y="1" width="638" height="298" rx="12" fill="#f7f7fb" stroke="#c9c9d6" stroke-width="2"/>
+  <text x="24" y="40" font-family="Liberation Sans" font-size="22px" font-weight="bold" fill="#333">Release pipeline</text>
+
+  <rect x="16" y="56" width="608" height="140" rx="8" fill="white" stroke="#dddde6"/>
+  <image x="28" y="64" width="584" height="124" href="release-flow.mmd"/>
+
+  <rect x="16" y="208" width="608" height="76" rx="8" fill="white" stroke="#dddde6"/>
+  <text x="32" y="252" font-family="Liberation Sans" font-size="15px" fill="#555">Availability target:</text>
+  <image x="200" y="214" width="260" height="64" href="availability.mml"/>
+</svg>

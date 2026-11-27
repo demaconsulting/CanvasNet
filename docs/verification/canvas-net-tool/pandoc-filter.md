@@ -25,7 +25,9 @@ N/A - standard test environment. The fixtures `cube.scad`, `baskets.vl.json`, `m
   document points at them; one job and four jobs give the same document and the same cache files.
 - An unchanged document draws nothing on the second run, and a changed include draws its picture again.
 - A `.mml` picture and a captioned `mathml` block are drawn at scale 2, the block becomes a figure, and both show at
-  the natural width of the equation.
+  the natural width of the equation in em; the same picture in a sentence is also set inline on the text's baseline.
+- A captioned `vega-lite` block becomes a figure, a `{.openscad .draw}` block a picture of the size asked for, and a
+  plain `openscad` block stays code, with nothing reported and nothing drawn on a second run.
 - A mistake in a picture stops the run with `pandoc-filter-error` and a message that names the picture; a picture the
   filter does not handle is left alone.
 - A restrictive file-access mode denies a picture outside its folders with `file-access-denied`.
@@ -52,9 +54,18 @@ warning
 draws the picture once more with a new name while the block keeps its picture.
 
 **PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure**: with the real drawer, the quadratic formula as a `.mml`
-picture and as a captioned `mathml` block (`fig-roots`) gives no warning, a `Para` and a `Figure` with the identifier
-`fig-roots`, the attribute `width` of the probe's natural width (`<w>px`) on both pictures, and two PNG pictures in the
-cache, each twice the natural size rounded out at that scale (at most 2 pixels smaller).
+picture alone, as a captioned `mathml` block (`fig-roots`), and as a picture in the sentence `Roots <equation>` gives no
+warning, a `Para`, a `Figure` with the identifier `fig-roots`, and a `Para`; the attribute `width` of the probe's
+natural width in em (`<w/16>em`) on the three pictures, and on the sentence's picture also
+`style=display:inline;margin:0;vertical-align:-<depth/16>em` before the width; and two PNG pictures in the cache, each
+twice the natural size rounded out at that scale (at most 2 pixels smaller).
+
+**PandocFilter_Run_VegaLiteAndOpenScadBlocks_DrawnWithTheirAttributes**: with the real drawer, a captioned `vega-lite`
+block with a parameter (`param-cutoff=4`), a `{.openscad .draw}` block with `view=iso` and `size=32x24`, and a plain
+`openscad` block give no warning and the blocks `Figure`, `Para`, and `CodeBlock`; the model is a 32x24 PNG
+`scad-<key>.png` and the chart a `vegalite-<key>.png` in the cache; two pictures are drawn, a second run draws nothing,
+and both runs give the same document.
+
 **PandocFilter_Run_ChartFieldWithoutType_GivesNoWarning**: with the real drawer, the chart of issue #165 (a field
 without a type, which the tool reports as the informational note `vega-lite-info`) is drawn into the cache and the run
 returns no warning, so a build that treats Pandoc warnings as errors does not fail for a note.

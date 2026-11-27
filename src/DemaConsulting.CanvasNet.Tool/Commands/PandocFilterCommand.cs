@@ -69,9 +69,10 @@ internal sealed class PandocFilterCommand : ICommand
         + Environment.NewLine
         + "The Pandoc filter docs/filters/canvasnet.lua is a short Lua shim that sends the whole document to this command" + Environment.NewLine
         + "once and applies what comes back: the models, charts, diagrams, equations, drawings, and document pages the document" + Environment.NewLine
-        + "names (and its mermaid, plantuml, and mathml code blocks) are drawn into the cache folder generated/canvasnet and the pictures point" + Environment.NewLine
-        + "there. Write the shim with --write-shim, and again after each update of the tool: it lists the code-block" + Environment.NewLine
-        + "classes and picture name ends this tool draws and starts the tool only for those. It names the protocol it" + Environment.NewLine
+        + "names (and its mermaid, plantuml, mathml, and vega-lite code blocks, and openscad code blocks marked .draw) are drawn" + Environment.NewLine
+        + "into the cache folder generated/canvasnet and the pictures point there. Write the shim with --write-shim, and" + Environment.NewLine
+        + "again after each update of the tool: it lists the code-block classes and picture name ends this tool draws and" + Environment.NewLine
+        + "starts the tool only for those. It names the protocol it" + Environment.NewLine
         + "speaks, and a shim this tool does not speak is an error that says how to write it again. The document is" + Environment.NewLine
         + "Pandoc's JSON on standard input (--input reads a file), and the transformed document goes to standard output" + Environment.NewLine
         + "(--output writes a file). The environment variables CANVASNET_TOOL, CANVASNET_FILE_ACCESS, CANVASNET_ROOTS, and" + Environment.NewLine

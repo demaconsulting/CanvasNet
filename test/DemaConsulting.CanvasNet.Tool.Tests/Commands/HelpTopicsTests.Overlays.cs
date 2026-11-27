@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Tool.PandocFilter;
 using DemaConsulting.CanvasNet.Viewer.Help;
 using DemaConsulting.HelpCards.Presentation;
 
@@ -120,7 +121,7 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the MathML cards carry the tool's command-line sections, that the options overlay names the options
-    ///     an equation takes and refuses, and that the natural display width the composition overlay and the pandoc card
+    ///     an equation takes and refuses, and that the natural display width (in em) the composition overlay and the pandoc card
     ///     teach is the one the tool measures for the quadratic example of the fractions card.
     /// </summary>
     [Fact]
@@ -150,9 +151,28 @@ public partial class HelpTopicsTests
         }
 
         // Assert: the width the cards teach is the measured one, and the pandoc card documents it
-        Assert.Contains($"width=\"{natural}px\" for the quadratic formula", composition, StringComparison.Ordinal);
+        Assert.Contains($"width=\"{PictureAttributes.Em(natural)}\" for the quadratic formula", composition, StringComparison.Ordinal);
         Assert.Contains("natural width", pandocTerms);
         Assert.Contains("mathml", HelpView.Get("pandoc").SeeAlso);
+    }
+
+    /// <summary>
+    ///     Test that the fast path of the pandoc card names every code-block class the shim lists, and the class
+    ///     <c>draw</c> the opt-in classes need, so the card and the filter's tables cannot drift apart.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_PandocTopic_FastPathNamesEveryDrawnBlockClass()
+    {
+        // Arrange: the words of the fast path item of the card
+        var fastPath = HelpCardText.Items("pandoc", "Setup").Single(i => i.Term == "fast path").Text;
+        var words = Regex.Split(fastPath, @"[\s,().]+", RegexOptions.None, TimeSpan.FromSeconds(5)).ToHashSet(StringComparer.Ordinal);
+
+        // Act / Assert: every class the shim lists, drawn by default or only with draw, and draw itself
+        Assert.All(PictureAttributes.BlockClasses, c => Assert.Contains(c, words));
+        Assert.All(PictureAttributes.DrawBlockClasses, c => Assert.Contains(c, words));
+        Assert.Contains(PictureAttributes.DrawClass, words);
+        Assert.Contains("vega-lite", HelpView.Get("pandoc").SeeAlso);
+        Assert.Contains("scad", HelpView.Get("pandoc").SeeAlso);
     }
 
     /// <summary>

@@ -888,8 +888,9 @@ sections:
           unsupported-feature error with `--strict`) and a warning of the library as mathml-warning with the specific
           code; shall report invalid text with the error code mathml-error and its location, an equation that exceeds
           a limit of the library with budget-exceeded, and `--theme` or `--positions` on an equation with usage-error,
-          as expected failures; and shall draw `.mml` pictures and `mathml` code blocks of a Pandoc document at their
-          natural display width. The self-validation includes the MathML self-test (see the validate requirement).
+          as expected failures; and shall draw `.mml` pictures and `mathml` code blocks of a Pandoc document at the
+          size of the text around them. The self-validation includes the MathML self-test (see the validate
+          requirement).
         tags: [system]
         justification: |
           Engineering documents hold equations; drawing MathML, the W3C standard that browsers draw, the same on every
@@ -974,14 +975,16 @@ sections:
         title: >-
           The tool shall draw, with the pandoc-filter command run once per Pandoc run by the Lua shim
           docs/filters/canvasnet.lua, every picture of a Pandoc JSON document read from standard input that is an
-          OpenSCAD model, a Vega-Lite chart, a Mermaid diagram (also a Mermaid code block), a PlantUML diagram (also a
-          PlantUML code block), a MathML equation (also a MathML code block, both shown at their natural width unless
-          the author sizes them), a page of a PDF, PPTX, or VSDX document, or an SVG drawing that links one, into a
+          OpenSCAD model (also an OpenSCAD code block marked draw), a Vega-Lite chart (also a Vega-Lite code block), a
+          Mermaid diagram (also a Mermaid code block), a PlantUML diagram (also a
+          PlantUML code block), a MathML equation (also a MathML code block, both shown at the size of the text, on its
+          baseline in a sentence, unless the author sizes them), a page of a PDF, PPTX, or VSDX document, or an SVG
+          drawing that links one, into a
           cache folder beside the folder of the shim that is
           reused while the source and every file it reads are unchanged, shall write the transformed document to
           standard output as UTF-8, shall write the shim with --write-shim, shall refuse a shim of a protocol it does
-          not speak with a hint that names the command that fixes it, and shall report a mistake in a picture as the
-          expected error pandoc-filter-error.
+          not speak with a hint that names the command that fixes it, and shall report a mistake in a picture (also a
+          Vega-Lite or OpenSCAD code block that names a local file) as the expected error pandoc-filter-error.
         tags: [system]
         justification: |
           A documentation build must show models, charts, diagrams, and document pages in any output format; drawing
@@ -998,6 +1001,7 @@ sections:
         tests:
           - CanvasNetTool_PandocFilter_DocumentOnStandardInput_DrawsThePicturesInOneRun
           - CanvasNetTool_PandocFilter_ShimProtocolAndMistakes_AreReportedAsExpectedErrors
+          - CanvasNetTool_PandocFilter_ChartAndModelBlocks_DrawnOnlyWhenAsked
 
       - id: CanvasNetTool-System-FileAccess
         title: >-

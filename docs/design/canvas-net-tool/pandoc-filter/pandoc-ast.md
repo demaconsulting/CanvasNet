@@ -7,9 +7,10 @@
 `PandocAst` reads, walks, and writes a Pandoc document in its JSON form (the document Pandoc writes with
 `pandoc -t json` and the Lua shim pipes to the `pandoc-filter` command). Its single responsibility is the document
 format: it touches only the elements the filter handles and writes every other element back as it was read, so the
-filter never needs a full model of Pandoc's AST. The unit is the internal static class `PandocAst` in `PandocAst.cs`,
-together with the supporting internal records `PandocAttr`, `PandocImage`, and `PandocCodeBlock` in the same file. The
-class is stateless and thread-safe; a document tree itself is not safe for concurrent use.
+filter never needs a full model of Pandoc's AST; beyond those elements it reads only the types of an image's ancestors,
+to tell an image in running text from one on its own. The unit is the internal static class `PandocAst` in
+`PandocAst.cs`, together with the supporting internal records `PandocAttr`, `PandocImage`, and `PandocCodeBlock` in the
+same file. The class is stateless and thread-safe; a document tree itself is not safe for concurrent use.
 
 #### Data Model
 
@@ -56,6 +57,22 @@ for `CodeBlock`, which matches Pandoc's type-by-type traversal (every `Image` be
 **ReadImage(node)** and **ReadCodeBlock(node)**: read `{"t":"Image","c":[Attr, [Inline], [src, title]]}` and
 `{"t":"CodeBlock","c":[Attr, text]}`. The source, title, text, identifier, every class, and every key and value must be
 strings and every attribute pair must have two items.
+
+**IsInRunningText(element)**: tells an image in running text from an image on its own, by reading its ancestors through
+`JsonNode.Parent` (set for every node of a parsed tree). Starting at the element, while its parent is an array of
+inlines:
+
+- When the array holds anything but the element and white space (`Space`, `SoftBreak`, `LineBreak`), the image is in
+  running text: `true`.
+- Otherwise the owner of the array (`OwnerOf`, the nearest ancestor that is an element) is checked. An inline container
+  (`Emph`, `Underline`, `Strong`, `Strikeout`, `Superscript`, `Subscript`, `SmallCaps`, `Cite`, `Link`, `Span`) is
+  passed through and its own line is checked; `Quoted` is running text, as its quotation marks are text. Any other
+  owner (`Para`, `Plain` of a figure or a table cell, `Header`, an `Image` description, `MetaInlines`) ends the check:
+  `false`.
+
+Pandoc makes an image alone in its paragraph a `Figure` (or a `Para` of the image alone when its description is empty)
+and keeps an image in a sentence in the sentence's `Para`, so this tells the two apart. A trailing non-breaking space,
+Pandoc's way to keep a lone image out of a figure, is a `Str`, so such an image counts as running text.
 
 **RewriteImage(node, src, attributes)**: replaces only the source and the key-value attributes of an `Image` read by
 `ReadImage`; the identifier, the classes, the description, and the title stay.

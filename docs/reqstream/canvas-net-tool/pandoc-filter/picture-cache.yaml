@@ -28,7 +28,9 @@ sections:
           <stem>-<key>.png, a flattened copy <stem>-<key>.svg, the markers <key>.unsupported and <key>.plain, and the
           source of a Mermaid code block the SHA-1 of a fixed prefix and its text with .mmd (unchanged, so an earlier
           cache keeps its keys), of a PlantUML code block the SHA-1 of the prefix that names plantuml and its text
-          with .puml, and of a MathML code block the SHA-1 of the prefix that names mathml and its text with .mml,
+          with .puml, of a MathML code block the SHA-1 of the prefix that names mathml and its text with .mml, of a
+          Vega-Lite code block the SHA-1 of the prefix that names vegalite and its text with .vl.json, and of an
+          OpenSCAD code block the SHA-1 of the prefix that names scad and its text with .scad,
           where the stem is the
           source's file name without its extension (and .vl) with every UTF-8 byte that is not an ASCII letter, digit,
           underscore, or dash made a dash.
@@ -38,6 +40,7 @@ sections:
         tests:
           - PictureCache_Names_FollowTheLuaFilter
           - PictureCache_BlockSourceFile_MathMlBlock_HasMmlExtension
+          - PictureCache_BlockSourceFile_VegaLiteAndScadBlocks_HaveTheirExtensions
 
       - id: CanvasNetTool-PandocFilter-PictureCache-PartialFiles
         title: >-

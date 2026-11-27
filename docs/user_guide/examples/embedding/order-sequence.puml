@@ -1,0 +1,10 @@
+@startuml
+' Placing an order: the PlantUML diagram of the chapter "Embedding Pictures in Markdown" (original, MIT)
+actor Customer
+participant Shop
+participant Payment
+Customer -> Shop : place order
+Shop -> Payment : charge card
+Payment --> Shop : approved
+Shop --> Customer : confirmation
+@enduml

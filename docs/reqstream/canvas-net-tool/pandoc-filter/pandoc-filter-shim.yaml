@@ -25,19 +25,21 @@ sections:
 
       - id: CanvasNetTool-PandocFilter-PandocFilterShim-FastPath
         title: >-
-          The PandocFilterShim unit shall write into the shim's fast path the code-block classes (mermaid, plantuml, and
-          mathml) and picture suffixes (.mml for an equation among them) the filter engine draws, taken from the
-          engine's own tables, and shall refuse a template whose placeholder
-          is missing or repeated.
+          The PandocFilterShim unit shall write into the shim's fast path the code-block classes (mermaid, plantuml,
+          mathml, vega-lite, and vegalite), the code-block classes drawn only with the class draw (openscad), which
+          the shim counts only when the block also has the class draw, and the picture suffixes (.mml for an equation
+          among them) the filter engine draws, taken from the engine's own tables, and shall refuse a template whose
+          placeholder is missing or repeated.
         justification: |
           Starting the tool costs a process per document and makes a document depend on the tool, so the shim starts
-          it only for what the tool draws: a document of other code blocks (bash, yaml, csharp) and raster pictures
-          builds without it. Generating the lists from the engine keeps the shim from drifting from the tool that
-          writes it.
+          it only for what the tool draws: a document of other code blocks (bash, yaml, csharp, and openscad without
+          draw) and raster pictures builds without it. Generating the lists from the engine keeps the shim from
+          drifting from the tool that writes it.
         tests:
           - PandocFilterShim_Bytes_ListWhatTheEngineDraws
           - PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses
           - PictureAttributes_PictureSuffixesAndBlockClasses_AreWhatTheEngineDraws
+          - HelpTopics_PandocTopic_FastPathNamesEveryDrawnBlockClass
 
       - id: CanvasNetTool-PandocFilter-PandocFilterShim-RepositoryShim
         title: >-

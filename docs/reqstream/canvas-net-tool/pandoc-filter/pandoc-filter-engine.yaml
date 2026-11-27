@@ -88,21 +88,76 @@ sections:
           The PandocFilterEngine unit shall draw a .mml picture and replace a code block of class mathml with its drawn
           picture as it replaces a Mermaid block (a figure with the caption and the identifier, or a paragraph), writing
           its text to the cache folder as a .mml file and dropping only the class mathml; and shall give an equation
-          whose attributes set no size, width, or height the kept attribute width="Npx", N being the natural width of
-          the equation (its width at scale 1 and the 16 pixel font size, read by a probe that does not draw it), on
-          every run whether the picture is drawn or found in the cache, keeping an author's width, height, or size
-          without adding one, and leaving the attributes as written when the equation cannot be measured (the draw then
-          reports the failure).
+          whose attributes set no size, width, or height (as an attribute or in its style) the kept attribute
+          width="Nem", N being the natural width of the equation (its width at scale 1 and the 16 pixel font size, read
+          by a probe that does not draw it) over 16, on every run whether the picture is drawn or found in the cache,
+          keeping an author's width, height, size, or sizing style without adding one, and leaving the attributes as
+          written when the equation cannot be measured (the draw then reports the failure).
         justification: |
           An equation drawn at twice its natural size for print would show at twice the font size of the text if the
-          document showed it at its pixel size; showing it at its natural width keeps every equation of a document at
-          the same text size, and the key of the cache does not depend on it, so a picture is never drawn again for it.
+          document showed it at its pixel size; showing it at its natural width in em keeps every equation at the size
+          of the text around it in every output (Pandoc writes an em width as a style that browsers and WeasyPrint
+          honor), and the key of the cache does not depend on it, so a picture is never drawn again for it.
         tests:
           - PandocFilterEngine_Run_MathMlPictureAndBlock_AreDrawnAtTheirNaturalWidth
           - PandocFilterEngine_Run_MathMlWithWidth_KeepsTheAuthorsWidth
           - PandocFilterEngine_Run_MathMlPlainAndWithWidth_ShareOneDrawAndCacheFile
           - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
 
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-InlineEquations
+        title: >-
+          The PandocFilterEngine unit shall also set an equation picture that it shows at its natural size and that
+          stands in running text (an image among other text or pictures of its line) inline on the text's baseline,
+          using the depth below the baseline read by the same probe and keeping the author's style declarations after
+          the filter's, and shall give a picture alone in its paragraph or figure and a code block the width only.
+        justification: |
+          An equation in a sentence must sit on the line of text at the text's height rather than break the line or
+          float above it, in every downstream document built with Pandoc and WeasyPrint, without the author writing
+          any style; an equation on its own is shown as a block, as the document's style sheet places pictures.
+        tests:
+          - PandocFilterEngine_Run_MathMlInASentence_SitsOnTheBaseline
+          - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-VegaLiteBlocks
+        title: >-
+          The PandocFilterEngine unit shall replace a code block of class vega-lite or vegalite with its drawn picture
+          as it replaces a Mermaid block (a figure with the caption and the identifier, or a paragraph), writing its
+          text to the cache folder as a .vl.json file, passing its parameters to the tool, and dropping only the class
+          that made it a picture.
+        justification: |
+          A chart written in place in a document is drawn like a chart file, so it takes the same attributes and cache;
+          the other classes and attributes shape the picture in the output.
+        tests:
+          - PandocFilterEngine_Run_VegaLiteBlocks_BecomeFigureFromAVlJsonFile
+          - PandocFilter_Run_VegaLiteAndOpenScadBlocks_DrawnWithTheirAttributes
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-OpenScadBlocks
+        title: >-
+          The PandocFilterEngine unit shall replace a code block of classes openscad and draw with its drawn picture as
+          it replaces a Mermaid block, writing its text to the cache folder as a .scad file, drawing it with the model
+          defaults, and dropping the classes openscad and draw; shall leave a code block of class openscad without
+          draw exactly as written, writing and drawing nothing for it; and shall name both classes in the scale hint of
+          an oversized model block ({.openscad .draw scale=...}).
+        justification: |
+          A plain openscad block is source an author shows as code, so it must stay code; a block marked draw is a
+          picture, and a hint that can be pasted as is must keep the class that asks for the picture.
+        tests:
+          - PandocFilterEngine_Run_OpenScadBlocks_DrawnOnlyWithTheDrawClass
+          - PandocFilterEngine_Run_OversizedOpenScadBlock_HintNamesBothClasses
+          - PandocFilter_Run_VegaLiteAndOpenScadBlocks_DrawnWithTheirAttributes
+
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-BlockFiles
+        title: >-
+          The PandocFilterEngine unit shall stop the run with the code pandoc-filter-error, before anything is written
+          or drawn, for a Vega-Lite code block that names a local data file or picture and for an OpenSCAD code block
+          marked draw that includes or uses a file, with a message that names the block, the file, and its line, and
+          says to put the source in a file and link it as a picture; and shall leave a remote data URL to the tool.
+        justification: |
+          The text of a code block is drawn from the cache folder, so a relative file name would be looked up there and
+          the picture would silently miss its data or library; a located error with the fix lets the author move the
+          source to a file picture, which finds its files beside it.
+        tests:
+          - PandocFilterEngine_Run_BlockNamingAFile_StopsWithAHintToUseAPicture
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-Warnings
         title: >-
           The PandocFilterEngine unit shall return the warnings of a run, each the picture's name and a message, in the
@@ -141,6 +196,7 @@ sections:
           attribute to set and to what, for example {.mermaid scale=0.56}.
         tests:
           - PandocFilterEngine_Run_OversizedPicture_HintNamesTheScaleAttribute
+          - PandocFilterEngine_Run_OversizedOpenScadBlock_HintNamesBothClasses
 
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-LowestPositionWins
         title: >-

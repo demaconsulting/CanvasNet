@@ -18,17 +18,22 @@
     including the diagram types the filter draws itself, a type the tool does not draw left as written with a warning,
     PlantUML code blocks and `.puml` and `.plantuml` pictures (a changed `!include` file draws them again, and a legacy
     activity diagram is left as written with a warning), MathML code blocks and `.mml` pictures (drawn once, shown
-    with the `width` of their natural size, an author's `width` kept, not drawn again on a second run, and `theme` on an
-    equation an error), and the order of the defaults-file filters before a later command-line filter;
+    with `style="width:...em"` of their natural size and no HTML `width` attribute, a picture in a sentence also set
+    inline on the text's baseline, an author's `width` kept, not drawn again on a second run, and `theme` on an
+    equation an error), Vega-Lite code blocks (a captioned `vega-lite` block becomes a figure drawn from the cache, a
+    second run draws nothing) and OpenSCAD code blocks (a `{.openscad .draw}` block becomes a picture without the
+    classes `openscad` and `draw`, a plain `openscad` block stays code, and a chart block with a `data.url` or a model
+    block with an `include` stops the build with `has no folder`), and the order of the defaults-file filters before a
+    later command-line filter;
   - SVG pictures (plain ones left unchanged, composite ones flattened and cached, the scan rules, a link to a missing
     diagram, and WeasyPrint drawing the flattened diagram into a PDF);
   - the fast path (`CANVASNET_TOOL` names a program that does not exist): a document of `bash`, `yaml`, `csharp`,
-    `text`, and `{.Mermaid}` code blocks and of PNG, JPEG, BMP, TIFF, ICO, AVIF, extension-less, fragment
-    (`mesh-shading.pdf#page=2`), query (`t.vl.json?x`), and remote pictures builds without starting the tool, while a
-    model picture, one `mermaid` block, one `plantuml` block, one `mathml` block, and a picture of each suffix the shim
-    lists (read from the shim, checked to be `.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu
-    .mml`, in lower and upper
-    case) each start it and give the clear
+    `text`, `json`, `openscad` (without `draw`), and `{.Mermaid}` code blocks and of PNG, JPEG, BMP, TIFF, ICO, AVIF,
+    extension-less, fragment (`mesh-shading.pdf#page=2`), query (`t.vl.json?x`), and remote pictures builds without
+    starting the tool, while a model picture, one `mermaid` block, one `plantuml` block, one `mathml` block, one
+    `vega-lite` block, one `{.openscad .draw}` block, and a picture of each suffix the shim lists (read from the shim,
+    checked to be `.svg .vl.json .vl .scad .vsdx .pptx .pdf .mmd .mermaid .puml .plantuml .pu .mml`, in lower and upper
+    case, with the shim's `CLASSES` and `DRAW_CLASSES` lines checked too) each start it and give the clear
     `canvasnet.lua: cannot run the canvasnet tool` error;
   - the launch-failure branch: `dotnet pandoc lua` loads the shim with a stubbed `pandoc.pipe` that raises a string, a
     table without `error_code`, a table whose `error_code` is text, a userdata (`io.stdout`), a table whose fields and
@@ -57,29 +62,29 @@ The end-to-end script needs Pandoc from the repository's tool manifest (`dotnet 
 - All unit tests pass with zero failures.
 - The shim is the source template with the engine's tables filled in and is the repository filter, speaks protocol 1,
   and names DemaConsulting.CanvasNet.Tool 0.2.0-beta.11 or later.
-- The shim's fast path lists exactly the code-block classes and picture suffixes the engine draws, and a template with
-  a placeholder missing or repeated is refused.
+- The shim's fast path lists exactly the code-block classes, the classes drawn only with `draw`, and the picture
+  suffixes the engine draws, checks the class `draw`, and a template with a placeholder missing or repeated is refused;
+  the pandoc help card names every listed class and `draw`.
 - Writing the shim creates its folder, replaces an existing file, returns the byte count, and leaves no partial file.
 - An older protocol names the `--write-shim` command for the shim's path; a newer one says to update the tool.
 - The end-to-end script, when run, reports all checks passed.
 
 #### Test Scenarios
 
-**PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol**: the source template holds both placeholders, the
+**PandocFilterShim_Bytes_AreTheSourceFileAndSpeakTheProtocol**: the source template holds the three placeholders, the
 bytes equal `Generate` of the template (line endings aside), contain `local PROTOCOL = "1"` and
 `DemaConsulting.CanvasNet.Tool 0.2.0-beta.11 or later`, and `Protocol` lies between `MinProtocol` and `MaxProtocol`.
 
 **PandocFilterShim_Bytes_ListWhatTheEngineDraws**: the shim holds
-`local CLASSES = { "mermaid", "plantuml", "mathml" }` and
+`local CLASSES = { "mermaid", "plantuml", "mathml", "vega-lite", "vegalite" }`,
+`local DRAW_CLASSES = { "openscad" }`, the check `if class == "draw" then opted = true end`, and
 `local SUFFIXES = { ".svg", ".vl.json", ".vl", ".scad", ".vsdx", ".pptx", ".pdf", ".mmd", ".mermaid", ".puml",
-".plantuml", ".pu", ".mml" }`, and neither
-placeholder.
+".plantuml", ".pu", ".mml" }`, and no placeholder.
 
-**PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses**: a template with both placeholders is filled with
-the Lua lists (`c = { "mermaid", "plantuml", "mathml" }`, `s = { ".svg", ...`); a template without `@SUFFIXES@` and
-one with
-`@CLASSES@`
-twice throw `InvalidOperationException` naming the placeholder.
+**PandocFilterShim_Generate_PlaceholdersExactlyOnce_FillsOrRefuses**: a template with the three placeholders is filled
+with the Lua lists (`c = { "mermaid", "plantuml", "mathml", "vega-lite", "vegalite" }`, `d = { "openscad" }`,
+`s = { ".svg", ...`); a template without `@SUFFIXES@`, one without `@DRAW_CLASSES@`, and one with `@CLASSES@` twice
+throw `InvalidOperationException` naming the placeholder.
 
 **PandocFilterShim_Bytes_AreTheRepositoryFilter**: the embedded bytes equal `docs/filters/canvasnet.lua` (line endings
 aside), so the repository's documents are built with the shim the tool writes.
@@ -93,3 +98,7 @@ leaves exactly one file in the folder (no partial file).
 protocol 1` and the hint `Write the shim again: dotnet canvasnet pandoc-filter --write-shim docs/x/canvasnet.lua`;
 protocol 2 without a path has the message `docs/filters/canvasnet.lua speaks protocol 2; this tool speaks protocol 1 at
 most` and a hint that starts with `Update DemaConsulting.CanvasNet.Tool in .config/dotnet-tools.json`.
+
+**HelpTopics_PandocTopic_FastPathNamesEveryDrawnBlockClass** (in `HelpTopicsTests.Overlays.cs`): the `fast path` item
+of the pandoc help card names every class of `BlockClasses` and `DrawBlockClasses` and the class `draw`, and the card
+links the `vega-lite` and `scad` cards, so the card cannot drift from the shim's lists.

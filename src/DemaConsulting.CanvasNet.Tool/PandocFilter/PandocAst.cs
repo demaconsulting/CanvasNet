@@ -35,7 +35,8 @@ internal sealed record PandocCodeBlock(PandocAttr Attr, string Text);
 ///     <para>
 ///         The document is a <see cref="JsonNode"/> tree: an element the filter does not handle is never interpreted and is
 ///         written back as it was read (an unmodified number keeps its text). Only <c>Image</c> and <c>CodeBlock</c> are
-///         read, and only <c>Image</c>, <c>Para</c>, <c>Plain</c>, <c>Figure</c>, <c>Span</c>, and the metadata
+///         read (and the types of an image's ancestors, to tell running text from a picture on its own), and only
+///         <c>Image</c>, <c>Para</c>, <c>Plain</c>, <c>Figure</c>, <c>Span</c>, and the metadata
 ///         <c>MetaList</c> of <c>MetaString</c> are built; a touched element of an unexpected shape is
 ///         <see cref="ErrorCodes.CorruptInput"/>.
 ///     </para>
@@ -77,6 +78,20 @@ internal static class PandocAst
     ///     The options of the JSON reader.
     /// </summary>
     private static readonly JsonDocumentOptions ReaderOptions = new() { MaxDepth = MaxDepth };
+
+    /// <summary>
+    ///     The inline elements that hold a line of inlines an element can stand alone in, which <see cref="IsInRunningText"/>
+    ///     moves up through.
+    /// </summary>
+    private static readonly HashSet<string> InlineContainers = new(StringComparer.Ordinal)
+    {
+        "Emph", "Underline", "Strong", "Strikeout", "Superscript", "Subscript", "SmallCaps", "Quoted", "Cite", "Link", "Span"
+    };
+
+    /// <summary>
+    ///     The inline elements that are white space, which do not make a line running text.
+    /// </summary>
+    private static readonly HashSet<string> WhiteSpaceInlines = new(StringComparer.Ordinal) { "Space", "SoftBreak", "LineBreak" };
 
     /// <summary>
     ///     The options of the JSON writer: compact, non-ASCII text unescaped (Pandoc reads it).
@@ -224,6 +239,54 @@ internal static class PandocAst
     }
 
     /// <summary>
+    ///     Determines whether an inline element (an <c>Image</c>) stands in running text: in a line with other text or
+    ///     pictures, rather than alone in its paragraph or figure.
+    /// </summary>
+    /// <param name="element">The element, in a document read by <see cref="Parse"/> (its ancestors are read).</param>
+    /// <returns>
+    ///     <see langword="true"/> when the inlines that hold the element hold anything but the element and white space
+    ///     (<c>Space</c>, <c>SoftBreak</c>, <c>LineBreak</c>). While they hold only the element, the check moves up
+    ///     through an inline container (<c>Emph</c>, <c>Underline</c>, <c>Strong</c>, <c>Strikeout</c>,
+    ///     <c>Superscript</c>, <c>Subscript</c>, <c>SmallCaps</c>, <c>Cite</c>, <c>Link</c>, <c>Span</c>) and checks that
+    ///     container's line; inside <c>Quoted</c> it is running text (the quotation marks are text). Any other owner
+    ///     (<c>Para</c>, <c>Plain</c> of a figure or a table cell, <c>Header</c>, the description of an <c>Image</c>, the
+    ///     metadata) ends the check: <see langword="false"/>, the element is shown on its own (display).
+    /// </returns>
+    /// <remarks>
+    ///     Pandoc makes an image alone in its paragraph a <c>Figure</c> (or a <c>Para</c> of the image alone when its
+    ///     description is empty), and keeps an image in a sentence in the sentence's <c>Para</c>; this check tells the two
+    ///     apart. A trailing non-breaking space, Pandoc's way to keep a lone image out of a figure, is text, so such an
+    ///     image is in running text too.
+    /// </remarks>
+    internal static bool IsInRunningText(JsonObject element)
+    {
+        JsonNode current = element;
+        while (current.Parent is JsonArray inlines)
+        {
+            var self = current;
+            if (inlines.Any(n => !ReferenceEquals(n, self) && !(n is JsonObject o && TypeOf(o) is { } t && WhiteSpaceInlines.Contains(t))))
+            {
+                return true;
+            }
+
+            // The line holds only the element: move up through an inline container, stop at any other owner
+            if (OwnerOf(inlines) is not { } owner || TypeOf(owner) is not { } type || !InlineContainers.Contains(type))
+            {
+                return false;
+            }
+
+            if (type == "Quoted")
+            {
+                return true;
+            }
+
+            current = owner;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     ///     Reads a <c>CodeBlock</c> element: <c>{"t":"CodeBlock","c":[Attr, text]}</c>.
     /// </summary>
     /// <param name="node">The element.</param>
@@ -334,6 +397,24 @@ internal static class PandocAst
     private static string? TypeOf(JsonObject element)
     {
         return element.TryGetPropertyValue("t", out var type) ? StringOf(type) : null;
+    }
+
+    /// <summary>
+    ///     Gets the element that owns a node: the nearest ancestor (or the node itself) that is an element.
+    /// </summary>
+    /// <param name="node">The node, for example the inlines of a <c>Link</c>.</param>
+    /// <returns>The element, or <see langword="null"/> when the node is not inside one.</returns>
+    private static JsonObject? OwnerOf(JsonNode node)
+    {
+        for (JsonNode? current = node; current != null; current = current.Parent)
+        {
+            if (current is JsonObject element && TypeOf(element) != null)
+            {
+                return element;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

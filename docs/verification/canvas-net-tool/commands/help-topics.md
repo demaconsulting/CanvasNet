@@ -127,11 +127,10 @@ overlay cites is cited by a library card too (whose test proves that it exists).
 `mathml/composition`, and `mathml/diagnostics` cards each have a `Command line` section; the options section has the
 terms `--scale <factor>`, `--width <pixels>`, `--background <color>`, `--strict`, `--theme`, `display`, and `info`; the
 quadratic example of the `mathml/fractions` card, written to a file and probed, has the natural width the composition
-card quotes (`width="<natural>px" for the quadratic formula`); and the `pandoc` card has the item `natural width` and
-links the `mathml` card.
-**HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheFormatsCommand**: the extensions found in the `href file types`
-bullet of `svg embedding` are unique and are exactly the extensions of the `formats` table (the library test compares
-them with `CanvasNetViewer.Extensions`).
+card quotes in em (`width="<natural/16>em" for the quadratic formula`); and the `pandoc` card has the item
+`natural width` and links the `mathml` card. **HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheFormatsCommand**: the
+extensions found in the `href file types` bullet of `svg embedding` are unique and are exactly the extensions of the
+`formats` table (the library test compares them with `CanvasNetViewer.Extensions`).
 
 **HelpTopics_SvgTopic_FlattenItems_MatchUserGuide** and **HelpTopics_FilesTopic_Items_MatchUserGuide**: the
 `## Reference` bullets of `svg flatten` (the library's) followed by its `## Command line` bullets (the overlay's), and

@@ -33,7 +33,8 @@ from the files it shows.
 - **The same pixels everywhere** - bundled fonts, no network access, documented resource limits, and file-access
   policies for documents you do not trust.
 - **Documents that draw themselves** - the Pandoc filter turns `![Flow](flow.mmd)`, `![Part](part.scad)`,
-  `![Roots](quadratic.mml)`, and `mermaid` and `mathml` code blocks into pictures when the document is built.
+  `![Roots](quadratic.mml)`, and `mermaid`, `mathml`, `vega-lite`, and `{.openscad .draw}` code blocks into pictures
+  when the document is built.
 
 ## Quick Start
 
@@ -157,8 +158,9 @@ at any size, and `flatten` bakes the numbers in (`canvasnet help svg bindings`).
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, equations, and pages in Pandoc documents, including `mermaid`,
-  `plantuml`, and `mathml` code blocks and SVG drawings that link them, which are flattened so WeasyPrint shows them: a
-  thin Lua shim written by `canvasnet pandoc-filter --write-shim` sends each document to the tool once (see User Guide)
+  `plantuml`, `mathml`, and `vega-lite` code blocks, `openscad` code blocks marked `.draw`, and SVG drawings that link
+  them, which are flattened so WeasyPrint shows them: a thin Lua shim written by `canvasnet pandoc-filter --write-shim`
+  sends each document to the tool once (see *Embedding Pictures in Markdown* in the User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
