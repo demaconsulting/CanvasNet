@@ -72,6 +72,10 @@ value and of a value with whitespace around it.
 Asserts that the inline style overrides the attributes, sets the math depth and the font style, hides with
 `display: none`, and reports declarations outside the subset as `mathml-css-unsupported`.
 
+**Tests**: `StyleResolverTests.StyleResolver_Resolve_TextAlignAndPadding_AreAcceptedWithoutReport`
+
+Asserts that an `mtd` with `style="text-align: right; padding-right: 0; padding-left: 0"` produces no report.
+
 ##### CanvasNetMathMl-Layout-StyleResolver-ChildRules: The Children Of Fractions And Roots
 
 **Tests**: `StyleResolverTests.StyleResolver_ResolveChild_FractionChildren_AutoAddAndCompact`,

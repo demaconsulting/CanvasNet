@@ -58,6 +58,7 @@ sections:
           - CanvasNetTool-PandocFilter-PandocFilterEngine-PlantUmlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-MathMlBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-InlineEquations
+          - CanvasNetTool-PandocFilter-PandocFilterEngine-MathElements
           - CanvasNetTool-PandocFilter-PandocFilterEngine-VegaLiteBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-OpenScadBlocks
           - CanvasNetTool-PandocFilter-PandocFilterEngine-UnsupportedDiagram

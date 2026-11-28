@@ -75,12 +75,15 @@ sections:
                 title: >-
                   The StyleResolver unit shall let the supported declarations of the inline style attribute override the
                   attributes, set the math depth and the font style, hide an element with display: none, and report the
-                  declarations outside the subset as mathml-css-unsupported.
+                  declarations outside the subset as mathml-css-unsupported, accepting without a report the text-align,
+                  padding-left, and padding-right declarations that Pandoc writes on mtd beside columnalign.
                 justification: |
                   The inline style wins over the presentational attributes in CSS, and what is not applied must be
-                  reported.
+                  reported; Pandoc's MathML for matrices, aligned equations, and cases carries these declarations
+                  and must still render, its alignment being in columnalign.
                 tests:
                   - StyleResolver_Resolve_InlineStyle_OverridesAttributes
+                  - StyleResolver_Resolve_TextAlignAndPadding_AreAcceptedWithoutReport
 
               - id: CanvasNetMathMl-Layout-StyleResolver-ChildRules
                 title: >-

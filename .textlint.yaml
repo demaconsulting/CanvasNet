@@ -398,6 +398,8 @@ words:
   - Weasy
   - WeasyPrint
   - weasyprint
+  - texmath
+  - pmatrix
   - netstandard
   - yamlfix
   - zlib

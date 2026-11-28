@@ -27,6 +27,12 @@ misses a format the newer tool draws, so a repository writes its shim again afte
 written before the Vega-Lite and OpenSCAD blocks never starts the tool for a document whose only pictures are such
 blocks, so they stay code.
 
+The shim also does the one piece of work that needs Pandoc itself: unless the metadata sets `canvasnet-math` to `false`
+it converts every `Math` node to a `canvasnet-math` `Code` element holding MathML (see the engine's math elements), and
+starts the tool when it converted any, even for a document with no other picture. A `Math` node texmath cannot convert
+is left as it is. With `canvasnet-math: false` the shim leaves every `Math` node to Pandoc and behaves as it did before
+math was drawn.
+
 #### Data Model
 
 **Class constants**:

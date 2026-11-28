@@ -99,6 +99,14 @@ the row of the baseline (`SourceInfo.Equation.Baseline`; the height when there i
 `PictureAttributes.WithNaturalSize` then adds the kept attribute `width="<natural width / 16>em"` after the others and,
 for an image in running text, a `style` that sets it inline on the text's baseline before the author's own declarations.
 
+**Math elements** (`PlanMath`): unless the metadata sets `canvasnet-math: false`, the Lua shim has already replaced each
+`Math` node with an inline `Code` element of class `canvasnet-math` that holds the MathML Pandoc's texmath writes for it
+(`pandoc.write` with `html_math_method='mathml'`; the attributes `tex` and `display` keep the LaTeX and the kind). The
+engine finds these elements after the images and code blocks (`PandocAst.IsMath`), writes the MathML to the cache folder
+as a `.mml` file, and plans it as an equation picture with no author attributes, so the natural size, the cache, and the
+errors are those of a `.mml` picture. Inline math is in running text by `IsInRunningText`; display math never is (it
+gets the width only). The element is replaced with an `Image` described by the LaTeX.
+
 - **Running text** is `PandocAst.IsInRunningText` of the image: an image among other text or pictures of its line (a
   sentence, a heading, two pictures side by side) is inline; an image alone in its paragraph or figure is shown on its
   own. A code block always becomes a figure or a paragraph of its picture alone, so it gets the width only. The check

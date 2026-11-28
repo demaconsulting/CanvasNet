@@ -89,6 +89,9 @@ Lua shim docs/filters/canvasnet.lua, which sends the whole document to
 - `natural width`: A .mml picture or mathml block without a size, width, or
   height (attribute or style) gets width="Nem" (natural width / 16 px): text
   size. In a sentence a style also sets it on the baseline; the author's wins.
+- `LaTeX math`: $...$ and $$...$$ become equation pictures like a mathml
+  block (Pandoc writes the MathML). On by default, so a document with math is
+  now drawn; set canvasnet-math: false in the metadata to leave math to Pandoc.
 - `includes`: A changed !include file draws its .puml picture again. A code
   block has no folder: a plantuml block finds no relative include, and a
   vega-lite block naming a local file or an openscad block with include or use

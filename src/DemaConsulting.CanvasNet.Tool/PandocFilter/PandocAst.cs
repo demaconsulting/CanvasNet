@@ -317,6 +317,26 @@ internal static class PandocAst
     }
 
     /// <summary>
+    ///     Determines whether a <c>Code</c> element is math the shim made: its class is <c>canvasnet-math</c>.
+    /// </summary>
+    /// <param name="node">The <c>Code</c> element.</param>
+    /// <returns><see langword="true"/> for the shim's math element.</returns>
+    internal static bool IsMath(JsonObject node)
+    {
+        return node["c"] is JsonArray { Count: 2 } content && ReadAttr(content[0]) is { } attr && attr.Classes.Contains("canvasnet-math");
+    }
+
+    /// <summary>
+    ///     Builds a <c>Str</c> element.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The element.</returns>
+    internal static JsonObject Str(string text)
+    {
+        return Element("Str", JsonValue.Create(text));
+    }
+
+    /// <summary>
     ///     Builds an <c>Image</c> element.
     /// </summary>
     /// <param name="attr">The attributes.</param>

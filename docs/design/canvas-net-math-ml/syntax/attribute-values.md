@@ -43,7 +43,9 @@ the `CanvasNetMathMl-Syntax-AttributeValues-*` requirements in
 - `StyleDeclarations.Parse(text)` - removes the CSS comments, splits the declarations at the semicolons outside
   parentheses and quotes, ignores `!important`, and applies each: `color` and `background-color` (CSS colors),
   `font-size` (a length, a percentage, or `math`), `math-style` (`normal` or `compact`), `math-depth` (`auto-add`,
-  `add(n)`, or `n`), `font-style` (`normal` or `italic`), and `display: none`. A later declaration of a property wins;
+  `add(n)`, or `n`), `font-style` (`normal` or `italic`), and `display: none`; `text-align`, `padding-left`, and
+  `padding-right` (which Pandoc writes on `mtd` beside `columnalign`) are accepted and have no effect. A later
+  declaration of a property wins;
   every other property and every invalid value becomes an issue.
 
 #### Error Handling

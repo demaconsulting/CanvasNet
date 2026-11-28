@@ -176,6 +176,26 @@ public class StyleResolverTests
     }
 
     /// <summary>
+    ///     Validates that the <c>text-align</c> and padding declarations Pandoc writes on <c>mtd</c> are accepted without a
+    ///     report (the <c>columnalign</c> attribute carries the alignment).
+    /// </summary>
+    [Fact]
+    public void StyleResolver_Resolve_TextAlignAndPadding_AreAcceptedWithoutReport()
+    {
+        // Arrange
+        var sink = new MathMlReportSink(10, false);
+        var unsupported = new List<MathMlUnsupportedFeature>();
+        var element = Node("mtd", [], ("style", "text-align: right; padding-right: 0; padding-left: 0"));
+
+        // Act
+        Styles(sink).Resolve(element, Parent);
+        sink.Deliver(null, unsupported.Add);
+
+        // Assert
+        Assert.Empty(unsupported);
+    }
+
+    /// <summary>
     ///     Validates the user agent style of <c>merror</c> (a light yellow background) and that an attribute overrides it.
     /// </summary>
     [Fact]

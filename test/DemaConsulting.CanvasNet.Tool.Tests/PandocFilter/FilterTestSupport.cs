@@ -32,6 +32,19 @@ internal static class PandocDoc
     }
 
     /// <summary>
+    ///     Builds the inline <c>Code</c> element the Lua shim makes of a <c>Math</c> element.
+    /// </summary>
+    /// <param name="mathMl">The MathML text.</param>
+    /// <param name="tex">The LaTeX.</param>
+    /// <param name="display">Whether the math is display math.</param>
+    /// <returns>The element's JSON.</returns>
+    public static string MathCode(string mathMl, string tex, bool display)
+    {
+        var kind = display ? "block" : "inline";
+        return $$"""{"t":"Code","c":[["",["canvasnet-math"],[["tex",{{Text(tex)}}],["display","{{kind}}"]]],{{Text(mathMl)}}]}""";
+    }
+
+    /// <summary>
     ///     Builds a <c>Space</c> element.
     /// </summary>
     /// <returns>The element's JSON.</returns>
