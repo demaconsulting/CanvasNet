@@ -103,6 +103,12 @@ sentence's picture gets `style=display:inline;margin:0;vertical-align:-<depth/16
 display picture only the `width`, both describe the LaTeX (`y=x^2`), no `canvasnet-math` element is left, and a second
 run draws nothing and gives the same document.
 
+**PandocFilterEngine_Run_MathLeftByTheShim_IsUntouched**: a document with a native `Math` element (what the shim leaves
+with `canvasnet-math: false`) draws nothing and keeps the `Math` element, with no `Image` made.
+
+**PandocFilterShim_Bytes_MathIsOnUnlessFalse**: the embedded shim treats a missing `canvasnet-math` as on and turns math
+off only for the value `false`.
+
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine
 warnings.

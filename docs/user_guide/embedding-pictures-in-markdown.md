@@ -347,17 +347,23 @@ another picture is inline. An author's own `width`, `height`, or `size` replaces
 
 ### LaTeX Math
 
-Pandoc reads `$...$` (inline) and `$$...$$` (display) as math. Set `canvasnet-math: true` in the document's metadata
-and the filter draws each formula as an equation picture: Pandoc's texmath converts the LaTeX to MathML, and the tool
-draws that MathML like any other equation, at the size of the text around it, on the baseline of the line for inline
-math, with the LaTeX as the picture's description. Without the flag (the default) the math is left for Pandoc to write
-as before, so existing documents are unaffected.
+Pandoc reads `$...$` (inline) and `$$...$$` (display) as math. The filter draws each formula as an equation picture:
+Pandoc's texmath converts the LaTeX to MathML, and the tool draws that MathML like any other equation, at the size of
+the text around it, on the baseline of the line for inline math, with the LaTeX as the picture's description.
+
+This is on by default, a change of behavior: an existing document that contains math is now drawn as pictures where
+Pandoc used to write the math itself. To opt out, set `canvasnet-math: false` in the document's metadata and the math is
+left for Pandoc to write as before.
 
 ```markdown
 ---
-canvasnet-math: true
+canvasnet-math: false
 ---
 
+The roots are $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$, which Pandoc writes itself because of the metadata above.
+```
+
+```markdown
 The roots are $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$, and
 
 $$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$

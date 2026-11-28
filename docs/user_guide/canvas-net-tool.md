@@ -2606,10 +2606,12 @@ written before the tool drew Vega-Lite and OpenSCAD code blocks leaves a documen
 code; run `dotnet canvasnet pandoc-filter --write-shim` again after updating the tool. The tool also says when the
 protocol of the shim changes (see *Shim protocol* below).
 
-**LaTeX math.** A document whose metadata sets `canvasnet-math: true` also starts the tool when it has math: the shim
-asks Pandoc (texmath) to write the MathML of each `$...$` or `$$...$$` formula and the tool draws it as an equation
-picture, sized to the text like a `mathml` block (inline math sits on the baseline of its line) and described by its
-LaTeX. The default is off, so existing documents are unaffected. Constructs that texmath writes as elements outside
+**LaTeX math.** A document with math (`$...$` or `$$...$$`) starts the tool unless its metadata sets
+`canvasnet-math: false`: the shim asks Pandoc (texmath) to write the MathML of each formula and the tool draws it as an
+equation picture, sized to the text like a `mathml` block (inline math sits on the baseline of its line) and described
+by its LaTeX. This is on by default, a change of behavior: an existing document that contains math is now drawn as
+pictures where Pandoc used to write the math itself. To keep Pandoc's own math handling, set `canvasnet-math: false` in
+the document's metadata. Constructs that texmath writes as elements outside
 MathML Core, such as `\boxed`, are drawn without them and with a warning; see *Equations* in the guide *Embedding
 Pictures in Markdown* for the formulas that work. The shim reads the flag itself, so write it again with `--write-shim`
 after updating the tool to get this feature.

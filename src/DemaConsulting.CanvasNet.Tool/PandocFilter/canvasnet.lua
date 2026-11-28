@@ -56,14 +56,14 @@ local function needs_tool(doc)
   })
   return needed
 end
--- Math is drawn only when the document's metadata sets canvasnet-math to true. Each Math node becomes inline code of the
+-- Math is drawn unless the document's metadata sets canvasnet-math to false. Each Math node becomes inline code of the
 -- class canvasnet-math that holds the MathML Pandoc's texmath writes for it (the attribute "tex" keeps the LaTeX and
 -- "display" the kind), which the tool draws as a picture. Math texmath cannot convert stays as it is.
 local function math_enabled(doc)
   local flag = doc.meta["canvasnet-math"]
-  if flag == nil then return false end
+  if flag == nil then return true end
   if type(flag) == "boolean" then return flag end
-  return pandoc.utils.stringify(flag) == "true"
+  return pandoc.utils.stringify(flag) ~= "false"
 end
 local function convert_math(doc)
   local converted = false

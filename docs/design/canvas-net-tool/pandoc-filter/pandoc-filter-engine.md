@@ -99,7 +99,7 @@ the row of the baseline (`SourceInfo.Equation.Baseline`; the height when there i
 `PictureAttributes.WithNaturalSize` then adds the kept attribute `width="<natural width / 16>em"` after the others and,
 for an image in running text, a `style` that sets it inline on the text's baseline before the author's own declarations.
 
-**Math elements** (`PlanMath`): with `canvasnet-math: true` in the metadata, the Lua shim has already replaced each
+**Math elements** (`PlanMath`): unless the metadata sets `canvasnet-math: false`, the Lua shim has already replaced each
 `Math` node with an inline `Code` element of class `canvasnet-math` that holds the MathML Pandoc's texmath writes for it
 (`pandoc.write` with `html_math_method='mathml'`; the attributes `tex` and `display` keep the LaTeX and the kind). The
 engine finds these elements after the images and code blocks (`PandocAst.IsMath`), writes the MathML to the cache folder

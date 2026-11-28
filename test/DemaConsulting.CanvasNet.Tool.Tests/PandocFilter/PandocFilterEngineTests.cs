@@ -431,6 +431,43 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that a <c>Math</c> element the shim left alone (the metadata sets <c>canvasnet-math: false</c>, so it made no
+    ///     <c>canvasnet-math</c> code) is not drawn and stays exactly as it is.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathLeftByTheShim_IsUntouched()
+    {
+        // Arrange: a document with a native Math element and nothing else to draw
+        using var tree = new FilterTree();
+        const string math = """{"t":"Math","c":[{"t":"InlineMath"},"y=x^2"]}""";
+        var document = PandocDoc.Document(PandocDoc.Para(PandocDoc.Str("Then"), PandocDoc.Space(), math));
+        var drawer = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+
+        // Assert: nothing is drawn and the Math element is still there
+        Assert.Empty(drawer.Calls);
+        var text = System.Text.Encoding.UTF8.GetString(output);
+        Assert.Contains("\"Math\"", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Image\"", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that the shim draws math by default and leaves it only for <c>canvasnet-math: false</c>.
+    /// </summary>
+    [Fact]
+    public void PandocFilterShim_Bytes_MathIsOnUnlessFalse()
+    {
+        // Act
+        var text = System.Text.Encoding.UTF8.GetString(PandocFilterShim.Bytes);
+
+        // Assert
+        Assert.Contains("if flag == nil then return true end", text, StringComparison.Ordinal);
+        Assert.Contains("return pandoc.utils.stringify(flag) ~= \"false\"", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that one job and four jobs give the same document, warnings, and cache files.
     /// </summary>
     [Fact]
