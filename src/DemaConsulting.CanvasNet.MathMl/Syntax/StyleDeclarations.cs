@@ -239,7 +239,7 @@ internal sealed record StyleDeclarations(
                     // the cell padding is the table's own); accepted so such an equation renders, with no further effect
                     break;
                 default:
-                    Issues.Add(new StyleIssue(true, $"the CSS property '{property}' is not supported; only color, background-color, font-size, math-style, math-depth, font-style and display: none are"));
+                    Issues.Add(new StyleIssue(true, $"the CSS property '{property}' is not supported; only color, background-color, font-size, math-style, math-depth, font-style, display: none, text-align, padding-left and padding-right are"));
                     break;
             }
         }
