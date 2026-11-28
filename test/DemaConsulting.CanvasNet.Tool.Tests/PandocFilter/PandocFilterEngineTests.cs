@@ -385,6 +385,52 @@ public class PandocFilterEngineTests
     }
 
     /// <summary>
+    ///     Test that the math elements the shim makes (inline <c>Code</c> of class <c>canvasnet-math</c>) become equation
+    ///     pictures: inline math in a sentence sits on the baseline, display math alone in its paragraph gets the width
+    ///     only even though it is the same equation, both keep the LaTeX as their description, one draw serves both, and
+    ///     a second run draws nothing and gives the same document.
+    /// </summary>
+    [Fact]
+    public void PandocFilterEngine_Run_MathElements_BecomeEquationPictures()
+    {
+        // Arrange: y = x² as inline math in a sentence and as display math on its own
+        using var tree = new FilterTree();
+        const string mathMl = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>y</mi><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></math>";
+        var path = tree.Write("probe.mml", mathMl);
+        var natural = SourceLoader.Probe(path);
+        var depth = natural.Height - natural.Equation!.Baseline;
+        var document = PandocDoc.Document(
+            PandocDoc.Para(PandocDoc.Str("Then"), PandocDoc.Space(), PandocDoc.MathCode(mathMl, "y=x^2", false), PandocDoc.Str(".")),
+            PandocDoc.Para(PandocDoc.MathCode(mathMl, "y=x^2", true)));
+        var drawer = new StubDrawer();
+        var again = new StubDrawer();
+
+        // Act
+        var output = tree.Run(drawer, document);
+        var second = tree.Run(again, document);
+
+        // Assert: one draw, and no Code element is left
+        Assert.Single(drawer.Calls);
+        Assert.DoesNotContain("canvasnet-math", System.Text.Encoding.UTF8.GetString(output), StringComparison.Ordinal);
+
+        // Assert: the inline picture sits on the baseline, the display picture has the width only, both describe the LaTeX
+        var width = PictureAttributes.Em(natural.Width);
+        var align = PictureAttributes.FormatNumber(-(double)depth / PictureAttributes.MathMlFontSize);
+        using var json = JsonDocument.Parse(output);
+        var blocks = json.RootElement.GetProperty("blocks");
+        var inline = blocks[0].GetProperty("c")[2];
+        var display = blocks[1].GetProperty("c")[0];
+        Assert.Equal("Image", inline.GetProperty("t").GetString());
+        Assert.Equal($$"""["",[],[["style","display:inline;margin:0;vertical-align:{{align}}em"],["width","{{width}}"]]]""", inline.GetProperty("c")[0].GetRawText());
+        Assert.Equal($$"""["",[],[["width","{{width}}"]]]""", display.GetProperty("c")[0].GetRawText());
+        Assert.Equal("""[{"t":"Str","c":"y=x^2"}]""", display.GetProperty("c")[1].GetRawText());
+
+        // Assert: a second run draws nothing and gives the same document
+        Assert.Empty(again.Calls);
+        Assert.Equal(output, second);
+    }
+
+    /// <summary>
     ///     Test that one job and four jobs give the same document, warnings, and cache files.
     /// </summary>
     [Fact]

@@ -41,7 +41,9 @@ internal readonly record struct StyleIssue(bool IsUnsupported, string Message);
 ///         A rendering has no style sheets, so only the inline <c>style</c> attribute can style an equation, and only this
 ///         subset of it: <c>color</c>, <c>background-color</c>, <c>font-size</c> (a length, a percentage or <c>math</c>),
 ///         <c>math-style</c> (<c>normal</c> or <c>compact</c>), <c>math-depth</c> (<c>auto-add</c>, <c>add(n)</c> or
-///         <c>n</c>), <c>font-style</c> (<c>normal</c> or <c>italic</c>) and <c>display: none</c>. Every other
+///         <c>n</c>), <c>font-style</c> (<c>normal</c> or <c>italic</c>) and <c>display: none</c>; <c>text-align</c>,
+///         <c>padding-left</c> and <c>padding-right</c> (which Pandoc writes on <c>mtd</c> beside <c>columnalign</c>) are
+///         accepted and have no effect. Every other
 ///         declaration is an issue that the caller reports and ignores, as is an invalid value of a supported property; a
 ///         later declaration of the same property wins, as in CSS.
 ///     </para>
@@ -231,6 +233,10 @@ internal sealed record StyleDeclarations(
                     break;
                 case "display":
                     ApplyDisplay(value);
+                    break;
+                case "text-align" or "padding-left" or "padding-right":
+                    // Pandoc's texmath writes these on <mtd> beside columnalign, which already carries the alignment (and
+                    // the cell padding is the table's own); accepted so such an equation renders, with no further effect
                     break;
                 default:
                     Issues.Add(new StyleIssue(true, $"the CSS property '{property}' is not supported; only color, background-color, font-size, math-style, math-depth, font-style and display: none are"));

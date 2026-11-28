@@ -118,6 +118,20 @@ sections:
           - PandocFilterEngine_Run_MathMlInASentence_SitsOnTheBaseline
           - PandocFilter_Run_MathMlBlockWithCaption_BecomesAFigure
 
+      - id: CanvasNetTool-PandocFilter-PandocFilterEngine-MathElements
+        title: >-
+          The PandocFilterEngine unit shall replace each inline Code element of class canvasnet-math (which the Lua shim
+          makes of a Math element when the document sets canvasnet-math to true, holding the MathML of the LaTeX, with
+          the LaTeX in the attribute tex and display in the attribute display) with an equation picture drawn like a
+          .mml picture, described by the LaTeX, sized at its natural width, and for inline math in running text placed
+          on the text's baseline, while display math gets the width only.
+        justification: |
+          Pandoc already parses the LaTeX of a document and writes its MathML; drawing that MathML through the existing
+          equation path gives every output format the same sized equations without a second math engine, and an
+          equation that cannot be drawn is an error like any other picture.
+        tests:
+          - PandocFilterEngine_Run_MathElements_BecomeEquationPictures
+
       - id: CanvasNetTool-PandocFilter-PandocFilterEngine-VegaLiteBlocks
         title: >-
           The PandocFilterEngine unit shall replace a code block of class vega-lite or vegalite with its drawn picture

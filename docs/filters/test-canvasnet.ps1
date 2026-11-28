@@ -32,7 +32,8 @@
     PlantUML diagrams are drawn from code blocks and from .puml/.plantuml pictures (their !include files are hashed, so a
     changed include draws them again), a PlantUML type the tool does not draw (a .pu legacy activity diagram) is left as written,
     MathML equations are drawn from code blocks and from .mml pictures at twice their natural size and shown at their natural
-    width in em (an author's width is kept; an equation in a sentence also sits on the text's baseline), Vega-Lite charts are drawn from vega-lite code blocks and OpenSCAD models from
+    width in em (an author's width is kept; an equation in a sentence also sits on the text's baseline), LaTeX math ($...$ and
+    $$...$$) is drawn through the same path when the metadata sets canvasnet-math: true, Vega-Lite charts are drawn from vega-lite code blocks and OpenSCAD models from
     openscad code blocks marked .draw (a plain openscad block stays code, and a block that names a local file stops the
     build, since a block has no folder), a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
@@ -686,6 +687,33 @@ By Ohm's law ![V equals I R](ohm.mml) the current follows.
     $mmlTheme = Invoke-Filter 'mathml-theme' '![e](ohm.mml){theme=dark}'
     Write-Result ($mmlTheme.ExitCode -ne 0 -and $mmlTheme.Log -match 'theme applies to Mermaid diagrams only') `
         'theme on an equation is an error' $mmlTheme.Log
+
+    # --- LaTeX math: $...$ and $$...$$ with canvasnet-math: true, drawn through the MathML path ----------------
+    # Pandoc's texmath writes the MathML the shim hands to the tool; inline math sits on the baseline, display math
+    # does not; matrices, aligned equations, and cases render; without the flag the math is left to Pandoc.
+    $latex = @'
+---
+canvasnet-math: true
+---
+The roots are $x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}$ and $\alpha+\beta\text{ if }x$.
+
+$$\sum_{i=1}^{n} i=\int_0^\infty e^{-x}dx$$
+
+$$\begin{pmatrix}a&b\\c&d\end{pmatrix}$$
+
+$$\begin{aligned}a&=b\\c&=d\end{aligned}$$
+
+$$f(x)=\begin{cases}1&x>0\\0&x\le0\end{cases}$$
+'@
+    $texBefore = @(Get-Pictures).Count
+    $tex = Invoke-Filter 'latex-math' $latex
+    Write-Result ($tex.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $texBefore + 6 -and $tex.Html -notmatch '<math' -and
+        ([regex]::Matches($tex.Html, 'style="display:inline;margin:0;vertical-align:[^"]*width:[\d.]+em"')).Count -eq 2 -and
+        ([regex]::Matches($tex.Html, '<img\s+src="[^"]*generated/canvasnet/mathml-[^"]*"\s+style="width:[\d.]+em"')).Count -eq 4) `
+        'LaTeX math is drawn: inline on the baseline, display, matrix, aligned, and cases alike' "$($tex.Log)`n$($tex.Html)"
+    $texOff = Invoke-Filter 'latex-math-off' 'Not drawn: $x^2$.'
+    Write-Result ($texOff.ExitCode -eq 0 -and $texOff.Html -match 'math' -and $texOff.Html -notmatch 'generated/canvasnet') `
+        'LaTeX math is left to Pandoc without canvasnet-math: true' $texOff.Html
 
     # --- Vega-Lite and OpenSCAD blocks: a chart block is drawn, a model block only with .draw ------------------
     # A vega-lite block becomes the picture (a figure with a caption) drawn from a .vl.json file in the cache; an

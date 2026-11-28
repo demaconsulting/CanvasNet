@@ -100,9 +100,10 @@ internal sealed partial class PandocFilterEngine
     {
         WarningsBeforeFailure = [];
 
-        // The elements in the order the Lua filter visited them: every image, then every code block
-        var candidates = PandocAst.FindAll(document, "Image").Select(node => (Node: node, Block: false))
-            .Concat(PandocAst.FindAll(document, "CodeBlock").Select(node => (Node: node, Block: true)))
+        // The elements in the order the Lua filter visited them: every image, then every code block, then the math
+        var candidates = PandocAst.FindAll(document, "Image").Select(node => (Node: node, Kind: 'I'))
+            .Concat(PandocAst.FindAll(document, "CodeBlock").Select(node => (Node: node, Kind: 'B')))
+            .Concat(PandocAst.FindAll(document, "Code").Where(PandocAst.IsMath).Select(node => (Node: node, Kind: 'M')))
             .ToList();
 
         // Plan, in that order, up to the first failure
@@ -113,8 +114,13 @@ internal sealed partial class PandocFilterEngine
         {
             try
             {
-                var (node, block) = candidates[index];
-                var item = block ? PlanBlock(index, node, jobs) : PlanImage(index, node, jobs);
+                var (node, kind) = candidates[index];
+                var item = kind switch
+                {
+                    'B' => PlanBlock(index, node, jobs),
+                    'M' => PlanMath(index, node, jobs),
+                    _ => PlanImage(index, node, jobs)
+                };
                 if (item != null)
                 {
                     planned.Add(item);
@@ -194,6 +200,35 @@ internal sealed partial class PandocFilterEngine
     }
 
     /// <summary>
+    ///     Plans a math element the shim made (<c>Code</c> of class <c>canvasnet-math</c> that holds MathML): the MathML is
+    ///     written to the cache folder and drawn like an equation picture, which replaces the element.
+    /// </summary>
+    /// <param name="index">The element's position.</param>
+    /// <param name="node">The element.</param>
+    /// <param name="jobs">The jobs of the run, by key.</param>
+    /// <returns>The planned picture.</returns>
+    private PlannedPicture PlanMath(int index, JsonObject node, Dictionary<string, DrawJob> jobs)
+    {
+        var code = PandocAst.ReadCodeBlock(node);
+        var tex = code.Attr.Attributes.FirstOrDefault(a => a.Key == "tex").Value ?? string.Empty;
+        var shown = tex.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (shown.Length > 40)
+        {
+            shown = shown[..40] + "...";
+        }
+
+        var text = code.Text + "\n";
+        var source = PictureCache.BlockSourceFile(CreateCacheFolder(), text, PictureAttributes.MathMl);
+        PictureCache.WriteTextAtomically(source, text);
+        var item = new PlannedPicture(index, $"math ({shown})", node, null, null)
+        {
+            Tex = tex,
+            IsDisplayMath = code.Attr.Attributes.Any(a => a.Key == "display" && a.Value == "block")
+        };
+        return PlanDraw(item, source, PictureAttributes.MathMl, [], PictureAttributes.MathMl, jobs);
+    }
+
+    /// <summary>
     ///     Plans a <c>CodeBlock</c>: a block of class <c>mermaid</c>, <c>plantuml</c>, <c>mathml</c>, <c>vega-lite</c> (or
     ///     <c>vegalite</c>), or <c>openscad</c> with <c>draw</c> is written to the cache folder and drawn like a picture of its
     ///     kind (<see cref="PictureAttributes.BlockOf"/>); any other block, a plain <c>openscad</c> block included, is left
@@ -269,7 +304,7 @@ internal sealed partial class PandocFilterEngine
         if (PictureAttributes.NaturalSizeNeeded(kind, attributes) && NaturalSize(source, policy) is { } natural)
         {
             var baseline = natural.Equation?.Baseline ?? natural.Height;
-            var inRunningText = item.Block == null && PandocAst.IsInRunningText(item.Node);
+            var inRunningText = item.Block == null && !item.IsDisplayMath && PandocAst.IsInRunningText(item.Node);
             item.Keep = PictureAttributes.WithNaturalSize(options.Keep, natural.Width, natural.Height, baseline, inRunningText);
         }
 
@@ -428,6 +463,13 @@ internal sealed partial class PandocFilterEngine
         }
 
         var src = _settings.PictureSrc(file);
+        if (item.Tex != null)
+        {
+            // Math becomes a picture whose description is its LaTeX; a failed or unsupported one stays as MathML code
+            item.Node.ReplaceWith(PandocAst.Image(new PandocAttr(string.Empty, [], item.Keep), [PandocAst.Str(item.Tex)], src));
+            return;
+        }
+
         if (item.Block is not { } block)
         {
             PandocAst.RewriteImage(item.Node, src, item.Keep);
@@ -531,6 +573,12 @@ internal sealed partial class PandocFilterEngine
 
         /// <summary>Gets the class that made a code block a picture, or <see langword="null"/> for an image.</summary>
         public BlockClass? BlockClass { get; init; }
+
+        /// <summary>Gets the LaTeX of a math element, or <see langword="null"/> for any other element.</summary>
+        public string? Tex { get; init; }
+
+        /// <summary>Gets a value indicating whether a math element is display math (always shown on its own).</summary>
+        public bool IsDisplayMath { get; init; }
 
         /// <summary>Gets or sets the attributes that stay on the picture.</summary>
         public IReadOnlyList<KeyValuePair<string, string>> Keep { get; set; } = [];

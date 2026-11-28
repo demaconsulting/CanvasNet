@@ -345,6 +345,29 @@ A picture alone in its paragraph is shown on its own (a figure), and a picture t
 another picture is inline. An author's own `width`, `height`, or `size` replaces the natural size, and an author's
 `style` is kept, its declarations after the filter's, so `style="vertical-align:middle"` moves an inline equation.
 
+### LaTeX Math
+
+Pandoc reads `$...$` (inline) and `$$...$$` (display) as math. Set `canvasnet-math: true` in the document's metadata
+and the filter draws each formula as an equation picture: Pandoc's texmath converts the LaTeX to MathML, and the tool
+draws that MathML like any other equation, at the size of the text around it, on the baseline of the line for inline
+math, with the LaTeX as the picture's description. Without the flag (the default) the math is left for Pandoc to write
+as before, so existing documents are unaffected.
+
+```markdown
+---
+canvasnet-math: true
+---
+
+The roots are $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$, and
+
+$$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$
+```
+
+Fractions, roots, sums and integrals with limits, matrices (`pmatrix`), `aligned`, `cases`, Greek letters, and `\text`
+are drawn. Pandoc writes `\boxed` as `<menclose>`, which MathML Core lacks: the content is drawn without the box, with
+a warning, and a formula texmath cannot convert stays as Pandoc writes it. The tool's own LaTeX reader (without Pandoc)
+is not part of this feature.
+
 ## Showing Code Instead of a Picture
 
 To show the source of a picture as code, give the code block a class the filter does not draw. An `openscad` block

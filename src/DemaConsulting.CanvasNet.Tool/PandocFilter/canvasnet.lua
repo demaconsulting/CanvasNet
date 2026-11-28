@@ -56,8 +56,33 @@ local function needs_tool(doc)
   })
   return needed
 end
+-- Math is drawn only when the document's metadata sets canvasnet-math to true. Each Math node becomes inline code of the
+-- class canvasnet-math that holds the MathML Pandoc's texmath writes for it (the attribute "tex" keeps the LaTeX and
+-- "display" the kind), which the tool draws as a picture. Math texmath cannot convert stays as it is.
+local function math_enabled(doc)
+  local flag = doc.meta["canvasnet-math"]
+  if flag == nil then return false end
+  if type(flag) == "boolean" then return flag end
+  return pandoc.utils.stringify(flag) == "true"
+end
+local function convert_math(doc)
+  local converted = false
+  local result = doc:walk({ Math = function(math)
+    local display = math.mathtype == "DisplayMath"
+    local para = pandoc.Plain({ math })
+    local ok, html = pcall(pandoc.write, pandoc.Pandoc({ para }), "html", { html_math_method = "mathml" })
+    local mathml = ok and html:match("<math.-</math>") or nil
+    if not mathml then return nil end
+    converted = true
+    return pandoc.Code(mathml, pandoc.Attr("", { "canvasnet-math" },
+      { { "tex", math.text }, { "display", display and "block" or "inline" } }))
+  end })
+  return result, converted
+end
 function Pandoc(doc)
-  if not needs_tool(doc) then return nil end
+  local converted = false
+  if math_enabled(doc) then doc, converted = convert_math(doc) end
+  if not converted and not needs_tool(doc) then return nil end
   local override = os.getenv("CANVASNET_TOOL")
   local command = (override and override:match("%S")) and split_command(override) or { "dotnet", "canvasnet" }
   local args = { table.unpack(command, 2) }

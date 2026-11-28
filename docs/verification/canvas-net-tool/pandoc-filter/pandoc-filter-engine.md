@@ -97,6 +97,12 @@ sentence's picture gets `style=display:inline;margin:0;vertical-align:-<depth/16
 probe's height minus its baseline) and the natural `width` in em, the lone picture only the `width`; a second run
 draws nothing and gives the same document.
 
+**PandocFilterEngine_Run_MathElements_BecomeEquationPictures**: y = x² as an inline `Code` element of class
+`canvasnet-math` in the sentence `Then <equation>.` and as another alone in a paragraph (display) is drawn once; the
+sentence's picture gets `style=display:inline;margin:0;vertical-align:-<depth/16>em` and the natural `width` in em, the
+display picture only the `width`, both describe the LaTeX (`y=x^2`), no `canvasnet-math` element is left, and a second
+run draws nothing and gives the same document.
+
 **PandocFilterEngine_Run_OneAndFourJobs_AreIdentical**: eight diagram images and one code block, each with a note,
 give the same document and the same cache files with one job and with four jobs over an empty cache, with nine
 warnings.
